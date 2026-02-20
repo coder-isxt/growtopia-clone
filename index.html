@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Growtopia Test</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="game-shell">
+    <div class="hud">
+      <div><strong>Growtopia Test</strong> | Move: A/D or Arrows, Jump: W/Space</div>
+      <div class="hint">
+        Place: Left Click | Break: Right Click | Slots: 1-6 |
+        <span id="networkState" class="danger">Offline</span> |
+        <span id="onlineCount">1 online</span>
+      </div>
+    </div>
+    <div class="world-bar">
+      <span>World:</span>
+      <span id="currentWorldLabel" class="world-tag">default-world</span>
+      <input id="worldInput" type="text" placeholder="world id (letters/numbers)">
+      <button id="createWorldBtn" type="button">Create</button>
+      <button id="joinWorldBtn" type="button">Join</button>
+      <select id="worldSelect"></select>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="game" width="960" height="480" aria-label="Growtopia test game canvas"></canvas>
+    </div>
+    <div class="toolbar" id="toolbar"></div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script>
+    (() => {
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+      const toolbar = document.getElementById("toolbar");
+      const networkStateEl = document.getElementById("networkState");
+      const onlineCountEl = document.getElementById("onlineCount");
+      const currentWorldLabelEl = document.getElementById("currentWorldLabel");
+      const worldInputEl = document.getElementById("worldInput");
+      const createWorldBtn = document.getElementById("createWorldBtn");
+      const joinWorldBtn = document.getElementById("joinWorldBtn");
+      const worldSelectEl = document.getElementById("worldSelect");
+
+      const TILE = 32;
+      const WORLD_W = 140;
+      const WORLD_H = 30;
+      const GRAVITY = 0.45;
+      const FRICTION = 0.82;
+      const AIR_CONTROL = 0.6;
+      const PLAYER_W = 22;
+      const PLAYER_H = 30;
+      const BASE_PATH = "growtopia-test";
+
+      const blockDefs = {
+        0: { name: "Air", color: "transparent", solid: false },
+        1: { name: "Grass", color: "#4caf50", solid: true },
+        2: { name: "Dirt", color: "#8b5a2b", solid: true },
+        3: { name: "Stone", color: "#818a93", solid: true },
+        4: { name: "Wood", color: "#a87038", solid: true },
+        5: { name: "Sand", color: "#dfc883", solid: true },
+        6: { name: "Brick", color: "#bb5644", solid: true }
+      };
+
+      const slotOrder = [1, 2, 3, 4, 5, 6];
+      const inventory = {
+        1: 120,
+        2: 120,
+        3: 120,
+        4: 80,
+        5: 80,
+        6: 80
+      };
+
+      let selectedSlot = 0;
+      const keys = {};
+      const playerId = "p_" + Math.random().toString(36).slice(2, 10);
+      const playerName = getPlayerName();
+      const remotePlayers = new Map();
+
+      let currentWorldId = getInitialWorldId();
+      let world = makeWorld(currentWorldId);
+
+      const player = {
+        x: TILE * 8,
+        y: TILE * 11,
+        vx: 0,
+        vy: 0,
+        grounded: false,
+        facing: 1
+      };
+
+      let cameraX = 0;
+      let cameraY = 0;
+      let mouseWorld = { tx: 0, ty: 0 };
+      let networkLastSyncAt = 0;
+      let networkLastX = -1;
+      let networkLastY = -1;
+      let networkLastFacing = 0;
+
+      const network = {
+        enabled: false,
+        connected: false,
+        db: null,
+        connectedRef: null,
+        worldsIndexRef: null,
+        playerRef: null,
+        playersRef: null,
+        blocksRef: null,
+        handlers: {
+          connected: null,
+          worldsIndex: null,
+          players: null,
+          blockAdded: null,
+          blockChanged: null,
+          blockRemoved: null
+        }
+      };
+
+      function getPlayerName() {
+        const saved = localStorage.getItem("growtopia_player_name");
+        if (saved) return saved;
+        const fallback = "Guest" + Math.floor(1000 + Math.random() * 9000);
+        const entered = window.prompt("Enter your multiplayer name:", fallback);
+        const clean = (entered || fallback).trim().slice(0, 16) || fallback;
+        localStorage.setItem("growtopia_player_name", clean);
+        return clean;
+      }
+
+      function getInitialWorldId() {
+        return normalizeWorldId(localStorage.getItem("growtopia_current_world") || "default-world") || "default-world";
+      }
+
+      function normalizeWorldId(value) {
+        return (value || "")
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9_-]/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^[-_]+|[-_]+$/g, "")
+          .slice(0, 24);
+      }
+
+      function generateWorldId() {
+        return "world-" + Math.random().toString(36).slice(2, 8);
+      }
+
+      function hashWorldSeed(worldId) {
+        let h = 2166136261;
+        for (let i = 0; i < worldId.length; i++) {
+          h ^= worldId.charCodeAt(i);
+          h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+        }
+        return (h >>> 0) || 1;
+      }
+
+      function chance(seed) {
+        const n = Math.sin(seed * 12.9898) * 43758.5453;
+        return n - Math.floor(n);
+      }
+
+      function makeWorld(worldId) {
+        const w = Array.from({ length: WORLD_H }, () => Array(WORLD_W).fill(0));
+        const seed = hashWorldSeed(worldId);
+        const baseGround = 17;
+
+        for (let x = 0; x < WORLD_W; x++) {
+          const n1 = Math.sin((x + seed * 0.001) * 0.19) * 2;
+          const n2 = Math.sin((x + seed * 0.003) * 0.06) * 3;
+          const noise = Math.floor(n1 + n2);
+          const groundY = baseGround + noise;
+
+          for (let y = groundY; y < WORLD_H; y++) {
+            if (y === groundY) w[y][x] = 1;
+            else if (y < groundY + 3) w[y][x] = 2;
+            else w[y][x] = 3;
+          }
+        }
+
+        for (let x = 10; x < WORLD_W - 10; x += 7) {
+          const gy = getTopSolidY(w, x);
+          if (chance((x + seed) * 1.117) > 0.3 && gy > 3) {
+            w[gy - 1][x] = 4;
+          }
+        }
+
+        for (let x = 18; x < WORLD_W - 12; x += 12) {
+          const gy = getTopSolidY(w, x);
+          if (chance((x + seed) * 2.41) > 0.5) {
+            for (let dx = 0; dx < 3; dx++) {
+              w[gy][x + dx] = 5;
+            }
+          }
+        }
+
+        return w;
+      }
+
+      function getTopSolidY(grid, x) {
+        for (let y = 0; y < WORLD_H; y++) {
+          if (grid[y][x] !== 0) return y;
+        }
+        return WORLD_H - 1;
+      }
+
+      function resetForWorldChange() {
+        remotePlayers.clear();
+        updateOnlineCount();
+        world = makeWorld(currentWorldId);
+        player.x = TILE * 8;
+        player.y = TILE * 11;
+        player.vx = 0;
+        player.vy = 0;
+        networkLastX = -1;
+        networkLastY = -1;
+        networkLastFacing = 0;
+      }
+
+      function setCurrentWorldUI() {
+        currentWorldLabelEl.textContent = currentWorldId;
+        worldInputEl.value = currentWorldId;
+      }
+
+      function isSolidTile(tx, ty) {
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return true;
+        const id = world[ty][tx];
+        return blockDefs[id].solid;
+      }
+
+      function rectCollides(x, y, w, h) {
+        const left = Math.floor(x / TILE);
+        const right = Math.floor((x + w - 1) / TILE);
+        const top = Math.floor(y / TILE);
+        const bottom = Math.floor((y + h - 1) / TILE);
+
+        for (let ty = top; ty <= bottom; ty++) {
+          for (let tx = left; tx <= right; tx++) {
+            if (isSolidTile(tx, ty)) return true;
+          }
+        }
+        return false;
+      }
+
+      function updatePlayer() {
+        const moveLeft = keys["KeyA"] || keys["ArrowLeft"];
+        const moveRight = keys["KeyD"] || keys["ArrowRight"];
+        const jump = keys["KeyW"] || keys["Space"] || keys["ArrowUp"];
+
+        if (moveLeft) {
+          player.vx -= player.grounded ? 0.7 : 0.7 * AIR_CONTROL;
+          player.facing = -1;
+        }
+        if (moveRight) {
+          player.vx += player.grounded ? 0.7 : 0.7 * AIR_CONTROL;
+          player.facing = 1;
+        }
+        if (jump && player.grounded) {
+          player.vy = -8.9;
+          player.grounded = false;
+        }
+
+        player.vx = Math.max(-5.2, Math.min(5.2, player.vx));
+        player.vy += GRAVITY;
+        player.vy = Math.min(player.vy, 14);
+
+        player.vx *= player.grounded ? FRICTION : 0.94;
+
+        let nextX = player.x + player.vx;
+        if (!rectCollides(nextX, player.y, PLAYER_W, PLAYER_H)) {
+          player.x = nextX;
+        } else {
+          const step = Math.sign(player.vx);
+          while (!rectCollides(player.x + step, player.y, PLAYER_W, PLAYER_H)) {
+            player.x += step;
+          }
+          player.vx = 0;
+        }
+
+        let nextY = player.y + player.vy;
+        if (!rectCollides(player.x, nextY, PLAYER_W, PLAYER_H)) {
+          player.y = nextY;
+          player.grounded = false;
+        } else {
+          const step = Math.sign(player.vy);
+          while (!rectCollides(player.x, player.y + step, PLAYER_W, PLAYER_H)) {
+            player.y += step;
+          }
+          if (player.vy > 0) player.grounded = true;
+          player.vy = 0;
+        }
+
+        if (player.y > WORLD_H * TILE) {
+          player.x = TILE * 8;
+          player.y = TILE * 8;
+          player.vx = 0;
+          player.vy = 0;
+        }
+      }
+
+      function updateCamera() {
+        const targetX = player.x + PLAYER_W / 2 - canvas.width / 2;
+        const targetY = player.y + PLAYER_H / 2 - canvas.height / 2;
+
+        cameraX += (targetX - cameraX) * 0.12;
+        cameraY += (targetY - cameraY) * 0.12;
+
+        cameraX = Math.max(0, Math.min(cameraX, WORLD_W * TILE - canvas.width));
+        cameraY = Math.max(0, Math.min(cameraY, WORLD_H * TILE - canvas.height));
+      }
+
+      function drawBackground() {
+        const t = performance.now() * 0.00008;
+        const cloudShift = Math.sin(t) * 30;
+
+        ctx.fillStyle = "#8fd9ff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
+        for (let i = 0; i < 8; i++) {
+          const x = ((i * 180 + cloudShift * (i % 2 ? 1 : -1)) % (canvas.width + 220)) - 110;
+          const y = 40 + (i % 3) * 48;
+          ctx.beginPath();
+          ctx.ellipse(x, y, 55, 20, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.fillStyle = "#78c16a";
+        ctx.fillRect(0, canvas.height - 46, canvas.width, 46);
+      }
+
+      function drawWorld() {
+        const startX = Math.floor(cameraX / TILE);
+        const endX = Math.ceil((cameraX + canvas.width) / TILE);
+        const startY = Math.floor(cameraY / TILE);
+        const endY = Math.ceil((cameraY + canvas.height) / TILE);
+
+        for (let ty = startY; ty <= endY; ty++) {
+          if (ty < 0 || ty >= WORLD_H) continue;
+          for (let tx = startX; tx <= endX; tx++) {
+            if (tx < 0 || tx >= WORLD_W) continue;
+            const id = world[ty][tx];
+            if (!id) continue;
+
+            const x = tx * TILE - cameraX;
+            const y = ty * TILE - cameraY;
+
+            ctx.fillStyle = blockDefs[id].color;
+            ctx.fillRect(x, y, TILE, TILE);
+            ctx.fillStyle = "rgba(255,255,255,0.08)";
+            ctx.fillRect(x + 2, y + 2, TILE - 4, 6);
+            ctx.fillStyle = "rgba(0,0,0,0.14)";
+            ctx.fillRect(x, y + TILE - 5, TILE, 5);
+          }
+        }
+      }
+
+      function drawPlayer() {
+        const px = player.x - cameraX;
+        const py = player.y - cameraY;
+
+        ctx.fillStyle = "#263238";
+        ctx.fillRect(px, py, PLAYER_W, PLAYER_H);
+
+        ctx.fillStyle = "#ffdbac";
+        ctx.fillRect(px + 4, py + 4, PLAYER_W - 8, 10);
+
+        ctx.fillStyle = "#0d0d0d";
+        const eyeX = player.facing === 1 ? px + PLAYER_W - 7 : px + 4;
+        ctx.fillRect(eyeX, py + 8, 3, 3);
+      }
+
+      function drawRemotePlayers() {
+        remotePlayers.forEach((other) => {
+          const px = other.x - cameraX;
+          const py = other.y - cameraY;
+          if (px < -40 || py < -40 || px > canvas.width + 40 || py > canvas.height + 40) return;
+
+          ctx.fillStyle = "#2a75bb";
+          ctx.fillRect(px, py, PLAYER_W, PLAYER_H);
+
+          ctx.fillStyle = "#ffdbac";
+          ctx.fillRect(px + 4, py + 4, PLAYER_W - 8, 10);
+
+          ctx.fillStyle = "#102338";
+          const eyeX = other.facing === 1 ? px + PLAYER_W - 7 : px + 4;
+          ctx.fillRect(eyeX, py + 8, 3, 3);
+
+          ctx.fillStyle = "rgba(10, 25, 40, 0.75)";
+          ctx.fillRect(px - 4, py - 19, 74, 15);
+          ctx.fillStyle = "#f3fbff";
+          ctx.font = "12px 'Trebuchet MS', sans-serif";
+          ctx.fillText(other.name || "Player", px, py - 8);
+        });
+      }
+
+      function drawCrosshair() {
+        const x = mouseWorld.tx * TILE - cameraX;
+        const y = mouseWorld.ty * TILE - cameraY;
+        if (mouseWorld.tx < 0 || mouseWorld.ty < 0 || mouseWorld.tx >= WORLD_W || mouseWorld.ty >= WORLD_H) return;
+
+        ctx.strokeStyle = "rgba(255, 209, 102, 0.85)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1, y + 1, TILE - 2, TILE - 2);
+      }
+
+      function drawInfo() {
+        const tx = Math.floor((player.x + PLAYER_W / 2) / TILE);
+        const ty = Math.floor((player.y + PLAYER_H / 2) / TILE);
+        const selectedId = slotOrder[selectedSlot];
+        const itemName = blockDefs[selectedId].name;
+        const count = inventory[selectedId];
+
+        ctx.fillStyle = "rgba(9, 25, 41, 0.7)";
+        ctx.fillRect(12, 12, 390, 62);
+        ctx.strokeStyle = "rgba(255,255,255,0.25)";
+        ctx.strokeRect(12, 12, 390, 62);
+
+        ctx.fillStyle = "#f7fbff";
+        ctx.font = "bold 15px 'Trebuchet MS', sans-serif";
+        ctx.fillText("World: " + currentWorldId + " | Selected: " + itemName + " (" + count + ")", 24, 36);
+        ctx.font = "14px 'Trebuchet MS', sans-serif";
+        ctx.fillText("Player Tile: " + tx + ", " + ty, 24, 56);
+      }
+
+      function render() {
+        drawBackground();
+        drawWorld();
+        drawRemotePlayers();
+        drawPlayer();
+        drawCrosshair();
+        drawInfo();
+      }
+
+      function canEditTarget(tx, ty) {
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return false;
+
+        const centerX = player.x + PLAYER_W / 2;
+        const centerY = player.y + PLAYER_H / 2;
+        const targetX = tx * TILE + TILE / 2;
+        const targetY = ty * TILE + TILE / 2;
+        const dx = targetX - centerX;
+        const dy = targetY - centerY;
+        const dist = Math.hypot(dx, dy);
+        return dist <= TILE * 4.5;
+      }
+
+      function tryPlace(tx, ty) {
+        const id = slotOrder[selectedSlot];
+        if (!canEditTarget(tx, ty)) return;
+        if (inventory[id] <= 0) return;
+        if (world[ty][tx] !== 0) return;
+
+        const bx = tx * TILE;
+        const by = ty * TILE;
+        if (bx < player.x + PLAYER_W && bx + TILE > player.x && by < player.y + PLAYER_H && by + TILE > player.y) {
+          return;
+        }
+
+        world[ty][tx] = id;
+        inventory[id]--;
+        syncBlock(tx, ty, id);
+        refreshToolbar();
+      }
+
+      function tryBreak(tx, ty) {
+        if (!canEditTarget(tx, ty)) return;
+        const id = world[ty][tx];
+        if (id === 0) return;
+
+        world[ty][tx] = 0;
+        inventory[id] = (inventory[id] || 0) + 1;
+        syncBlock(tx, ty, 0);
+        refreshToolbar();
+      }
+
+      function setNetworkState(label, isWarning) {
+        networkStateEl.textContent = label;
+        networkStateEl.classList.toggle("danger", Boolean(isWarning));
+      }
+
+      function updateOnlineCount() {
+        onlineCountEl.textContent = (remotePlayers.size + 1) + " online";
+      }
+
+      function hasFirebaseConfig(config) {
+        return Boolean(config && config.apiKey && config.projectId && config.databaseURL);
+      }
+
+      function parseTileKey(key) {
+        const parts = key.split("_");
+        if (parts.length !== 2) return null;
+
+        const tx = Number(parts[0]);
+        const ty = Number(parts[1]);
+        if (!Number.isInteger(tx) || !Number.isInteger(ty)) return null;
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return null;
+        return { tx, ty };
+      }
+
+      function refreshWorldSelect(worldIds) {
+        const unique = Array.from(new Set([currentWorldId].concat(worldIds)));
+        const selected = worldSelectEl.value;
+
+        worldSelectEl.innerHTML = "";
+        for (const id of unique) {
+          const option = document.createElement("option");
+          option.value = id;
+          option.textContent = id;
+          worldSelectEl.appendChild(option);
+        }
+
+        worldSelectEl.value = unique.includes(selected) ? selected : currentWorldId;
+      }
+
+      function detachCurrentWorldListeners() {
+        if (network.playersRef && network.handlers.players) {
+          network.playersRef.off("value", network.handlers.players);
+        }
+        if (network.blocksRef && network.handlers.blockAdded) {
+          network.blocksRef.off("child_added", network.handlers.blockAdded);
+        }
+        if (network.blocksRef && network.handlers.blockChanged) {
+          network.blocksRef.off("child_changed", network.handlers.blockChanged);
+        }
+        if (network.blocksRef && network.handlers.blockRemoved) {
+          network.blocksRef.off("child_removed", network.handlers.blockRemoved);
+        }
+
+        if (network.playerRef) {
+          network.playerRef.remove().catch(() => {});
+        }
+
+        network.playerRef = null;
+        network.playersRef = null;
+        network.blocksRef = null;
+        network.handlers.players = null;
+        network.handlers.blockAdded = null;
+        network.handlers.blockChanged = null;
+        network.handlers.blockRemoved = null;
+      }
+
+      function writeWorldIndexMeta(worldId, createIfMissing) {
+        if (!network.worldsIndexRef) return;
+        const indexRef = network.worldsIndexRef.child(worldId);
+
+        if (createIfMissing) {
+          indexRef.once("value").then((snap) => {
+            if (!snap.exists()) {
+              indexRef.set({
+                id: worldId,
+                createdBy: playerName,
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+              });
+            } else {
+              indexRef.child("updatedAt").set(firebase.database.ServerValue.TIMESTAMP);
+            }
+          }).catch(() => {
+            setNetworkState("World index error", true);
+          });
+          return;
+        }
+
+        indexRef.child("updatedAt").set(firebase.database.ServerValue.TIMESTAMP).catch(() => {});
+      }
+
+      function switchWorld(nextWorldId, createIfMissing) {
+        const worldId = normalizeWorldId(nextWorldId);
+        if (!worldId) return;
+
+        if (!network.enabled) {
+          currentWorldId = worldId;
+          localStorage.setItem("growtopia_current_world", worldId);
+          setCurrentWorldUI();
+          resetForWorldChange();
+          refreshWorldSelect([worldId]);
+          return;
+        }
+
+        if (worldId === currentWorldId && network.playersRef) return;
+
+        detachCurrentWorldListeners();
+        currentWorldId = worldId;
+        localStorage.setItem("growtopia_current_world", worldId);
+        setCurrentWorldUI();
+        resetForWorldChange();
+        writeWorldIndexMeta(worldId, createIfMissing);
+
+        const worldPath = BASE_PATH + "/worlds/" + worldId;
+        network.playersRef = network.db.ref(worldPath + "/players");
+        network.blocksRef = network.db.ref(worldPath + "/blocks");
+        network.playerRef = network.playersRef.child(playerId);
+
+        network.handlers.players = (snapshot) => {
+          remotePlayers.clear();
+          const players = snapshot.val() || {};
+
+          Object.keys(players).forEach((id) => {
+            if (id === playerId) return;
+            const p = players[id];
+            if (!p || typeof p.x !== "number" || typeof p.y !== "number") return;
+
+            remotePlayers.set(id, {
+              x: p.x,
+              y: p.y,
+              facing: p.facing || 1,
+              name: (p.name || "Player").toString().slice(0, 16)
+            });
+          });
+
+          updateOnlineCount();
+        };
+
+        const applyNetworkBlock = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          const id = Number(snapshot.val()) || 0;
+          world[tile.ty][tile.tx] = id;
+        };
+
+        const clearNetworkBlock = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          world[tile.ty][tile.tx] = 0;
+        };
+
+        network.handlers.blockAdded = applyNetworkBlock;
+        network.handlers.blockChanged = applyNetworkBlock;
+        network.handlers.blockRemoved = clearNetworkBlock;
+
+        network.playersRef.on("value", network.handlers.players);
+        network.blocksRef.on("child_added", network.handlers.blockAdded);
+        network.blocksRef.on("child_changed", network.handlers.blockChanged);
+        network.blocksRef.on("child_removed", network.handlers.blockRemoved);
+
+        if (network.connected) {
+          network.playerRef.onDisconnect().remove();
+          syncPlayer(true);
+          setNetworkState("Online", false);
+        } else {
+          setNetworkState("Connecting...", false);
+        }
+      }
+
+      function syncBlock(tx, ty, id) {
+        if (!network.enabled || !network.blocksRef) return;
+
+        network.blocksRef.child(tx + "_" + ty).set(id).catch(() => {
+          setNetworkState("Network error", true);
+        });
+      }
+
+      function syncPlayer(force) {
+        if (!network.enabled || !network.playerRef) return;
+
+        const now = performance.now();
+        const rx = Math.round(player.x);
+        const ry = Math.round(player.y);
+        const moved = rx !== networkLastX || ry !== networkLastY || networkLastFacing !== player.facing;
+
+        if (!force && !moved) return;
+        if (!force && now - networkLastSyncAt < 90) return;
+
+        networkLastSyncAt = now;
+        networkLastX = rx;
+        networkLastY = ry;
+        networkLastFacing = player.facing;
+
+        network.playerRef.update({
+          name: playerName,
+          x: rx,
+          y: ry,
+          facing: player.facing,
+          world: currentWorldId,
+          updatedAt: firebase.database.ServerValue.TIMESTAMP
+        }).catch(() => {
+          setNetworkState("Network error", true);
+        });
+      }
+
+      function bindWorldControls() {
+        createWorldBtn.addEventListener("click", () => {
+          const id = normalizeWorldId(worldInputEl.value) || generateWorldId();
+          switchWorld(id, true);
+        });
+
+        joinWorldBtn.addEventListener("click", () => {
+          const typed = normalizeWorldId(worldInputEl.value);
+          const chosen = normalizeWorldId(worldSelectEl.value);
+          switchWorld(typed || chosen || currentWorldId, false);
+        });
+
+        worldSelectEl.addEventListener("change", () => {
+          worldInputEl.value = worldSelectEl.value;
+        });
+
+        worldInputEl.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            const id = normalizeWorldId(worldInputEl.value);
+            if (id) switchWorld(id, false);
+          }
+        });
+      }
+
+      function initFirebaseMultiplayer() {
+        const firebaseConfig = window.FIREBASE_CONFIG;
+        if (!hasFirebaseConfig(firebaseConfig) || !window.firebase) {
+          setNetworkState("Offline (set firebase-config.js)", true);
+          refreshWorldSelect([currentWorldId]);
+          updateOnlineCount();
+          return;
+        }
+
+        try {
+          if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+          }
+
+          network.db = firebase.database();
+          network.enabled = true;
+          network.connectedRef = network.db.ref(".info/connected");
+          network.worldsIndexRef = network.db.ref(BASE_PATH + "/worlds-index");
+          setNetworkState("Connecting...", false);
+
+          network.handlers.connected = (snapshot) => {
+            const isConnected = snapshot.val() === true;
+            network.connected = isConnected;
+
+            if (isConnected) {
+              if (network.playerRef) {
+                network.playerRef.onDisconnect().remove();
+                syncPlayer(true);
+              }
+              setNetworkState("Online", false);
+            } else {
+              setNetworkState("Reconnecting...", true);
+            }
+          };
+
+          network.handlers.worldsIndex = (snapshot) => {
+            const data = snapshot.val() || {};
+            const worldIds = Object.keys(data).sort((a, b) => {
+              const av = data[a] && data[a].updatedAt ? data[a].updatedAt : 0;
+              const bv = data[b] && data[b].updatedAt ? data[b].updatedAt : 0;
+              return bv - av;
+            });
+            refreshWorldSelect(worldIds);
+          };
+
+          network.connectedRef.on("value", network.handlers.connected);
+          network.worldsIndexRef.on("value", network.handlers.worldsIndex);
+          switchWorld(currentWorldId, true);
+
+          window.addEventListener("beforeunload", () => {
+            if (network.playerRef) {
+              network.playerRef.remove();
+            }
+          });
+        } catch (error) {
+          console.error(error);
+          setNetworkState("Firebase error", true);
+          refreshWorldSelect([currentWorldId]);
+          updateOnlineCount();
+        }
+      }
+
+      function refreshToolbar() {
+        toolbar.innerHTML = "";
+        for (let i = 0; i < slotOrder.length; i++) {
+          const id = slotOrder[i];
+          const slot = document.createElement("div");
+          slot.className = "slot" + (i === selectedSlot ? " selected" : "");
+          slot.title = blockDefs[id].name;
+          slot.innerHTML =
+            '<span class="key">' + (i + 1) + "</span>" +
+            '<div class="block-chip" style="background:' + blockDefs[id].color + '"></div>' +
+            '<span class="count">' + inventory[id] + "</span>";
+          toolbar.appendChild(slot);
+        }
+      }
+
+      function worldFromPointer(event) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (event.clientX - rect.left) * scaleX + cameraX;
+        const y = (event.clientY - rect.top) * scaleY + cameraY;
+        return {
+          tx: Math.floor(x / TILE),
+          ty: Math.floor(y / TILE)
+        };
+      }
+
+      function resizeCanvas() {
+        const wrap = canvas.parentElement;
+        const rect = wrap.getBoundingClientRect();
+        canvas.width = Math.max(720, Math.floor(rect.width));
+        canvas.height = Math.max(360, Math.floor(rect.height));
+      }
+
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+
+      window.addEventListener("keydown", (e) => {
+        if (e.code.startsWith("Digit")) {
+          const idx = Number(e.code.replace("Digit", "")) - 1;
+          if (idx >= 0 && idx < slotOrder.length) {
+            selectedSlot = idx;
+            refreshToolbar();
+          }
+        }
+
+        if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) {
+          e.preventDefault();
+        }
+
+        keys[e.code] = true;
+      });
+
+      window.addEventListener("keyup", (e) => {
+        keys[e.code] = false;
+      });
+
+      canvas.addEventListener("mousemove", (e) => {
+        mouseWorld = worldFromPointer(e);
+      });
+
+      canvas.addEventListener("mousedown", (e) => {
+        const pos = worldFromPointer(e);
+        mouseWorld = pos;
+        if (e.button === 0) {
+          tryPlace(pos.tx, pos.ty);
+        } else if (e.button === 2) {
+          tryBreak(pos.tx, pos.ty);
+        }
+      });
+
+      canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+      refreshToolbar();
+      setCurrentWorldUI();
+      refreshWorldSelect([currentWorldId]);
+      updateOnlineCount();
+      bindWorldControls();
+      initFirebaseMultiplayer();
+
+      function tick() {
+        updatePlayer();
+        updateCamera();
+        syncPlayer(false);
+        render();
+        requestAnimationFrame(tick);
+      }
+
+      tick();
+    })();
+  </script>
+</body>
+</html>

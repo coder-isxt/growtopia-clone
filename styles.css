@@ -1,0 +1,171 @@
+:root {
+  --bg-1: #8fd9ff;
+  --bg-2: #4fb0ff;
+  --panel: rgba(14, 36, 56, 0.85);
+  --accent: #ffd166;
+  --text: #f5fbff;
+  --danger: #ff5d73;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: var(--text);
+  background: radial-gradient(circle at 20% 0%, var(--bg-1), var(--bg-2) 55%, #2a84d6 100%);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.game-shell {
+  width: min(980px, 100vw);
+  height: min(620px, 100vh);
+  padding: 12px;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 10px;
+}
+
+.hud {
+  background: var(--panel);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  gap: 8px;
+}
+
+.hud strong {
+  color: var(--accent);
+  letter-spacing: 0.4px;
+}
+
+.canvas-wrap {
+  background: rgba(15, 42, 65, 0.45);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 8px;
+  display: grid;
+}
+
+canvas {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  background: linear-gradient(#8dd7ff, #71c6ff 42%, #5cb4ef);
+  image-rendering: pixelated;
+  cursor: crosshair;
+}
+
+.toolbar {
+  background: var(--panel);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.slot {
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.22);
+  min-height: 56px;
+  display: grid;
+  place-items: center;
+  padding: 5px;
+  position: relative;
+  user-select: none;
+}
+
+.slot.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255, 209, 102, 0.25);
+  transform: translateY(-1px);
+}
+
+.slot .count {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 700;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
+}
+
+.slot .key {
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.block-chip {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+}
+
+.hint {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  text-align: right;
+}
+
+.danger {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.world-bar {
+  background: var(--panel);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.world-bar input,
+.world-bar select,
+.world-bar button {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  min-height: 32px;
+}
+
+.world-bar input {
+  width: 180px;
+}
+
+.world-bar select {
+  min-width: 170px;
+}
+
+.world-bar button {
+  cursor: pointer;
+  background: rgba(255, 209, 102, 0.2);
+}
+
+.world-tag {
+  color: var(--accent);
+  font-weight: 700;
+}
