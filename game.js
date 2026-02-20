@@ -26,6 +26,11 @@
       const logsToggleBtn = document.getElementById("logsToggleBtn");
       const adminToggleBtn = document.getElementById("adminToggleBtn");
       const adminPanelEl = document.getElementById("adminPanel");
+      const adminSearchInput = document.getElementById("adminSearchInput");
+      const adminAuditActionFilterEl = document.getElementById("adminAuditActionFilter");
+      const adminAuditActorFilterEl = document.getElementById("adminAuditActorFilter");
+      const adminAuditTargetFilterEl = document.getElementById("adminAuditTargetFilter");
+      const adminAuditExportBtn = document.getElementById("adminAuditExportBtn");
       const adminCloseBtn = document.getElementById("adminCloseBtn");
       const adminAccountsEl = document.getElementById("adminAccounts");
       const chatPanelEl = document.getElementById("chatPanel");
@@ -36,6 +41,13 @@
       const logsMessagesEl = document.getElementById("logsMessages");
       const clearLogsBtn = document.getElementById("clearLogsBtn");
       const exitWorldBtn = document.getElementById("exitWorldBtn");
+
+      const modules = window.GTModules || {};
+      const adminModule = modules.admin || {};
+      const blocksModule = modules.blocks || {};
+      const playerModule = modules.player || {};
+      const chatModule = modules.chat || {};
+      const menuModule = modules.menu || {};
 
       const SETTINGS = window.GT_SETTINGS || {};
       const TILE = Number(SETTINGS.TILE_SIZE) || 32;
@@ -50,13 +62,40 @@
       const BASE_PATH = typeof SETTINGS.BASE_PATH === "string" && SETTINGS.BASE_PATH ? SETTINGS.BASE_PATH : "growtopia-test";
       const LOG_VIEWER_USERNAMES = Array.isArray(SETTINGS.LOG_VIEWER_USERNAMES) ? SETTINGS.LOG_VIEWER_USERNAMES : ["isxt"];
       const ADMIN_USERNAMES = Array.isArray(SETTINGS.ADMIN_USERNAMES) ? SETTINGS.ADMIN_USERNAMES : ["isxt"];
+      const ADMIN_ROLE_BY_USERNAME = SETTINGS.ADMIN_ROLE_BY_USERNAME && typeof SETTINGS.ADMIN_ROLE_BY_USERNAME === "object"
+        ? SETTINGS.ADMIN_ROLE_BY_USERNAME
+        : {};
       const JUMP_COOLDOWN_MS = Number(SETTINGS.JUMP_COOLDOWN_MS) || 200;
       const MOVE_ACCEL = Number(SETTINGS.MOVE_ACCEL) || 0.46;
       const JUMP_VELOCITY = Number(SETTINGS.JUMP_VELOCITY) || -7.2;
       const MAX_MOVE_SPEED = Number(SETTINGS.MAX_MOVE_SPEED) || 3.7;
       const MAX_FALL_SPEED = Number(SETTINGS.MAX_FALL_SPEED) || 10;
+      const ADMIN_ROLE_RANK = {
+        none: 0,
+        moderator: 1,
+        admin: 2,
+        manager: 3,
+        owner: 4
+      };
+      const ADMIN_PERMISSIONS = {
+        owner: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "setrole", "clear_logs", "view_audit"],
+        manager: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "setrole_limited", "clear_logs", "view_audit"],
+        admin: ["panel_open", "view_logs", "kick", "resetinv", "givex", "tp", "bring"],
+        moderator: ["panel_open", "kick", "tp", "bring"],
+        none: []
+      };
+      const DEFAULT_COMMAND_COOLDOWNS_MS = {
+        owner: {},
+        manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, givex: 600, tp: 300, bring: 700, summon: 700, setrole: 2000 },
+        admin: { kick: 900, givex: 900, tp: 400, bring: 900, summon: 900 },
+        moderator: { kick: 1200, tp: 600, bring: 1200, summon: 1200 },
+        none: {}
+      };
+      const ADMIN_COMMAND_COOLDOWNS_MS = SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS && typeof SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS === "object"
+        ? SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS
+        : DEFAULT_COMMAND_COOLDOWNS_MS;
 
-      const blockDefs = {
+      const blockDefs = typeof blocksModule.getBlockDefs === "function" ? blocksModule.getBlockDefs() : {
         0: { name: "Air", color: "transparent", solid: false },
         1: { name: "Grass", color: "#4caf50", solid: true },
         2: { name: "Dirt", color: "#8b5a2b", solid: true },
@@ -97,7 +136,14 @@
       let isLogsOpen = false;
       let canViewAccountLogs = false;
       let canUseAdminPanel = false;
+      let currentAdminRole = "none";
+      let adminDataListening = false;
+      let adminSearchQuery = "";
+      let adminAuditActionFilter = "";
+      let adminAuditActorFilter = "";
+      let adminAuditTargetFilter = "";
       let isAdminOpen = false;
+      const adminCommandLastUsedAt = new Map();
       const chatMessages = [];
       const logsMessages = [];
       const CHAT_BUBBLE_MS = 7000;
@@ -155,6 +201,8 @@
         myBanRef: null,
         accountsRef: null,
         usernamesRef: null,
+        adminRolesRef: null,
+        adminAuditRef: null,
         bansRef: null,
         sessionsRootRef: null,
         inventoriesRootRef: null,
@@ -175,6 +223,8 @@
           myBan: null,
           adminAccounts: null,
           adminUsernames: null,
+          adminRoles: null,
+          adminAudit: null,
           adminBans: null,
           adminSessions: null,
           adminInventories: null
@@ -184,6 +234,8 @@
       const adminState = {
         accounts: {},
         usernames: {},
+        roles: {},
+        audit: [],
         bans: {},
         sessions: {},
         inventories: {},
@@ -207,11 +259,184 @@
       }
 
       function canUserViewLogs(username) {
-        return LOG_VIEWER_USERNAMES.includes(normalizeUsername(username));
+        const normalized = normalizeUsername(username);
+        if (LOG_VIEWER_USERNAMES.includes(normalized)) return true;
+        return hasAdminPermission("view_logs");
       }
 
-      function canUserUseAdmin(username) {
-        return ADMIN_USERNAMES.includes(normalizeUsername(username));
+      function normalizeAdminRole(role) {
+        const value = String(role || "").trim().toLowerCase();
+        return ADMIN_ROLE_RANK[value] !== undefined ? value : "none";
+      }
+
+      function getRoleRank(role) {
+        return ADMIN_ROLE_RANK[normalizeAdminRole(role)] || 0;
+      }
+
+      function hasAdminPermission(permissionKey) {
+        const role = normalizeAdminRole(currentAdminRole);
+        const list = ADMIN_PERMISSIONS[role] || [];
+        return list.includes(permissionKey);
+      }
+
+      function getConfiguredRoleForUsername(username) {
+        const normalized = normalizeUsername(username);
+        if (!normalized) return "none";
+        if (ADMIN_ROLE_BY_USERNAME[normalized]) {
+          return normalizeAdminRole(ADMIN_ROLE_BY_USERNAME[normalized]);
+        }
+        if (ADMIN_USERNAMES.includes(normalized)) {
+          return "owner";
+        }
+        return "none";
+      }
+
+      function getAccountRole(accountId, username) {
+        if (accountId && adminState.roles[accountId]) {
+          return normalizeAdminRole(adminState.roles[accountId]);
+        }
+        return getConfiguredRoleForUsername(username);
+      }
+
+      function refreshAdminCapabilities() {
+        currentAdminRole = normalizeAdminRole(getAccountRole(playerProfileId, playerName));
+        canUseAdminPanel = hasAdminPermission("panel_open");
+        canViewAccountLogs = canUserViewLogs(playerName);
+        clearLogsBtn.disabled = !hasAdminPermission("clear_logs");
+        logsToggleBtn.classList.toggle("hidden", !canViewAccountLogs);
+        adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
+        if (adminAuditActionFilterEl) adminAuditActionFilterEl.disabled = !hasAdminPermission("view_audit");
+        if (adminAuditActorFilterEl) adminAuditActorFilterEl.disabled = !hasAdminPermission("view_audit");
+        if (adminAuditTargetFilterEl) adminAuditTargetFilterEl.disabled = !hasAdminPermission("view_audit");
+        if (adminAuditExportBtn) adminAuditExportBtn.disabled = !hasAdminPermission("view_audit");
+        if (network.accountLogsRootRef && network.handlers.accountLogAdded) {
+          network.accountLogsRootRef.off("value", network.handlers.accountLogAdded);
+          if (canViewAccountLogs) {
+            network.accountLogsRootRef.on("value", network.handlers.accountLogAdded);
+          } else {
+            clearLogsView();
+          }
+        }
+        if (!canViewAccountLogs) setLogsOpen(false);
+        if (!canUseAdminPanel) setAdminOpen(false);
+        if (network.enabled) {
+          syncAdminDataListeners();
+        }
+      }
+
+      function canActorAffectTarget(targetAccountId, targetRole) {
+        if (!targetAccountId || targetAccountId === playerProfileId) return false;
+        const actorRank = getRoleRank(currentAdminRole);
+        const targetRank = getRoleRank(targetRole);
+        return actorRank > targetRank;
+      }
+
+      function canUserUseAdmin() {
+        return hasAdminPermission("panel_open");
+      }
+
+      function canSetRoleTo(targetAccountId, nextRole) {
+        const actorRole = normalizeAdminRole(currentAdminRole);
+        const targetRole = getAccountRole(targetAccountId, adminState.accounts[targetAccountId] && adminState.accounts[targetAccountId].username);
+        const actorRank = getRoleRank(actorRole);
+        const targetRank = getRoleRank(targetRole);
+        const desiredRole = normalizeAdminRole(nextRole);
+        if (!targetAccountId || targetAccountId === playerProfileId) return false;
+        if (actorRole === "owner") return true;
+        if (!hasAdminPermission("setrole_limited")) return false;
+        if (targetRank >= actorRank) return false;
+        return desiredRole === "none" || desiredRole === "moderator" || desiredRole === "admin";
+      }
+
+      function getAssignableRoles() {
+        if (normalizeAdminRole(currentAdminRole) === "owner") {
+          return ["none", "moderator", "admin", "manager", "owner"];
+        }
+        if (hasAdminPermission("setrole_limited")) {
+          return ["none", "moderator", "admin"];
+        }
+        return [];
+      }
+
+      function parseDurationToMs(input) {
+        if (typeof adminModule.parseDurationToMs === "function") {
+          return adminModule.parseDurationToMs(input);
+        }
+        const value = String(input || "").trim().toLowerCase();
+        const match = value.match(/^(\d+)\s*([smhd])$/);
+        if (!match) return 0;
+        const amount = Number(match[1]);
+        const unit = match[2];
+        if (!Number.isFinite(amount) || amount <= 0) return 0;
+        const unitMs = unit === "s" ? 1000 : unit === "m" ? 60000 : unit === "h" ? 3600000 : 86400000;
+        return amount * unitMs;
+      }
+
+      function formatRemainingMs(ms) {
+        if (typeof adminModule.formatRemainingMs === "function") {
+          return adminModule.formatRemainingMs(ms);
+        }
+        const safe = Math.max(0, Math.floor(ms));
+        if (safe < 60000) return Math.ceil(safe / 1000) + "s";
+        if (safe < 3600000) return Math.ceil(safe / 60000) + "m";
+        if (safe < 86400000) return Math.ceil(safe / 3600000) + "h";
+        return Math.ceil(safe / 86400000) + "d";
+      }
+
+      function getCommandCooldownMs(commandKey) {
+        const role = normalizeAdminRole(currentAdminRole);
+        const roleMap = ADMIN_COMMAND_COOLDOWNS_MS[role] || {};
+        return Number(roleMap[commandKey]) || 0;
+      }
+
+      function consumeCommandCooldown(commandKey) {
+        const cooldown = getCommandCooldownMs(commandKey);
+        if (cooldown <= 0) return 0;
+        const now = Date.now();
+        const key = (playerProfileId || "guest") + ":" + commandKey;
+        const last = adminCommandLastUsedAt.get(key) || 0;
+        const remaining = cooldown - (now - last);
+        if (remaining > 0) {
+          return remaining;
+        }
+        adminCommandLastUsedAt.set(key, now);
+        return 0;
+      }
+
+      function ensureCommandReady(commandKey) {
+        const left = consumeCommandCooldown(commandKey);
+        if (left > 0) {
+          postLocalSystemChat("Cooldown: wait " + formatRemainingMs(left) + " for /" + commandKey + ".");
+          return false;
+        }
+        return true;
+      }
+
+      function normalizeBanRecord(record) {
+        const value = record || {};
+        const typeRaw = String(value.type || "").toLowerCase();
+        const type = typeRaw === "permanent" ? "permanent" : "temporary";
+        const expiresAt = Number(value.expiresAt) || 0;
+        return {
+          type,
+          expiresAt,
+          reason: (value.reason || "Banned by admin").toString(),
+          bannedBy: (value.bannedBy || "").toString(),
+          createdAt: Number(value.createdAt) || 0
+        };
+      }
+
+      function getBanStatus(record, nowMs) {
+        if (!record) return { active: false, expired: false, type: "temporary", remainingMs: 0, reason: "" };
+        const normalized = normalizeBanRecord(record);
+        if (normalized.type === "permanent") {
+          return { active: true, expired: false, type: "permanent", remainingMs: Infinity, reason: normalized.reason };
+        }
+        const remainingMs = normalized.expiresAt - nowMs;
+        if (!normalized.expiresAt || remainingMs <= 0) {
+          return { active: false, expired: true, type: "temporary", remainingMs: 0, reason: normalized.reason };
+        }
+        return { active: true, expired: false, type: "temporary", remainingMs, reason: normalized.reason };
       }
 
       function setAdminOpen(open) {
@@ -247,29 +472,109 @@
           adminAccountsEl.innerHTML = "";
           return;
         }
-        const accountIds = Object.keys(adminState.accounts || {});
-        const rows = accountIds.map((accountId) => {
+        const nowMs = Date.now();
+        const accountIds = Object.keys(adminState.accounts || {}).sort((a, b) => {
+          const aAcc = adminState.accounts[a] || {};
+          const bAcc = adminState.accounts[b] || {};
+          const aRole = getRoleRank(getAccountRole(a, aAcc.username));
+          const bRole = getRoleRank(getAccountRole(b, bAcc.username));
+          if (bRole !== aRole) return bRole - aRole;
+          const aOnline = Boolean(adminState.sessions[a] && adminState.sessions[a].sessionId);
+          const bOnline = Boolean(adminState.sessions[b] && adminState.sessions[b].sessionId);
+          if (aOnline !== bOnline) return aOnline ? -1 : 1;
+          return (aAcc.username || a).localeCompare(bAcc.username || b);
+        });
+        const query = adminSearchQuery.trim().toLowerCase();
+        const filteredIds = query
+          ? accountIds.filter((accountId) => {
+            const account = adminState.accounts[accountId] || {};
+            const username = (account.username || "").toLowerCase();
+            return username.includes(query) || accountId.toLowerCase().includes(query);
+          })
+          : accountIds;
+        const assignable = getAssignableRoles();
+        const rows = filteredIds.map((accountId) => {
           const account = adminState.accounts[accountId] || {};
           const username = account.username || accountId;
-          const banned = Boolean(adminState.bans[accountId]);
+          const banStatus = getBanStatus(adminState.bans[accountId], nowMs);
+          const banned = banStatus.active;
           const online = Boolean(adminState.sessions[accountId] && adminState.sessions[accountId].sessionId);
           const invTotal = totalInventoryCount(adminState.inventories[accountId]);
+          const role = getAccountRole(accountId, username);
+          const roleOptions = assignable.map((r) => {
+            const selected = r === role ? " selected" : "";
+            return `<option value="${escapeHtml(r)}"${selected}>${escapeHtml(r)}</option>`;
+          }).join("");
+          const canSetRole = assignable.length > 0 && canSetRoleTo(accountId, role);
+          const canTempBan = hasAdminPermission("tempban") && canActorAffectTarget(accountId, role);
+          const canPermBan = hasAdminPermission("permban") && canActorAffectTarget(accountId, role);
+          const canUnban = hasAdminPermission("unban") && canActorAffectTarget(accountId, role);
+          const canKick = hasAdminPermission("kick") && canActorAffectTarget(accountId, role);
+          const canReset = hasAdminPermission("resetinv") && canActorAffectTarget(accountId, role);
+          const canGive = hasAdminPermission("givex") && canActorAffectTarget(accountId, role);
+          const banText = banned
+            ? (banStatus.type === "permanent" ? "Perm Banned" : "Temp Banned (" + formatRemainingMs(banStatus.remainingMs) + ")")
+            : "Active";
           return `
             <div class="admin-row" data-account-id="${escapeHtml(accountId)}">
               <div class="admin-meta">
-                <strong>@${escapeHtml(username)}</strong>
-                <span>${online ? "Online" : "Offline"} | ${banned ? "Banned" : "Active"} | Blocks: ${invTotal}</span>
+                <strong>@${escapeHtml(username)} <span class="admin-role role-${escapeHtml(role)}">${escapeHtml(role)}</span></strong>
+                <span>${online ? "Online" : "Offline"} | ${banText} | Blocks: ${invTotal}</span>
               </div>
               <div class="admin-actions">
-                <button data-admin-act="ban" data-account-id="${escapeHtml(accountId)}">Ban</button>
-                <button data-admin-act="unban" data-account-id="${escapeHtml(accountId)}">Unban</button>
-                <button data-admin-act="kick" data-account-id="${escapeHtml(accountId)}">Kick</button>
-                <button data-admin-act="resetinv" data-account-id="${escapeHtml(accountId)}">Reset Inv</button>
+                <button data-admin-act="tempban" data-account-id="${escapeHtml(accountId)}" ${canTempBan ? "" : "disabled"}>Temp Ban</button>
+                <button data-admin-act="permban" data-account-id="${escapeHtml(accountId)}" ${canPermBan ? "" : "disabled"}>Perm Ban</button>
+                <button data-admin-act="unban" data-account-id="${escapeHtml(accountId)}" ${canUnban ? "" : "disabled"}>Unban</button>
+                <button data-admin-act="kick" data-account-id="${escapeHtml(accountId)}" ${canKick ? "" : "disabled"}>Kick</button>
+                <button data-admin-act="resetinv" data-account-id="${escapeHtml(accountId)}" ${canReset ? "" : "disabled"}>Reset Inv</button>
+                ${assignable.length > 0 ? `<select class="admin-role-select" data-account-id="${escapeHtml(accountId)}" ${canSetRole ? "" : "disabled"}>${roleOptions}</select>
+                <button data-admin-act="setrole" data-account-id="${escapeHtml(accountId)}" ${canSetRole ? "" : "disabled"}>Set Role</button>` : ""}
+                <div class="admin-ban-wrap">
+                  <select class="admin-ban-preset" data-account-id="${escapeHtml(accountId)}" ${canTempBan ? "" : "disabled"}>
+                    <option value="15m">15m</option>
+                    <option value="1h">1h</option>
+                    <option value="24h">24h</option>
+                    <option value="7d">7d</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  <input class="admin-ban-duration" data-account-id="${escapeHtml(accountId)}" type="text" value="15m" placeholder="60m/12h/7d" ${canTempBan ? "" : "disabled"}>
+                  <input class="admin-ban-reason" data-account-id="${escapeHtml(accountId)}" type="text" maxlength="80" value="Banned by admin" placeholder="reason" ${(canTempBan || canPermBan) ? "" : "disabled"}>
+                </div>
+                <div class="admin-give-wrap">
+                  <input class="admin-give-block" data-account-id="${escapeHtml(accountId)}" type="number" min="1" max="6" step="1" value="1" placeholder="block">
+                  <input class="admin-give-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="10" placeholder="amount">
+                  <button data-admin-act="give" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give</button>
+                </div>
               </div>
             </div>
           `;
         });
-        adminAccountsEl.innerHTML = rows.join("");
+        const normalizedActionFilter = adminAuditActionFilter.trim().toLowerCase();
+        const normalizedActorFilter = adminAuditActorFilter.trim().toLowerCase();
+        const normalizedTargetFilter = adminAuditTargetFilter.trim().toLowerCase();
+        const filteredAudit = (adminState.audit || []).filter((entry) => {
+          const action = (entry.action || "").toLowerCase();
+          const actor = (entry.actor || "").toLowerCase();
+          const target = (entry.target || "").toLowerCase();
+          if (normalizedActionFilter && action !== normalizedActionFilter) return false;
+          if (normalizedActorFilter && !actor.includes(normalizedActorFilter)) return false;
+          if (normalizedTargetFilter && !target.includes(normalizedTargetFilter)) return false;
+          return true;
+        });
+        const auditRows = filteredAudit.slice(-60).map((entry) => {
+          return `<div class="admin-audit-row">${escapeHtml(entry.time || "--:--")} | ${escapeHtml(entry.actor || "system")} | ${escapeHtml(entry.action || "-")} ${escapeHtml(entry.target || "")} ${escapeHtml(entry.details || "")}</div>`;
+        }).join("");
+        const auditMarkup = hasAdminPermission("view_audit")
+          ? `<div class="admin-audit">
+            <div class="admin-audit-title">Audit Trail</div>
+            <div class="admin-audit-list">${auditRows || "<div class='admin-audit-row'>No entries yet.</div>"}</div>
+          </div>`
+          : "";
+        adminAccountsEl.innerHTML = `
+          <div class="admin-summary">Signed in as <strong>${escapeHtml(playerName || "guest")}</strong> (${escapeHtml(currentAdminRole)}). Showing ${filteredIds.length}/${accountIds.length} players.</div>
+          ${auditMarkup}
+          ${rows.join("") || "<div class='admin-row'><div class='admin-meta'><strong>No players match filter.</strong></div></div>"}
+        `;
       }
 
       function handleAdminAction(event) {
@@ -278,42 +583,251 @@
         const action = target.dataset.adminAct;
         const accountId = target.dataset.accountId;
         if (!action || !accountId || !canUseAdminPanel || !network.db) return;
+        if (action === "tempban" || action === "permban") {
+          const durationInput = adminAccountsEl.querySelector('.admin-ban-duration[data-account-id="' + accountId + '"]');
+          const reasonInput = adminAccountsEl.querySelector('.admin-ban-reason[data-account-id="' + accountId + '"]');
+          const durationText = durationInput instanceof HTMLInputElement ? durationInput.value : "60m";
+          const reasonText = reasonInput instanceof HTMLInputElement ? reasonInput.value : "Banned by admin";
+          if (action === "tempban") {
+            const durationMs = parseDurationToMs(durationText);
+            if (!durationMs) {
+              postLocalSystemChat("Invalid temp ban duration. Use formats like 60m, 12h, 7d.");
+              return;
+            }
+            applyAdminAction("tempban", accountId, "panel", { durationMs, reason: reasonText, rawDuration: durationText });
+          } else {
+            applyAdminAction("permban", accountId, "panel", { reason: reasonText });
+          }
+          return;
+        }
+        if (action === "give") {
+          const blockInput = adminAccountsEl.querySelector('.admin-give-block[data-account-id="' + accountId + '"]');
+          const amountInput = adminAccountsEl.querySelector('.admin-give-amount[data-account-id="' + accountId + '"]');
+          if (!(blockInput instanceof HTMLInputElement) || !(amountInput instanceof HTMLInputElement)) return;
+          const blockId = Number(blockInput.value);
+          const amount = Number(amountInput.value);
+          const username = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId;
+          const ok = applyInventoryGrant(accountId, blockId, amount, "panel", username);
+          if (ok) {
+            postLocalSystemChat("Added " + amount + " of block " + blockId + " to @" + username + ".");
+          }
+          return;
+        }
+        if (action === "setrole") {
+          const select = adminAccountsEl.querySelector('.admin-role-select[data-account-id="' + accountId + '"]');
+          if (!(select instanceof HTMLSelectElement)) return;
+          const nextRole = normalizeAdminRole(select.value);
+          const ok = applyAdminRoleChange(accountId, nextRole, "panel");
+          if (ok) {
+            postLocalSystemChat("Role updated for @" + ((adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId) + ".");
+          }
+          return;
+        }
         applyAdminAction(action, accountId, "panel");
       }
 
-      function applyAdminAction(action, accountId, sourceTag) {
-        if (!action || !accountId || !canUseAdminPanel || !network.db) return;
-        if (action === "ban") {
+      function handleAdminInputChange(event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (!(target instanceof HTMLSelectElement)) return;
+        if (!target.classList.contains("admin-ban-preset")) return;
+        const accountId = target.dataset.accountId;
+        if (!accountId) return;
+        if (target.value === "custom") return;
+        const durationInput = adminAccountsEl.querySelector('.admin-ban-duration[data-account-id="' + accountId + '"]');
+        if (durationInput instanceof HTMLInputElement) {
+          durationInput.value = target.value;
+        }
+      }
+
+      function refreshAuditActionFilterOptions() {
+        if (!(adminAuditActionFilterEl instanceof HTMLSelectElement)) return;
+        const current = adminAuditActionFilterEl.value || "";
+        const actions = Array.from(new Set((adminState.audit || []).map((entry) => (entry.action || "").toString().trim()).filter(Boolean))).sort();
+        const options = ['<option value="">All actions</option>'].concat(actions.map((action) => {
+          const safe = escapeHtml(action);
+          return '<option value="' + safe + '">' + safe + "</option>";
+        }));
+        adminAuditActionFilterEl.innerHTML = options.join("");
+        adminAuditActionFilterEl.value = actions.includes(current) ? current : "";
+      }
+
+      function exportAuditTrail() {
+        if (!hasAdminPermission("view_audit")) {
+          postLocalSystemChat("Permission denied.");
+          return;
+        }
+        const rows = (adminState.audit || []).map((entry) => ({
+          createdAt: entry.createdAt || 0,
+          time: entry.time || "",
+          actor: entry.actor || "",
+          action: entry.action || "",
+          target: entry.target || "",
+          details: entry.details || ""
+        }));
+        const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "growtopia-admin-audit-" + stamp + ".json";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        postLocalSystemChat("Audit exported (" + rows.length + " entries).");
+      }
+
+      function logAdminAudit(text) {
+        if (!text) return;
+        addClientLog(text.toString().slice(0, 180), playerProfileId, playerName, "admin_audit");
+      }
+
+      function applyInventoryGrant(accountId, blockId, amount, sourceTag, targetLabel) {
+        if (!accountId || !canUseAdminPanel || !network.db) return false;
+        if (!ensureCommandReady("givex")) return false;
+        if (!hasAdminPermission("givex")) {
+          postLocalSystemChat("Permission denied.");
+          return false;
+        }
+        const targetUsername = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || "";
+        const targetRole = getAccountRole(accountId, targetUsername);
+        if (!canActorAffectTarget(accountId, targetRole)) {
+          postLocalSystemChat("Permission denied on target role.");
+          return false;
+        }
+        const safeAmount = Math.floor(Number(amount));
+        const safeBlock = Number(blockId);
+        if (!INVENTORY_IDS.includes(safeBlock) || !Number.isInteger(safeAmount) || safeAmount <= 0) {
+          postLocalSystemChat("Usage: blockId 1-6 and amount >= 1.");
+          return false;
+        }
+        network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + safeBlock).transaction((current) => {
+          const next = (Number(current) || 0) + safeAmount;
+          return Math.max(0, next);
+        }).then(() => {
+          const target = targetLabel || targetUsername || accountId;
+          logAdminAudit("Admin(" + sourceTag + ") gave @" + target + " block " + safeBlock + " amount " + safeAmount + ".");
+          pushAdminAuditEntry("givex", accountId, "block=" + safeBlock + " amount=" + safeAmount);
+        }).catch(() => {
+          postLocalSystemChat("Failed to update inventory.");
+        });
+        return true;
+      }
+
+      function pushAdminAuditEntry(action, targetAccountId, details) {
+        if (!network.db) return;
+        const payload = {
+          actorAccountId: playerProfileId || "",
+          actorUsername: playerName || "",
+          actorRole: currentAdminRole,
+          action: action || "",
+          targetAccountId: targetAccountId || "",
+          targetUsername: (adminState.accounts[targetAccountId] && adminState.accounts[targetAccountId].username) || "",
+          details: (details || "").toString().slice(0, 180),
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        network.db.ref(BASE_PATH + "/admin-audit").push(payload).catch(() => {});
+      }
+
+      function applyAdminAction(action, accountId, sourceTag, opts) {
+        if (!action || !accountId || !canUseAdminPanel || !network.db) return false;
+        if (!ensureCommandReady(action)) return false;
+        const options = opts || {};
+        const targetUsername = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || "";
+        const targetRole = getAccountRole(accountId, targetUsername);
+        const affectsTarget = action !== "tp";
+        if (!hasAdminPermission(action)) {
+          postLocalSystemChat("Permission denied for action: " + action);
+          return false;
+        }
+        if (affectsTarget && !canActorAffectTarget(accountId, targetRole)) {
+          postLocalSystemChat("Permission denied on target role.");
+          return false;
+        }
+        if (action === "tempban") {
+          const durationMs = Number(options.durationMs) || 0;
+          if (!durationMs) {
+            postLocalSystemChat("Temp ban duration is required.");
+            return false;
+          }
+          const reason = (options.reason || "Temporarily banned by admin").toString().slice(0, 80);
+          const expiresAt = Date.now() + durationMs;
           network.db.ref(BASE_PATH + "/bans/" + accountId).set({
-            reason: "Banned by admin",
+            type: "temporary",
+            reason,
+            bannedBy: playerName,
+            durationMs,
+            expiresAt,
+            createdAt: firebase.database.ServerValue.TIMESTAMP
+          }).then(() => {
+            network.db.ref(BASE_PATH + "/account-sessions/" + accountId).remove().catch(() => {});
+            const durationLabel = options.rawDuration || formatRemainingMs(durationMs);
+            logAdminAudit("Admin(" + sourceTag + ") tempbanned account " + accountId + " for " + durationLabel + ".");
+            pushAdminAuditEntry("tempban", accountId, "duration=" + durationLabel + " reason=" + reason);
+          }).catch(() => {});
+          return true;
+        }
+        if (action === "permban") {
+          const reason = (options.reason || "Permanently banned by admin").toString().slice(0, 80);
+          network.db.ref(BASE_PATH + "/bans/" + accountId).set({
+            type: "permanent",
+            reason,
             bannedBy: playerName,
             createdAt: firebase.database.ServerValue.TIMESTAMP
           }).then(() => {
             network.db.ref(BASE_PATH + "/account-sessions/" + accountId).remove().catch(() => {});
-            addClientLog("Admin(" + sourceTag + ") banned account " + accountId + ".");
+            logAdminAudit("Admin(" + sourceTag + ") permbanned account " + accountId + ".");
+            pushAdminAuditEntry("permban", accountId, "reason=" + reason);
           }).catch(() => {});
           return true;
         }
         if (action === "unban") {
           network.db.ref(BASE_PATH + "/bans/" + accountId).remove().then(() => {
-            addClientLog("Admin(" + sourceTag + ") unbanned account " + accountId + ".");
+            logAdminAudit("Admin(" + sourceTag + ") unbanned account " + accountId + ".");
+            pushAdminAuditEntry("unban", accountId, "");
           }).catch(() => {});
           return true;
         }
         if (action === "kick") {
           network.db.ref(BASE_PATH + "/account-sessions/" + accountId).remove().then(() => {
-            addClientLog("Admin(" + sourceTag + ") kicked account " + accountId + ".");
+            logAdminAudit("Admin(" + sourceTag + ") kicked account " + accountId + ".");
+            pushAdminAuditEntry("kick", accountId, "");
           }).catch(() => {});
           return true;
         }
         if (action === "resetinv") {
           const resetPayload = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
           network.db.ref(BASE_PATH + "/player-inventories/" + accountId).set(resetPayload).then(() => {
-            addClientLog("Admin(" + sourceTag + ") reset inventory for " + accountId + ".");
+            logAdminAudit("Admin(" + sourceTag + ") reset inventory for " + accountId + ".");
+            pushAdminAuditEntry("resetinv", accountId, "");
           }).catch(() => {});
           return true;
         }
         return false;
+      }
+
+      function applyAdminRoleChange(accountId, nextRole, sourceTag) {
+        if (!accountId || !network.db || !canUseAdminPanel) return false;
+        if (!ensureCommandReady("setrole")) return false;
+        const normalized = normalizeAdminRole(nextRole);
+        if (!hasAdminPermission("setrole") && !hasAdminPermission("setrole_limited")) {
+          postLocalSystemChat("You cannot set roles.");
+          return false;
+        }
+        if (!canSetRoleTo(accountId, normalized)) {
+          postLocalSystemChat("You cannot set that role for this account.");
+          return false;
+        }
+        const roleRef = network.db.ref(BASE_PATH + "/admin-roles/" + accountId);
+        const op = normalized === "none" ? roleRef.remove() : roleRef.set(normalized);
+        op.then(() => {
+          logAdminAudit("Admin(" + sourceTag + ") set role " + normalized + " for account " + accountId + ".");
+          pushAdminAuditEntry("setrole", accountId, "role=" + normalized);
+        }).catch(() => {
+          postLocalSystemChat("Role update failed.");
+        });
+        return true;
       }
 
       function findAccountIdByUserRef(userRef) {
@@ -330,6 +844,9 @@
       }
 
       function clampTeleport(value, min, max) {
+        if (typeof playerModule.clamp === "function") {
+          return playerModule.clamp(value, min, max);
+        }
         const n = Number(value);
         if (!Number.isFinite(n)) return min;
         return Math.max(min, Math.min(max, n));
@@ -395,15 +912,34 @@
         const parts = rawText.trim().split(/\s+/);
         const command = (parts[0] || "").toLowerCase();
         if (command === "/adminhelp") {
-          postLocalSystemChat("Commands: /ban user, /unban user, /kick user, /resetinv user, /tp user, /givex user block amount, /bring user, /summon user");
+          const available = ["/myrole"];
+          if (hasAdminPermission("tempban")) available.push("/tempban", "/ban");
+          if (hasAdminPermission("permban")) available.push("/permban");
+          if (hasAdminPermission("unban")) available.push("/unban");
+          if (hasAdminPermission("kick")) available.push("/kick");
+          if (hasAdminPermission("resetinv")) available.push("/resetinv");
+          if (hasAdminPermission("givex")) available.push("/givex");
+          if (hasAdminPermission("tp")) available.push("/tp");
+          if (hasAdminPermission("bring")) available.push("/bring", "/summon");
+          if (hasAdminPermission("setrole") || hasAdminPermission("setrole_limited")) available.push("/setrole", "/role");
+          postLocalSystemChat("Role: " + currentAdminRole + " | Commands: " + (available.join(", ") || "none"));
+          return true;
+        }
+        if (command === "/myrole") {
+          postLocalSystemChat("Your role: " + currentAdminRole);
           return true;
         }
         if (!canUseAdminPanel) {
           postLocalSystemChat("You are not allowed to use admin commands.");
           return true;
         }
-        const needsTarget = ["/ban", "/unban", "/kick", "/resetinv"];
+        const needsTarget = ["/unban", "/kick", "/resetinv"];
         if (command === "/tp") {
+          if (!hasAdminPermission("tp")) {
+            postLocalSystemChat("Permission denied.");
+            return true;
+          }
+          if (!ensureCommandReady("tp")) return true;
           const targetRef = parts[1] || "";
           const accountId = findAccountIdByUserRef(targetRef);
           if (!accountId) {
@@ -417,6 +953,7 @@
           }
           applySelfTeleport(online.world, Number(online.x) || 0, Number(online.y) || 0);
           postLocalSystemChat("Teleported to @" + targetRef + ".");
+          pushAdminAuditEntry("tp", accountId, "toWorld=" + (online.world || ""));
           return true;
         }
         if (command === "/givex") {
@@ -428,26 +965,30 @@
             postLocalSystemChat("Target account not found: " + targetRef);
             return true;
           }
-          if (!INVENTORY_IDS.includes(blockId) || !Number.isInteger(amount) || amount === 0) {
+          if (!INVENTORY_IDS.includes(blockId) || !Number.isInteger(amount) || amount <= 0) {
             postLocalSystemChat("Usage: /givex <user> <blockId 1-6> <amount>");
             return true;
           }
-          network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + blockId).transaction((current) => {
-            const next = (Number(current) || 0) + amount;
-            return Math.max(0, next);
-          }).then(() => {
+          if (applyInventoryGrant(accountId, blockId, amount, "chat", targetRef)) {
             postLocalSystemChat("Updated inventory for @" + targetRef + ".");
-            addClientLog("Admin(chat) givex " + targetRef + " block " + blockId + " amount " + amount + ".");
-          }).catch(() => {
-            postLocalSystemChat("Failed to update inventory.");
-          });
+          }
           return true;
         }
         if (command === "/bring" || command === "/summon") {
+          if (!hasAdminPermission("bring")) {
+            postLocalSystemChat("Permission denied.");
+            return true;
+          }
+          if (!ensureCommandReady(command === "/summon" ? "summon" : "bring")) return true;
           const targetRef = parts[1] || "";
           const accountId = findAccountIdByUserRef(targetRef);
           if (!accountId) {
             postLocalSystemChat("Target account not found: " + targetRef);
+            return true;
+          }
+          const targetRole = getAccountRole(accountId, adminState.accounts[accountId] && adminState.accounts[accountId].username);
+          if (!canActorAffectTarget(accountId, targetRole)) {
+            postLocalSystemChat("Permission denied on target role.");
             return true;
           }
           if (!inWorld) {
@@ -457,11 +998,97 @@
           issueTeleportCommand(accountId, currentWorldId, player.x + 24, player.y).then((ok) => {
             if (ok) {
               postLocalSystemChat("Summon sent to @" + targetRef + ".");
-              addClientLog("Admin(chat) summon " + targetRef + " to " + currentWorldId + ".");
+              logAdminAudit("Admin(chat) summoned @" + targetRef + " to " + currentWorldId + ".");
+              pushAdminAuditEntry("summon", accountId, "world=" + currentWorldId);
             } else {
               postLocalSystemChat("Failed to summon target.");
             }
           });
+          return true;
+        }
+        if (command === "/tempban" || command === "/ban") {
+          if (!hasAdminPermission("tempban")) {
+            postLocalSystemChat("Permission denied.");
+            return true;
+          }
+          const targetRef = parts[1] || "";
+          let durationRaw = parts[2] || "";
+          let durationMs = parseDurationToMs(durationRaw);
+          let reasonStartIndex = 3;
+          if (command === "/ban" && !durationMs) {
+            durationRaw = "60m";
+            durationMs = parseDurationToMs(durationRaw);
+            reasonStartIndex = 2;
+          }
+          const reason = parts.slice(reasonStartIndex).join(" ").trim() || "Temporarily banned by admin";
+          if (!targetRef || !durationMs) {
+            postLocalSystemChat("Usage: /tempban <user> <60m|12h|7d> [reason]");
+            return true;
+          }
+          const accountId = findAccountIdByUserRef(targetRef);
+          if (!accountId) {
+            postLocalSystemChat("Target account not found: " + targetRef);
+            return true;
+          }
+          const ok = applyAdminAction("tempban", accountId, "chat", { durationMs, reason, rawDuration: durationRaw });
+          if (ok) {
+            postLocalSystemChat("Temp banned @" + targetRef + " for " + durationRaw + ".");
+          }
+          return true;
+        }
+        if (command === "/permban") {
+          if (!hasAdminPermission("permban")) {
+            postLocalSystemChat("Permission denied.");
+            return true;
+          }
+          const targetRef = parts[1] || "";
+          const reason = parts.slice(2).join(" ").trim() || "Permanently banned by admin";
+          if (!targetRef) {
+            postLocalSystemChat("Usage: /permban <user> [reason]");
+            return true;
+          }
+          const accountId = findAccountIdByUserRef(targetRef);
+          if (!accountId) {
+            postLocalSystemChat("Target account not found: " + targetRef);
+            return true;
+          }
+          const ok = applyAdminAction("permban", accountId, "chat", { reason });
+          if (ok) {
+            postLocalSystemChat("Permanently banned @" + targetRef + ".");
+          }
+          return true;
+        }
+        if (command === "/role") {
+          const targetRef = parts[1] || "";
+          const accountId = findAccountIdByUserRef(targetRef);
+          if (!accountId) {
+            postLocalSystemChat("Target account not found: " + targetRef);
+            return true;
+          }
+          const username = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId;
+          const role = getAccountRole(accountId, username);
+          postLocalSystemChat("@" + username + " role: " + role);
+          return true;
+        }
+        if (command === "/setrole") {
+          if (!hasAdminPermission("setrole") && !hasAdminPermission("setrole_limited")) {
+            postLocalSystemChat("Permission denied.");
+            return true;
+          }
+          const targetRef = parts[1] || "";
+          const nextRole = normalizeAdminRole(parts[2] || "none");
+          if (!["none", "moderator", "admin", "manager", "owner"].includes(nextRole)) {
+            postLocalSystemChat("Usage: /setrole <user> <none|moderator|admin|manager|owner>");
+            return true;
+          }
+          const accountId = findAccountIdByUserRef(targetRef);
+          if (!accountId) {
+            postLocalSystemChat("Target account not found: " + targetRef);
+            return true;
+          }
+          if (applyAdminRoleChange(accountId, nextRole, "chat")) {
+            postLocalSystemChat("Set role " + nextRole + " for @" + targetRef + ".");
+          }
           return true;
         }
         if (!needsTarget.includes(command)) return false;
@@ -472,7 +1099,6 @@
           return true;
         }
         const map = {
-          "/ban": "ban",
           "/unban": "unban",
           "/kick": "kick",
           "/resetinv": "resetinv"
@@ -616,8 +1242,18 @@
           }
           const banSnap = await db.ref(BASE_PATH + "/bans/" + accountId).once("value");
           if (banSnap.exists()) {
-            addClientLog("Login blocked for @" + username + " (banned).", accountId, username, "");
-            throw new Error("This account is banned.");
+            const banValue = banSnap.val();
+            const status = getBanStatus(banValue, Date.now());
+            if (status.expired) {
+              await db.ref(BASE_PATH + "/bans/" + accountId).remove();
+            } else if (status.active) {
+              addClientLog("Login blocked for @" + username + " (banned).", accountId, username, "");
+              const reasonText = status.reason ? " Reason: " + status.reason + "." : "";
+              if (status.type === "permanent") {
+                throw new Error("This account is permanently banned." + reasonText);
+              }
+              throw new Error("This account is temporarily banned for " + formatRemainingMs(status.remainingMs) + "." + reasonText);
+            }
           }
           await reserveAccountSession(db, accountId, username);
           onAuthSuccess(accountId, username);
@@ -633,8 +1269,16 @@
       function onAuthSuccess(accountId, username) {
         playerProfileId = accountId;
         playerName = username;
-        canViewAccountLogs = canUserViewLogs(username);
-        canUseAdminPanel = canUserUseAdmin(username);
+        adminSearchQuery = "";
+        adminAuditActionFilter = "";
+        adminAuditActorFilter = "";
+        adminAuditTargetFilter = "";
+        if (adminSearchInput) adminSearchInput.value = "";
+        if (adminAuditActionFilterEl) adminAuditActionFilterEl.value = "";
+        if (adminAuditActorFilterEl) adminAuditActorFilterEl.value = "";
+        if (adminAuditTargetFilterEl) adminAuditTargetFilterEl.value = "";
+        currentAdminRole = normalizeAdminRole(getConfiguredRoleForUsername(username));
+        refreshAdminCapabilities();
         addClientLog("Authenticated as @" + username + ".");
         authScreenEl.classList.add("hidden");
         gameShellEl.classList.remove("hidden");
@@ -714,6 +1358,9 @@
       }
 
       function hashWorldSeed(worldId) {
+        if (typeof blocksModule.hashWorldSeed === "function") {
+          return blocksModule.hashWorldSeed(worldId);
+        }
         let h = 2166136261;
         for (let i = 0; i < worldId.length; i++) {
           h ^= worldId.charCodeAt(i);
@@ -810,6 +1457,9 @@
       }
 
       function formatChatTimestamp(timestamp) {
+        if (typeof chatModule.formatChatTimestamp === "function") {
+          return chatModule.formatChatTimestamp(timestamp);
+        }
         if (!timestamp || typeof timestamp !== "number") return "";
         const d = new Date(timestamp);
         const hh = String(d.getHours()).padStart(2, "0");
@@ -896,9 +1546,11 @@
       }
 
       function clearLogsData() {
-        if (canUseAdminPanel && network.db) {
+        if (hasAdminPermission("clear_logs") && network.db) {
           network.db.ref(BASE_PATH + "/account-logs").remove().then(() => {
             clearLogsView();
+            logAdminAudit("Admin(panel) cleared account logs.");
+            pushAdminAuditEntry("clear_logs", "", "");
           }).catch(() => {});
           return;
         }
@@ -956,6 +1608,12 @@
         if (network.usernamesRef && network.handlers.adminUsernames) {
           network.usernamesRef.off("value", network.handlers.adminUsernames);
         }
+        if (network.adminRolesRef && network.handlers.adminRoles) {
+          network.adminRolesRef.off("value", network.handlers.adminRoles);
+        }
+        if (network.adminAuditRef && network.handlers.adminAudit) {
+          network.adminAuditRef.off("value", network.handlers.adminAudit);
+        }
         if (network.bansRef && network.handlers.adminBans) {
           network.bansRef.off("value", network.handlers.adminBans);
         }
@@ -964,6 +1622,78 @@
         }
         if (network.inventoriesRootRef && network.handlers.adminInventories) {
           network.inventoriesRootRef.off("value", network.handlers.adminInventories);
+        }
+        adminDataListening = false;
+      }
+
+      function syncAdminDataListeners() {
+        if (!network.enabled) return;
+        if (canUseAdminPanel && adminDataListening) {
+          if (hasAdminPermission("view_audit")) {
+            if (network.adminAuditRef && network.handlers.adminAudit) {
+              network.adminAuditRef.off("value", network.handlers.adminAudit);
+              network.adminAuditRef.on("value", network.handlers.adminAudit);
+            }
+          } else {
+            if (network.adminAuditRef && network.handlers.adminAudit) {
+              network.adminAuditRef.off("value", network.handlers.adminAudit);
+            }
+            adminState.audit = [];
+            refreshAuditActionFilterOptions();
+          }
+          return;
+        }
+        if (canUseAdminPanel && !adminDataListening) {
+          if (network.accountsRef && network.handlers.adminAccounts) {
+            network.accountsRef.on("value", network.handlers.adminAccounts);
+          }
+          if (network.usernamesRef && network.handlers.adminUsernames) {
+            network.usernamesRef.on("value", network.handlers.adminUsernames);
+          }
+          if (network.bansRef && network.handlers.adminBans) {
+            network.bansRef.on("value", network.handlers.adminBans);
+          }
+          if (network.sessionsRootRef && network.handlers.adminSessions) {
+            network.sessionsRootRef.on("value", network.handlers.adminSessions);
+          }
+          if (network.inventoriesRootRef && network.handlers.adminInventories) {
+            network.inventoriesRootRef.on("value", network.handlers.adminInventories);
+          }
+          if (hasAdminPermission("view_audit") && network.adminAuditRef && network.handlers.adminAudit) {
+            network.adminAuditRef.on("value", network.handlers.adminAudit);
+          }
+          adminDataListening = true;
+          return;
+        }
+        if (!canUseAdminPanel && adminDataListening) {
+          if (network.accountsRef && network.handlers.adminAccounts) {
+            network.accountsRef.off("value", network.handlers.adminAccounts);
+          }
+          if (network.usernamesRef && network.handlers.adminUsernames) {
+            network.usernamesRef.off("value", network.handlers.adminUsernames);
+          }
+          if (network.bansRef && network.handlers.adminBans) {
+            network.bansRef.off("value", network.handlers.adminBans);
+          }
+          if (network.sessionsRootRef && network.handlers.adminSessions) {
+            network.sessionsRootRef.off("value", network.handlers.adminSessions);
+          }
+          if (network.inventoriesRootRef && network.handlers.adminInventories) {
+            network.inventoriesRootRef.off("value", network.handlers.adminInventories);
+          }
+          if (network.adminAuditRef && network.handlers.adminAudit) {
+            network.adminAuditRef.off("value", network.handlers.adminAudit);
+          }
+          adminState.accounts = {};
+          adminState.usernames = {};
+          adminState.roles = {};
+          adminState.audit = [];
+          refreshAuditActionFilterOptions();
+          adminState.bans = {};
+          adminState.sessions = {};
+          adminState.inventories = {};
+          renderAdminPanel();
+          adminDataListening = false;
         }
       }
 
@@ -983,6 +1713,17 @@
         authPasswordEl.value = "";
         pendingTeleportSelf = null;
         lastHandledTeleportCommandId = "";
+        currentAdminRole = "none";
+        canUseAdminPanel = false;
+        canViewAccountLogs = false;
+        adminSearchQuery = "";
+        adminAuditActionFilter = "";
+        adminAuditActorFilter = "";
+        adminAuditTargetFilter = "";
+        if (adminSearchInput) adminSearchInput.value = "";
+        if (adminAuditActionFilterEl) adminAuditActionFilterEl.value = "";
+        if (adminAuditActorFilterEl) adminAuditActorFilterEl.value = "";
+        if (adminAuditTargetFilterEl) adminAuditTargetFilterEl.value = "";
         gameShellEl.classList.add("hidden");
         authScreenEl.classList.remove("hidden");
         setAuthStatus(reason || "Logged out.", true);
@@ -1447,6 +2188,9 @@
       }
 
       function pickRandomWorlds(worldIds, count) {
+        if (typeof menuModule.pickRandomWorlds === "function") {
+          return menuModule.pickRandomWorlds(worldIds, count);
+        }
         const pool = worldIds.slice();
         for (let i = pool.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -1732,7 +2476,37 @@
         adminCloseBtn.addEventListener("click", () => {
           setAdminOpen(false);
         });
+        if (adminSearchInput) {
+          adminSearchInput.addEventListener("input", () => {
+            adminSearchQuery = (adminSearchInput.value || "").trim().toLowerCase();
+            renderAdminPanel();
+          });
+        }
+        if (adminAuditActionFilterEl) {
+          adminAuditActionFilterEl.addEventListener("change", () => {
+            adminAuditActionFilter = (adminAuditActionFilterEl.value || "").trim().toLowerCase();
+            renderAdminPanel();
+          });
+        }
+        if (adminAuditActorFilterEl) {
+          adminAuditActorFilterEl.addEventListener("input", () => {
+            adminAuditActorFilter = (adminAuditActorFilterEl.value || "").trim().toLowerCase();
+            renderAdminPanel();
+          });
+        }
+        if (adminAuditTargetFilterEl) {
+          adminAuditTargetFilterEl.addEventListener("input", () => {
+            adminAuditTargetFilter = (adminAuditTargetFilterEl.value || "").trim().toLowerCase();
+            renderAdminPanel();
+          });
+        }
+        if (adminAuditExportBtn) {
+          adminAuditExportBtn.addEventListener("click", () => {
+            exportAuditTrail();
+          });
+        }
         adminAccountsEl.addEventListener("click", handleAdminAction);
+        adminAccountsEl.addEventListener("change", handleAdminInputChange);
         clearLogsBtn.addEventListener("click", () => {
           clearLogsData();
         });
@@ -1782,6 +2556,8 @@
           network.myBanRef = network.db.ref(BASE_PATH + "/bans/" + playerProfileId);
           network.accountsRef = network.db.ref(BASE_PATH + "/accounts");
           network.usernamesRef = network.db.ref(BASE_PATH + "/usernames");
+          network.adminRolesRef = network.db.ref(BASE_PATH + "/admin-roles");
+          network.adminAuditRef = network.db.ref(BASE_PATH + "/admin-audit").limitToLast(120);
           network.bansRef = network.db.ref(BASE_PATH + "/bans");
           network.sessionsRootRef = network.db.ref(BASE_PATH + "/account-sessions");
           network.inventoriesRootRef = network.db.ref(BASE_PATH + "/player-inventories");
@@ -1882,7 +2658,17 @@
           };
           network.handlers.myBan = (snapshot) => {
             if (!snapshot.exists()) return;
-            forceLogout("Your account has been banned.");
+            const status = getBanStatus(snapshot.val(), Date.now());
+            if (status.expired) {
+              snapshot.ref.remove().catch(() => {});
+              return;
+            }
+            const reasonText = status.reason ? " Reason: " + status.reason + "." : "";
+            if (status.type === "permanent") {
+              forceLogout("Your account is permanently banned." + reasonText);
+              return;
+            }
+            forceLogout("Your account is temporarily banned for " + formatRemainingMs(status.remainingMs) + "." + reasonText);
           };
           network.handlers.adminAccounts = (snapshot) => {
             adminState.accounts = snapshot.val() || {};
@@ -1890,6 +2676,33 @@
           };
           network.handlers.adminUsernames = (snapshot) => {
             adminState.usernames = snapshot.val() || {};
+            renderAdminPanel();
+          };
+          network.handlers.adminRoles = (snapshot) => {
+            adminState.roles = snapshot.val() || {};
+            refreshAdminCapabilities();
+            renderAdminPanel();
+          };
+          network.handlers.adminAudit = (snapshot) => {
+            const data = snapshot.val() || {};
+            const entries = Object.keys(data).map((id) => {
+              const value = data[id] || {};
+              const ts = typeof value.createdAt === "number" ? value.createdAt : 0;
+              const actor = (value.actorUsername || value.actorAccountId || "system").toString().slice(0, 24);
+              const action = (value.action || "").toString().slice(0, 24);
+              const targetRaw = (value.targetUsername || value.targetAccountId || "").toString();
+              return {
+                id,
+                createdAt: ts,
+                time: formatChatTimestamp(ts),
+                actor: actor ? "@" + actor : "system",
+                action,
+                target: targetRaw ? "@" + targetRaw : "",
+                details: (value.details || "").toString().slice(0, 120)
+              };
+            }).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+            adminState.audit = entries;
+            refreshAuditActionFilterOptions();
             renderAdminPanel();
           };
           network.handlers.adminBans = (snapshot) => {
@@ -1912,16 +2725,11 @@
           network.worldsIndexRef.on("value", network.handlers.worldsIndex);
           network.globalPlayersRef.on("value", network.handlers.globalPlayers);
           network.myBanRef.on("value", network.handlers.myBan);
+          network.adminRolesRef.on("value", network.handlers.adminRoles);
           if (canViewAccountLogs) {
             network.accountLogsRootRef.on("value", network.handlers.accountLogAdded);
           }
-          if (canUseAdminPanel) {
-            network.accountsRef.on("value", network.handlers.adminAccounts);
-            network.usernamesRef.on("value", network.handlers.adminUsernames);
-            network.bansRef.on("value", network.handlers.adminBans);
-            network.sessionsRootRef.on("value", network.handlers.adminSessions);
-            network.inventoriesRootRef.on("value", network.handlers.adminInventories);
-          }
+          syncAdminDataListeners();
 
           window.addEventListener("beforeunload", () => {
             saveInventory();

@@ -74,6 +74,13 @@
     <div id="adminPanel" class="admin-panel hidden">
       <div class="admin-header">
         <strong>Admin Panel</strong>
+        <input id="adminSearchInput" type="text" placeholder="Search player/account">
+        <select id="adminAuditActionFilter">
+          <option value="">All actions</option>
+        </select>
+        <input id="adminAuditActorFilter" type="text" placeholder="Audit actor">
+        <input id="adminAuditTargetFilter" type="text" placeholder="Audit target">
+        <button id="adminAuditExportBtn" type="button">Export Audit</button>
         <button id="adminCloseBtn" type="button">Close</button>
       </div>
       <div id="adminAccounts" class="admin-accounts"></div>
@@ -84,6 +91,11 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
   <script src="firebase-config.js"></script>
   <script src="settings.js"></script>
+  <script src="admin.js"></script>
+  <script src="blocks.js"></script>
+  <script src="player.js"></script>
+  <script src="chat.js"></script>
+  <script src="menu.js"></script>
   <script src="game.js"></script>
 </body>
 </html>
