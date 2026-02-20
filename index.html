@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Growtopia Test</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -11,24 +11,38 @@
     <div class="hud">
       <div><strong>Growtopia Test</strong> | Move: A/D or Arrows, Jump: W/Space</div>
       <div class="hint">
+        World: <span id="currentWorldLabel" class="world-tag">menu</span> |
         Place: Left Click | Break: Right Click | Slots: 1-6 |
         <span id="networkState" class="danger">Offline</span> |
-        <span id="onlineCount">1 online</span>
+        <span id="onlineCount">1 world online</span> |
+        <span id="totalOnlineCount">1 total online</span> |
+        <button id="exitWorldBtn" type="button" class="hidden">Exit World</button>
       </div>
     </div>
-    <div class="world-bar">
-      <span>World:</span>
-      <span id="currentWorldLabel" class="world-tag">default-world</span>
-      <div id="worldButtons" class="world-buttons"></div>
-      <div class="world-enter">
-        <input id="worldInput" type="text" placeholder="enter world name">
-        <button id="enterWorldBtn" type="button">Enter</button>
+    <div id="menuScreen" class="menu-screen">
+      <div class="menu-card">
+        <h2 class="menu-title">World Menu</h2>
+        <div id="worldButtons" class="world-buttons"></div>
+        <div class="world-enter">
+          <input id="worldInput" type="text" placeholder="enter world name">
+          <button id="enterWorldBtn" type="button">Enter</button>
+        </div>
       </div>
     </div>
-    <div class="canvas-wrap">
+    <div id="canvasWrap" class="canvas-wrap hidden">
       <canvas id="game" width="960" height="480" aria-label="Growtopia test game canvas"></canvas>
     </div>
-    <div class="toolbar" id="toolbar"></div>
+    <div class="toolbar hidden" id="toolbar"></div>
+    <div id="mobileControls" class="mobile-controls hidden">
+      <div class="mobile-move">
+        <button id="mobileLeftBtn" type="button">Left</button>
+        <button id="mobileRightBtn" type="button">Right</button>
+      </div>
+      <div class="mobile-actions">
+        <button id="mobileJumpBtn" type="button">Jump</button>
+        <button id="mobileActionBtn" type="button">Action: Place</button>
+      </div>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
@@ -39,12 +53,21 @@
       const canvas = document.getElementById("game");
       const ctx = canvas.getContext("2d");
       const toolbar = document.getElementById("toolbar");
+      const canvasWrapEl = document.getElementById("canvasWrap");
+      const menuScreenEl = document.getElementById("menuScreen");
+      const mobileControlsEl = document.getElementById("mobileControls");
+      const mobileLeftBtn = document.getElementById("mobileLeftBtn");
+      const mobileRightBtn = document.getElementById("mobileRightBtn");
+      const mobileJumpBtn = document.getElementById("mobileJumpBtn");
+      const mobileActionBtn = document.getElementById("mobileActionBtn");
       const networkStateEl = document.getElementById("networkState");
       const onlineCountEl = document.getElementById("onlineCount");
+      const totalOnlineCountEl = document.getElementById("totalOnlineCount");
       const currentWorldLabelEl = document.getElementById("currentWorldLabel");
       const worldButtonsEl = document.getElementById("worldButtons");
       const worldInputEl = document.getElementById("worldInput");
       const enterWorldBtn = document.getElementById("enterWorldBtn");
+      const exitWorldBtn = document.getElementById("exitWorldBtn");
 
       const TILE = 32;
       const WORLD_W = 140;
@@ -81,9 +104,14 @@
       const playerId = "p_" + Math.random().toString(36).slice(2, 10);
       const playerName = getPlayerName();
       const remotePlayers = new Map();
+      const worldOccupancy = new Map();
+      let knownWorldIds = [];
+      let totalOnlinePlayers = 0;
+      let isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
 
       let currentWorldId = getInitialWorldId();
       let world = makeWorld(currentWorldId);
+      let inWorld = false;
 
       const player = {
         x: TILE * 8,
@@ -101,6 +129,13 @@
       let networkLastX = -1;
       let networkLastY = -1;
       let networkLastFacing = 0;
+      let mobileEditMode = "place";
+      let mobileLastTouchActionAt = 0;
+      const touchControls = {
+        left: false,
+        right: false,
+        jump: false
+      };
 
       const network = {
         enabled: false,
@@ -108,12 +143,15 @@
         db: null,
         connectedRef: null,
         worldsIndexRef: null,
+        globalPlayersRef: null,
+        globalPlayerRef: null,
         playerRef: null,
         playersRef: null,
         blocksRef: null,
         handlers: {
           connected: null,
           worldsIndex: null,
+          globalPlayers: null,
           players: null,
           blockAdded: null,
           blockChanged: null,
@@ -143,10 +181,6 @@
           .replace(/-+/g, "-")
           .replace(/^[-_]+|[-_]+$/g, "")
           .slice(0, 24);
-      }
-
-      function generateWorldId() {
-        return "world-" + Math.random().toString(36).slice(2, 8);
       }
 
       function hashWorldSeed(worldId) {
@@ -220,9 +254,22 @@
         networkLastFacing = 0;
       }
 
+      function setInWorldState(nextValue) {
+        inWorld = Boolean(nextValue);
+        menuScreenEl.classList.toggle("hidden", inWorld);
+        canvasWrapEl.classList.toggle("hidden", !inWorld);
+        toolbar.classList.toggle("hidden", !inWorld);
+        mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
+        exitWorldBtn.classList.toggle("hidden", !inWorld);
+        setCurrentWorldUI();
+        updateOnlineCount();
+      }
+
       function setCurrentWorldUI() {
-        currentWorldLabelEl.textContent = currentWorldId;
-        worldInputEl.value = currentWorldId;
+        currentWorldLabelEl.textContent = inWorld ? currentWorldId : "menu";
+        if (!worldInputEl.value) {
+          worldInputEl.value = currentWorldId || "";
+        }
       }
 
       function isSolidTile(tx, ty) {
@@ -246,9 +293,9 @@
       }
 
       function updatePlayer() {
-        const moveLeft = keys["KeyA"] || keys["ArrowLeft"];
-        const moveRight = keys["KeyD"] || keys["ArrowRight"];
-        const jump = keys["KeyW"] || keys["Space"] || keys["ArrowUp"];
+        const moveLeft = keys["KeyA"] || keys["ArrowLeft"] || touchControls.left;
+        const moveRight = keys["KeyD"] || keys["ArrowRight"] || touchControls.right;
+        const jump = keys["KeyW"] || keys["Space"] || keys["ArrowUp"] || touchControls.jump;
 
         if (moveLeft) {
           player.vx -= player.grounded ? 0.7 : 0.7 * AIR_CONTROL;
@@ -483,7 +530,9 @@
       }
 
       function updateOnlineCount() {
-        onlineCountEl.textContent = (remotePlayers.size + 1) + " online";
+        const worldCount = inWorld ? (remotePlayers.size + 1) : 0;
+        onlineCountEl.textContent = worldCount + " world online";
+        totalOnlineCountEl.textContent = totalOnlinePlayers + " total online";
       }
 
       function hasFirebaseConfig(config) {
@@ -513,17 +562,23 @@
       }
 
       function refreshWorldButtons(worldIds) {
-        const unique = Array.from(new Set([currentWorldId].concat(worldIds)));
+        if (Array.isArray(worldIds)) {
+          knownWorldIds = Array.from(new Set(worldIds.filter(Boolean)));
+        }
+        const occupancyWorlds = Array.from(worldOccupancy.keys());
+        const fallback = currentWorldId ? [currentWorldId] : [];
+        const unique = Array.from(new Set(knownWorldIds.concat(occupancyWorlds, fallback)));
         const randomWorlds = pickRandomWorlds(unique, 8);
 
         worldButtonsEl.innerHTML = "";
         for (const id of randomWorlds) {
+          const count = worldOccupancy.get(id) || 0;
           const button = document.createElement("button");
           button.type = "button";
           button.className = "world-chip";
-          button.textContent = id;
+          button.textContent = count > 0 ? id + " [" + count + "]" : id;
           button.addEventListener("click", () => {
-            switchWorld(id, false);
+            switchWorld(id, true);
           });
           worldButtonsEl.appendChild(button);
         }
@@ -556,6 +611,19 @@
         network.handlers.blockRemoved = null;
       }
 
+      function leaveCurrentWorld() {
+        detachCurrentWorldListeners();
+        remotePlayers.clear();
+        touchControls.left = false;
+        touchControls.right = false;
+        touchControls.jump = false;
+        if (network.globalPlayerRef) {
+          network.globalPlayerRef.remove().catch(() => {});
+        }
+        setInWorldState(false);
+        refreshWorldButtons();
+      }
+
       function writeWorldIndexMeta(worldId, createIfMissing) {
         if (!network.worldsIndexRef) return;
         const indexRef = network.worldsIndexRef.child(worldId);
@@ -584,6 +652,8 @@
       function switchWorld(nextWorldId, createIfMissing) {
         const worldId = normalizeWorldId(nextWorldId);
         if (!worldId) return;
+
+        setInWorldState(true);
 
         if (!network.enabled) {
           currentWorldId = worldId;
@@ -651,6 +721,9 @@
         network.blocksRef.on("child_removed", network.handlers.blockRemoved);
 
         if (network.connected) {
+          if (network.globalPlayerRef) {
+            network.globalPlayerRef.onDisconnect().remove();
+          }
           network.playerRef.onDisconnect().remove();
           syncPlayer(true);
           setNetworkState("Online", false);
@@ -668,6 +741,7 @@
       }
 
       function syncPlayer(force) {
+        if (!inWorld) return;
         if (!network.enabled || !network.playerRef) return;
 
         const now = performance.now();
@@ -683,25 +757,36 @@
         networkLastY = ry;
         networkLastFacing = player.facing;
 
-        network.playerRef.update({
+        const payload = {
           name: playerName,
           x: rx,
           y: ry,
           facing: player.facing,
           world: currentWorldId,
           updatedAt: firebase.database.ServerValue.TIMESTAMP
-        }).catch(() => {
+        };
+
+        network.playerRef.update(payload).catch(() => {
+          setNetworkState("Network error", true);
+        });
+
+        if (!network.globalPlayerRef) return;
+        network.globalPlayerRef.update(payload).catch(() => {
           setNetworkState("Network error", true);
         });
       }
 
       function enterWorldFromInput() {
-        const id = normalizeWorldId(worldInputEl.value) || generateWorldId();
+        const id = normalizeWorldId(worldInputEl.value);
+        if (!id) return;
         switchWorld(id, true);
       }
 
       function bindWorldControls() {
         enterWorldBtn.addEventListener("click", enterWorldFromInput);
+        exitWorldBtn.addEventListener("click", () => {
+          leaveCurrentWorld();
+        });
         worldInputEl.addEventListener("keydown", (event) => {
           if (event.key === "Enter") {
             enterWorldFromInput();
@@ -714,6 +799,7 @@
         if (!hasFirebaseConfig(firebaseConfig) || !window.firebase) {
           setNetworkState("Offline (set firebase-config.js)", true);
           refreshWorldButtons([currentWorldId]);
+          totalOnlinePlayers = inWorld ? 1 : 0;
           updateOnlineCount();
           return;
         }
@@ -727,6 +813,8 @@
           network.enabled = true;
           network.connectedRef = network.db.ref(".info/connected");
           network.worldsIndexRef = network.db.ref(BASE_PATH + "/worlds-index");
+          network.globalPlayersRef = network.db.ref(BASE_PATH + "/global-players");
+          network.globalPlayerRef = network.globalPlayersRef.child(playerId);
           setNetworkState("Connecting...", false);
 
           network.handlers.connected = (snapshot) => {
@@ -734,6 +822,9 @@
             network.connected = isConnected;
 
             if (isConnected) {
+              if (network.globalPlayerRef) {
+                network.globalPlayerRef.onDisconnect().remove();
+              }
               if (network.playerRef) {
                 network.playerRef.onDisconnect().remove();
                 syncPlayer(true);
@@ -754,11 +845,30 @@
             refreshWorldButtons(worldIds);
           };
 
+          network.handlers.globalPlayers = (snapshot) => {
+            const data = snapshot.val() || {};
+            const count = Object.keys(data).length;
+            totalOnlinePlayers = Math.max(inWorld ? 1 : 0, count);
+            worldOccupancy.clear();
+            Object.keys(data).forEach((id) => {
+              const playerData = data[id];
+              if (!playerData || !playerData.world) return;
+              const wid = normalizeWorldId(playerData.world);
+              if (!wid) return;
+              worldOccupancy.set(wid, (worldOccupancy.get(wid) || 0) + 1);
+            });
+            refreshWorldButtons();
+            updateOnlineCount();
+          };
+
           network.connectedRef.on("value", network.handlers.connected);
           network.worldsIndexRef.on("value", network.handlers.worldsIndex);
-          switchWorld(currentWorldId, true);
+          network.globalPlayersRef.on("value", network.handlers.globalPlayers);
 
           window.addEventListener("beforeunload", () => {
+            if (network.globalPlayerRef) {
+              network.globalPlayerRef.remove();
+            }
             if (network.playerRef) {
               network.playerRef.remove();
             }
@@ -786,23 +896,79 @@
         }
       }
 
-      function worldFromPointer(event) {
+      function worldFromClient(clientX, clientY) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
-        const x = (event.clientX - rect.left) * scaleX + cameraX;
-        const y = (event.clientY - rect.top) * scaleY + cameraY;
+        const x = (clientX - rect.left) * scaleX + cameraX;
+        const y = (clientY - rect.top) * scaleY + cameraY;
         return {
           tx: Math.floor(x / TILE),
           ty: Math.floor(y / TILE)
         };
       }
 
+      function worldFromPointer(event) {
+        return worldFromClient(event.clientX, event.clientY);
+      }
+
+      function applyMobileEditAction(clientX, clientY) {
+        if (!inWorld) return;
+        const now = performance.now();
+        if (now - mobileLastTouchActionAt < 90) return;
+        mobileLastTouchActionAt = now;
+        const pos = worldFromClient(clientX, clientY);
+        mouseWorld = pos;
+        if (mobileEditMode === "break") {
+          tryBreak(pos.tx, pos.ty);
+        } else {
+          tryPlace(pos.tx, pos.ty);
+        }
+      }
+
+      function bindHoldButton(button, key) {
+        const setOn = (event) => {
+          event.preventDefault();
+          touchControls[key] = true;
+        };
+        const setOff = (event) => {
+          event.preventDefault();
+          touchControls[key] = false;
+        };
+        button.addEventListener("touchstart", setOn, { passive: false });
+        button.addEventListener("touchend", setOff, { passive: false });
+        button.addEventListener("touchcancel", setOff, { passive: false });
+        button.addEventListener("mousedown", setOn);
+        button.addEventListener("mouseup", setOff);
+        button.addEventListener("mouseleave", setOff);
+      }
+
+      function refreshMobileActionLabel() {
+        mobileActionBtn.textContent = mobileEditMode === "break" ? "Action: Break" : "Action: Place";
+      }
+
+      function bindMobileControls() {
+        bindHoldButton(mobileLeftBtn, "left");
+        bindHoldButton(mobileRightBtn, "right");
+        bindHoldButton(mobileJumpBtn, "jump");
+
+        const toggleMode = (event) => {
+          event.preventDefault();
+          mobileEditMode = mobileEditMode === "place" ? "break" : "place";
+          refreshMobileActionLabel();
+        };
+        mobileActionBtn.addEventListener("click", toggleMode);
+        mobileActionBtn.addEventListener("touchstart", toggleMode, { passive: false });
+        refreshMobileActionLabel();
+      }
+
       function resizeCanvas() {
         const wrap = canvas.parentElement;
         const rect = wrap.getBoundingClientRect();
-        canvas.width = Math.max(720, Math.floor(rect.width));
-        canvas.height = Math.max(360, Math.floor(rect.height));
+        canvas.width = Math.max(320, Math.floor(rect.width));
+        canvas.height = Math.max(220, Math.floor(rect.height));
+        isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+        mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
       }
 
       window.addEventListener("resize", resizeCanvas);
@@ -842,19 +1008,40 @@
         }
       });
 
+      canvas.addEventListener("touchstart", (e) => {
+        if (!inWorld) return;
+        e.preventDefault();
+        const touch = e.changedTouches[0];
+        if (!touch) return;
+        applyMobileEditAction(touch.clientX, touch.clientY);
+      }, { passive: false });
+
+      canvas.addEventListener("touchmove", (e) => {
+        if (!inWorld) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        if (!touch) return;
+        applyMobileEditAction(touch.clientX, touch.clientY);
+      }, { passive: false });
+
       canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+      mobileControlsEl.addEventListener("touchstart", (e) => e.preventDefault(), { passive: false });
+      mobileControlsEl.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
 
       refreshToolbar();
-      setCurrentWorldUI();
+      bindMobileControls();
+      setInWorldState(false);
       refreshWorldButtons([currentWorldId]);
       updateOnlineCount();
       bindWorldControls();
       initFirebaseMultiplayer();
 
       function tick() {
-        updatePlayer();
-        updateCamera();
-        syncPlayer(false);
+        if (inWorld) {
+          updatePlayer();
+          updateCamera();
+          syncPlayer(false);
+        }
         render();
         requestAnimationFrame(tick);
       }
