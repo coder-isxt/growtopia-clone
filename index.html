@@ -19,10 +19,11 @@
     <div class="world-bar">
       <span>World:</span>
       <span id="currentWorldLabel" class="world-tag">default-world</span>
-      <input id="worldInput" type="text" placeholder="world id (letters/numbers)">
-      <button id="createWorldBtn" type="button">Create</button>
-      <button id="joinWorldBtn" type="button">Join</button>
-      <select id="worldSelect"></select>
+      <div id="worldButtons" class="world-buttons"></div>
+      <div class="world-enter">
+        <input id="worldInput" type="text" placeholder="enter world name">
+        <button id="enterWorldBtn" type="button">Enter</button>
+      </div>
     </div>
     <div class="canvas-wrap">
       <canvas id="game" width="960" height="480" aria-label="Growtopia test game canvas"></canvas>
@@ -41,10 +42,9 @@
       const networkStateEl = document.getElementById("networkState");
       const onlineCountEl = document.getElementById("onlineCount");
       const currentWorldLabelEl = document.getElementById("currentWorldLabel");
+      const worldButtonsEl = document.getElementById("worldButtons");
       const worldInputEl = document.getElementById("worldInput");
-      const createWorldBtn = document.getElementById("createWorldBtn");
-      const joinWorldBtn = document.getElementById("joinWorldBtn");
-      const worldSelectEl = document.getElementById("worldSelect");
+      const enterWorldBtn = document.getElementById("enterWorldBtn");
 
       const TILE = 32;
       const WORLD_W = 140;
@@ -501,19 +501,32 @@
         return { tx, ty };
       }
 
-      function refreshWorldSelect(worldIds) {
-        const unique = Array.from(new Set([currentWorldId].concat(worldIds)));
-        const selected = worldSelectEl.value;
-
-        worldSelectEl.innerHTML = "";
-        for (const id of unique) {
-          const option = document.createElement("option");
-          option.value = id;
-          option.textContent = id;
-          worldSelectEl.appendChild(option);
+      function pickRandomWorlds(worldIds, count) {
+        const pool = worldIds.slice();
+        for (let i = pool.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const tmp = pool[i];
+          pool[i] = pool[j];
+          pool[j] = tmp;
         }
+        return pool.slice(0, count);
+      }
 
-        worldSelectEl.value = unique.includes(selected) ? selected : currentWorldId;
+      function refreshWorldButtons(worldIds) {
+        const unique = Array.from(new Set([currentWorldId].concat(worldIds)));
+        const randomWorlds = pickRandomWorlds(unique, 8);
+
+        worldButtonsEl.innerHTML = "";
+        for (const id of randomWorlds) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "world-chip";
+          button.textContent = id;
+          button.addEventListener("click", () => {
+            switchWorld(id, false);
+          });
+          worldButtonsEl.appendChild(button);
+        }
       }
 
       function detachCurrentWorldListeners() {
@@ -577,7 +590,7 @@
           localStorage.setItem("growtopia_current_world", worldId);
           setCurrentWorldUI();
           resetForWorldChange();
-          refreshWorldSelect([worldId]);
+          refreshWorldButtons([worldId]);
           return;
         }
 
@@ -682,26 +695,16 @@
         });
       }
 
+      function enterWorldFromInput() {
+        const id = normalizeWorldId(worldInputEl.value) || generateWorldId();
+        switchWorld(id, true);
+      }
+
       function bindWorldControls() {
-        createWorldBtn.addEventListener("click", () => {
-          const id = normalizeWorldId(worldInputEl.value) || generateWorldId();
-          switchWorld(id, true);
-        });
-
-        joinWorldBtn.addEventListener("click", () => {
-          const typed = normalizeWorldId(worldInputEl.value);
-          const chosen = normalizeWorldId(worldSelectEl.value);
-          switchWorld(typed || chosen || currentWorldId, false);
-        });
-
-        worldSelectEl.addEventListener("change", () => {
-          worldInputEl.value = worldSelectEl.value;
-        });
-
+        enterWorldBtn.addEventListener("click", enterWorldFromInput);
         worldInputEl.addEventListener("keydown", (event) => {
           if (event.key === "Enter") {
-            const id = normalizeWorldId(worldInputEl.value);
-            if (id) switchWorld(id, false);
+            enterWorldFromInput();
           }
         });
       }
@@ -710,7 +713,7 @@
         const firebaseConfig = window.FIREBASE_CONFIG;
         if (!hasFirebaseConfig(firebaseConfig) || !window.firebase) {
           setNetworkState("Offline (set firebase-config.js)", true);
-          refreshWorldSelect([currentWorldId]);
+          refreshWorldButtons([currentWorldId]);
           updateOnlineCount();
           return;
         }
@@ -748,7 +751,7 @@
               const bv = data[b] && data[b].updatedAt ? data[b].updatedAt : 0;
               return bv - av;
             });
-            refreshWorldSelect(worldIds);
+            refreshWorldButtons(worldIds);
           };
 
           network.connectedRef.on("value", network.handlers.connected);
@@ -763,7 +766,7 @@
         } catch (error) {
           console.error(error);
           setNetworkState("Firebase error", true);
-          refreshWorldSelect([currentWorldId]);
+          refreshWorldButtons([currentWorldId]);
           updateOnlineCount();
         }
       }
@@ -843,7 +846,7 @@
 
       refreshToolbar();
       setCurrentWorldUI();
-      refreshWorldSelect([currentWorldId]);
+      refreshWorldButtons([currentWorldId]);
       updateOnlineCount();
       bindWorldControls();
       initFirebaseMultiplayer();

@@ -141,7 +141,6 @@ canvas {
 }
 
 .world-bar input,
-.world-bar select,
 .world-bar button {
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(0, 0, 0, 0.25);
@@ -156,10 +155,6 @@ canvas {
   width: 180px;
 }
 
-.world-bar select {
-  min-width: 170px;
-}
-
 .world-bar button {
   cursor: pointer;
   background: rgba(255, 209, 102, 0.2);
@@ -168,4 +163,33 @@ canvas {
 .world-tag {
   color: var(--accent);
   font-weight: 700;
+}
+
+.world-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.world-chip {
+  min-width: 92px;
+}
+
+.world-enter {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+@media (max-width: 860px) {
+  .world-enter {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .world-enter input {
+    flex: 1;
+  }
 }
