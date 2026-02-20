@@ -54,6 +54,7 @@ body {
   border-radius: 14px;
   padding: 8px;
   display: grid;
+  position: relative;
 }
 
 canvas {
@@ -229,6 +230,56 @@ canvas {
   gap: 8px;
 }
 
+.chat-panel {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  width: min(380px, calc(100% - 28px));
+  max-height: 48%;
+  background: rgba(8, 28, 44, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 10px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  overflow: hidden;
+}
+
+.chat-messages {
+  padding: 8px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.chat-row {
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.chat-input-row {
+  padding: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+}
+
+.chat-input-row input,
+.chat-input-row button {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.26);
+  color: var(--text);
+  border-radius: 8px;
+  font: inherit;
+  min-height: 30px;
+  padding: 5px 8px;
+}
+
+.chat-input-row button {
+  background: rgba(255, 209, 102, 0.24);
+  cursor: pointer;
+}
+
 .hidden {
   display: none !important;
 }
@@ -336,5 +387,17 @@ canvas {
   .mobile-move,
   .mobile-actions {
     gap: 6px;
+  }
+
+  .chat-panel {
+    left: 6px;
+    right: 6px;
+    width: auto;
+    bottom: 6px;
+    max-height: 54%;
+  }
+
+  .chat-messages {
+    font-size: 11px;
   }
 }

@@ -12,10 +12,11 @@
       <div><strong>Growtopia Test</strong> | Move: A/D or Arrows, Jump: W/Space</div>
       <div class="hint">
         World: <span id="currentWorldLabel" class="world-tag">menu</span> |
-        Action: Click or Tap (Fist breaks) | Slots: 1-7 |
+        Action: Click or Tap (Fist breaks) | Slots: 1-7 | Enter: Chat |
         <span id="networkState" class="danger">Offline</span> |
         <span id="onlineCount">1 world online</span> |
         <span id="totalOnlineCount">1 total online</span> |
+        <button id="chatToggleBtn" type="button" class="hidden">Chat</button>
         <button id="exitWorldBtn" type="button" class="hidden">Exit World</button>
       </div>
     </div>
@@ -31,6 +32,13 @@
     </div>
     <div id="canvasWrap" class="canvas-wrap hidden">
       <canvas id="game" width="960" height="480" aria-label="Growtopia test game canvas"></canvas>
+      <div id="chatPanel" class="chat-panel hidden">
+        <div id="chatMessages" class="chat-messages"></div>
+        <div class="chat-input-row">
+          <input id="chatInput" type="text" maxlength="120" placeholder="Type message...">
+          <button id="chatSendBtn" type="button">Send</button>
+        </div>
+      </div>
     </div>
     <div class="toolbar hidden" id="toolbar"></div>
     <div id="mobileControls" class="mobile-controls hidden">
@@ -65,6 +73,11 @@
       const worldButtonsEl = document.getElementById("worldButtons");
       const worldInputEl = document.getElementById("worldInput");
       const enterWorldBtn = document.getElementById("enterWorldBtn");
+      const chatToggleBtn = document.getElementById("chatToggleBtn");
+      const chatPanelEl = document.getElementById("chatPanel");
+      const chatMessagesEl = document.getElementById("chatMessages");
+      const chatInputEl = document.getElementById("chatInput");
+      const chatSendBtn = document.getElementById("chatSendBtn");
       const exitWorldBtn = document.getElementById("exitWorldBtn");
 
       const TILE = 32;
@@ -106,6 +119,8 @@
       let knownWorldIds = [];
       let totalOnlinePlayers = 0;
       let isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+      let isChatOpen = false;
+      const chatMessages = [];
 
       let currentWorldId = getInitialWorldId();
       let world = makeWorld(currentWorldId);
@@ -145,6 +160,7 @@
         playerRef: null,
         playersRef: null,
         blocksRef: null,
+        chatRef: null,
         handlers: {
           connected: null,
           worldsIndex: null,
@@ -152,7 +168,8 @@
           players: null,
           blockAdded: null,
           blockChanged: null,
-          blockRemoved: null
+          blockRemoved: null,
+          chatAdded: null
         }
       };
 
@@ -257,9 +274,89 @@
         canvasWrapEl.classList.toggle("hidden", !inWorld);
         toolbar.classList.toggle("hidden", !inWorld);
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
+        chatToggleBtn.classList.toggle("hidden", !inWorld);
         exitWorldBtn.classList.toggle("hidden", !inWorld);
+        if (!inWorld) {
+          setChatOpen(false);
+          chatMessages.length = 0;
+          renderChatMessages();
+        }
         setCurrentWorldUI();
         updateOnlineCount();
+      }
+
+      function formatChatTimestamp(timestamp) {
+        if (!timestamp || typeof timestamp !== "number") return "";
+        const d = new Date(timestamp);
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        return hh + ":" + mm;
+      }
+
+      function renderChatMessages() {
+        chatMessagesEl.innerHTML = "";
+        for (const message of chatMessages) {
+          const row = document.createElement("div");
+          row.className = "chat-row";
+          const time = formatChatTimestamp(message.createdAt);
+          const name = (message.name || "Guest").slice(0, 16);
+          row.textContent = (time ? "[" + time + "] " : "") + name + ": " + (message.text || "");
+          chatMessagesEl.appendChild(row);
+        }
+        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+      }
+
+      function setChatOpen(open) {
+        isChatOpen = Boolean(open) && inWorld;
+        chatPanelEl.classList.toggle("hidden", !isChatOpen);
+        if (isChatOpen) {
+          keys["KeyA"] = false;
+          keys["KeyD"] = false;
+          keys["ArrowLeft"] = false;
+          keys["ArrowRight"] = false;
+          keys["KeyW"] = false;
+          keys["Space"] = false;
+          keys["ArrowUp"] = false;
+          touchControls.left = false;
+          touchControls.right = false;
+          touchControls.jump = false;
+          chatInputEl.focus();
+        } else {
+          chatInputEl.blur();
+        }
+      }
+
+      function addChatMessage(message) {
+        if (!message || !message.text) return;
+        chatMessages.push(message);
+        if (chatMessages.length > 60) {
+          chatMessages.shift();
+        }
+        renderChatMessages();
+      }
+
+      function sendChatMessage() {
+        if (!inWorld) return;
+        const raw = chatInputEl.value || "";
+        const text = raw.trim().slice(0, 120);
+        if (!text) return;
+        chatInputEl.value = "";
+        if (!network.enabled || !network.chatRef) {
+          addChatMessage({
+            name: playerName,
+            text,
+            createdAt: Date.now()
+          });
+          return;
+        }
+        network.chatRef.push({
+          name: playerName,
+          playerId,
+          text,
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        }).catch(() => {
+          setNetworkState("Chat send error", true);
+        });
       }
 
       function setCurrentWorldUI() {
@@ -445,6 +542,7 @@
         const x = mouseWorld.tx * TILE - cameraX;
         const y = mouseWorld.ty * TILE - cameraY;
         if (mouseWorld.tx < 0 || mouseWorld.ty < 0 || mouseWorld.tx >= WORLD_W || mouseWorld.ty >= WORLD_H) return;
+        if (!canEditTarget(mouseWorld.tx, mouseWorld.ty)) return;
 
         ctx.strokeStyle = "rgba(255, 209, 102, 0.85)";
         ctx.lineWidth = 2;
@@ -605,6 +703,9 @@
         if (network.blocksRef && network.handlers.blockRemoved) {
           network.blocksRef.off("child_removed", network.handlers.blockRemoved);
         }
+        if (network.chatRef && network.handlers.chatAdded) {
+          network.chatRef.off("child_added", network.handlers.chatAdded);
+        }
 
         if (network.playerRef) {
           network.playerRef.remove().catch(() => {});
@@ -613,10 +714,12 @@
         network.playerRef = null;
         network.playersRef = null;
         network.blocksRef = null;
+        network.chatRef = null;
         network.handlers.players = null;
         network.handlers.blockAdded = null;
         network.handlers.blockChanged = null;
         network.handlers.blockRemoved = null;
+        network.handlers.chatAdded = null;
       }
 
       function leaveCurrentWorld() {
@@ -684,7 +787,10 @@
         const worldPath = BASE_PATH + "/worlds/" + worldId;
         network.playersRef = network.db.ref(worldPath + "/players");
         network.blocksRef = network.db.ref(worldPath + "/blocks");
+        network.chatRef = network.db.ref(worldPath + "/chat").limitToLast(40);
         network.playerRef = network.playersRef.child(playerId);
+        chatMessages.length = 0;
+        renderChatMessages();
 
         network.handlers.players = (snapshot) => {
           remotePlayers.clear();
@@ -722,11 +828,20 @@
         network.handlers.blockAdded = applyNetworkBlock;
         network.handlers.blockChanged = applyNetworkBlock;
         network.handlers.blockRemoved = clearNetworkBlock;
+        network.handlers.chatAdded = (snapshot) => {
+          const value = snapshot.val() || {};
+          addChatMessage({
+            name: (value.name || "Guest").toString().slice(0, 16),
+            text: (value.text || "").toString().slice(0, 120),
+            createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now()
+          });
+        };
 
         network.playersRef.on("value", network.handlers.players);
         network.blocksRef.on("child_added", network.handlers.blockAdded);
         network.blocksRef.on("child_changed", network.handlers.blockChanged);
         network.blocksRef.on("child_removed", network.handlers.blockRemoved);
+        network.chatRef.on("child_added", network.handlers.chatAdded);
 
         if (network.connected) {
           if (network.globalPlayerRef) {
@@ -792,6 +907,18 @@
 
       function bindWorldControls() {
         enterWorldBtn.addEventListener("click", enterWorldFromInput);
+        chatToggleBtn.addEventListener("click", () => {
+          setChatOpen(!isChatOpen);
+        });
+        chatSendBtn.addEventListener("click", () => {
+          sendChatMessage();
+        });
+        chatInputEl.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            sendChatMessage();
+          }
+        });
         exitWorldBtn.addEventListener("click", () => {
           leaveCurrentWorld();
         });
@@ -972,6 +1099,20 @@
       resizeCanvas();
 
       window.addEventListener("keydown", (e) => {
+        if (inWorld && e.key === "Escape" && isChatOpen) {
+          e.preventDefault();
+          setChatOpen(false);
+          return;
+        }
+        if (inWorld && !isCoarsePointer && e.key === "Enter" && !e.shiftKey) {
+          if (document.activeElement === chatInputEl) return;
+          e.preventDefault();
+          setChatOpen(true);
+          return;
+        }
+        if (isChatOpen && document.activeElement === chatInputEl) {
+          return;
+        }
         if (e.code.startsWith("Digit")) {
           const idx = Number(e.code.replace("Digit", "")) - 1;
           if (idx >= 0 && idx < slotOrder.length) {
