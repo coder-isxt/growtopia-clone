@@ -23,12 +23,59 @@ body {
 }
 
 .game-shell {
-  width: min(980px, 100vw);
-  height: min(620px, 100vh);
+  width: min(1220px, 100vw);
+  height: min(760px, 100vh);
   padding: 12px;
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: 10px;
+}
+
+.auth-screen {
+  width: min(420px, 94vw);
+  background: var(--panel);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.auth-card {
+  display: grid;
+  gap: 10px;
+}
+
+.auth-card h2 {
+  margin: 0 0 4px 0;
+  color: var(--accent);
+  font-size: 22px;
+}
+
+.auth-card input,
+.auth-card button {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  border-radius: 8px;
+  font: inherit;
+  min-height: 36px;
+  padding: 7px 10px;
+}
+
+.auth-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.auth-card button {
+  background: rgba(255, 209, 102, 0.22);
+  cursor: pointer;
+}
+
+.auth-status {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  min-height: 18px;
 }
 
 .hud {
@@ -233,9 +280,9 @@ canvas {
 .chat-panel {
   position: absolute;
   left: 14px;
-  bottom: 14px;
-  width: min(380px, calc(100% - 28px));
-  max-height: 48%;
+  top: 14px;
+  width: min(620px, calc(100% - 28px));
+  max-height: 44%;
   background: rgba(8, 28, 44, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 10px;
@@ -281,15 +328,37 @@ canvas {
 }
 
 .logs-panel {
-  position: absolute;
-  right: 14px;
-  bottom: 14px;
-  width: min(330px, calc(100% - 28px));
-  max-height: 48%;
+  position: fixed;
+  right: 12px;
+  top: 74px;
+  width: 300px;
+  height: calc(100vh - 92px);
   background: rgba(8, 28, 44, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 10px;
   overflow: hidden;
+  z-index: 30;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.logs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.logs-header button {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 209, 102, 0.22);
+  color: var(--text);
+  border-radius: 7px;
+  font: inherit;
+  min-height: 28px;
+  padding: 4px 8px;
+  cursor: pointer;
 }
 
 .logs-messages {
@@ -297,12 +366,106 @@ canvas {
   overflow-y: auto;
   font-size: 12px;
   line-height: 1.35;
-  max-height: 100%;
+  height: 100%;
 }
 
 .logs-row {
   margin-bottom: 4px;
   word-break: break-word;
+}
+
+.admin-panel {
+  position: fixed;
+  left: 50%;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  width: min(920px, 96vw);
+  max-height: 82vh;
+  background: linear-gradient(180deg, rgba(15, 40, 62, 0.97), rgba(8, 23, 36, 0.97));
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 12px;
+  overflow: hidden;
+  z-index: 40;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.admin-header button {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 209, 102, 0.22);
+  color: var(--text);
+  border-radius: 8px;
+  font: inherit;
+  min-height: 30px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.admin-accounts {
+  padding: 12px;
+  overflow-y: auto;
+  display: grid;
+  gap: 10px;
+}
+
+.admin-row {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  display: grid;
+  gap: 8px;
+}
+
+.admin-meta {
+  display: grid;
+  gap: 2px;
+}
+
+.admin-meta span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.admin-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.admin-actions button {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 209, 102, 0.18);
+  color: var(--text);
+  border-radius: 8px;
+  font: inherit;
+  min-height: 30px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.admin-actions button[data-admin-act="ban"] {
+  background: rgba(255, 93, 115, 0.2);
+}
+
+.admin-actions button[data-admin-act="unban"] {
+  background: rgba(91, 214, 139, 0.2);
+}
+
+.admin-actions button[data-admin-act="kick"] {
+  background: rgba(255, 180, 90, 0.2);
+}
+
+.admin-actions button[data-admin-act="resetinv"] {
+  background: rgba(141, 193, 255, 0.2);
 }
 
 .hidden {
@@ -418,7 +581,7 @@ canvas {
     left: 6px;
     right: 6px;
     width: auto;
-    bottom: 6px;
+    top: 6px;
     max-height: 54%;
   }
 
@@ -430,11 +593,16 @@ canvas {
     left: 6px;
     right: 6px;
     width: auto;
-    bottom: 6px;
-    max-height: 54%;
+    top: 6px;
+    height: 40vh;
   }
 
   .logs-messages {
     font-size: 11px;
+  }
+
+  .admin-panel {
+    width: calc(100vw - 10px);
+    max-height: 88vh;
   }
 }
