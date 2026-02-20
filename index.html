@@ -17,6 +17,7 @@
         <span id="onlineCount">1 world online</span> |
         <span id="totalOnlineCount">1 total online</span> |
         <button id="chatToggleBtn" type="button" class="hidden">Chat</button>
+        <button id="logsToggleBtn" type="button" class="hidden">Logs</button>
         <button id="exitWorldBtn" type="button" class="hidden">Exit World</button>
       </div>
     </div>
@@ -38,6 +39,9 @@
           <input id="chatInput" type="text" maxlength="120" placeholder="Type message...">
           <button id="chatSendBtn" type="button">Send</button>
         </div>
+      </div>
+      <div id="logsPanel" class="logs-panel hidden">
+        <div id="logsMessages" class="logs-messages"></div>
       </div>
     </div>
     <div class="toolbar hidden" id="toolbar"></div>
@@ -74,10 +78,13 @@
       const worldInputEl = document.getElementById("worldInput");
       const enterWorldBtn = document.getElementById("enterWorldBtn");
       const chatToggleBtn = document.getElementById("chatToggleBtn");
+      const logsToggleBtn = document.getElementById("logsToggleBtn");
       const chatPanelEl = document.getElementById("chatPanel");
       const chatMessagesEl = document.getElementById("chatMessages");
       const chatInputEl = document.getElementById("chatInput");
       const chatSendBtn = document.getElementById("chatSendBtn");
+      const logsPanelEl = document.getElementById("logsPanel");
+      const logsMessagesEl = document.getElementById("logsMessages");
       const exitWorldBtn = document.getElementById("exitWorldBtn");
 
       const TILE = 32;
@@ -120,7 +127,10 @@
       let totalOnlinePlayers = 0;
       let isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
       let isChatOpen = false;
+      let isLogsOpen = false;
       const chatMessages = [];
+      const logsMessages = [];
+      let logCleanupTimerId = null;
 
       let currentWorldId = getInitialWorldId();
       let world = makeWorld(currentWorldId);
@@ -161,6 +171,8 @@
         playersRef: null,
         blocksRef: null,
         chatRef: null,
+        chatFeedRef: null,
+        logsRef: null,
         handlers: {
           connected: null,
           worldsIndex: null,
@@ -169,7 +181,8 @@
           blockAdded: null,
           blockChanged: null,
           blockRemoved: null,
-          chatAdded: null
+          chatAdded: null,
+          logAdded: null
         }
       };
 
@@ -275,11 +288,15 @@
         toolbar.classList.toggle("hidden", !inWorld);
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
         chatToggleBtn.classList.toggle("hidden", !inWorld);
+        logsToggleBtn.classList.toggle("hidden", !inWorld);
         exitWorldBtn.classList.toggle("hidden", !inWorld);
         if (!inWorld) {
           setChatOpen(false);
+          setLogsOpen(false);
           chatMessages.length = 0;
+          logsMessages.length = 0;
           renderChatMessages();
+          renderLogsMessages();
         }
         setCurrentWorldUI();
         updateOnlineCount();
@@ -309,6 +326,9 @@
       function setChatOpen(open) {
         isChatOpen = Boolean(open) && inWorld;
         chatPanelEl.classList.toggle("hidden", !isChatOpen);
+        if (isChatOpen && isLogsOpen) {
+          setLogsOpen(false);
+        }
         if (isChatOpen) {
           keys["KeyA"] = false;
           keys["KeyD"] = false;
@@ -324,6 +344,77 @@
         } else {
           chatInputEl.blur();
         }
+      }
+
+      function renderLogsMessages() {
+        logsMessagesEl.innerHTML = "";
+        for (const message of logsMessages) {
+          const row = document.createElement("div");
+          row.className = "logs-row";
+          const time = formatChatTimestamp(message.createdAt);
+          row.textContent = (time ? "[" + time + "] " : "") + (message.text || "");
+          logsMessagesEl.appendChild(row);
+        }
+        logsMessagesEl.scrollTop = logsMessagesEl.scrollHeight;
+      }
+
+      function setLogsOpen(open) {
+        isLogsOpen = Boolean(open) && inWorld;
+        logsPanelEl.classList.toggle("hidden", !isLogsOpen);
+        if (isLogsOpen && isChatOpen) {
+          setChatOpen(false);
+        }
+      }
+
+      function addLogMessage(message) {
+        if (!message || !message.text) return;
+        logsMessages.push(message);
+        if (logsMessages.length > 120) {
+          logsMessages.shift();
+        }
+        renderLogsMessages();
+      }
+
+      function writePlayerLog(text) {
+        if (!inWorld) return;
+        if (!network.enabled || !network.logsRef) return;
+        network.logsRef.push({
+          text: text.toString().slice(0, 140),
+          playerId,
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        }).catch(() => {
+          setNetworkState("Log write error", true);
+        });
+      }
+
+      function cleanupOldLogs() {
+        if (!network.enabled || !network.logsRef) return;
+        const cutoff = Date.now() - (3 * 60 * 60 * 1000);
+        network.logsRef
+          .orderByChild("createdAt")
+          .endAt(cutoff)
+          .once("value")
+          .then((snapshot) => {
+            const data = snapshot.val() || {};
+            Object.keys(data).forEach((key) => {
+              network.logsRef.child(key).remove().catch(() => {});
+            });
+          })
+          .catch(() => {});
+      }
+
+      function stopLogCleanupTimer() {
+        if (logCleanupTimerId) {
+          clearInterval(logCleanupTimerId);
+          logCleanupTimerId = null;
+        }
+      }
+
+      function startLogCleanupTimer() {
+        stopLogCleanupTimer();
+        logCleanupTimerId = setInterval(() => {
+          cleanupOldLogs();
+        }, 10 * 60 * 1000);
       }
 
       function addChatMessage(message) {
@@ -342,6 +433,7 @@
         if (!text) return;
         chatInputEl.value = "";
         if (!network.enabled || !network.chatRef) {
+          chatInputEl.value = "";
           addChatMessage({
             name: playerName,
             text,
@@ -349,14 +441,21 @@
           });
           return;
         }
-        network.chatRef.push({
-          name: playerName,
-          playerId,
-          text,
-          createdAt: firebase.database.ServerValue.TIMESTAMP
-        }).catch(() => {
+        try {
+          network.chatRef.push({
+            name: playerName,
+            playerId,
+            text,
+            createdAt: firebase.database.ServerValue.TIMESTAMP
+          }).then(() => {
+            chatInputEl.value = "";
+          }).catch(() => {
+            setNetworkState("Chat send error", true);
+          });
+        } catch (error) {
+          console.error(error);
           setNetworkState("Chat send error", true);
-        });
+        }
       }
 
       function setCurrentWorldUI() {
@@ -703,8 +802,11 @@
         if (network.blocksRef && network.handlers.blockRemoved) {
           network.blocksRef.off("child_removed", network.handlers.blockRemoved);
         }
-        if (network.chatRef && network.handlers.chatAdded) {
-          network.chatRef.off("child_added", network.handlers.chatAdded);
+        if (network.chatFeedRef && network.handlers.chatAdded) {
+          network.chatFeedRef.off("child_added", network.handlers.chatAdded);
+        }
+        if (network.logsRef && network.handlers.logAdded) {
+          network.logsRef.off("child_added", network.handlers.logAdded);
         }
 
         if (network.playerRef) {
@@ -715,14 +817,19 @@
         network.playersRef = null;
         network.blocksRef = null;
         network.chatRef = null;
+        network.chatFeedRef = null;
+        network.logsRef = null;
         network.handlers.players = null;
         network.handlers.blockAdded = null;
         network.handlers.blockChanged = null;
         network.handlers.blockRemoved = null;
         network.handlers.chatAdded = null;
+        network.handlers.logAdded = null;
+        stopLogCleanupTimer();
       }
 
       function leaveCurrentWorld() {
+        writePlayerLog(playerName + " left the world");
         detachCurrentWorldListeners();
         remotePlayers.clear();
         touchControls.left = false;
@@ -787,10 +894,14 @@
         const worldPath = BASE_PATH + "/worlds/" + worldId;
         network.playersRef = network.db.ref(worldPath + "/players");
         network.blocksRef = network.db.ref(worldPath + "/blocks");
-        network.chatRef = network.db.ref(worldPath + "/chat").limitToLast(40);
+        network.chatRef = network.db.ref(worldPath + "/chat");
+        network.chatFeedRef = network.chatRef.limitToLast(40);
+        network.logsRef = network.db.ref(worldPath + "/logs");
         network.playerRef = network.playersRef.child(playerId);
         chatMessages.length = 0;
+        logsMessages.length = 0;
         renderChatMessages();
+        renderLogsMessages();
 
         network.handlers.players = (snapshot) => {
           remotePlayers.clear();
@@ -836,12 +947,24 @@
             createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now()
           });
         };
+        network.handlers.logAdded = (snapshot) => {
+          const value = snapshot.val() || {};
+          addLogMessage({
+            text: (value.text || "").toString().slice(0, 140),
+            createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now()
+          });
+        };
 
         network.playersRef.on("value", network.handlers.players);
         network.blocksRef.on("child_added", network.handlers.blockAdded);
         network.blocksRef.on("child_changed", network.handlers.blockChanged);
         network.blocksRef.on("child_removed", network.handlers.blockRemoved);
-        network.chatRef.on("child_added", network.handlers.chatAdded);
+        network.chatFeedRef.on("child_added", network.handlers.chatAdded);
+        network.logsRef.on("child_added", network.handlers.logAdded);
+        cleanupOldLogs();
+        startLogCleanupTimer();
+        writePlayerLog(playerName + " joined the world");
+        window.setTimeout(cleanupOldLogs, 1000);
 
         if (network.connected) {
           if (network.globalPlayerRef) {
@@ -909,6 +1032,9 @@
         enterWorldBtn.addEventListener("click", enterWorldFromInput);
         chatToggleBtn.addEventListener("click", () => {
           setChatOpen(!isChatOpen);
+        });
+        logsToggleBtn.addEventListener("click", () => {
+          setLogsOpen(!isLogsOpen);
         });
         chatSendBtn.addEventListener("click", () => {
           sendChatMessage();
@@ -1001,6 +1127,9 @@
           network.globalPlayersRef.on("value", network.handlers.globalPlayers);
 
           window.addEventListener("beforeunload", () => {
+            if (inWorld) {
+              writePlayerLog(playerName + " left the world");
+            }
             if (network.globalPlayerRef) {
               network.globalPlayerRef.remove();
             }

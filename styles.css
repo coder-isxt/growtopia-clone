@@ -280,6 +280,31 @@ canvas {
   cursor: pointer;
 }
 
+.logs-panel {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: min(330px, calc(100% - 28px));
+  max-height: 48%;
+  background: rgba(8, 28, 44, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.logs-messages {
+  padding: 8px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.35;
+  max-height: 100%;
+}
+
+.logs-row {
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
 .hidden {
   display: none !important;
 }
@@ -398,6 +423,18 @@ canvas {
   }
 
   .chat-messages {
+    font-size: 11px;
+  }
+
+  .logs-panel {
+    left: 6px;
+    right: 6px;
+    width: auto;
+    bottom: 6px;
+    max-height: 54%;
+  }
+
+  .logs-messages {
     font-size: 11px;
   }
 }
