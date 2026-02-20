@@ -82,17 +82,21 @@ body {
   background: var(--panel);
   border: 2px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
-  padding: 8px 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 14px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 8px;
+  font-size: 14px;
 }
 
 .hud strong {
   color: var(--accent);
   letter-spacing: 0.4px;
+}
+
+.hud > div:first-child {
+  font-size: 13px;
+  opacity: 0.95;
 }
 
 .canvas-wrap {
@@ -122,6 +126,50 @@ canvas {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
+}
+
+.cosmetic-strip {
+  grid-column: 1 / -1;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  padding-top: 6px;
+  display: grid;
+  gap: 6px;
+}
+
+.cosmetic-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.cosmetic-title {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.78);
+  min-width: 56px;
+  text-transform: capitalize;
+}
+
+.cosmetic-btn {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(0, 0, 0, 0.24);
+  color: var(--text);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  min-height: 28px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.cosmetic-btn.selected {
+  box-shadow: 0 0 0 2px rgba(255, 209, 102, 0.25);
+  border-color: var(--accent);
+}
+
+.cosmetic-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .slot {
@@ -160,6 +208,18 @@ canvas {
   color: rgba(255, 255, 255, 0.75);
 }
 
+.slot .cosmetic-label {
+  position: absolute;
+  left: 6px;
+  bottom: 4px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.slot.locked {
+  opacity: 0.5;
+}
+
 .block-chip {
   width: 26px;
   height: 26px;
@@ -170,7 +230,16 @@ canvas {
 .hint {
   color: rgba(255, 255, 255, 0.85);
   font-size: 13px;
-  text-align: right;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  line-height: 1.35;
+  text-align: left;
 }
 
 .danger {
@@ -184,10 +253,15 @@ canvas {
   background: rgba(255, 209, 102, 0.22);
   color: var(--text);
   border-radius: 8px;
-  padding: 6px 9px;
+  padding: 6px 10px;
   font: inherit;
-  min-height: 30px;
+  min-height: 32px;
   cursor: pointer;
+}
+
+.hud button {
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .menu-screen {
@@ -531,6 +605,12 @@ canvas {
   gap: 6px;
 }
 
+.admin-give-item-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .admin-actions button {
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(255, 209, 102, 0.18);
@@ -574,6 +654,8 @@ canvas {
 
 .admin-ban-duration,
 .admin-ban-reason,
+.admin-give-item-id,
+.admin-give-item-amount,
 .admin-give-block,
 .admin-give-amount {
   border: 1px solid rgba(255, 255, 255, 0.24);
@@ -586,9 +668,14 @@ canvas {
 }
 
 .admin-ban-duration,
+.admin-give-item-amount,
 .admin-give-block,
 .admin-give-amount {
   width: 74px;
+}
+
+.admin-give-item-id {
+  width: 150px;
 }
 
 .admin-ban-reason {
@@ -624,7 +711,11 @@ canvas {
 }
 
 .admin-actions button:disabled,
-.admin-role-select:disabled {
+.admin-role-select:disabled,
+.admin-give-item-id:disabled,
+.admin-give-item-amount:disabled,
+.admin-give-block:disabled,
+.admin-give-amount:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -658,16 +749,17 @@ canvas {
   }
 
   .hud {
-    flex-direction: column;
-    align-items: flex-start;
     padding: 8px;
     font-size: 12px;
+    gap: 6px;
   }
 
   .hint {
     text-align: left;
     font-size: 11px;
     line-height: 1.35;
+    gap: 5px;
+    padding: 6px;
   }
 
   .menu-screen {
@@ -706,6 +798,17 @@ canvas {
   .toolbar {
     padding: 6px;
     gap: 6px;
+  }
+
+  .cosmetic-title {
+    min-width: 50px;
+    font-size: 11px;
+  }
+
+  .cosmetic-btn {
+    font-size: 11px;
+    min-height: 26px;
+    padding: 3px 7px;
   }
 
   .slot {

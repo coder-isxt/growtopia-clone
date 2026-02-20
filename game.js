@@ -41,10 +41,12 @@
       const logsMessagesEl = document.getElementById("logsMessages");
       const clearLogsBtn = document.getElementById("clearLogsBtn");
       const exitWorldBtn = document.getElementById("exitWorldBtn");
+      const logoutBtn = document.getElementById("logoutBtn");
 
       const modules = window.GTModules || {};
       const adminModule = modules.admin || {};
       const blocksModule = modules.blocks || {};
+      const itemsModule = modules.items || {};
       const playerModule = modules.player || {};
       const chatModule = modules.chat || {};
       const menuModule = modules.menu || {};
@@ -86,14 +88,15 @@
       };
       const DEFAULT_COMMAND_COOLDOWNS_MS = {
         owner: {},
-        manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, givex: 600, tp: 300, bring: 700, summon: 700, setrole: 2000 },
-        admin: { kick: 900, givex: 900, tp: 400, bring: 900, summon: 900 },
+        manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, givex: 600, giveitem: 600, tp: 300, bring: 700, summon: 700, setrole: 2000 },
+        admin: { kick: 900, givex: 900, giveitem: 900, tp: 400, bring: 900, summon: 900 },
         moderator: { kick: 1200, tp: 600, bring: 1200, summon: 1200 },
         none: {}
       };
       const ADMIN_COMMAND_COOLDOWNS_MS = SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS && typeof SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS === "object"
         ? SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS
         : DEFAULT_COMMAND_COOLDOWNS_MS;
+      const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
 
       const blockDefs = typeof blocksModule.getBlockDefs === "function" ? blocksModule.getBlockDefs() : {
         0: { name: "Air", color: "transparent", solid: false },
@@ -107,6 +110,21 @@
 
       const slotOrder = ["fist", 1, 2, 3, 4, 5, 6];
       const INVENTORY_IDS = [1, 2, 3, 4, 5, 6];
+      const COSMETIC_SLOTS = ["clothes", "wings", "swords"];
+      const COSMETIC_CATALOG = typeof itemsModule.getCosmeticItemsBySlot === "function"
+        ? itemsModule.getCosmeticItemsBySlot()
+        : { clothes: [], wings: [], swords: [] };
+      const COSMETIC_LOOKUP = {};
+      const COSMETIC_ITEMS = [];
+      for (const slot of COSMETIC_SLOTS) {
+        const map = {};
+        const slotItems = Array.isArray(COSMETIC_CATALOG[slot]) ? COSMETIC_CATALOG[slot] : [];
+        for (const item of slotItems) {
+          map[item.id] = item;
+          COSMETIC_ITEMS.push({ slot, ...item });
+        }
+        COSMETIC_LOOKUP[slot] = map;
+      }
       const inventory = {
         1: 0,
         2: 0,
@@ -162,6 +180,12 @@
         grounded: false,
         facing: 1
       };
+      const cosmeticInventory = {};
+      const equippedCosmetics = {
+        clothes: "",
+        wings: "",
+        swords: ""
+      };
 
       let cameraX = 0;
       let cameraY = 0;
@@ -171,6 +195,8 @@
       let networkLastY = -1;
       let networkLastFacing = 0;
       let lastJumpAtMs = -9999;
+      let lastAirJumpAtMs = -9999;
+      let airJumpsUsed = 0;
       let wasJumpHeld = false;
       let mobileLastTouchActionAt = 0;
       const touchControls = {
@@ -258,6 +284,37 @@
         return (value || "").trim().toLowerCase();
       }
 
+      function saveCredentials(username, password) {
+        try {
+          localStorage.setItem(SAVED_AUTH_KEY, JSON.stringify({
+            username: (username || "").toString().slice(0, 20),
+            password: (password || "").toString().slice(0, 64)
+          }));
+        } catch (error) {
+          // ignore localStorage failures
+        }
+      }
+
+      function loadSavedCredentials() {
+        try {
+          const raw = localStorage.getItem(SAVED_AUTH_KEY);
+          if (!raw) return { username: "", password: "" };
+          const parsed = JSON.parse(raw);
+          return {
+            username: (parsed && parsed.username || "").toString(),
+            password: (parsed && parsed.password || "").toString()
+          };
+        } catch (error) {
+          return { username: "", password: "" };
+        }
+      }
+
+      function applySavedCredentialsToForm() {
+        const saved = loadSavedCredentials();
+        if (saved.username) authUsernameEl.value = saved.username;
+        if (saved.password) authPasswordEl.value = saved.password;
+      }
+
       function canUserViewLogs(username) {
         const normalized = normalizeUsername(username);
         if (LOG_VIEWER_USERNAMES.includes(normalized)) return true;
@@ -329,6 +386,12 @@
         const actorRank = getRoleRank(currentAdminRole);
         const targetRank = getRoleRank(targetRole);
         return actorRank > targetRank;
+      }
+
+      function canActorGrantTarget(targetAccountId, targetRole) {
+        if (!targetAccountId) return false;
+        if (targetAccountId === playerProfileId) return true;
+        return canActorAffectTarget(targetAccountId, targetRole);
       }
 
       function canUserUseAdmin() {
@@ -511,7 +574,7 @@
           const canUnban = hasAdminPermission("unban") && canActorAffectTarget(accountId, role);
           const canKick = hasAdminPermission("kick") && canActorAffectTarget(accountId, role);
           const canReset = hasAdminPermission("resetinv") && canActorAffectTarget(accountId, role);
-          const canGive = hasAdminPermission("givex") && canActorAffectTarget(accountId, role);
+          const canGive = hasAdminPermission("givex") && canActorGrantTarget(accountId, role);
           const banText = banned
             ? (banStatus.type === "permanent" ? "Perm Banned" : "Temp Banned (" + formatRemainingMs(banStatus.remainingMs) + ")")
             : "Active";
@@ -544,6 +607,13 @@
                   <input class="admin-give-block" data-account-id="${escapeHtml(accountId)}" type="number" min="1" max="6" step="1" value="1" placeholder="block">
                   <input class="admin-give-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="10" placeholder="amount">
                   <button data-admin-act="give" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give</button>
+                </div>
+                <div class="admin-give-item-wrap">
+                  <select class="admin-give-item-id" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>
+                    ${COSMETIC_ITEMS.map((item) => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.id) + "</option>").join("")}
+                  </select>
+                  <input class="admin-give-item-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="1" placeholder="amount">
+                  <button data-admin-act="giveitem" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give Item</button>
                 </div>
               </div>
             </div>
@@ -583,6 +653,19 @@
         const action = target.dataset.adminAct;
         const accountId = target.dataset.accountId;
         if (!action || !accountId || !canUseAdminPanel || !network.db) return;
+        if (action === "giveitem") {
+          const itemSelect = adminAccountsEl.querySelector('.admin-give-item-id[data-account-id="' + accountId + '"]');
+          const amountInput = adminAccountsEl.querySelector('.admin-give-item-amount[data-account-id="' + accountId + '"]');
+          if (!(itemSelect instanceof HTMLSelectElement) || !(amountInput instanceof HTMLInputElement)) return;
+          const itemId = itemSelect.value || "";
+          const amount = Number(amountInput.value);
+          const username = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId;
+          const ok = applyCosmeticItemGrant(accountId, itemId, amount, "panel", username);
+          if (ok) {
+            postLocalSystemChat("Added item " + itemId + " x" + amount + " to @" + username + ".");
+          }
+          return;
+        }
         if (action === "tempban" || action === "permban") {
           const durationInput = adminAccountsEl.querySelector('.admin-ban-duration[data-account-id="' + accountId + '"]');
           const reasonInput = adminAccountsEl.querySelector('.admin-ban-reason[data-account-id="' + accountId + '"]');
@@ -692,7 +775,7 @@
         }
         const targetUsername = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || "";
         const targetRole = getAccountRole(accountId, targetUsername);
-        if (!canActorAffectTarget(accountId, targetRole)) {
+        if (!canActorGrantTarget(accountId, targetRole)) {
           postLocalSystemChat("Permission denied on target role.");
           return false;
         }
@@ -706,11 +789,58 @@
           const next = (Number(current) || 0) + safeAmount;
           return Math.max(0, next);
         }).then(() => {
+          if (accountId === playerProfileId) {
+            inventory[safeBlock] = Math.max(0, Math.floor((inventory[safeBlock] || 0) + safeAmount));
+            refreshToolbar();
+            saveInventory();
+            reloadMyInventoryFromServer();
+          }
           const target = targetLabel || targetUsername || accountId;
           logAdminAudit("Admin(" + sourceTag + ") gave @" + target + " block " + safeBlock + " amount " + safeAmount + ".");
           pushAdminAuditEntry("givex", accountId, "block=" + safeBlock + " amount=" + safeAmount);
+          postLocalSystemChat("Granted block " + safeBlock + " x" + safeAmount + " to @" + target + ".");
         }).catch(() => {
           postLocalSystemChat("Failed to update inventory.");
+        });
+        return true;
+      }
+
+      function applyCosmeticItemGrant(accountId, itemId, amount, sourceTag, targetLabel) {
+        if (!accountId || !canUseAdminPanel || !network.db) return false;
+        if (!ensureCommandReady("giveitem")) return false;
+        if (!hasAdminPermission("givex")) {
+          postLocalSystemChat("Permission denied.");
+          return false;
+        }
+        const targetUsername = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || "";
+        const targetRole = getAccountRole(accountId, targetUsername);
+        if (!canActorGrantTarget(accountId, targetRole)) {
+          postLocalSystemChat("Permission denied on target role.");
+          return false;
+        }
+        const amountSafe = Math.floor(Number(amount));
+        const itemIdSafe = String(itemId || "");
+        const itemDef = COSMETIC_ITEMS.find((it) => it.id === itemIdSafe);
+        if (!itemDef || !Number.isInteger(amountSafe) || amountSafe <= 0) {
+          postLocalSystemChat("Usage: /giveitem <user> <itemId> <amount>");
+          return false;
+        }
+        network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/cosmeticItems/" + itemIdSafe).transaction((current) => {
+          const next = (Number(current) || 0) + amountSafe;
+          return Math.max(0, next);
+        }).then(() => {
+          if (accountId === playerProfileId) {
+            cosmeticInventory[itemIdSafe] = Math.max(0, Math.floor((cosmeticInventory[itemIdSafe] || 0) + amountSafe));
+            refreshToolbar();
+            saveInventory();
+            reloadMyInventoryFromServer();
+          }
+          const target = targetLabel || targetUsername || accountId;
+          logAdminAudit("Admin(" + sourceTag + ") gave @" + target + " item " + itemIdSafe + " x" + amountSafe + ".");
+          pushAdminAuditEntry("giveitem", accountId, "item=" + itemIdSafe + " amount=" + amountSafe);
+          postLocalSystemChat("Granted item " + itemIdSafe + " x" + amountSafe + " to @" + target + ".");
+        }).catch(() => {
+          postLocalSystemChat("Failed to give item.");
         });
         return true;
       }
@@ -797,7 +927,15 @@
           return true;
         }
         if (action === "resetinv") {
-          const resetPayload = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+          const cosmeticItems = {};
+          for (const item of COSMETIC_ITEMS) {
+            cosmeticItems[item.id] = 0;
+          }
+          const resetPayload = {
+            1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0,
+            cosmeticItems,
+            equippedCosmetics: { clothes: "", wings: "", swords: "" }
+          };
           network.db.ref(BASE_PATH + "/player-inventories/" + accountId).set(resetPayload).then(() => {
             logAdminAudit("Admin(" + sourceTag + ") reset inventory for " + accountId + ".");
             pushAdminAuditEntry("resetinv", accountId, "");
@@ -918,7 +1056,7 @@
           if (hasAdminPermission("unban")) available.push("/unban");
           if (hasAdminPermission("kick")) available.push("/kick");
           if (hasAdminPermission("resetinv")) available.push("/resetinv");
-          if (hasAdminPermission("givex")) available.push("/givex");
+          if (hasAdminPermission("givex")) available.push("/givex", "/giveitem");
           if (hasAdminPermission("tp")) available.push("/tp");
           if (hasAdminPermission("bring")) available.push("/bring", "/summon");
           if (hasAdminPermission("setrole") || hasAdminPermission("setrole_limited")) available.push("/setrole", "/role");
@@ -971,6 +1109,20 @@
           }
           if (applyInventoryGrant(accountId, blockId, amount, "chat", targetRef)) {
             postLocalSystemChat("Updated inventory for @" + targetRef + ".");
+          }
+          return true;
+        }
+        if (command === "/giveitem") {
+          const targetRef = parts[1] || "";
+          const itemId = parts[2] || "";
+          const amount = Number(parts[3]);
+          const accountId = findAccountIdByUserRef(targetRef);
+          if (!accountId) {
+            postLocalSystemChat("Target account not found: " + targetRef);
+            return true;
+          }
+          if (applyCosmeticItemGrant(accountId, itemId, amount, "chat", targetRef)) {
+            postLocalSystemChat("Gave item " + itemId + " x" + amount + " to @" + targetRef + ".");
           }
           return true;
         }
@@ -1207,6 +1359,7 @@
           });
           addClientLog("Account created: @" + username + " (" + accountId + ").", accountId, username, "");
           await reserveAccountSession(db, accountId, username);
+          saveCredentials(username, password);
           onAuthSuccess(accountId, username);
           setAuthStatus("Account created.", false);
         } catch (error) {
@@ -1256,6 +1409,7 @@
             }
           }
           await reserveAccountSession(db, accountId, username);
+          saveCredentials(username, password);
           onAuthSuccess(accountId, username);
           addClientLog("Login success: @" + username + ".");
           setAuthStatus("Logged in.", false);
@@ -1305,6 +1459,32 @@
           const value = Number(record && record[id]);
           inventory[id] = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
         }
+        const itemRecord = record && record.cosmeticItems || {};
+        const legacyOwned = record && record.owned || {};
+        for (const item of COSMETIC_ITEMS) {
+          const nestedValue = Number(itemRecord[item.id]);
+          const topLevelValue = Number(record && record[item.id]);
+          const legacyHasOwned = Array.isArray(legacyOwned[item.slot]) && legacyOwned[item.slot].includes(item.id);
+          let finalValue = 0;
+          if (Number.isFinite(nestedValue)) finalValue = Math.max(0, Math.floor(nestedValue));
+          if (!finalValue && Number.isFinite(topLevelValue)) finalValue = Math.max(0, Math.floor(topLevelValue));
+          if (!finalValue && legacyHasOwned) finalValue = 1;
+          cosmeticInventory[item.id] = finalValue;
+        }
+        const equippedRecord = record && record.equippedCosmetics || record && record.equipped || {};
+        for (const slot of COSMETIC_SLOTS) {
+          const id = String(equippedRecord[slot] || "");
+          equippedCosmetics[slot] = id && COSMETIC_LOOKUP[slot][id] && (cosmeticInventory[id] || 0) > 0 ? id : "";
+        }
+      }
+
+      function normalizeRemoteEquippedCosmetics(raw) {
+        const output = { clothes: "", wings: "", swords: "" };
+        for (const slot of COSMETIC_SLOTS) {
+          const id = String(raw && raw[slot] || "");
+          output[slot] = id && COSMETIC_LOOKUP[slot][id] ? id : "";
+        }
+        return output;
       }
 
       function buildInventoryPayload() {
@@ -1312,6 +1492,16 @@
         for (const id of INVENTORY_IDS) {
           payload[id] = Math.max(0, Math.floor(inventory[id] || 0));
         }
+        const itemPayload = {};
+        for (const item of COSMETIC_ITEMS) {
+          itemPayload[item.id] = Math.max(0, Math.floor(cosmeticInventory[item.id] || 0));
+        }
+        payload.cosmeticItems = itemPayload;
+        payload.equippedCosmetics = {
+          clothes: equippedCosmetics.clothes || "",
+          wings: equippedCosmetics.wings || "",
+          swords: equippedCosmetics.swords || ""
+        };
         return payload;
       }
 
@@ -1341,6 +1531,16 @@
         network.inventoryRef.set(buildInventoryPayload()).catch(() => {
           setNetworkState("Inventory save error", true);
         });
+      }
+
+      function reloadMyInventoryFromServer() {
+        if (!network.enabled || !network.inventoryRef) return;
+        network.inventoryRef.once("value").then((snapshot) => {
+          if (!snapshot.exists()) return;
+          applyInventoryFromRecord(snapshot.val() || {});
+          saveInventoryToLocal();
+          refreshToolbar();
+        }).catch(() => {});
       }
 
       function getInitialWorldId() {
@@ -1429,6 +1629,7 @@
         networkLastX = -1;
         networkLastY = -1;
         networkLastFacing = 0;
+        airJumpsUsed = 0;
       }
 
       function setInWorldState(nextValue) {
@@ -1698,6 +1899,7 @@
       }
 
       function forceLogout(reason) {
+        saveInventoryToLocal();
         if (inWorld) {
           sendSystemWorldMessage(playerName + " left the world.");
         }
@@ -1710,7 +1912,6 @@
         network.enabled = false;
         setInWorldState(false);
         setAdminOpen(false);
-        authPasswordEl.value = "";
         pendingTeleportSelf = null;
         lastHandledTeleportCommandId = "";
         currentAdminRole = "none";
@@ -1726,6 +1927,7 @@
         if (adminAuditTargetFilterEl) adminAuditTargetFilterEl.value = "";
         gameShellEl.classList.add("hidden");
         authScreenEl.classList.remove("hidden");
+        applySavedCredentialsToForm();
         setAuthStatus(reason || "Logged out.", true);
       }
 
@@ -1842,6 +2044,7 @@
         const moveRight = keys["KeyD"] || keys["ArrowRight"] || touchControls.right;
         const jump = keys["KeyW"] || keys["Space"] || keys["ArrowUp"] || touchControls.jump;
         const jumpPressedThisFrame = jump && !wasJumpHeld;
+        const hasWingDoubleJump = Boolean(equippedCosmetics.wings);
 
         if (moveLeft) {
           player.vx -= player.grounded ? MOVE_ACCEL : MOVE_ACCEL * AIR_CONTROL;
@@ -1855,6 +2058,17 @@
           player.vy = JUMP_VELOCITY;
           player.grounded = false;
           lastJumpAtMs = nowMs;
+          airJumpsUsed = 0;
+        } else if (
+          jumpPressedThisFrame &&
+          !player.grounded &&
+          hasWingDoubleJump &&
+          airJumpsUsed < 1 &&
+          (nowMs - lastAirJumpAtMs) >= 120
+        ) {
+          player.vy = JUMP_VELOCITY;
+          lastAirJumpAtMs = nowMs;
+          airJumpsUsed += 1;
         }
 
         player.vx = Math.max(-MAX_MOVE_SPEED, Math.min(MAX_MOVE_SPEED, player.vx));
@@ -1885,6 +2099,10 @@
           }
           if (player.vy > 0) player.grounded = true;
           player.vy = 0;
+        }
+
+        if (player.grounded) {
+          airJumpsUsed = 0;
         }
 
         if (player.y > WORLD_H * TILE) {
@@ -1954,12 +2172,54 @@
         }
       }
 
+      function drawWings(px, py, wingsId, facing) {
+        if (!wingsId) return;
+        const item = COSMETIC_LOOKUP.wings[wingsId];
+        if (!item) return;
+        ctx.fillStyle = item.color;
+        const leftDir = facing === 1 ? -1 : 1;
+        ctx.beginPath();
+        ctx.moveTo(px + PLAYER_W / 2, py + 14);
+        ctx.lineTo(px + PLAYER_W / 2 + leftDir * 16, py + 8);
+        ctx.lineTo(px + PLAYER_W / 2 + leftDir * 20, py + 20);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(px + PLAYER_W / 2, py + 14);
+        ctx.lineTo(px + PLAYER_W / 2 - leftDir * 16, py + 8);
+        ctx.lineTo(px + PLAYER_W / 2 - leftDir * 20, py + 20);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      function drawClothes(px, py, clothesId) {
+        if (!clothesId) return;
+        const item = COSMETIC_LOOKUP.clothes[clothesId];
+        if (!item) return;
+        ctx.fillStyle = item.color;
+        ctx.fillRect(px + 2, py + 15, PLAYER_W - 4, PLAYER_H - 15);
+      }
+
+      function drawSword(px, py, swordId, facing) {
+        if (!swordId) return;
+        const item = COSMETIC_LOOKUP.swords[swordId];
+        if (!item) return;
+        ctx.fillStyle = item.color;
+        const handX = facing === 1 ? px + PLAYER_W - 1 : px - 9;
+        ctx.fillRect(handX, py + 14, 9, 3);
+      }
+
       function drawPlayer() {
         const px = player.x - cameraX;
         const py = player.y - cameraY;
+        const cosmetics = equippedCosmetics;
+
+        drawWings(px, py, cosmetics.wings, player.facing);
 
         ctx.fillStyle = "#263238";
         ctx.fillRect(px, py, PLAYER_W, PLAYER_H);
+
+        drawClothes(px, py, cosmetics.clothes);
 
         ctx.fillStyle = "#ffdbac";
         ctx.fillRect(px + 4, py + 4, PLAYER_W - 8, 10);
@@ -1967,6 +2227,8 @@
         ctx.fillStyle = "#0d0d0d";
         const eyeX = player.facing === 1 ? px + PLAYER_W - 7 : px + 4;
         ctx.fillRect(eyeX, py + 8, 3, 3);
+
+        drawSword(px, py, cosmetics.swords, player.facing);
       }
 
       function drawRemotePlayers() {
@@ -1974,9 +2236,14 @@
           const px = other.x - cameraX;
           const py = other.y - cameraY;
           if (px < -40 || py < -40 || px > canvas.width + 40 || py > canvas.height + 40) return;
+          const cosmetics = other.cosmetics || {};
+
+          drawWings(px, py, cosmetics.wings || "", other.facing || 1);
 
           ctx.fillStyle = "#2a75bb";
           ctx.fillRect(px, py, PLAYER_W, PLAYER_H);
+
+          drawClothes(px, py, cosmetics.clothes || "");
 
           ctx.fillStyle = "#ffdbac";
           ctx.fillRect(px + 4, py + 4, PLAYER_W - 8, 10);
@@ -1984,6 +2251,8 @@
           ctx.fillStyle = "#102338";
           const eyeX = other.facing === 1 ? px + PLAYER_W - 7 : px + 4;
           ctx.fillRect(eyeX, py + 8, 3, 3);
+
+          drawSword(px, py, cosmetics.swords || "", other.facing || 1);
 
           ctx.fillStyle = "rgba(10, 25, 40, 0.75)";
           ctx.fillRect(px - 4, py - 19, 74, 15);
@@ -2084,6 +2353,10 @@
         const usingFist = selectedId === "fist";
         const itemName = usingFist ? "Fist" : blockDefs[selectedId].name;
         const countText = usingFist ? "infinite" : String(inventory[selectedId]);
+        let cosmeticOwned = 0;
+        for (const item of COSMETIC_ITEMS) {
+          cosmeticOwned += Math.max(0, Number(cosmeticInventory[item.id]) || 0);
+        }
 
         ctx.fillStyle = "rgba(9, 25, 41, 0.7)";
         ctx.fillRect(12, 12, 390, 62);
@@ -2094,7 +2367,7 @@
         ctx.font = "bold 15px 'Trebuchet MS', sans-serif";
         ctx.fillText("World: " + currentWorldId + " | Selected: " + itemName + " (" + countText + ")", 24, 36);
         ctx.font = "14px 'Trebuchet MS', sans-serif";
-        ctx.fillText("Player Tile: " + tx + ", " + ty, 24, 56);
+        ctx.fillText("Player Tile: " + tx + ", " + ty + " | Cosmetic items: " + cosmeticOwned, 24, 56);
       }
 
       function render() {
@@ -2349,7 +2622,8 @@
               x: p.x,
               y: p.y,
               facing: p.facing || 1,
-              name: (p.name || "Player").toString().slice(0, 16)
+              name: (p.name || "Player").toString().slice(0, 16),
+              cosmetics: normalizeRemoteEquippedCosmetics(p.cosmetics || {})
             });
           });
 
@@ -2442,6 +2716,11 @@
           x: rx,
           y: ry,
           facing: player.facing,
+          cosmetics: {
+            clothes: equippedCosmetics.clothes || "",
+            wings: equippedCosmetics.wings || "",
+            swords: equippedCosmetics.swords || ""
+          },
           world: currentWorldId,
           updatedAt: firebase.database.ServerValue.TIMESTAMP
         };
@@ -2522,6 +2801,9 @@
         exitWorldBtn.addEventListener("click", () => {
           leaveCurrentWorld();
         });
+        logoutBtn.addEventListener("click", () => {
+          forceLogout("Logged out.");
+        });
         worldInputEl.addEventListener("keydown", (event) => {
           if (event.key === "Enter") {
             enterWorldFromInput();
@@ -2571,6 +2853,9 @@
               saveInventory();
             }
             refreshToolbar();
+            if (inWorld) {
+              syncPlayer(true);
+            }
           };
 
           network.handlers.connected = (snapshot) => {
@@ -2752,6 +3037,22 @@
         }
       }
 
+      function getCosmeticName(slot, itemId) {
+        if (!itemId) return "None";
+        const item = COSMETIC_LOOKUP[slot] && COSMETIC_LOOKUP[slot][itemId];
+        return item ? item.name : itemId;
+      }
+
+      function equipCosmetic(slot, itemId) {
+        if (!COSMETIC_SLOTS.includes(slot)) return;
+        const id = String(itemId || "");
+        if (id && (!COSMETIC_LOOKUP[slot][id] || (cosmeticInventory[id] || 0) <= 0)) return;
+        equippedCosmetics[slot] = equippedCosmetics[slot] === id ? "" : id;
+        saveInventory();
+        refreshToolbar();
+        syncPlayer(true);
+      }
+
       function refreshToolbar() {
         toolbar.innerHTML = "";
         for (let i = 0; i < slotOrder.length; i++) {
@@ -2767,6 +3068,28 @@
             '<span class="key">' + (i + 1) + "</span>" +
             '<div class="block-chip" style="background:' + chipColor + '"></div>' +
             countMarkup;
+          slot.addEventListener("click", () => {
+            selectedSlot = i;
+            refreshToolbar();
+          });
+          toolbar.appendChild(slot);
+        }
+        for (const item of COSMETIC_ITEMS) {
+          const count = Math.max(0, Number(cosmeticInventory[item.id]) || 0);
+          if (count <= 0) continue;
+          const equipped = equippedCosmetics[item.slot] === item.id;
+          const slot = document.createElement("div");
+          slot.className = "slot cosmetic-slot" + (equipped ? " selected" : "");
+          slot.title = item.slot + " | " + item.name + " | x" + count;
+          const shortName = item.name.split(" ").map((part) => part[0]).join("").slice(0, 3).toUpperCase();
+          slot.innerHTML =
+            '<span class="key">' + item.slot.slice(0, 1).toUpperCase() + "</span>" +
+            '<div class="block-chip" style="background:' + item.color + '"></div>' +
+            '<span class="count">x' + count + "</span>" +
+            '<span class="cosmetic-label">' + shortName + "</span>";
+          slot.addEventListener("click", () => {
+            equipCosmetic(item.slot, item.id);
+          });
           toolbar.appendChild(slot);
         }
       }
@@ -2946,5 +3269,6 @@
       window.addEventListener("beforeunload", () => {
         releaseAccountSession();
       });
+      applySavedCredentialsToForm();
       setAuthStatus("Create or login to continue.", false);
     })();
