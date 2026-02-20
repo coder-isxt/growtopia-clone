@@ -12,7 +12,7 @@
       <div><strong>Growtopia Test</strong> | Move: A/D or Arrows, Jump: W/Space</div>
       <div class="hint">
         World: <span id="currentWorldLabel" class="world-tag">menu</span> |
-        Place: Left Click | Break: Right Click | Slots: 1-6 |
+        Action: Click or Tap (Fist breaks) | Slots: 1-7 |
         <span id="networkState" class="danger">Offline</span> |
         <span id="onlineCount">1 world online</span> |
         <span id="totalOnlineCount">1 total online</span> |
@@ -40,7 +40,6 @@
       </div>
       <div class="mobile-actions">
         <button id="mobileJumpBtn" type="button">Jump</button>
-        <button id="mobileActionBtn" type="button">Action: Place</button>
       </div>
     </div>
   </div>
@@ -59,7 +58,6 @@
       const mobileLeftBtn = document.getElementById("mobileLeftBtn");
       const mobileRightBtn = document.getElementById("mobileRightBtn");
       const mobileJumpBtn = document.getElementById("mobileJumpBtn");
-      const mobileActionBtn = document.getElementById("mobileActionBtn");
       const networkStateEl = document.getElementById("networkState");
       const onlineCountEl = document.getElementById("onlineCount");
       const totalOnlineCountEl = document.getElementById("totalOnlineCount");
@@ -89,7 +87,7 @@
         6: { name: "Brick", color: "#bb5644", solid: true }
       };
 
-      const slotOrder = [1, 2, 3, 4, 5, 6];
+      const slotOrder = ["fist", 1, 2, 3, 4, 5, 6];
       const inventory = {
         1: 120,
         2: 120,
@@ -129,7 +127,6 @@
       let networkLastX = -1;
       let networkLastY = -1;
       let networkLastFacing = 0;
-      let mobileEditMode = "place";
       let mobileLastTouchActionAt = 0;
       const touchControls = {
         left: false,
@@ -458,8 +455,9 @@
         const tx = Math.floor((player.x + PLAYER_W / 2) / TILE);
         const ty = Math.floor((player.y + PLAYER_H / 2) / TILE);
         const selectedId = slotOrder[selectedSlot];
-        const itemName = blockDefs[selectedId].name;
-        const count = inventory[selectedId];
+        const usingFist = selectedId === "fist";
+        const itemName = usingFist ? "Fist" : blockDefs[selectedId].name;
+        const countText = usingFist ? "infinite" : String(inventory[selectedId]);
 
         ctx.fillStyle = "rgba(9, 25, 41, 0.7)";
         ctx.fillRect(12, 12, 390, 62);
@@ -468,7 +466,7 @@
 
         ctx.fillStyle = "#f7fbff";
         ctx.font = "bold 15px 'Trebuchet MS', sans-serif";
-        ctx.fillText("World: " + currentWorldId + " | Selected: " + itemName + " (" + count + ")", 24, 36);
+        ctx.fillText("World: " + currentWorldId + " | Selected: " + itemName + " (" + countText + ")", 24, 36);
         ctx.font = "14px 'Trebuchet MS', sans-serif";
         ctx.fillText("Player Tile: " + tx + ", " + ty, 24, 56);
       }
@@ -497,6 +495,7 @@
 
       function tryPlace(tx, ty) {
         const id = slotOrder[selectedSlot];
+        if (typeof id !== "number") return;
         if (!canEditTarget(tx, ty)) return;
         if (inventory[id] <= 0) return;
         if (world[ty][tx] !== 0) return;
@@ -522,6 +521,15 @@
         inventory[id] = (inventory[id] || 0) + 1;
         syncBlock(tx, ty, 0);
         refreshToolbar();
+      }
+
+      function useActionAt(tx, ty) {
+        const selectedId = slotOrder[selectedSlot];
+        if (selectedId === "fist") {
+          tryBreak(tx, ty);
+          return;
+        }
+        tryPlace(tx, ty);
       }
 
       function setNetworkState(label, isWarning) {
@@ -885,13 +893,17 @@
         toolbar.innerHTML = "";
         for (let i = 0; i < slotOrder.length; i++) {
           const id = slotOrder[i];
+          const isFist = id === "fist";
+          const chipColor = isFist ? "#f2c18d" : blockDefs[id].color;
+          const title = isFist ? "Fist" : blockDefs[id].name;
+          const countMarkup = isFist ? "" : '<span class="count">' + inventory[id] + "</span>";
           const slot = document.createElement("div");
           slot.className = "slot" + (i === selectedSlot ? " selected" : "");
-          slot.title = blockDefs[id].name;
+          slot.title = title;
           slot.innerHTML =
             '<span class="key">' + (i + 1) + "</span>" +
-            '<div class="block-chip" style="background:' + blockDefs[id].color + '"></div>' +
-            '<span class="count">' + inventory[id] + "</span>";
+            '<div class="block-chip" style="background:' + chipColor + '"></div>' +
+            countMarkup;
           toolbar.appendChild(slot);
         }
       }
@@ -919,11 +931,7 @@
         mobileLastTouchActionAt = now;
         const pos = worldFromClient(clientX, clientY);
         mouseWorld = pos;
-        if (mobileEditMode === "break") {
-          tryBreak(pos.tx, pos.ty);
-        } else {
-          tryPlace(pos.tx, pos.ty);
-        }
+        useActionAt(pos.tx, pos.ty);
       }
 
       function bindHoldButton(button, key) {
@@ -943,31 +951,20 @@
         button.addEventListener("mouseleave", setOff);
       }
 
-      function refreshMobileActionLabel() {
-        mobileActionBtn.textContent = mobileEditMode === "break" ? "Action: Break" : "Action: Place";
-      }
-
       function bindMobileControls() {
         bindHoldButton(mobileLeftBtn, "left");
         bindHoldButton(mobileRightBtn, "right");
         bindHoldButton(mobileJumpBtn, "jump");
-
-        const toggleMode = (event) => {
-          event.preventDefault();
-          mobileEditMode = mobileEditMode === "place" ? "break" : "place";
-          refreshMobileActionLabel();
-        };
-        mobileActionBtn.addEventListener("click", toggleMode);
-        mobileActionBtn.addEventListener("touchstart", toggleMode, { passive: false });
-        refreshMobileActionLabel();
       }
 
       function resizeCanvas() {
         const wrap = canvas.parentElement;
         const rect = wrap.getBoundingClientRect();
-        canvas.width = Math.max(320, Math.floor(rect.width));
-        canvas.height = Math.max(220, Math.floor(rect.height));
         isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+        const minWidth = isCoarsePointer ? 320 : 720;
+        const minHeight = isCoarsePointer ? 220 : 360;
+        canvas.width = Math.max(minWidth, Math.floor(rect.width));
+        canvas.height = Math.max(minHeight, Math.floor(rect.height));
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
       }
 
@@ -999,13 +996,11 @@
       });
 
       canvas.addEventListener("mousedown", (e) => {
+        if (!inWorld) return;
         const pos = worldFromPointer(e);
         mouseWorld = pos;
-        if (e.button === 0) {
-          tryPlace(pos.tx, pos.ty);
-        } else if (e.button === 2) {
-          tryBreak(pos.tx, pos.ty);
-        }
+        if (e.button !== 0) return;
+        useActionAt(pos.tx, pos.ty);
       });
 
       canvas.addEventListener("touchstart", (e) => {

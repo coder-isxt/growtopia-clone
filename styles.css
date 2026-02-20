@@ -20,7 +20,6 @@ body {
   display: grid;
   place-items: center;
   overflow: hidden;
-  touch-action: none;
 }
 
 .game-shell {
@@ -235,6 +234,22 @@ canvas {
 }
 
 @media (max-width: 860px) {
+  .world-enter {
+    width: 100%;
+  }
+}
+
+@media (pointer: fine) {
+  .mobile-controls {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) and (pointer: coarse) {
+  body {
+    overflow: hidden;
+  }
+
   .game-shell {
     width: 100vw;
     height: 100vh;
@@ -245,42 +260,81 @@ canvas {
   .hud {
     flex-direction: column;
     align-items: flex-start;
+    padding: 8px;
+    font-size: 12px;
   }
 
   .hint {
     text-align: left;
-    font-size: 12px;
+    font-size: 11px;
+    line-height: 1.35;
   }
 
-  .canvas-wrap {
-    padding: 6px;
+  .menu-screen {
+    padding: 10px;
   }
 
-  .toolbar {
-    padding: 8px;
-    gap: 6px;
+  .menu-card {
+    gap: 8px;
   }
 
-  .slot {
-    min-height: 48px;
-  }
-
-  .world-enter {
-    margin-left: 0;
-    width: 100%;
-  }
-
-  .world-enter input {
-    flex: 1;
+  .menu-title {
+    font-size: 18px;
   }
 
   .menu-screen input {
     width: 100%;
   }
-}
 
-@media (pointer: fine) {
+  .world-buttons {
+    gap: 8px;
+  }
+
+  .world-chip {
+    min-height: 38px;
+  }
+
+  .canvas-wrap {
+    padding: 4px;
+    border-radius: 10px;
+  }
+
+  canvas {
+    border-radius: 6px;
+  }
+
+  .toolbar {
+    padding: 6px;
+    gap: 6px;
+  }
+
+  .slot {
+    min-height: 44px;
+  }
+
+  .slot .key {
+    font-size: 10px;
+  }
+
+  .slot .count {
+    font-size: 11px;
+  }
+
   .mobile-controls {
-    display: none;
+    padding: 6px;
+    gap: 6px;
+    border-radius: 10px;
+  }
+
+  .mobile-controls button {
+    min-width: 64px;
+    min-height: 38px;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .mobile-move,
+  .mobile-actions {
+    gap: 6px;
   }
 }
