@@ -126,6 +126,25 @@ canvas {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
+  max-height: min(48vh, 410px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  transition: transform 0.1s ease-out;
+}
+
+.toolbar.dragging {
+  transition: none;
+  cursor: ns-resize;
+}
+
+.toolbar-drag-hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.72);
+  text-align: center;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 3px 6px;
 }
 
 .inventory-section {
@@ -179,10 +198,6 @@ canvas {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(255, 209, 102, 0.25);
   transform: translateY(-1px);
-}
-
-.inventory-slot.muted {
-  opacity: 0.62;
 }
 
 .inventory-slot.inventory-slot-cosmetic.selected {
@@ -250,13 +265,15 @@ canvas {
   overflow: hidden;
 }
 
-.item-icon.icon-block::before {
-  content: "";
+.item-icon i {
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.12), transparent 48%),
-    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.07), rgba(0, 0, 0, 0.07) 2px, transparent 2px, transparent 6px);
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  color: rgba(17, 31, 44, 0.86);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+  pointer-events: none;
 }
 
 .item-icon.icon-fist {
@@ -266,52 +283,6 @@ canvas {
 
 .item-icon.icon-cosmetic {
   color: rgba(12, 29, 48, 0.8);
-}
-
-.item-icon.icon-wings::before,
-.item-icon.icon-swords::before,
-.item-icon.icon-clothes::before {
-  content: "";
-  position: absolute;
-  inset: 2px;
-  border-radius: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-}
-
-.item-icon.icon-wings::after {
-  content: "";
-  position: absolute;
-  left: 6px;
-  right: 6px;
-  top: 9px;
-  height: 10px;
-  border-top: 2px solid rgba(255, 255, 255, 0.58);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.42);
-  border-radius: 7px;
-}
-
-.item-icon.icon-swords::after {
-  content: "";
-  position: absolute;
-  left: 7px;
-  top: 7px;
-  width: 14px;
-  height: 14px;
-  border-top: 2px solid rgba(255, 255, 255, 0.6);
-  border-right: 2px solid rgba(255, 255, 255, 0.6);
-  transform: rotate(45deg);
-}
-
-.item-icon.icon-clothes::after {
-  content: "";
-  position: absolute;
-  left: 8px;
-  top: 8px;
-  width: 12px;
-  height: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.55);
-  border-top-width: 3px;
-  border-radius: 4px;
 }
 
 .hint {
@@ -1094,6 +1065,7 @@ canvas {
   .toolbar {
     padding: 6px;
     gap: 6px;
+    max-height: min(52vh, 430px);
   }
 
   .inventory-grid {

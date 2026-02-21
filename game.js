@@ -111,16 +111,16 @@
       const FORCE_RELOAD_MARKER_KEY = "growtopia_force_reload_marker_v1";
 
       const blockDefs = typeof blocksModule.getBlockDefs === "function" ? blocksModule.getBlockDefs() : {
-        0: { name: "Air", color: "transparent", solid: false, icon: "A" },
-        1: { name: "Grass", color: "#4caf50", solid: true, icon: "GR" },
-        2: { name: "Dirt", color: "#8b5a2b", solid: true, icon: "DI" },
-        3: { name: "Stone", color: "#818a93", solid: true, icon: "ST" },
-        4: { name: "Wood", color: "#a87038", solid: true, icon: "WO" },
-        5: { name: "Sand", color: "#dfc883", solid: true, icon: "SA" },
-        6: { name: "Brick", color: "#bb5644", solid: true, icon: "BR" },
-        7: { name: "Door", color: "#57c2ff", solid: false, unbreakable: true, icon: "DR" },
-        8: { name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true, icon: "BD" },
-        9: { name: "World Lock", color: "#ffd166", solid: true, icon: "WL" }
+        0: { name: "Air", color: "transparent", solid: false, icon: "A", faIcon: "fa-regular fa-circle" },
+        1: { name: "Grass", color: "#4caf50", solid: true, icon: "GR", faIcon: "fa-solid fa-seedling" },
+        2: { name: "Dirt", color: "#8b5a2b", solid: true, icon: "DI", faIcon: "fa-solid fa-mound" },
+        3: { name: "Stone", color: "#818a93", solid: true, icon: "ST", faIcon: "fa-solid fa-cube" },
+        4: { name: "Wood", color: "#a87038", solid: true, icon: "WO", faIcon: "fa-solid fa-tree" },
+        5: { name: "Sand", color: "#dfc883", solid: true, icon: "SA", faIcon: "fa-regular fa-hourglass-half" },
+        6: { name: "Brick", color: "#bb5644", solid: true, icon: "BR", faIcon: "fa-solid fa-border-all" },
+        7: { name: "Door", color: "#57c2ff", solid: false, unbreakable: true, icon: "DR", faIcon: "fa-solid fa-door-open" },
+        8: { name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true, icon: "BD", faIcon: "fa-solid fa-mountain" },
+        9: { name: "World Lock", color: "#ffd166", solid: true, icon: "WL", faIcon: "fa-solid fa-lock" }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
@@ -164,6 +164,11 @@
       let playerSessionId = "";
       let playerSessionStartedAt = 0;
       let worldChatStartedAt = 0;
+      let toolbarOffsetY = 0;
+      let toolbarDragActive = false;
+      let toolbarDragPointerId = 0;
+      let toolbarDragStartClientY = 0;
+      let toolbarDragStartOffsetY = 0;
       let gameBootstrapped = false;
       let pendingTeleportSelf = null;
       let lastHandledTeleportCommandId = "";
@@ -1924,6 +1929,7 @@
         inWorld = Boolean(nextValue);
         menuScreenEl.classList.toggle("hidden", inWorld);
         toolbar.classList.toggle("hidden", !inWorld);
+        applyToolbarOffset();
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
         chatToggleBtn.classList.toggle("hidden", !inWorld);
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
@@ -3665,11 +3671,18 @@
         return { section, grid };
       }
 
-      function createIconChip(baseColor, label, extraClass) {
+      function createIconChip(baseColor, label, extraClass, faIconClass) {
         const icon = document.createElement("div");
         icon.className = "item-icon " + (extraClass || "");
         if (baseColor) icon.style.setProperty("--chip-color", baseColor);
-        icon.textContent = label || "";
+        if (faIconClass) {
+          icon.textContent = label || "";
+          const iconNode = document.createElement("i");
+          iconNode.className = faIconClass;
+          icon.appendChild(iconNode);
+        } else {
+          icon.textContent = label || "";
+        }
         return icon;
       }
 
@@ -3681,7 +3694,7 @@
         const key = document.createElement("span");
         key.className = "slot-key";
         key.textContent = opts.keyLabel || "";
-        const icon = createIconChip(opts.color, opts.iconLabel, opts.iconClass);
+        const icon = createIconChip(opts.color, opts.iconLabel, opts.iconClass, opts.faIconClass);
         const name = document.createElement("span");
         name.className = "slot-name";
         name.textContent = opts.name || "";
@@ -3708,11 +3721,16 @@
 
       function refreshToolbar() {
         toolbar.innerHTML = "";
+        const dragHint = document.createElement("div");
+        dragHint.className = "toolbar-drag-hint";
+        dragHint.textContent = "Drag inventory up/down";
+        toolbar.appendChild(dragHint);
         const blockSection = createInventorySection("Blocks & Tools", "Select with 1-" + slotOrder.length);
         const cosmeticEntries = [];
         for (let i = 0; i < slotOrder.length; i++) {
           const id = slotOrder[i];
           const isFist = id === "fist";
+          if (!isFist && Math.max(0, Number(inventory[id]) || 0) <= 0) continue;
           const blockDef = isFist ? null : blockDefs[id];
           const title = isFist ? "Fist" : (blockDef && blockDef.name ? blockDef.name : "Block");
           const slotEl = createInventorySlot({
@@ -3722,10 +3740,10 @@
             keyLabel: String(i + 1),
             color: isFist ? "#c59b81" : (blockDef && blockDef.color ? blockDef.color : "#999"),
             iconClass: isFist ? "icon-fist" : "icon-block",
+            faIconClass: isFist ? "fa-solid fa-hand-fist" : (blockDef && blockDef.faIcon ? blockDef.faIcon : ""),
             iconLabel: isFist ? "F" : ((blockDef && blockDef.icon) || title.slice(0, 2).toUpperCase()),
             name: title,
             countText: isFist ? "" : "x" + (inventory[id] || 0),
-            muted: !isFist && (inventory[id] || 0) <= 0,
             onClick: () => {
               selectedSlot = i;
               refreshToolbar();
@@ -3756,6 +3774,7 @@
               keyLabel: item.slot.slice(0, 2).toUpperCase(),
               color: item.color || "#8aa0b5",
               iconClass: "icon-cosmetic icon-" + item.slot,
+              faIconClass: item.faIcon || "",
               iconLabel: item.icon || item.name.slice(0, 2).toUpperCase(),
               name: item.name,
               countText: "x" + item.count,
@@ -3817,6 +3836,52 @@
         bindHoldButton(mobileJumpBtn, "jump");
       }
 
+      function clampToolbarOffset(nextOffset) {
+        const viewportHeight = Math.max(320, window.innerHeight || 0);
+        const maxUp = Math.round(viewportHeight * 0.55);
+        const maxDown = Math.round(viewportHeight * 0.06);
+        return Math.max(-maxUp, Math.min(maxDown, Math.round(nextOffset)));
+      }
+
+      function applyToolbarOffset() {
+        toolbarOffsetY = clampToolbarOffset(toolbarOffsetY);
+        toolbar.style.transform = "translateY(" + toolbarOffsetY + "px)";
+      }
+
+      function handleToolbarDragMove(event) {
+        if (!toolbarDragActive) return;
+        if (event.pointerId !== toolbarDragPointerId) return;
+        const deltaY = event.clientY - toolbarDragStartClientY;
+        toolbarOffsetY = clampToolbarOffset(toolbarDragStartOffsetY + deltaY);
+        applyToolbarOffset();
+      }
+
+      function handleToolbarDragEnd(event) {
+        if (!toolbarDragActive) return;
+        if (event.pointerId !== toolbarDragPointerId) return;
+        toolbarDragActive = false;
+        toolbar.classList.remove("dragging");
+      }
+
+      function initToolbarDrag() {
+        if (!toolbar) return;
+        toolbar.addEventListener("pointerdown", (event) => {
+          const target = event.target;
+          if (!(target instanceof HTMLElement)) return;
+          if (target.closest(".inventory-slot")) return;
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          toolbarDragActive = true;
+          toolbarDragPointerId = event.pointerId;
+          toolbarDragStartClientY = event.clientY;
+          toolbarDragStartOffsetY = toolbarOffsetY;
+          toolbar.classList.add("dragging");
+          toolbar.setPointerCapture(event.pointerId);
+        });
+        toolbar.addEventListener("pointermove", handleToolbarDragMove);
+        toolbar.addEventListener("pointerup", handleToolbarDragEnd);
+        toolbar.addEventListener("pointercancel", handleToolbarDragEnd);
+      }
+
       function resizeCanvas() {
         const wrap = canvas.parentElement;
         const rect = wrap.getBoundingClientRect();
@@ -3826,10 +3891,12 @@
         canvas.width = Math.max(minWidth, Math.floor(rect.width));
         canvas.height = Math.max(minHeight, Math.floor(rect.height));
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
+        applyToolbarOffset();
       }
 
       window.addEventListener("resize", resizeCanvas);
       resizeCanvas();
+      initToolbarDrag();
 
       window.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && adminInventoryModalEl && !adminInventoryModalEl.classList.contains("hidden")) {
