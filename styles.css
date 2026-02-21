@@ -13,10 +13,10 @@
   --shadow-md: 0 8px 22px rgba(2, 10, 18, 0.28);
   --radius-lg: 16px;
   --radius-md: 12px;
-  --left-panel-w: 200px;
-  --right-panel-w: 190px;
-  --desktop-shell-pad: 6px;
-  --desktop-side-gap: 6px;
+  --left-panel-w: 320px;
+  --right-panel-w: 300px;
+  --desktop-shell-pad: 12px;
+  --desktop-side-gap: 12px;
 }
 
 * {
@@ -1942,50 +1942,21 @@ canvas {
   }
 
   .game-shell {
-    padding: 6px var(--desktop-shell-pad);
-    gap: 4px;
+    padding: 10px var(--desktop-shell-pad);
+    gap: 8px;
     grid-template-rows: auto minmax(0, 1fr);
   }
 
   .hud {
-    min-height: 48px;
-    padding: 6px 8px;
-    gap: 6px;
-  }
-
-  .hud > div:first-child {
-    font-size: 12px;
-  }
-
-  .hint {
-    font-size: 12px;
-    padding: 4px 6px;
-    gap: 5px;
-    white-space: nowrap;
-    overflow-x: auto;
-    scrollbar-width: thin;
+    min-height: 74px;
+    padding: 10px 12px;
   }
 
   .menu-screen,
   .canvas-wrap {
     margin-left: calc(var(--desktop-shell-pad) + var(--left-panel-w) + var(--desktop-side-gap));
-    margin-right: 0;
-    width: max(320px, calc(
-      100vw
-      - (var(--desktop-shell-pad) * 2)
-      - var(--left-panel-w)
-      - var(--right-panel-w)
-      - (var(--desktop-side-gap) * 2)
-    ));
-    max-width: max(320px, calc(
-      100vw
-      - (var(--desktop-shell-pad) * 2)
-      - var(--left-panel-w)
-      - var(--right-panel-w)
-      - (var(--desktop-side-gap) * 2)
-    ));
+    margin-right: calc(var(--desktop-shell-pad) + var(--right-panel-w) + var(--desktop-side-gap));
     min-height: 0;
-    justify-self: start;
   }
 
   .menu-screen {
@@ -1994,14 +1965,14 @@ canvas {
 
   .canvas-wrap {
     height: 100%;
-    min-height: 520px;
-    padding: 4px;
+    min-height: 360px;
+    padding: 8px;
   }
 
   .chat-panel {
     left: var(--desktop-shell-pad);
-    top: 68px;
-    bottom: 6px;
+    top: 96px;
+    bottom: 12px;
     width: var(--left-panel-w);
     height: auto;
     z-index: 26;
@@ -2010,8 +1981,8 @@ canvas {
   .toolbar {
     position: fixed;
     right: var(--desktop-shell-pad);
-    top: 68px;
-    bottom: 6px;
+    top: 96px;
+    bottom: 12px;
     width: var(--right-panel-w);
     height: auto;
     min-height: 0;
@@ -2022,8 +1993,8 @@ canvas {
   .layout-resize-handle {
     display: block;
     position: fixed;
-    top: 68px;
-    bottom: 6px;
+    top: 96px;
+    bottom: 12px;
     width: 10px;
     margin-left: -5px;
     border-radius: 999px;
