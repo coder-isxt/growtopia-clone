@@ -33,12 +33,12 @@ window.GT_SETTINGS = {
   JUMP_COOLDOWN_MS: 160,
 
   // Optional: explicit animated water frames (4 images)
-  // WATER_FRAME_PATHS: [
-  //   "./assets/blocks/special/water_1.png",
-  //   "./assets/blocks/special/water_2.png",
-  //   "./assets/blocks/special/water_3.png",
-  //   "./assets/blocks/special/water_4.png"
-  // ],
+  WATER_FRAME_PATHS: [
+     "./assets/blocks/special/VESI_1.png",
+     "./assets/blocks/special/VESI_2.png",
+     "./assets/blocks/special/VESI_3.png",
+     "./assets/blocks/special/VESI_4.png"
+  ],
   WATER_FRAME_MS: 170,
 
   PLAYER_SYNC_MIN_MS: 90,
