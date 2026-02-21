@@ -157,6 +157,37 @@
         <div class="updating-subtitle">New version is being applied. Please wait.</div>
       </div>
     </div>
+    <div id="announcementPopup" class="announcement-popup hidden" aria-live="polite">
+      <div class="announcement-card">
+        <div class="announcement-title">Announcement</div>
+        <div id="announcementText" class="announcement-text"></div>
+      </div>
+    </div>
+    <div id="tradeMenuModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="tradeMenuTitle">Player</strong>
+          <button id="tradeMenuCloseBtn" type="button">Close</button>
+        </div>
+        <div class="sign-hint">Trade with this player.</div>
+        <div class="vending-actions">
+          <button id="tradeStartBtn" type="button">Trade</button>
+          <button id="tradeCancelBtn" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div id="tradeRequestModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong>Trade Request</strong>
+        </div>
+        <div id="tradeRequestText" class="sign-hint"></div>
+        <div class="vending-actions">
+          <button id="tradeAcceptBtn" type="button">Accept</button>
+          <button id="tradeDeclineBtn" type="button">Decline</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>

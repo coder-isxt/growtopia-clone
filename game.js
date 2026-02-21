@@ -47,6 +47,17 @@
       const signTextInputEl = document.getElementById("signTextInput");
       const signSaveBtn = document.getElementById("signSaveBtn");
       const signCloseBtn = document.getElementById("signCloseBtn");
+      const announcementPopupEl = document.getElementById("announcementPopup");
+      const announcementTextEl = document.getElementById("announcementText");
+      const tradeMenuModalEl = document.getElementById("tradeMenuModal");
+      const tradeMenuTitleEl = document.getElementById("tradeMenuTitle");
+      const tradeMenuCloseBtn = document.getElementById("tradeMenuCloseBtn");
+      const tradeStartBtn = document.getElementById("tradeStartBtn");
+      const tradeCancelBtn = document.getElementById("tradeCancelBtn");
+      const tradeRequestModalEl = document.getElementById("tradeRequestModal");
+      const tradeRequestTextEl = document.getElementById("tradeRequestText");
+      const tradeAcceptBtn = document.getElementById("tradeAcceptBtn");
+      const tradeDeclineBtn = document.getElementById("tradeDeclineBtn");
       const worldLockModalEl = document.getElementById("worldLockModal");
       const worldLockTitleEl = document.getElementById("worldLockTitle");
       const worldLockAdminInputEl = document.getElementById("worldLockAdminInput");
@@ -252,12 +263,16 @@
       let signEditContext = null;
       let worldLockEditContext = null;
       let doorEditContext = null;
+      let tradeMenuContext = null;
+      let incomingTradeRequest = null;
       let knownWorldIds = [];
       let totalOnlinePlayers = 0;
       let hasRenderedMenuWorldList = false;
       let currentWorldLock = null;
       let lastLockDeniedNoticeAt = 0;
       let lastHandledForceReloadEventId = loadForceReloadMarker();
+      let lastHandledAnnouncementEventId = "";
+      let announcementHideTimer = 0;
       let isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
       let isChatOpen = false;
       let suppressChatOpenUntilMs = 0;
@@ -373,6 +388,8 @@
         playerRef: null,
         mySessionRef: null,
         myCommandRef: null,
+        myTradeRequestRef: null,
+        myTradeResponseRef: null,
         playersRef: null,
         blocksRef: null,
         vendingRef: null,
@@ -386,6 +403,7 @@
         accountLogsFeedRef: null,
         accountLogsRootRef: null,
         forceReloadRef: null,
+        announcementRef: null,
         myBanRef: null,
         accountsRef: null,
         usernamesRef: null,
@@ -402,6 +420,8 @@
           inventory: null,
           mySession: null,
           myCommand: null,
+          myTradeRequest: null,
+          myTradeResponse: null,
           players: null,
           blockAdded: null,
           blockChanged: null,
@@ -419,6 +439,7 @@
           chatAdded: null,
           accountLogAdded: null,
           forceReload: null,
+          announcement: null,
           myBan: null,
           adminAccounts: null,
           adminUsernames: null,
@@ -1168,6 +1189,26 @@
         updatingOverlayEl.classList.remove("hidden");
       }
 
+      function hideAnnouncementPopup() {
+        if (!announcementPopupEl) return;
+        announcementPopupEl.classList.add("hidden");
+      }
+
+      function showAnnouncementPopup(message) {
+        if (!announcementPopupEl || !announcementTextEl) return;
+        const text = (message || "").toString().trim().slice(0, 180);
+        if (!text) return;
+        announcementTextEl.textContent = text;
+        announcementPopupEl.classList.remove("hidden");
+        if (announcementHideTimer) {
+          clearTimeout(announcementHideTimer);
+        }
+        announcementHideTimer = setTimeout(() => {
+          hideAnnouncementPopup();
+          announcementHideTimer = 0;
+        }, 5000);
+      }
+
       function triggerForceReloadAll(sourceTag) {
         if (!network.db || !hasAdminPermission("force_reload")) {
           postLocalSystemChat("Permission denied.");
@@ -1606,13 +1647,24 @@
             postLocalSystemChat("Usage: /announce <message>");
             return true;
           }
-          if (!inWorld) {
-            postLocalSystemChat("Enter a world first.");
+          if (!network.db) {
+            postLocalSystemChat("Network unavailable.");
             return true;
           }
-          sendSystemWorldMessage("[Admin] " + (playerName || "admin") + ": " + message.slice(0, 100));
-          postLocalSystemChat("Announcement sent.");
-          pushAdminAuditEntry("announce", "", message.slice(0, 80));
+          const announceId = "an_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+          const msg = message.slice(0, 140);
+          network.db.ref(BASE_PATH + "/system/announcement").set({
+            id: announceId,
+            text: msg,
+            actorUsername: (playerName || "admin").toString().slice(0, 20),
+            createdAt: firebase.database.ServerValue.TIMESTAMP
+          }).then(() => {
+            sendSystemWorldMessage("[Admin] " + (playerName || "admin") + ": " + msg);
+            postLocalSystemChat("Announcement sent.");
+            pushAdminAuditEntry("announce", "", msg.slice(0, 80));
+          }).catch(() => {
+            postLocalSystemChat("Failed to send announcement.");
+          });
           return true;
         }
         if (command === "/clearaudit") {
@@ -2288,6 +2340,8 @@
         closeSignModal();
         closeWorldLockModal();
         closeDoorModal();
+        closeTradeMenuModal();
+        closeTradeRequestModal();
         updateOnlineCount();
         world = makeWorld(currentWorldId);
         if (blockSyncer && typeof blockSyncer.reset === "function") {
@@ -2322,6 +2376,8 @@
           closeSignModal();
           closeWorldLockModal();
           closeDoorModal();
+          closeTradeMenuModal();
+          closeTradeRequestModal();
           if (!hasRenderedMenuWorldList) {
             refreshWorldButtons(null, true);
             hasRenderedMenuWorldList = true;
@@ -2468,6 +2524,12 @@
         if (network.myCommandRef && network.handlers.myCommand) {
           network.myCommandRef.off("value", network.handlers.myCommand);
         }
+        if (network.myTradeRequestRef && network.handlers.myTradeRequest) {
+          network.myTradeRequestRef.off("value", network.handlers.myTradeRequest);
+        }
+        if (network.myTradeResponseRef && network.handlers.myTradeResponse) {
+          network.myTradeResponseRef.off("value", network.handlers.myTradeResponse);
+        }
         if (network.worldsIndexRef && network.handlers.worldsIndex) {
           network.worldsIndexRef.off("value", network.handlers.worldsIndex);
         }
@@ -2479,6 +2541,9 @@
         }
         if (network.forceReloadRef && network.handlers.forceReload) {
           network.forceReloadRef.off("value", network.handlers.forceReload);
+        }
+        if (network.announcementRef && network.handlers.announcement) {
+          network.announcementRef.off("value", network.handlers.announcement);
         }
         if (network.myBanRef && network.handlers.myBan) {
           network.myBanRef.off("value", network.handlers.myBan);
@@ -2608,6 +2673,7 @@
         gameShellEl.classList.add("hidden");
         authScreenEl.classList.remove("hidden");
         setChatOpen(false);
+        hideAnnouncementPopup();
         applySavedCredentialsToForm();
         setAuthStatus(reason || "Logged out.", true);
       }
@@ -3098,6 +3164,96 @@
         if (worldLockAdminInputEl) worldLockAdminInputEl.value = "";
         renderWorldLockModal();
         worldLockModalEl.classList.remove("hidden");
+      }
+
+      function findRemotePlayerAtTile(tx, ty) {
+        const bx = tx * TILE;
+        const by = ty * TILE;
+        for (const other of remotePlayers.values()) {
+          if (!other || typeof other.x !== "number" || typeof other.y !== "number") continue;
+          if (rectsOverlap(bx, by, TILE, TILE, other.x, other.y, PLAYER_W, PLAYER_H)) {
+            return other;
+          }
+        }
+        return null;
+      }
+
+      function closeTradeMenuModal() {
+        tradeMenuContext = null;
+        if (tradeMenuModalEl) tradeMenuModalEl.classList.add("hidden");
+      }
+
+      function openTradeMenuForPlayer(target) {
+        if (!tradeMenuModalEl || !tradeMenuTitleEl || !target) return;
+        const targetName = (target.name || "Player").toString().slice(0, 20);
+        tradeMenuContext = {
+          accountId: (target.accountId || "").toString(),
+          name: targetName,
+          playerId: (target.id || "").toString()
+        };
+        tradeMenuTitleEl.textContent = "@" + targetName;
+        tradeMenuModalEl.classList.remove("hidden");
+      }
+
+      function closeTradeRequestModal() {
+        incomingTradeRequest = null;
+        if (tradeRequestModalEl) tradeRequestModalEl.classList.add("hidden");
+      }
+
+      function showIncomingTradeRequest(req) {
+        if (!tradeRequestModalEl || !tradeRequestTextEl) return;
+        const fromName = (req && req.fromName ? req.fromName : "Player").toString().slice(0, 20);
+        incomingTradeRequest = {
+          id: (req && req.id ? req.id : "").toString(),
+          fromAccountId: (req && req.fromAccountId ? req.fromAccountId : "").toString(),
+          fromName
+        };
+        tradeRequestTextEl.textContent = "@" + fromName + " wants to trade with you.";
+        tradeRequestModalEl.classList.remove("hidden");
+      }
+
+      function sendTradeRequestToTarget(targetAccountId, targetName) {
+        if (!network.db || !playerProfileId) return;
+        const safeAccountId = (targetAccountId || "").toString().trim();
+        if (!safeAccountId || safeAccountId === playerProfileId) {
+          postLocalSystemChat("Invalid trade target.");
+          return;
+        }
+        const requestId = "tr_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+        network.db.ref(BASE_PATH + "/account-commands/" + safeAccountId + "/tradeRequest").set({
+          id: requestId,
+          fromAccountId: playerProfileId,
+          fromName: (playerName || "player").toString().slice(0, 20),
+          fromWorld: currentWorldId,
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        }).then(() => {
+          postLocalSystemChat("Trade request sent to @" + ((targetName || safeAccountId).toString().slice(0, 20)) + ".");
+        }).catch(() => {
+          postLocalSystemChat("Failed to send trade request.");
+        });
+      }
+
+      function respondToTradeRequest(accept) {
+        if (!network.db || !incomingTradeRequest) return;
+        const fromAccountId = (incomingTradeRequest.fromAccountId || "").toString();
+        if (!fromAccountId) return;
+        const responseId = "trr_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+        network.db.ref(BASE_PATH + "/account-commands/" + fromAccountId + "/tradeResponse").set({
+          id: responseId,
+          accepted: Boolean(accept),
+          byAccountId: playerProfileId || "",
+          byName: (playerName || "player").toString().slice(0, 20),
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        }).catch(() => {});
+        if (network.myTradeRequestRef) {
+          network.myTradeRequestRef.remove().catch(() => {});
+        }
+        if (accept) {
+          postLocalSystemChat("Trade accepted. Full trade window coming next.");
+        } else {
+          postLocalSystemChat("Trade declined.");
+        }
+        closeTradeRequestModal();
       }
 
       function removeWorldAdmin(accountId) {
@@ -4159,6 +4315,11 @@
 
       function interactWithWrench(tx, ty) {
         if (!canEditTarget(tx, ty)) return;
+        const targetPlayer = findRemotePlayerAtTile(tx, ty);
+        if (targetPlayer) {
+          openTradeMenuForPlayer(targetPlayer);
+          return;
+        }
         const id = world[ty][tx];
         if (id === WORLD_LOCK_ID) {
           openWorldLockModal(tx, ty);
@@ -4343,6 +4504,8 @@
         closeSignModal();
         closeWorldLockModal();
         closeDoorModal();
+        closeTradeMenuModal();
+        closeTradeRequestModal();
       }
 
       function leaveCurrentWorld() {
@@ -4826,6 +4989,53 @@
             postLocalSystemChat("Door access set to owner only.");
           });
         }
+        if (tradeMenuCloseBtn) {
+          tradeMenuCloseBtn.addEventListener("click", () => {
+            closeTradeMenuModal();
+          });
+        }
+        if (tradeCancelBtn) {
+          tradeCancelBtn.addEventListener("click", () => {
+            closeTradeMenuModal();
+          });
+        }
+        if (tradeStartBtn) {
+          tradeStartBtn.addEventListener("click", () => {
+            if (!tradeMenuContext) return;
+            const accountId = (tradeMenuContext.accountId || "").toString();
+            if (!accountId) {
+              postLocalSystemChat("That player can't be traded with right now.");
+              closeTradeMenuModal();
+              return;
+            }
+            sendTradeRequestToTarget(accountId, tradeMenuContext.name || "");
+            closeTradeMenuModal();
+          });
+        }
+        if (tradeMenuModalEl) {
+          tradeMenuModalEl.addEventListener("click", (event) => {
+            if (event.target === tradeMenuModalEl) {
+              closeTradeMenuModal();
+            }
+          });
+        }
+        if (tradeAcceptBtn) {
+          tradeAcceptBtn.addEventListener("click", () => {
+            respondToTradeRequest(true);
+          });
+        }
+        if (tradeDeclineBtn) {
+          tradeDeclineBtn.addEventListener("click", () => {
+            respondToTradeRequest(false);
+          });
+        }
+        if (tradeRequestModalEl) {
+          tradeRequestModalEl.addEventListener("click", (event) => {
+            if (event.target === tradeRequestModalEl) {
+              respondToTradeRequest(false);
+            }
+          });
+        }
         if (adminSearchInput) {
           adminSearchInput.addEventListener("input", () => {
             adminSearchQuery = (adminSearchInput.value || "").trim().toLowerCase();
@@ -4910,9 +5120,12 @@
           network.globalPlayerRef = network.globalPlayersRef.child(playerId);
           network.mySessionRef = network.db.ref(BASE_PATH + "/account-sessions/" + playerProfileId);
           network.myCommandRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/teleport");
+          network.myTradeRequestRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/tradeRequest");
+          network.myTradeResponseRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/tradeResponse");
           network.inventoryRef = network.db.ref(BASE_PATH + "/player-inventories/" + playerProfileId);
           network.accountLogsRootRef = network.db.ref(BASE_PATH + "/account-logs");
           network.forceReloadRef = network.db.ref(BASE_PATH + "/system/force-reload");
+          network.announcementRef = network.db.ref(BASE_PATH + "/system/announcement");
           network.myBanRef = network.db.ref(BASE_PATH + "/bans/" + playerProfileId);
           network.accountsRef = network.db.ref(BASE_PATH + "/accounts");
           network.usernamesRef = network.db.ref(BASE_PATH + "/usernames");
@@ -4969,6 +5182,28 @@
             if (value.id === lastHandledTeleportCommandId) return;
             lastHandledTeleportCommandId = value.id;
             applySelfTeleport(value.world, value.x, value.y);
+          };
+          network.handlers.myTradeRequest = (snapshot) => {
+            const value = snapshot.val() || {};
+            const requestId = (value.id || "").toString();
+            if (!requestId) return;
+            const fromAccountId = (value.fromAccountId || "").toString();
+            if (!fromAccountId || fromAccountId === playerProfileId) return;
+            const createdAt = Number(value.createdAt) || 0;
+            if (createdAt > 0 && playerSessionStartedAt > 0 && createdAt <= playerSessionStartedAt) return;
+            showIncomingTradeRequest(value);
+          };
+          network.handlers.myTradeResponse = (snapshot) => {
+            const value = snapshot.val() || {};
+            const responseId = (value.id || "").toString();
+            if (!responseId) return;
+            const byName = (value.byName || "player").toString().slice(0, 20);
+            const accepted = Boolean(value.accepted);
+            postLocalSystemChat("@" + byName + (accepted ? " accepted your trade request." : " declined your trade request."));
+            showAnnouncementPopup("Trade: @" + byName + (accepted ? " accepted" : " declined") + " your request.");
+            if (network.myTradeResponseRef) {
+              network.myTradeResponseRef.remove().catch(() => {});
+            }
           };
 
           network.handlers.worldsIndex = (snapshot) => {
@@ -5072,6 +5307,21 @@
               hardReloadClient(assetVersion);
             }, 2200);
           };
+          network.handlers.announcement = (snapshot) => {
+            const value = snapshot.val() || {};
+            const eventId = (value.id || "").toString();
+            if (!eventId || eventId === lastHandledAnnouncementEventId) return;
+            const createdAt = Number(value.createdAt) || 0;
+            if (createdAt > 0 && playerSessionStartedAt > 0 && createdAt <= playerSessionStartedAt) {
+              lastHandledAnnouncementEventId = eventId;
+              return;
+            }
+            lastHandledAnnouncementEventId = eventId;
+            const actor = (value.actorUsername || "admin").toString().slice(0, 20);
+            const text = (value.text || "").toString().slice(0, 140);
+            if (!text) return;
+            showAnnouncementPopup("@" + actor + ": " + text);
+          };
           network.handlers.adminAccounts = (snapshot) => {
             adminState.accounts = snapshot.val() || {};
             renderAdminPanelFromLiveUpdate();
@@ -5126,10 +5376,13 @@
           network.inventoryRef.on("value", network.handlers.inventory);
           network.mySessionRef.on("value", network.handlers.mySession);
           network.myCommandRef.on("value", network.handlers.myCommand);
+          network.myTradeRequestRef.on("value", network.handlers.myTradeRequest);
+          network.myTradeResponseRef.on("value", network.handlers.myTradeResponse);
           network.worldsIndexRef.on("value", network.handlers.worldsIndex);
           network.globalPlayersRef.on("value", network.handlers.globalPlayers);
           network.myBanRef.on("value", network.handlers.myBan);
           network.forceReloadRef.on("value", network.handlers.forceReload);
+          network.announcementRef.on("value", network.handlers.announcement);
           network.adminRolesRef.on("value", network.handlers.adminRoles);
           if (canViewAccountLogs) {
             network.accountLogsRootRef.on("value", network.handlers.accountLogAdded);
@@ -5511,6 +5764,16 @@
         if (e.key === "Escape" && doorModalEl && !doorModalEl.classList.contains("hidden")) {
           e.preventDefault();
           closeDoorModal();
+          return;
+        }
+        if (e.key === "Escape" && tradeMenuModalEl && !tradeMenuModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeTradeMenuModal();
+          return;
+        }
+        if (e.key === "Escape" && tradeRequestModalEl && !tradeRequestModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          respondToTradeRequest(false);
           return;
         }
         if (e.key === "Escape" && adminInventoryModalEl && !adminInventoryModalEl.classList.contains("hidden")) {

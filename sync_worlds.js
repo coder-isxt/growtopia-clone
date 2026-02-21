@@ -106,6 +106,7 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
         if (remotePlayers && typeof remotePlayers.set === "function") {
           remotePlayers.set(id, {
             id,
+            accountId: (p.accountId || "").toString(),
             x: p.x,
             y: p.y,
             facing: p.facing || 1,
