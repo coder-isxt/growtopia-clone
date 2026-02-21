@@ -13,7 +13,12 @@ window.GTModules.blocks = {
       8: { name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true, icon: "BD", faIcon: "fa-solid fa-mountain" },
       9: { name: "World Lock", color: "#ffd166", solid: true, icon: "WL", faIcon: "fa-solid fa-lock" },
       10: { name: "Door Block", color: "#5fc2ff", solid: false, icon: "DB", faIcon: "fa-solid fa-door-open" },
-      11: { name: "Water", color: "rgba(72, 174, 255, 0.7)", solid: false, liquid: true, icon: "WA", faIcon: "fa-solid fa-water" }
+      11: { name: "Water", color: "rgba(72, 174, 255, 0.7)", solid: false, liquid: true, icon: "WA", faIcon: "fa-solid fa-water" },
+      12: { name: "Platform", color: "#7a5a3f", solid: false, oneWay: true, icon: "PF", faIcon: "fa-solid fa-grip-lines" },
+      13: { name: "Stair NE", color: "#b28457", solid: true, rotatable: true, icon: "S1", faIcon: "fa-solid fa-stairs" },
+      14: { name: "Stair SE", color: "#b28457", solid: true, rotatable: true, icon: "S2", faIcon: "fa-solid fa-stairs" },
+      15: { name: "Stair SW", color: "#b28457", solid: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs" },
+      16: { name: "Stair NW", color: "#b28457", solid: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs" }
     };
   },
   hashWorldSeed(worldId) {

@@ -126,7 +126,12 @@
         8: { name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true, icon: "BD", faIcon: "fa-solid fa-mountain" },
         9: { name: "World Lock", color: "#ffd166", solid: true, icon: "WL", faIcon: "fa-solid fa-lock" },
         10: { name: "Door Block", color: "#5fc2ff", solid: false, icon: "DB", faIcon: "fa-solid fa-door-open" },
-        11: { name: "Water", color: "rgba(72, 174, 255, 0.7)", solid: false, liquid: true, icon: "WA", faIcon: "fa-solid fa-water" }
+        11: { name: "Water", color: "rgba(72, 174, 255, 0.7)", solid: false, liquid: true, icon: "WA", faIcon: "fa-solid fa-water" },
+        12: { name: "Platform", color: "#7a5a3f", solid: false, oneWay: true, icon: "PF", faIcon: "fa-solid fa-grip-lines" },
+        13: { name: "Stair NE", color: "#b28457", solid: true, rotatable: true, icon: "S1", faIcon: "fa-solid fa-stairs" },
+        14: { name: "Stair SE", color: "#b28457", solid: true, rotatable: true, icon: "S2", faIcon: "fa-solid fa-stairs" },
+        15: { name: "Stair SW", color: "#b28457", solid: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs" },
+        16: { name: "Stair NW", color: "#b28457", solid: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs" }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
@@ -134,8 +139,11 @@
       const SPAWN_BASE_ID = 8;
 
       const WORLD_LOCK_ID = 9;
-      const slotOrder = ["fist", 1, 2, 3, 4, 5, 6, 9, 10, 11];
-      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11];
+      const PLATFORM_ID = 12;
+      const STAIR_BASE_ID = 13;
+      const STAIR_ROTATION_IDS = [13, 14, 15, 16];
+      const slotOrder = ["fist", 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13];
+      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13];
       const COSMETIC_SLOTS = ["clothes", "wings", "swords"];
       const COSMETIC_CATALOG = typeof itemsModule.getCosmeticItemsBySlot === "function"
         ? itemsModule.getCosmeticItemsBySlot()
@@ -160,7 +168,9 @@
         6: 0,
         9: 0,
         10: 0,
-        11: 0
+        11: 0,
+        12: 0,
+        13: 0
       };
 
       let selectedSlot = 0;
@@ -759,7 +769,7 @@
                   <input class="admin-ban-reason" data-account-id="${escapeHtml(accountId)}" type="text" maxlength="80" value="Banned by admin" placeholder="reason" ${(canTempBan || canPermBan) ? "" : "disabled"}>
                 </div>
                 <div class="admin-give-wrap">
-                  <input class="admin-give-block" data-account-id="${escapeHtml(accountId)}" type="number" min="1" max="11" step="1" value="1" placeholder="block">
+                  <input class="admin-give-block" data-account-id="${escapeHtml(accountId)}" type="number" min="1" max="13" step="1" value="1" placeholder="block">
                   <input class="admin-give-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="10" placeholder="amount">
                   <button data-admin-act="give" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give</button>
                 </div>
@@ -1045,7 +1055,7 @@
         const safeAmount = Math.floor(Number(amount));
         const safeBlock = Number(blockId);
         if (!INVENTORY_IDS.includes(safeBlock) || !Number.isInteger(safeAmount) || safeAmount <= 0) {
-          postLocalSystemChat("Usage: blockId 1-6, 9, 10 or 11 and amount >= 1.");
+          postLocalSystemChat("Usage: blockId 1-6, 9-13 and amount >= 1.");
           return false;
         }
         network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + safeBlock).transaction((current) => {
@@ -2371,6 +2381,23 @@
         return Boolean(def && def.liquid);
       }
 
+      function isOneWayPlatformTile(tx, ty) {
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return false;
+        const id = world[ty][tx];
+        const def = blockDefs[id];
+        return Boolean(def && def.oneWay);
+      }
+
+      function getRotatedBlockId(id) {
+        const idx = STAIR_ROTATION_IDS.indexOf(id);
+        if (idx < 0) return 0;
+        return STAIR_ROTATION_IDS[(idx + 1) % STAIR_ROTATION_IDS.length];
+      }
+
+      function getInventoryDropId(id) {
+        return STAIR_ROTATION_IDS.includes(id) ? STAIR_BASE_ID : id;
+      }
+
       function normalizeWorldLock(value) {
         if (!value || typeof value !== "object") return null;
         const ownerAccountId = (value.ownerAccountId || "").toString();
@@ -2437,6 +2464,26 @@
         return false;
       }
 
+      function rectCollidesOneWayPlatformDownward(x, prevY, nextY, w, h) {
+        if (nextY <= prevY) return false;
+        const left = Math.floor(x / TILE);
+        const right = Math.floor((x + w - 1) / TILE);
+        const prevBottom = prevY + h;
+        const nextBottom = nextY + h;
+        const startTy = Math.floor((prevBottom - 1) / TILE);
+        const endTy = Math.floor((nextBottom - 1) / TILE);
+        for (let ty = startTy; ty <= endTy; ty++) {
+          for (let tx = left; tx <= right; tx++) {
+            if (!isOneWayPlatformTile(tx, ty)) continue;
+            const tileTop = ty * TILE;
+            if (prevBottom <= tileTop + 1 && nextBottom >= tileTop + 1) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+
       function updatePlayer() {
         const nowMs = performance.now();
         const moveLeft = keys["KeyA"] || keys["ArrowLeft"] || touchControls.left;
@@ -2495,7 +2542,23 @@
         }
 
         let nextY = player.y + player.vy;
-        if (!rectCollides(player.x, nextY, PLAYER_W, PLAYER_H)) {
+        if (player.vy > 0) {
+          const hitsSolid = rectCollides(player.x, nextY, PLAYER_W, PLAYER_H);
+          const hitsPlatform = rectCollidesOneWayPlatformDownward(player.x, player.y, nextY, PLAYER_W, PLAYER_H);
+          if (!hitsSolid && !hitsPlatform) {
+            player.y = nextY;
+            player.grounded = false;
+          } else {
+            while (true) {
+              const testY = player.y + 1;
+              if (rectCollides(player.x, testY, PLAYER_W, PLAYER_H)) break;
+              if (rectCollidesOneWayPlatformDownward(player.x, player.y, testY, PLAYER_W, PLAYER_H)) break;
+              player.y = testY;
+            }
+            player.grounded = true;
+            player.vy = 0;
+          }
+        } else if (!rectCollides(player.x, nextY, PLAYER_W, PLAYER_H)) {
           player.y = nextY;
           player.grounded = false;
         } else {
@@ -2503,7 +2566,6 @@
           while (!rectCollides(player.x, player.y + step, PLAYER_W, PLAYER_H)) {
             player.y += step;
           }
-          if (player.vy > 0) player.grounded = true;
           player.vy = 0;
         }
 
@@ -2569,6 +2631,41 @@
             const y = ty * TILE - cameraY;
             const def = blockDefs[id];
             if (!def) continue;
+
+            if (id === PLATFORM_ID) {
+              ctx.fillStyle = "#6d4f35";
+              ctx.fillRect(x, y + TILE - 8, TILE, 6);
+              ctx.fillStyle = "rgba(255, 238, 202, 0.25)";
+              ctx.fillRect(x + 1, y + TILE - 8, TILE - 2, 2);
+              continue;
+            }
+
+            if (STAIR_ROTATION_IDS.includes(id)) {
+              ctx.fillStyle = def.color;
+              ctx.beginPath();
+              if (id === 13) {
+                ctx.moveTo(x, y + TILE);
+                ctx.lineTo(x + TILE, y + TILE);
+                ctx.lineTo(x + TILE, y);
+              } else if (id === 14) {
+                ctx.moveTo(x, y);
+                ctx.lineTo(x, y + TILE);
+                ctx.lineTo(x + TILE, y + TILE);
+              } else if (id === 15) {
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + TILE, y);
+                ctx.lineTo(x + TILE, y + TILE);
+              } else {
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + TILE, y);
+                ctx.lineTo(x, y + TILE);
+              }
+              ctx.closePath();
+              ctx.fill();
+              ctx.fillStyle = "rgba(255,255,255,0.11)";
+              ctx.fillRect(x + 2, y + 2, TILE - 4, 4);
+              continue;
+            }
 
             ctx.fillStyle = def.color;
             ctx.fillRect(x, y, TILE, TILE);
@@ -2982,8 +3079,9 @@
         }
 
         world[ty][tx] = 0;
-        if (INVENTORY_IDS.includes(id)) {
-          inventory[id] = (inventory[id] || 0) + 1;
+        const dropId = getInventoryDropId(id);
+        if (INVENTORY_IDS.includes(dropId)) {
+          inventory[dropId] = (inventory[dropId] || 0) + 1;
         }
         syncBlock(tx, ty, 0);
         if (id === WORLD_LOCK_ID) {
@@ -2997,6 +3095,25 @@
         refreshToolbar();
       }
 
+      function tryRotate(tx, ty) {
+        if (!canEditTarget(tx, ty)) return;
+        const id = world[ty][tx];
+        if (!id || id === SPAWN_DOOR_ID) return;
+        if (isProtectedSpawnTile(tx, ty)) return;
+        if (!canEditCurrentWorld()) {
+          notifyWorldLockedDenied();
+          return;
+        }
+        if (id === WORLD_LOCK_ID && !isWorldLockOwner()) {
+          notifyWorldLockedDenied();
+          return;
+        }
+        const nextId = getRotatedBlockId(id);
+        if (!nextId) return;
+        world[ty][tx] = nextId;
+        syncBlock(tx, ty, nextId);
+      }
+
       function useActionAt(tx, ty) {
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
@@ -3005,6 +3122,13 @@
           return;
         }
         tryPlace(tx, ty);
+      }
+
+      function useSecondaryActionAt(tx, ty) {
+        if (isProtectedSpawnTile(tx, ty)) return;
+        const selectedId = slotOrder[selectedSlot];
+        if (selectedId !== "fist") return;
+        tryRotate(tx, ty);
       }
 
       function setNetworkState(label, isWarning) {
@@ -4046,8 +4170,13 @@
         if (!inWorld) return;
         const pos = worldFromPointer(e);
         mouseWorld = pos;
-        if (e.button !== 0) return;
-        useActionAt(pos.tx, pos.ty);
+        if (e.button === 0) {
+          useActionAt(pos.tx, pos.ty);
+          return;
+        }
+        if (e.button === 2) {
+          useSecondaryActionAt(pos.tx, pos.ty);
+        }
       });
 
       canvas.addEventListener("touchstart", (e) => {
