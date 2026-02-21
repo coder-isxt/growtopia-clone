@@ -170,6 +170,7 @@
       const worldOccupancy = new Map();
       let knownWorldIds = [];
       let totalOnlinePlayers = 0;
+      let hasRenderedMenuWorldList = false;
       let isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
       let isChatOpen = false;
       let isLogsOpen = false;
@@ -1821,9 +1822,14 @@
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
         exitWorldBtn.classList.toggle("hidden", !inWorld);
         if (inWorld) {
+          hasRenderedMenuWorldList = false;
           setChatOpen(false);
         } else {
           setChatOpen(false);
+          if (!hasRenderedMenuWorldList) {
+            refreshWorldButtons(null, true);
+            hasRenderedMenuWorldList = true;
+          }
         }
         if (!canUseAdminPanel) {
           setAdminOpen(false);
@@ -2747,9 +2753,12 @@
         return pool.slice(0, count);
       }
 
-      function refreshWorldButtons(worldIds) {
+      function refreshWorldButtons(worldIds, force) {
         if (Array.isArray(worldIds)) {
           knownWorldIds = Array.from(new Set(worldIds.filter(Boolean)));
+        }
+        if (!inWorld && hasRenderedMenuWorldList && !force) {
+          return;
         }
         const occupancyWorlds = Array.from(worldOccupancy.keys());
         const fallback = currentWorldId ? [currentWorldId] : [];
