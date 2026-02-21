@@ -2903,15 +2903,36 @@
 
         player.vx *= player.grounded ? frictionNow : airFrictionNow;
 
+        const tryStepUpOnHorizontalMove = (targetX) => {
+          if (Math.abs(player.vx) < 0.01) return false;
+          const maxStepPx = 10;
+          for (let stepUp = 1; stepUp <= maxStepPx; stepUp++) {
+            const testY = player.y - stepUp;
+            if (testY < 0) break;
+            if (rectCollides(targetX, testY, PLAYER_W, PLAYER_H)) continue;
+            const supportedBySolid = rectCollides(targetX, testY + 1, PLAYER_W, PLAYER_H);
+            const supportedByPlatform = rectCollidesOneWayPlatformDownward(targetX, testY, testY + 1, PLAYER_W, PLAYER_H);
+            if (!supportedBySolid && !supportedByPlatform) continue;
+            player.x = targetX;
+            player.y = testY;
+            return true;
+          }
+          return false;
+        };
+
         let nextX = player.x + player.vx;
         if (!rectCollides(nextX, player.y, PLAYER_W, PLAYER_H)) {
           player.x = nextX;
         } else {
+          if (tryStepUpOnHorizontalMove(nextX)) {
+            player.grounded = true;
+          } else {
           const step = Math.sign(player.vx);
           while (!rectCollides(player.x + step, player.y, PLAYER_W, PLAYER_H)) {
             player.x += step;
           }
           player.vx = 0;
+          }
         }
 
         let nextY = player.y + player.vy;
