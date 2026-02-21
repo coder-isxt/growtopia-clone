@@ -959,7 +959,18 @@
         postLocalSystemChat("Audit exported (" + rows.length + " entries).");
       }
 
-      async function hardReloadClient() {
+      function buildAssetVersionTag() {
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        const dd = String(now.getDate()).padStart(2, "0");
+        const hh = String(now.getHours()).padStart(2, "0");
+        const mi = String(now.getMinutes()).padStart(2, "0");
+        const ss = String(now.getSeconds()).padStart(2, "0");
+        return yyyy + "-" + mm + "-" + dd + "-" + hh + mi + ss;
+      }
+
+      async function hardReloadClient(assetVersion) {
         try {
           if ("caches" in window && window.caches && typeof window.caches.keys === "function") {
             const keys = await window.caches.keys();
@@ -969,6 +980,15 @@
           // ignore cache cleanup failures
         }
         const url = new URL(window.location.href);
+        const nextVersion = (assetVersion || "").toString().trim();
+        if (nextVersion) {
+          url.searchParams.set("v", nextVersion);
+          try {
+            localStorage.setItem("gt_asset_version", nextVersion);
+          } catch (error) {
+            // ignore localStorage write failures
+          }
+        }
         url.searchParams.set("_fr", Date.now().toString());
         window.location.replace(url.toString());
       }
@@ -979,16 +999,18 @@
           return;
         }
         const eventId = "fr_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+        const assetVersion = buildAssetVersionTag();
         network.db.ref(BASE_PATH + "/system/force-reload").set({
           id: eventId,
+          assetVersion,
           createdAt: firebase.database.ServerValue.TIMESTAMP,
           actorAccountId: playerProfileId || "",
           actorUsername: playerName || "",
           source: (sourceTag || "panel").toString().slice(0, 16)
         }).then(() => {
           logAdminAudit("Admin(" + (sourceTag || "panel") + ") requested global client reload.");
-          pushAdminAuditEntry("force_reload", "", "all_clients");
-          postLocalSystemChat("Force reload broadcast sent.");
+          pushAdminAuditEntry("force_reload", "", "all_clients version=" + assetVersion);
+          postLocalSystemChat("Force reload broadcast sent (v=" + assetVersion + ").");
         }).catch(() => {
           postLocalSystemChat("Failed to send reload broadcast.");
         });
@@ -3550,9 +3572,10 @@
             }
             lastHandledForceReloadEventId = eventId;
             saveForceReloadMarker(eventId);
-            addClientLog("Global reload requested by @" + ((value.actorUsername || "owner").toString().slice(0, 20)) + ". Hard reloading...");
+            const assetVersion = (value.assetVersion || "").toString().trim();
+            addClientLog("Global reload requested by @" + ((value.actorUsername || "owner").toString().slice(0, 20)) + ". Hard reloading" + (assetVersion ? " (v=" + assetVersion + ")" : "") + "...");
             setTimeout(() => {
-              hardReloadClient();
+              hardReloadClient(assetVersion);
             }, 120);
           };
           network.handlers.adminAccounts = (snapshot) => {

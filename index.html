@@ -99,21 +99,55 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
-  <script src="firebase-config.js"></script>
-  <script src="settings.js"></script>
-  <script src="admin.js"></script>
-  <script src="blocks.js"></script>
-  <script src="items.js"></script>
-  <script src="player.js"></script>
-  <script src="auth_storage.js"></script>
-  <script src="world.js"></script>
-  <script src="animations.js"></script>
-  <script src="sync_player.js"></script>
-  <script src="sync_blocks.js"></script>
-  <script src="sync_worlds.js"></script>
-  <script src="chat.js"></script>
-  <script src="menu.js"></script>
-  <script src="game.js"></script>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search || "");
+      const queryVersion = (params.get("v") || "").trim();
+      let assetVersion = queryVersion;
+      if (!assetVersion) {
+        try {
+          assetVersion = (localStorage.getItem("gt_asset_version") || "").trim();
+        } catch (error) {
+          assetVersion = "";
+        }
+      }
+      if (!assetVersion) {
+        assetVersion = "dev";
+      }
+      try {
+        localStorage.setItem("gt_asset_version", assetVersion);
+      } catch (error) {
+        // ignore localStorage write failures
+      }
+      window.GT_ASSET_VERSION = assetVersion;
+      const versionedFiles = [
+        "firebase-config.js",
+        "settings.js",
+        "admin.js",
+        "blocks.js",
+        "items.js",
+        "player.js",
+        "auth_storage.js",
+        "world.js",
+        "animations.js",
+        "sync_player.js",
+        "sync_blocks.js",
+        "sync_worlds.js",
+        "chat.js",
+        "menu.js",
+        "game.js"
+      ];
+      function loadScriptAt(index) {
+        if (index >= versionedFiles.length) return;
+        const script = document.createElement("script");
+        script.src = versionedFiles[index] + "?v=" + encodeURIComponent(assetVersion);
+        script.onload = function () { loadScriptAt(index + 1); };
+        script.onerror = function () { loadScriptAt(index + 1); };
+        document.body.appendChild(script);
+      }
+      loadScriptAt(0);
+    })();
+  </script>
 </body>
 </html>
 
