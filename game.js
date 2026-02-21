@@ -2379,7 +2379,7 @@
         const item = COSMETIC_LOOKUP.clothes[clothesId];
         if (!item) return;
         ctx.fillStyle = item.color;
-        ctx.fillRect(px + 2, py + 15, PLAYER_W - 4, PLAYER_H - 15);
+        ctx.fillRect(px + 5, py + 14, PLAYER_W - 10, 10);
       }
 
       function drawSword(px, py, swordId, facing, swordSwing) {
@@ -2388,8 +2388,26 @@
         if (!item) return;
         ctx.fillStyle = item.color;
         const swing = Number(swordSwing) || 0;
-        const handX = facing === 1 ? px + PLAYER_W - 1 + swing : px - 9 - swing;
-        ctx.fillRect(handX, py + 14 + swing * 0.25, 9, 3);
+        const handX = facing === 1 ? px + PLAYER_W - 3 + swing : px - 7 - swing;
+        ctx.fillRect(handX, py + 15 + swing * 0.25, 8, 3);
+      }
+
+      function drawHumanoid(px, py, facing, bodyColor, skinColor, eyeColor, clothesId) {
+        ctx.fillStyle = bodyColor;
+        ctx.fillRect(px + 6, py + 13, PLAYER_W - 12, 12);
+        ctx.fillRect(px + 2, py + 14, 4, 9);
+        ctx.fillRect(px + PLAYER_W - 6, py + 14, 4, 9);
+        ctx.fillRect(px + 7, py + 25, 4, 5);
+        ctx.fillRect(px + PLAYER_W - 11, py + 25, 4, 5);
+
+        drawClothes(px, py, clothesId);
+
+        ctx.fillStyle = skinColor;
+        ctx.fillRect(px + 5, py + 3, PLAYER_W - 10, 10);
+
+        ctx.fillStyle = eyeColor;
+        const eyeX = facing === 1 ? px + PLAYER_W - 9 : px + 6;
+        return eyeX;
       }
 
       function drawPlayer() {
@@ -2412,16 +2430,8 @@
         ctx.rotate(Number(pose.bodyTilt) || 0);
         ctx.translate(-(px + PLAYER_W / 2), -(basePy + PLAYER_H / 2));
 
-        ctx.fillStyle = "#263238";
-        ctx.fillRect(px, basePy, PLAYER_W, PLAYER_H);
-
-        drawClothes(px, basePy, cosmetics.clothes);
-
-        ctx.fillStyle = "#ffdbac";
-        ctx.fillRect(px + 4, basePy + 4, PLAYER_W - 8, 10);
-
+        const eyeX = drawHumanoid(px, basePy, player.facing, "#263238", "#ffdbac", "#0d0d0d", cosmetics.clothes);
         ctx.fillStyle = "#0d0d0d";
-        const eyeX = player.facing === 1 ? px + PLAYER_W - 7 : px + 4;
         const eyeY = basePy + 8 + (pose.eyeYOffset || 0);
         const eyeHeight = Math.max(1, Math.floor(Number(pose.eyeHeight) || 3));
         ctx.fillRect(eyeX, eyeY, 3, eyeHeight);
@@ -2455,16 +2465,8 @@
           ctx.rotate(Number(pose.bodyTilt) || 0);
           ctx.translate(-(px + PLAYER_W / 2), -(basePy + PLAYER_H / 2));
 
-          ctx.fillStyle = "#2a75bb";
-          ctx.fillRect(px, basePy, PLAYER_W, PLAYER_H);
-
-          drawClothes(px, basePy, cosmetics.clothes || "");
-
-          ctx.fillStyle = "#ffdbac";
-          ctx.fillRect(px + 4, basePy + 4, PLAYER_W - 8, 10);
-
+          const eyeX = drawHumanoid(px, basePy, other.facing || 1, "#2a75bb", "#ffdbac", "#102338", cosmetics.clothes || "");
           ctx.fillStyle = "#102338";
-          const eyeX = other.facing === 1 ? px + PLAYER_W - 7 : px + 4;
           const eyeY = basePy + 8 + (pose.eyeYOffset || 0);
           const eyeHeight = Math.max(1, Math.floor(Number(pose.eyeHeight) || 3));
           ctx.fillRect(eyeX, eyeY, 3, eyeHeight);

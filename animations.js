@@ -64,7 +64,7 @@ window.GTModules.animations = (function createAnimationsModule() {
     const t = Number(nowMs) || performance.now();
     const m = motion || {};
     const seed = hashSeed(seedInput);
-    const phase = t * 0.018 + seed * 10;
+    const phase = t * 0.011 + seed * 10;
     const stride = clamp((Number(m.speed) || 0) / 3.7, 0, 1);
     const grounded = Boolean(m.grounded);
     const vy = Number(m.vy) || 0;
@@ -78,12 +78,12 @@ window.GTModules.animations = (function createAnimationsModule() {
     if (grounded) {
       bodyBob = Math.sin(phase) * (0.3 + stride * 1.3);
       bodyTilt = Math.sin(phase + 0.7) * (0.005 + stride * 0.025);
-      wingFlap = Math.sin(t * 0.028 + seed * 12) * (2 + stride * 8);
+      wingFlap = Math.sin(t * 0.012 + seed * 12) * (1 + stride * 4.2);
       swordSwing = Math.sin(phase + 1.1) * (1 + stride * 4.5);
     } else {
       bodyBob = Math.sin(t * 0.01 + seed * 7) * 0.7;
       bodyTilt = clamp(vy * 0.02, -0.16, 0.16);
-      wingFlap = Math.sin(t * 0.05 + seed * 12) * 10;
+      wingFlap = Math.sin(t * 0.02 + seed * 12) * 5.8;
       swordSwing = clamp(vy * 0.35, -3, 3);
       eyeYOffset = vy < 0 ? -1 : 1;
     }
@@ -109,4 +109,3 @@ window.GTModules.animations = (function createAnimationsModule() {
     buildPose
   };
 })();
-
