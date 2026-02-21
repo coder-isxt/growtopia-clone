@@ -528,6 +528,7 @@
       let lastAirJumpAtMs = -9999;
       let airJumpsUsed = 0;
       let wasJumpHeld = false;
+      let lastHitAtMs = -9999;
       let suppressSpawnSafetyUntilMs = 0;
       let mobileLastTouchActionAt = 0;
       const touchControls = {
@@ -535,6 +536,7 @@
         right: false,
         jump: false
       };
+      const HIT_ANIM_MS = 200;
 
       const network = {
         enabled: false,
@@ -5083,13 +5085,34 @@
         if (!swordId) return;
         const item = COSMETIC_LOOKUP.swords[swordId];
         if (!item) return;
-        ctx.fillStyle = item.color;
         const swing = Number(swordSwing) || 0;
-        const handX = facing === 1 ? px + PLAYER_W - 3 + swing : px - 7 - swing;
-        if (drawCosmeticSprite(item, handX - 2, py + 12 + swing * 0.25, 12, 8, facing)) {
+        const armSwing = Math.max(-4, Math.min(4, swing * 0.18));
+        const handX = facing === 1 ? (px + PLAYER_W - 3) : (px + 3);
+        const handY = py + 19 + (facing === 1 ? armSwing : -armSwing);
+        const bladeW = 12;
+        const bladeH = 8;
+        const baseAngle = facing === 1 ? 0.18 : (Math.PI - 0.18);
+        const slash = Math.max(-1.2, Math.min(1.2, swing * 0.12));
+        const angle = baseAngle + (facing === 1 ? slash : -slash);
+
+        ctx.save();
+        ctx.translate(handX, handY);
+        ctx.rotate(angle);
+        const img = getCosmeticImage(item);
+        if (img) {
+          ctx.imageSmoothingEnabled = false;
+          if (facing === -1) {
+            ctx.scale(-1, 1);
+          }
+          ctx.drawImage(img, 0, -bladeH / 2, bladeW, bladeH);
+          ctx.restore();
           return;
         }
-        ctx.fillRect(handX, py + 15 + swing * 0.25, 8, 3);
+        ctx.fillStyle = item.color;
+        ctx.fillRect(0, -1.5, 9, 3);
+        ctx.fillStyle = "rgba(255,255,255,0.65)";
+        ctx.fillRect(6, -1, 4, 2);
+        ctx.restore();
       }
 
       function drawHumanoid(px, py, facing, bodyColor, skinColor, eyeColor, clothesId, pose, lookX, lookY) {
@@ -5176,6 +5199,13 @@
         const pose = typeof animationsModule.buildPose === "function"
           ? animationsModule.buildPose(localMotion, nowMs, playerId)
           : { bodyBob: 0, bodyTilt: 0, wingFlap: 0, swordSwing: 0, eyeYOffset: 0, eyeHeight: 3 };
+        const hitT = Math.max(0, Math.min(1, 1 - ((nowMs - lastHitAtMs) / HIT_ANIM_MS)));
+        if (hitT > 0) {
+          const hitEase = hitT * hitT * (3 - 2 * hitT);
+          pose.armSwing = (Number(pose.armSwing) || 0) + (player.facing === 1 ? 1 : -1) * (2.3 * hitEase);
+          pose.bodyTilt = (Number(pose.bodyTilt) || 0) + (player.facing === 1 ? 1 : -1) * (0.07 * hitEase);
+          pose.swordSwing = (Number(pose.swordSwing) || 0) + (player.facing === 1 ? 1 : -1) * (7.5 * hitEase);
+        }
         const basePy = py + (pose.bodyBob || 0);
 
         drawWings(px, basePy, cosmetics.wings, player.facing, pose.wingFlap || 0);
@@ -5775,6 +5805,7 @@
 
       function useActionAt(tx, ty) {
         if (isProtectedSpawnTile(tx, ty)) return;
+        lastHitAtMs = performance.now();
         const selectedId = slotOrder[selectedSlot];
         if (selectedId === TOOL_WRENCH) {
           interactWithWrench(tx, ty);
@@ -5789,6 +5820,7 @@
 
       function useSecondaryActionAt(tx, ty) {
         if (isProtectedSpawnTile(tx, ty)) return;
+        lastHitAtMs = performance.now();
         const selectedId = slotOrder[selectedSlot];
         if (selectedId === TOOL_WRENCH) {
           interactWithWrench(tx, ty);
