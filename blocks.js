@@ -19,14 +19,14 @@ window.GTModules.blocks = (function createBlocksModule() {
     { id: 10, key: "door_block", name: "Door Block", color: "#5fc2ff", solid: false, icon: "DB", faIcon: "fa-solid fa-door-open", image: "special/door.png" },
     { id: 11, key: "water_block", name: "Water", color: "rgba(72, 174, 255, 0.7)", solid: false, liquid: true, icon: "WA", faIcon: "fa-solid fa-water", image: "special/water.png" },
     { id: 12, key: "platform_block", name: "Platform", color: "#7a5a3f", solid: false, oneWay: true, icon: "PF", faIcon: "fa-solid fa-grip-lines", image: "special/platform.png" },
-    { id: 13, key: "stair_block", name: "Stair NE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S1", faIcon: "fa-solid fa-stairs", image: "special/stairs.png" },
-    { id: 14, key: "stair_block_r1", name: "Stair SE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S2", faIcon: "fa-solid fa-stairs", image: "special/stair_block_r1.png" },
-    { id: 15, key: "stair_block_r2", name: "Stair SW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs", image: "special/stair_block_r2.png" },
-    { id: 16, key: "stair_block_r3", name: "Stair NW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs", image: "special/stair_block_r3.png" },
+    { id: 13, key: "stair_block", name: "Stair NW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S1", faIcon: "fa-solid fa-stairs", image: "special/stairs.png" },
+    { id: 14, key: "stair_block_r1", name: "Stair NE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S2", faIcon: "fa-solid fa-stairs", image: "special/stair_block_r1.png" },
+    { id: 15, key: "stair_block_r2", name: "Stair SE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs", image: "special/stair_block_r2.png" },
+    { id: 16, key: "stair_block_r3", name: "Stair SW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs", image: "special/stair_block_r3.png" },
     { id: 17, key: "vending_machine", name: "Vending Machine", color: "#4d6b8b", solid: false, icon: "VM", faIcon: "fa-solid fa-store", image: "special/vending_machine.png" },
     { id: 18, key: "sign_block", name: "Sign", color: "#b98a58", solid: false, icon: "SG", faIcon: "fa-solid fa-signs-post", image: "special/sign_block.png" },
     { id: 19, key: "anti_gravity_generator", name: "Anti Gravity Generator", color: "#6de9ff", solid: true, icon: "AG", faIcon: "fa-solid fa-meteor" },
-    { id: 20, key: "camera_block", name: "Camera", color: "#8eb7d6", solid: true, icon: "CM", faIcon: "fa-solid fa-video" },
+    { id: 20, key: "camera_block", name: "Camera", color: "#8eb7d6", solid: true, icon: "CM", faIcon: "fa-solid fa-video", image: "special/camera.png" },
     { id: 21, key: "weather_machine", name: "Weather Machine", color: "#7aa8d9", solid: true, icon: "WM", faIcon: "fa-solid fa-cloud-sun-rain", image: "special/weather_machine.png" }
   ];
 

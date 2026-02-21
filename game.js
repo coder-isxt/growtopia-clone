@@ -202,10 +202,10 @@
         10: { key: "door_block", name: "Door Block", color: "#5fc2ff", solid: false, icon: "DB", faIcon: "fa-solid fa-door-open" },
         11: { key: "water_block", name: "Water", color: "rgba(72, 174, 255, 0.7)", solid: false, liquid: true, icon: "WA", faIcon: "fa-solid fa-water" },
         12: { key: "platform_block", name: "Platform", color: "#7a5a3f", solid: false, oneWay: true, icon: "PF", faIcon: "fa-solid fa-grip-lines" },
-        13: { key: "stair_block", name: "Stair NE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S1", faIcon: "fa-solid fa-stairs" },
-        14: { key: "stair_block_r1", name: "Stair SE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S2", faIcon: "fa-solid fa-stairs" },
-        15: { key: "stair_block_r2", name: "Stair SW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs" },
-        16: { key: "stair_block_r3", name: "Stair NW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs" },
+        13: { key: "stair_block", name: "Stair NW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S1", faIcon: "fa-solid fa-stairs" },
+        14: { key: "stair_block_r1", name: "Stair NE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S2", faIcon: "fa-solid fa-stairs" },
+        15: { key: "stair_block_r2", name: "Stair SE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs" },
+        16: { key: "stair_block_r3", name: "Stair SW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs" },
         17: { key: "vending_machine", name: "Vending Machine", color: "#4d6b8b", solid: true, icon: "VM", faIcon: "fa-solid fa-store" },
         18: { key: "sign_block", name: "Sign", color: "#b98a58", solid: false, icon: "SG", faIcon: "fa-solid fa-signs-post" },
         19: { key: "anti_gravity_generator", name: "Anti Gravity Generator", color: "#6de9ff", solid: true, icon: "AG", faIcon: "fa-solid fa-meteor" },
@@ -364,8 +364,12 @@
       const CHAT_BUBBLE_MS = 7000;
       const CHAT_BUBBLE_MAX_WIDTH = 190;
       const CHAT_BUBBLE_LINE_HEIGHT = 13;
+      const DROP_PICKUP_RADIUS = 26;
+      const DROP_MAX_PER_WORLD = 220;
       const PLAYER_NAME_FONT = "12px 'Trebuchet MS', sans-serif";
       const playerWrenchHitboxes = [];
+      const worldDrops = new Map();
+      let lastDropAtMs = 0;
 
       let currentWorldId = getInitialWorldId();
       let world = makeWorld(currentWorldId);
@@ -527,6 +531,8 @@
         myActiveTradeRef: null,
         playersRef: null,
         blocksRef: null,
+        dropsRef: null,
+        dropFeedRef: null,
         vendingRef: null,
         signsRef: null,
         doorsRef: null,
@@ -567,6 +573,9 @@
           blockAdded: null,
           blockChanged: null,
           blockRemoved: null,
+          dropAdded: null,
+          dropChanged: null,
+          dropRemoved: null,
           vendingAdded: null,
           vendingChanged: null,
           vendingRemoved: null,
@@ -2735,6 +2744,7 @@
 
       function resetForWorldChange() {
         remotePlayers.clear();
+        clearWorldDrops();
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
         signTexts.clear();
@@ -4100,10 +4110,8 @@
           return physicsModule.getStairSurfaceY(id, tx, ty, worldX, TILE);
         }
         const localX = Math.max(0, Math.min(1, (worldX - tx * TILE) / TILE));
-        let localY = 1 - localX;
-        if (id === 14 || id === 15) {
-          localY = localX;
-        }
+        let localY = localX;
+        if (id === 14 || id === 16) localY = 1 - localX;
         return ty * TILE + localY * TILE;
       }
 
@@ -4113,21 +4121,25 @@
         }
         const footLeftX = player.x + 3;
         const footRightX = player.x + PLAYER_W - 3;
+        const footCenterX = player.x + PLAYER_W * 0.5;
         const bottomY = player.y + PLAYER_H;
-        const checkFeet = [footLeftX, footRightX];
-        let targetBottom = Infinity;
+        const checkFeet = [footLeftX, footCenterX, footRightX];
+        let targetBottom = -Infinity;
         let found = false;
         for (let i = 0; i < checkFeet.length; i++) {
           const fx = checkFeet[i];
           const tx = Math.floor(fx / TILE);
-          const ty = Math.floor((bottomY - 1) / TILE);
-          if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) continue;
-          const id = world[ty][tx];
-          if (!isStairTileId(id)) continue;
-          const surfaceY = getStairSurfaceY(id, tx, ty, fx);
-          if (bottomY < surfaceY - 5 || bottomY > surfaceY + 10) continue;
-          targetBottom = Math.min(targetBottom, surfaceY);
-          found = true;
+          const baseTy = Math.floor((bottomY - 1) / TILE);
+          for (let yOff = -1; yOff <= 1; yOff++) {
+            const ty = baseTy + yOff;
+            if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) continue;
+            const id = world[ty][tx];
+            if (!isStairTileId(id)) continue;
+            const surfaceY = getStairSurfaceY(id, tx, ty, fx);
+            if (bottomY < surfaceY - 8 || bottomY > surfaceY + 12) continue;
+            targetBottom = Math.max(targetBottom, surfaceY);
+            found = true;
+          }
         }
         if (!found) return false;
         player.y = targetBottom - PLAYER_H;
@@ -4391,27 +4403,27 @@
             }
 
             if (STAIR_ROTATION_IDS.includes(id)) {
-              if (drawBlockImage(def, x, y)) {
+              if (drawStairImage(id, def, x, y)) {
                 continue;
               }
               ctx.fillStyle = def.color;
               ctx.beginPath();
               if (id === 13) {
+                ctx.moveTo(x, y);
+                ctx.lineTo(x, y + TILE);
+                ctx.lineTo(x + TILE, y + TILE);
+              } else if (id === 14) {
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + TILE, y);
+                ctx.lineTo(x, y + TILE);
+              } else if (id === 15) {
                 ctx.moveTo(x, y + TILE);
                 ctx.lineTo(x + TILE, y + TILE);
                 ctx.lineTo(x + TILE, y);
-              } else if (id === 14) {
-                ctx.moveTo(x, y);
-                ctx.lineTo(x, y + TILE);
-                ctx.lineTo(x + TILE, y + TILE);
-              } else if (id === 15) {
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + TILE, y);
-                ctx.lineTo(x + TILE, y + TILE);
               } else {
                 ctx.moveTo(x, y);
                 ctx.lineTo(x + TILE, y);
-                ctx.lineTo(x, y + TILE);
+                ctx.lineTo(x + TILE, y + TILE);
               }
               ctx.closePath();
               ctx.fill();
@@ -4458,6 +4470,57 @@
             }
           }
         }
+      }
+
+      function drawWorldDrops() {
+        if (!worldDrops.size) return;
+        const viewW = getCameraViewWidth();
+        const viewH = getCameraViewHeight();
+        const now = performance.now();
+        worldDrops.forEach((drop) => {
+          if (!drop) return;
+          const x = drop.x - cameraX;
+          const y = drop.y - cameraY + Math.sin((now + drop.id.length * 91) * 0.005) * 1.5;
+          if (x < -TILE || y < -TILE || x > viewW + TILE || y > viewH + TILE) return;
+          if (drop.type === "block") {
+            const def = blockDefs[drop.blockId];
+            if (def && drawBlockImage(def, x, y)) {
+              // draw count badge
+            } else {
+              ctx.save();
+              ctx.fillStyle = def && def.color ? def.color : "#a0a0a0";
+              ctx.fillRect(x, y, TILE, TILE);
+              ctx.restore();
+            }
+          } else {
+            let drawn = false;
+            for (let i = 0; i < COSMETIC_ITEMS.length; i++) {
+              const item = COSMETIC_ITEMS[i];
+              if (!item || item.id !== drop.cosmeticId) continue;
+              drawn = drawCosmeticSprite(item, x + 2, y + 2, TILE - 4, TILE - 4, 1);
+              if (!drawn) {
+                ctx.save();
+                ctx.fillStyle = item.color || "#9bb4ff";
+                ctx.fillRect(x + 4, y + 4, TILE - 8, TILE - 8);
+                ctx.restore();
+              }
+              break;
+            }
+          }
+          if (drop.amount > 1) {
+            ctx.save();
+            ctx.font = "11px 'Trebuchet MS', sans-serif";
+            const label = "x" + drop.amount;
+            const labelW = ctx.measureText(label).width + 8;
+            ctx.fillStyle = "rgba(8, 22, 34, 0.85)";
+            ctx.fillRect(x + TILE - labelW - 1, y + TILE - 14, labelW, 13);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.24)";
+            ctx.strokeRect(x + TILE - labelW - 1, y + TILE - 14, labelW, 13);
+            ctx.fillStyle = "#f7fbff";
+            ctx.fillText(label, x + TILE - labelW + 3, y + TILE - 4);
+            ctx.restore();
+          }
+        });
       }
 
       function drawSignTopText() {
@@ -4602,6 +4665,26 @@
         ctx.save();
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(img, x, y, TILE, TILE);
+        ctx.restore();
+        return true;
+      }
+
+      function drawStairImage(id, def, x, y) {
+        const baseDef = blockDefs[STAIR_BASE_ID] || def;
+        const img = getBlockImage(baseDef) || getBlockImage(def);
+        if (!img) return false;
+        // Base orientation is NW (id 13). Rotated stairs mirror this texture.
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.translate(x + TILE * 0.5, y + TILE * 0.5);
+        if (id === 14) {
+          ctx.scale(-1, 1);
+        } else if (id === 15) {
+          ctx.scale(-1, -1);
+        } else if (id === 16) {
+          ctx.scale(1, -1);
+        }
+        ctx.drawImage(img, -TILE * 0.5, -TILE * 0.5, TILE, TILE);
         ctx.restore();
         return true;
       }
@@ -5024,6 +5107,7 @@
         ctx.setTransform(cameraZoom, 0, 0, cameraZoom, 0, 0);
         drawBackground();
         drawWorld();
+        drawWorldDrops();
         drawRemotePlayers();
         drawPlayer();
         drawAllOverheadChats();
@@ -5404,6 +5488,161 @@
         return { tx, ty };
       }
 
+      function normalizeDropRecord(id, value) {
+        if (!id || !value || typeof value !== "object") return null;
+        const typeRaw = String(value.type || "").trim().toLowerCase();
+        const type = typeRaw === "cosmetic" ? "cosmetic" : "block";
+        const blockId = Math.max(0, Math.floor(Number(value.blockId) || 0));
+        const cosmeticId = String(value.cosmeticId || "").trim().slice(0, 64);
+        const amount = Math.max(1, Math.floor(Number(value.amount) || 1));
+        if (type === "block" && !blockId) return null;
+        if (type === "cosmetic" && !cosmeticId) return null;
+        const x = Number(value.x);
+        const y = Number(value.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+        const clampedX = Math.max(0, Math.min(x, WORLD_W * TILE - TILE));
+        const clampedY = Math.max(0, Math.min(y, WORLD_H * TILE - TILE));
+        return {
+          id: String(id),
+          type,
+          blockId,
+          cosmeticId,
+          amount,
+          x: clampedX,
+          y: clampedY,
+          ownerAccountId: String(value.ownerAccountId || ""),
+          ownerSessionId: String(value.ownerSessionId || ""),
+          ownerName: String(value.ownerName || "").slice(0, 20),
+          createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now(),
+          noPickupUntil: 0
+        };
+      }
+
+      function getDropLabel(drop) {
+        if (!drop) return "item";
+        if (drop.type === "cosmetic") {
+          for (let i = 0; i < COSMETIC_ITEMS.length; i++) {
+            const item = COSMETIC_ITEMS[i];
+            if (item && item.id === drop.cosmeticId) return item.name || drop.cosmeticId;
+          }
+          return drop.cosmeticId || "cosmetic";
+        }
+        const def = blockDefs[drop.blockId];
+        return def && def.name ? def.name : ("Block " + drop.blockId);
+      }
+
+      function addOrUpdateWorldDrop(id, value) {
+        const normalized = normalizeDropRecord(id, value);
+        if (!normalized) {
+          worldDrops.delete(String(id || ""));
+          return;
+        }
+        if (normalized.ownerSessionId && normalized.ownerSessionId === playerSessionId) {
+          normalized.noPickupUntil = performance.now() + 550;
+        }
+        worldDrops.set(normalized.id, normalized);
+      }
+
+      function clearWorldDrops() {
+        worldDrops.clear();
+      }
+
+      function removeWorldDrop(id) {
+        worldDrops.delete(String(id || ""));
+      }
+
+      function dropSelectedInventoryItem() {
+        if (!inWorld) return;
+        const selectedId = slotOrder[selectedSlot];
+        if (typeof selectedId !== "number") return;
+        if (!INVENTORY_IDS.includes(selectedId)) return;
+        if ((inventory[selectedId] || 0) <= 0) return;
+        const now = performance.now();
+        if (now - lastDropAtMs < 150) return;
+        lastDropAtMs = now;
+        const dropX = Math.max(0, Math.min(player.x + (PLAYER_W / 2) - (TILE / 2), WORLD_W * TILE - TILE));
+        const dropY = Math.max(0, Math.min(player.y + PLAYER_H - TILE, WORLD_H * TILE - TILE));
+        const payload = {
+          type: "block",
+          blockId: selectedId,
+          amount: 1,
+          x: dropX,
+          y: dropY,
+          ownerAccountId: playerProfileId || "",
+          ownerSessionId: playerSessionId || "",
+          ownerName: (playerName || "").toString().slice(0, 20),
+          createdAt: Date.now()
+        };
+
+        inventory[selectedId] = Math.max(0, Math.floor((inventory[selectedId] || 0) - 1));
+        saveInventory();
+        refreshToolbar();
+
+        if (!network.enabled || !network.dropsRef) {
+          const localId = "local_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+          addOrUpdateWorldDrop(localId, payload);
+          return;
+        }
+        network.dropsRef.push({
+          ...payload,
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        }).catch(() => {});
+      }
+
+      function tryPickupWorldDrop(drop) {
+        if (!drop || !drop.id) return;
+        if (drop.noPickupUntil && performance.now() < drop.noPickupUntil) return;
+        const px = player.x + PLAYER_W / 2;
+        const py = player.y + PLAYER_H / 2;
+        const dx = (drop.x + TILE / 2) - px;
+        const dy = (drop.y + TILE / 2) - py;
+        if ((dx * dx + dy * dy) > (DROP_PICKUP_RADIUS * DROP_PICKUP_RADIUS)) return;
+
+        const applyPickup = () => {
+          if (drop.type === "cosmetic") {
+            cosmeticInventory[drop.cosmeticId] = Math.max(0, Math.floor((cosmeticInventory[drop.cosmeticId] || 0) + drop.amount));
+          } else {
+            inventory[drop.blockId] = Math.max(0, Math.floor((inventory[drop.blockId] || 0) + drop.amount));
+          }
+          saveInventory();
+          refreshToolbar();
+          postLocalSystemChat("Picked up " + drop.amount + "x " + getDropLabel(drop) + ".");
+        };
+
+        if (!network.enabled || !network.dropsRef) {
+          removeWorldDrop(drop.id);
+          applyPickup();
+          return;
+        }
+
+        drop.noPickupUntil = performance.now() + 280;
+        const ref = network.dropsRef.child(drop.id);
+        ref.transaction((current) => {
+          if (!current) return current;
+          return null;
+        }).then((result) => {
+          if (!result.committed) return;
+          removeWorldDrop(drop.id);
+          applyPickup();
+        }).catch(() => {});
+      }
+
+      function updateWorldDrops() {
+        if (!inWorld || !worldDrops.size) return;
+        if (worldDrops.size > DROP_MAX_PER_WORLD) {
+          const ids = Array.from(worldDrops.keys());
+          ids.sort();
+          const removeCount = worldDrops.size - DROP_MAX_PER_WORLD;
+          for (let i = 0; i < removeCount; i++) {
+            worldDrops.delete(ids[i]);
+          }
+        }
+        const entries = Array.from(worldDrops.values());
+        for (let i = 0; i < entries.length; i++) {
+          tryPickupWorldDrop(entries[i]);
+        }
+      }
+
       function pickRandomWorlds(worldIds, count) {
         if (typeof menuModule.pickRandomWorlds === "function") {
           return menuModule.pickRandomWorlds(worldIds, count);
@@ -5450,6 +5689,15 @@
         }
         if (network.lockRef && network.handlers.worldLock) {
           network.lockRef.off("value", network.handlers.worldLock);
+        }
+        if (network.dropFeedRef && network.handlers.dropAdded) {
+          network.dropFeedRef.off("child_added", network.handlers.dropAdded);
+        }
+        if (network.dropsRef && network.handlers.dropChanged) {
+          network.dropsRef.off("child_changed", network.handlers.dropChanged);
+        }
+        if (network.dropsRef && network.handlers.dropRemoved) {
+          network.dropsRef.off("child_removed", network.handlers.dropRemoved);
         }
         if (network.vendingRef && network.handlers.vendingAdded) {
           network.vendingRef.off("child_added", network.handlers.vendingAdded);
@@ -5514,6 +5762,8 @@
         network.playerRef = null;
         network.playersRef = null;
         network.blocksRef = null;
+        network.dropsRef = null;
+        network.dropFeedRef = null;
         network.vendingRef = null;
         network.signsRef = null;
         network.doorsRef = null;
@@ -5529,6 +5779,9 @@
         network.handlers.blockAdded = null;
         network.handlers.blockChanged = null;
         network.handlers.blockRemoved = null;
+        network.handlers.dropAdded = null;
+        network.handlers.dropChanged = null;
+        network.handlers.dropRemoved = null;
         network.handlers.vendingAdded = null;
         network.handlers.vendingChanged = null;
         network.handlers.vendingRemoved = null;
@@ -5557,6 +5810,7 @@
         cameraConfigsByTile.clear();
         cameraLogsByTile.clear();
         currentWorldWeather = null;
+        clearWorldDrops();
         closeSignModal();
         closeWorldLockModal();
         closeDoorModal();
@@ -5662,6 +5916,8 @@
           : null;
         network.playersRef = worldRefs && worldRefs.playersRef ? worldRefs.playersRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/players");
         network.blocksRef = worldRefs && worldRefs.blocksRef ? worldRefs.blocksRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/blocks");
+        network.dropsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/drops");
+        network.dropFeedRef = network.dropsRef.limitToLast(DROP_MAX_PER_WORLD);
         network.vendingRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/vending");
         network.signsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/signs");
         network.doorsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/doors");
@@ -5765,6 +6021,13 @@
         network.handlers.blockAdded = handlers.blockAdded;
         network.handlers.blockChanged = handlers.blockChanged;
         network.handlers.blockRemoved = handlers.blockRemoved;
+        network.handlers.dropAdded = (snapshot) => {
+          addOrUpdateWorldDrop(snapshot.key || "", snapshot.val() || {});
+        };
+        network.handlers.dropChanged = network.handlers.dropAdded;
+        network.handlers.dropRemoved = (snapshot) => {
+          removeWorldDrop(snapshot.key || "");
+        };
         network.handlers.chatAdded = handlers.chatAdded;
         network.handlers.vendingAdded = (snapshot) => {
           const tile = parseTileKey(snapshot.key || "");
@@ -5846,6 +6109,11 @@
           network.vendingRef.on("child_added", network.handlers.vendingAdded);
           network.vendingRef.on("child_changed", network.handlers.vendingChanged);
           network.vendingRef.on("child_removed", network.handlers.vendingRemoved);
+        }
+        if (network.dropFeedRef && network.handlers.dropAdded) {
+          network.dropFeedRef.on("child_added", network.handlers.dropAdded);
+          network.dropsRef.on("child_changed", network.handlers.dropChanged);
+          network.dropsRef.on("child_removed", network.handlers.dropRemoved);
         }
         if (network.signsRef && network.handlers.signAdded) {
           network.signsRef.on("child_added", network.handlers.signAdded);
@@ -7088,6 +7356,11 @@
           }
         }
         if (!isTypingContext && inWorld) {
+          if (e.code === "KeyQ") {
+            e.preventDefault();
+            dropSelectedInventoryItem();
+            return;
+          }
           if (e.key === "+" || e.key === "=" || e.code === "NumpadAdd") {
             e.preventDefault();
             changeCameraZoom(CAMERA_ZOOM_STEP);
@@ -7180,6 +7453,7 @@
           if (inWorld) {
             updatePlayer();
             updateCamera();
+            updateWorldDrops();
             syncPlayer(false);
           }
           render();

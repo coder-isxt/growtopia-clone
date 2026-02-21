@@ -68,29 +68,35 @@ window.GTModules.physics = {
 
   getStairSurfaceY(id, tx, ty, worldX, tileSize) {
     const localX = Math.max(0, Math.min(1, (worldX - tx * tileSize) / tileSize));
-    let localY = 1 - localX;
-    if (id === 14 || id === 15) localY = localX;
+    // Stair surface alternates by rotation to keep slopes consistent.
+    // 13/15 use NW-SE slope, 14/16 use NE-SW slope.
+    let localY = localX;
+    if (id === 14 || id === 16) localY = 1 - localX;
     return ty * tileSize + localY * tileSize;
   },
 
   snapPlayerToStairSurface(player, world, stairIds, tileSize, playerW, playerH, worldW, worldH) {
     const footLeftX = player.x + 3;
     const footRightX = player.x + playerW - 3;
+    const footCenterX = player.x + playerW * 0.5;
     const bottomY = player.y + playerH;
-    const checkFeet = [footLeftX, footRightX];
-    let targetBottom = Infinity;
+    const checkFeet = [footLeftX, footCenterX, footRightX];
+    let targetBottom = -Infinity;
     let found = false;
     for (let i = 0; i < checkFeet.length; i++) {
       const fx = checkFeet[i];
       const tx = Math.floor(fx / tileSize);
-      const ty = Math.floor((bottomY - 1) / tileSize);
-      if (tx < 0 || ty < 0 || tx >= worldW || ty >= worldH) continue;
-      const id = world[ty][tx];
-      if (!stairIds.includes(id)) continue;
-      const surfaceY = this.getStairSurfaceY(id, tx, ty, fx, tileSize);
-      if (bottomY < surfaceY - 5 || bottomY > surfaceY + 10) continue;
-      targetBottom = Math.min(targetBottom, surfaceY);
-      found = true;
+      const baseTy = Math.floor((bottomY - 1) / tileSize);
+      for (let yOff = -1; yOff <= 1; yOff++) {
+        const ty = baseTy + yOff;
+        if (tx < 0 || ty < 0 || tx >= worldW || ty >= worldH) continue;
+        const id = world[ty][tx];
+        if (!stairIds.includes(id)) continue;
+        const surfaceY = this.getStairSurfaceY(id, tx, ty, fx, tileSize);
+        if (bottomY < surfaceY - 8 || bottomY > surfaceY + 12) continue;
+        targetBottom = Math.max(targetBottom, surfaceY);
+        found = true;
+      }
     }
     if (!found) return false;
     player.y = targetBottom - playerH;
