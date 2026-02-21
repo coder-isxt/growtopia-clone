@@ -145,11 +145,11 @@
       const JUMP_COOLDOWN_MS = Number(SETTINGS.JUMP_COOLDOWN_MS) || 200;
       const PLAYER_SYNC_MIN_MS = Math.max(25, Number(SETTINGS.PLAYER_SYNC_MIN_MS) || 90);
       const GLOBAL_SYNC_MIN_MS = Math.max(PLAYER_SYNC_MIN_MS, Number(SETTINGS.GLOBAL_SYNC_MIN_MS) || 240);
-      const LAYOUT_PREFS_KEY = "gt_layout_panels_v2";
-      const DESKTOP_PANEL_LEFT_DEFAULT = 240;
-      const DESKTOP_PANEL_RIGHT_DEFAULT = 220;
-      const DESKTOP_PANEL_MIN = 160;
-      const DESKTOP_PANEL_MAX_RATIO = 0.3;
+      const LAYOUT_PREFS_KEY = "gt_layout_panels_v3";
+      const DESKTOP_PANEL_LEFT_DEFAULT = 200;
+      const DESKTOP_PANEL_RIGHT_DEFAULT = 190;
+      const DESKTOP_PANEL_MIN = 140;
+      const DESKTOP_PANEL_MAX_RATIO = 0.26;
       const MOVE_ACCEL = Number(SETTINGS.MOVE_ACCEL) || 0.46;
       const JUMP_VELOCITY = Number(SETTINGS.JUMP_VELOCITY) || -7.2;
       const MAX_MOVE_SPEED = Number(SETTINGS.MAX_MOVE_SPEED) || 3.7;
@@ -4380,6 +4380,9 @@
             if (!def) continue;
 
             if (id === PLATFORM_ID) {
+              if (drawBlockImage(def, x, y)) {
+                continue;
+              }
               ctx.fillStyle = "#6d4f35";
               ctx.fillRect(x, y + 2, TILE, 6);
               ctx.fillStyle = "rgba(255, 238, 202, 0.25)";
@@ -4388,6 +4391,9 @@
             }
 
             if (STAIR_ROTATION_IDS.includes(id)) {
+              if (drawBlockImage(def, x, y)) {
+                continue;
+              }
               ctx.fillStyle = def.color;
               ctx.beginPath();
               if (id === 13) {
@@ -6862,7 +6868,7 @@
 
       function clampPanelWidths(leftValue, rightValue) {
         const viewportWidth = Math.max(980, window.innerWidth || 0);
-        const centerMin = viewportWidth < 1220 ? 620 : 840;
+        const centerMin = viewportWidth < 1220 ? 700 : 980;
         const maxByRatio = Math.floor(viewportWidth * DESKTOP_PANEL_MAX_RATIO);
         let left = Math.max(DESKTOP_PANEL_MIN, Math.min(maxByRatio, Math.round(Number(leftValue) || DESKTOP_PANEL_LEFT_DEFAULT)));
         let right = Math.max(DESKTOP_PANEL_MIN, Math.min(maxByRatio, Math.round(Number(rightValue) || DESKTOP_PANEL_RIGHT_DEFAULT)));
@@ -6973,10 +6979,10 @@
         const wrap = canvas.parentElement;
         const rect = wrap.getBoundingClientRect();
         isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
-        const minWidth = isCoarsePointer ? 320 : 480;
-        const minHeight = isCoarsePointer ? 220 : 280;
-        const targetWidth = Math.max(minWidth, Math.floor(rect.width));
-        const targetHeight = Math.max(minHeight, Math.floor(rect.height));
+        const measuredWidth = Math.floor(rect.width);
+        const measuredHeight = Math.floor(rect.height);
+        const targetWidth = Math.max(1, measuredWidth || canvas.clientWidth || canvas.width || 1);
+        const targetHeight = Math.max(1, measuredHeight || canvas.clientHeight || canvas.height || 1);
         canvas.width = targetWidth;
         canvas.height = targetHeight;
         canvas.style.width = targetWidth + "px";

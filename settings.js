@@ -43,8 +43,8 @@ window.GT_SETTINGS = {
 
   // Anti-gravity generator tuning
   ANTI_GRAV_RADIUS_TILES: 8,
-  ANTI_GRAV_GRAVITY_MULT: 0.2,
-  ANTI_GRAV_FALL_MULT: 0.42,
+  ANTI_GRAV_GRAVITY_MULT: 0.25,
+  ANTI_GRAV_FALL_MULT: 0.47,
   ANTI_GRAV_AIR_JUMP_COOLDOWN_MS: 140,
   // Camera zoom settings (mouse wheel / +/- / 0 reset)
   CAMERA_ZOOM_MIN: 0.7,
@@ -59,6 +59,6 @@ window.GT_SETTINGS = {
     { id: "night", name: "Night", url: "./assets/weather/night.png" }
   ],
 
-  PLAYER_SYNC_MIN_MS: 90,
-  GLOBAL_SYNC_MIN_MS: 240
+  PLAYER_SYNC_MIN_MS: 70,
+  GLOBAL_SYNC_MIN_MS: 220
 };
