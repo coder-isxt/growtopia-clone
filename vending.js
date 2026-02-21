@@ -588,19 +588,12 @@ window.GTModules.vending = (function createVendingModule() {
       const vendingId = get("getVendingId", 0);
       if (!world || !world[ty] || world[ty][tx] !== vendingId) return false;
       const vm = getLocal(tx, ty);
+      if (vm && ((vm.stock || 0) > 0 || (vm.earningsLocks || 0) > 0)) {
+        const post = opts.postLocalSystemChat || (() => {});
+        post("Empty this vending first (stock/earnings) before breaking it.");
+        return true;
+      }
       const inv = get("getInventory", {});
-      const cosmeticInv = get("getCosmeticInventory", {});
-      const worldLockId = get("getWorldLockId", 0);
-      if (vm && vm.stock > 0) {
-        if (vm.sellType === "cosmetic" && vm.sellCosmeticId) {
-          cosmeticInv[vm.sellCosmeticId] = Math.max(0, Math.floor((cosmeticInv[vm.sellCosmeticId] || 0) + vm.stock));
-        } else if (vm.sellBlockId) {
-          inv[vm.sellBlockId] = Math.max(0, Math.floor((inv[vm.sellBlockId] || 0) + vm.stock));
-        }
-      }
-      if (vm && vm.earningsLocks > 0) {
-        inv[worldLockId] = Math.max(0, Math.floor((inv[worldLockId] || 0) + vm.earningsLocks));
-      }
       world[ty][tx] = 0;
       inv[vendingId] = Math.max(0, Math.floor((inv[vendingId] || 0) + 1));
       (opts.syncBlock || (() => {}))(tx, ty, 0);

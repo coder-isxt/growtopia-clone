@@ -845,6 +845,8 @@
             return username.includes(query) || accountId.toLowerCase().includes(query);
           })
           : accountIds;
+        const onlineCount = accountIds.filter((accountId) => Boolean(adminState.sessions[accountId] && adminState.sessions[accountId].sessionId)).length;
+        const bannedCount = accountIds.filter((accountId) => getBanStatus(adminState.bans[accountId], nowMs).active).length;
         const assignable = getAssignableRoles();
         const rows = filteredIds.map((accountId) => {
           const account = adminState.accounts[accountId] || {};
@@ -868,6 +870,8 @@
           const banText = banned
             ? (banStatus.type === "permanent" ? "Perm Banned" : "Temp Banned (" + formatRemainingMs(banStatus.remainingMs) + ")")
             : "Active";
+          const onlineStatusClass = online ? "online" : "offline";
+          const banStatusClass = banned ? "banned" : "active";
           const roleControlMarkup = assignable.length > 0
             ? `<div class="admin-role-wrap">
                 <select class="admin-role-select" data-account-id="${escapeHtml(accountId)}" ${canSetRole ? "" : "disabled"}>${roleOptions}</select>
@@ -878,7 +882,11 @@
             <div class="admin-row" data-account-id="${escapeHtml(accountId)}">
               <div class="admin-meta">
                 <strong>@${escapeHtml(username)} <span class="admin-role role-${escapeHtml(role)}">${escapeHtml(role)}</span></strong>
-                <span>${online ? "Online" : "Offline"} | ${banText} | Blocks: ${invTotal}</span>
+                <div class="admin-status-row">
+                  <span class="admin-status ${onlineStatusClass}">${online ? "Online" : "Offline"}</span>
+                  <span class="admin-status ${banStatusClass}">${escapeHtml(banText)}</span>
+                  <span class="admin-status neutral">Blocks ${invTotal}</span>
+                </div>
               </div>
               <div class="admin-actions">
                 <div class="admin-quick-actions">
@@ -960,7 +968,16 @@
         adminAccountsEl.innerHTML = `
           <div class="admin-layout">
             <div class="admin-main">
-              <div class="admin-summary">Signed in as <strong>${escapeHtml(playerName || "guest")}</strong> (${escapeHtml(currentAdminRole)}). Showing ${filteredIds.length}/${accountIds.length} players.</div>
+              <div class="admin-summary">
+                <div class="admin-summary-main">Signed in as <strong>${escapeHtml(playerName || "guest")}</strong> (${escapeHtml(currentAdminRole)}).</div>
+                <div class="admin-summary-stats">
+                  <span class="admin-stat-chip">Showing ${filteredIds.length}/${accountIds.length}</span>
+                  <span class="admin-stat-chip">Online ${onlineCount}</span>
+                  <span class="admin-stat-chip">Banned ${bannedCount}</span>
+                  <span class="admin-stat-chip">Global online ${totalOnlinePlayers}</span>
+                </div>
+                <div class="admin-summary-hint">Quick commands: /adminhelp, /where user, /goto user, /bringall, /announce msg</div>
+              </div>
               <div class="admin-list">
                 ${rows.join("") || "<div class='admin-row'><div class='admin-meta'><strong>No players match filter.</strong></div></div>"}
               </div>
@@ -1507,6 +1524,10 @@
         if (command === "/adminhelp") {
           const available = ["/myrole"];
           available.push("/lock", "/unlock");
+          available.push("/online");
+          if (hasAdminPermission("tp")) available.push("/where", "/goto");
+          if (hasAdminPermission("bring")) available.push("/bringall");
+          available.push("/announce");
           if (hasAdminPermission("tempban")) available.push("/tempban", "/ban");
           if (hasAdminPermission("permban")) available.push("/permban");
           if (hasAdminPermission("unban")) available.push("/unban");
@@ -1523,8 +1544,137 @@
           postLocalSystemChat("Your role: " + currentAdminRole);
           return true;
         }
+        if (command === "/online") {
+          const worldOnline = inWorld ? (remotePlayers.size + 1) : 0;
+          postLocalSystemChat("Online now: " + totalOnlinePlayers + " total | " + worldOnline + " in " + (inWorld ? currentWorldId : "menu"));
+          return true;
+        }
         if (!canUseAdminPanel) {
           postLocalSystemChat("You are not allowed to use admin commands.");
+          return true;
+        }
+        if (command === "/where") {
+          if (!hasAdminPermission("tp")) {
+            postLocalSystemChat("Permission denied.");
+            return true;
+          }
+          const targetRef = parts[1] || "";
+          if (!targetRef) {
+            postLocalSystemChat("Usage: /where <user>");
+            return true;
+          }
+          const accountId = findAccountIdByUserRef(targetRef);
+          if (!accountId) {
+            postLocalSystemChat("Target account not found: " + targetRef);
+            return true;
+          }
+          const online = findOnlineGlobalPlayerByAccountId(accountId);
+          if (!online || !online.world) {
+            postLocalSystemChat("@" + targetRef + " is offline.");
+            return true;
+          }
+          const tx = Math.max(0, Math.floor((Number(online.x) || 0) / TILE));
+          const ty = Math.max(0, Math.floor((Number(online.y) || 0) / TILE));
+          postLocalSystemChat("@" + targetRef + " is in " + online.world + " at " + tx + "," + ty + ".");
+          return true;
+        }
+        if (command === "/goto") {
+          if (!hasAdminPermission("tp")) {
+            postLocalSystemChat("Permission denied.");
+            return true;
+          }
+          if (!ensureCommandReady("tp")) return true;
+          const targetRef = parts[1] || "";
+          const accountId = findAccountIdByUserRef(targetRef);
+          if (!accountId) {
+            postLocalSystemChat("Target account not found: " + targetRef);
+            return true;
+          }
+          const online = findOnlineGlobalPlayerByAccountId(accountId);
+          if (!online || !online.world) {
+            postLocalSystemChat("Target is not online.");
+            return true;
+          }
+          applySelfTeleport(online.world, Number(online.x) || 0, Number(online.y) || 0);
+          postLocalSystemChat("Teleported to @" + targetRef + ".");
+          pushAdminAuditEntry("tp", accountId, "toWorld=" + (online.world || ""));
+          return true;
+        }
+        if (command === "/announce") {
+          const message = parts.slice(1).join(" ").trim();
+          if (!message) {
+            postLocalSystemChat("Usage: /announce <message>");
+            return true;
+          }
+          if (!inWorld) {
+            postLocalSystemChat("Enter a world first.");
+            return true;
+          }
+          sendSystemWorldMessage("[Admin] " + (playerName || "admin") + ": " + message.slice(0, 100));
+          postLocalSystemChat("Announcement sent.");
+          pushAdminAuditEntry("announce", "", message.slice(0, 80));
+          return true;
+        }
+        if (command === "/clearaudit") {
+          if (!hasAdminPermission("clear_logs") || !network.db) {
+            postLocalSystemChat("Permission denied.");
+            return true;
+          }
+          network.db.ref(BASE_PATH + "/admin-audit").remove().then(() => {
+            adminState.audit = [];
+            refreshAuditActionFilterOptions();
+            renderAdminPanel();
+            postLocalSystemChat("Audit trail cleared.");
+            pushAdminAuditEntry("clear_audit", "", "");
+          }).catch(() => {
+            postLocalSystemChat("Failed to clear audit trail.");
+          });
+          return true;
+        }
+        if (command === "/clearlogs") {
+          if (!hasAdminPermission("clear_logs")) {
+            postLocalSystemChat("Permission denied.");
+            return true;
+          }
+          clearLogsData();
+          return true;
+        }
+        if (command === "/bringall") {
+          if (!hasAdminPermission("bring")) {
+            postLocalSystemChat("Permission denied.");
+            return true;
+          }
+          if (!inWorld) {
+            postLocalSystemChat("Enter a world first.");
+            return true;
+          }
+          if (!ensureCommandReady("bring")) return true;
+          const players = adminState.globalPlayers || {};
+          const uniqueTargets = new Set();
+          const allowedTargets = [];
+          for (const p of Object.values(players)) {
+            if (!p || p.world !== currentWorldId) continue;
+            const accountId = (p.accountId || "").toString();
+            if (!accountId || accountId === playerProfileId || uniqueTargets.has(accountId)) continue;
+            const role = getAccountRole(accountId, adminState.accounts[accountId] && adminState.accounts[accountId].username);
+            if (!canActorAffectTarget(accountId, role)) continue;
+            uniqueTargets.add(accountId);
+            allowedTargets.push(accountId);
+          }
+          if (!allowedTargets.length) {
+            postLocalSystemChat("No summonable players found in this world.");
+            return true;
+          }
+          Promise.all(allowedTargets.map((accountId) => {
+            return issueTeleportCommand(accountId, currentWorldId, player.x + 24, player.y);
+          })).then((results) => {
+            const okCount = results.filter(Boolean).length;
+            postLocalSystemChat("Summoned " + okCount + "/" + allowedTargets.length + " players.");
+            logAdminAudit("Admin(chat) used bringall in " + currentWorldId + " (" + okCount + "/" + allowedTargets.length + ").");
+            pushAdminAuditEntry("bringall", "", "world=" + currentWorldId + " ok=" + okCount + "/" + allowedTargets.length);
+          }).catch(() => {
+            postLocalSystemChat("Failed to summon all players.");
+          });
           return true;
         }
         const needsTarget = ["/unban", "/kick", "/resetinv"];
@@ -2560,7 +2710,7 @@
         if (id === DOOR_BLOCK_ID) {
           if (!isWorldLocked()) return false;
           const mode = getLocalDoorMode(tx, ty);
-          if (mode === "owner" && !isWorldLockOwner()) return true;
+          if (mode === "owner" && !isWorldLockOwner() && !isWorldLockAdmin()) return true;
           return false;
         }
         const def = blockDefs[id];
@@ -2998,7 +3148,7 @@
 
       function rectCollides(x, y, w, h) {
         if (typeof physicsModule.rectCollides === "function") {
-          return physicsModule.rectCollides(world, blockDefs, x, y, w, h, TILE, WORLD_W, WORLD_H);
+          return physicsModule.rectCollides(world, blockDefs, x, y, w, h, TILE, WORLD_W, WORLD_H, isSolidTile);
         }
         const left = Math.floor(x / TILE);
         const right = Math.floor((x + w - 1) / TILE);
@@ -3304,15 +3454,7 @@
               continue;
             }
 
-            if (id === SIGN_ID) {
-              ctx.fillStyle = "#8b5f35";
-              ctx.fillRect(x + 14, y + 8, 4, TILE - 8);
-              ctx.fillStyle = "#d9b27a";
-              ctx.fillRect(x + 5, y + 4, TILE - 10, 12);
-              ctx.fillStyle = "rgba(70, 44, 24, 0.6)";
-              ctx.fillRect(x + 7, y + 6, TILE - 14, 2);
-              continue;
-            }
+            if (id === SIGN_ID && drawBlockImage(def, x, y)) continue;
 
             if (id === VENDING_ID) {
               ctx.fillStyle = "#4d6b8b";

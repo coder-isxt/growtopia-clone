@@ -14,14 +14,19 @@ window.GTModules.physics = {
     return Boolean(def && def.oneWay);
   },
 
-  rectCollides(world, blockDefs, x, y, w, h, tileSize, worldW, worldH) {
+  rectCollides(world, blockDefs, x, y, w, h, tileSize, worldW, worldH, isSolidTileFn) {
     const left = Math.floor(x / tileSize);
     const right = Math.floor((x + w - 1) / tileSize);
     const top = Math.floor(y / tileSize);
     const bottom = Math.floor((y + h - 1) / tileSize);
+    const hasOverride = typeof isSolidTileFn === "function";
     for (let ty = top; ty <= bottom; ty++) {
       for (let tx = left; tx <= right; tx++) {
         if (tx < 0 || ty < 0 || tx >= worldW || ty >= worldH) return true;
+        if (hasOverride) {
+          if (isSolidTileFn(tx, ty)) return true;
+          continue;
+        }
         const id = world[ty][tx];
         const def = blockDefs[id];
         if (def && def.solid) return true;

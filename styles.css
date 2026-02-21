@@ -680,7 +680,31 @@ canvas {
   border-radius: 10px;
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.05);
+  display: grid;
+  gap: 8px;
+}
+
+.admin-summary-main {
   font-size: 14px;
+}
+
+.admin-summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-stat-chip {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  background: rgba(9, 24, 38, 0.66);
+}
+
+.admin-summary-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .admin-row {
@@ -700,6 +724,46 @@ canvas {
 .admin-meta span {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.86);
+}
+
+.admin-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-status {
+  display: inline-block;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.admin-status.online {
+  border-color: rgba(102, 214, 151, 0.9);
+  background: rgba(102, 214, 151, 0.16);
+}
+
+.admin-status.offline {
+  border-color: rgba(173, 203, 232, 0.85);
+  background: rgba(173, 203, 232, 0.12);
+}
+
+.admin-status.banned {
+  border-color: rgba(255, 105, 123, 0.95);
+  background: rgba(255, 105, 123, 0.16);
+}
+
+.admin-status.active {
+  border-color: rgba(102, 214, 151, 0.9);
+  background: rgba(102, 214, 151, 0.12);
+}
+
+.admin-status.neutral {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .admin-role {
