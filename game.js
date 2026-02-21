@@ -52,6 +52,7 @@
       const playerModule = modules.player || {};
       const authStorageModule = modules.authStorage || {};
       const worldModule = modules.world || {};
+      const animationsModule = modules.animations || {};
       const syncPlayerModule = modules.syncPlayer || {};
       const syncWorldsModule = modules.syncWorlds || {};
       const chatModule = modules.chat || {};
@@ -161,6 +162,9 @@
       let pendingTeleportSelf = null;
       let lastHandledTeleportCommandId = "";
       const remotePlayers = new Map();
+      const remoteAnimationTracker = typeof animationsModule.createTracker === "function"
+        ? animationsModule.createTracker()
+        : new Map();
       const overheadChatByPlayer = new Map();
       const worldOccupancy = new Map();
       let knownWorldIds = [];
@@ -2349,22 +2353,23 @@
         }
       }
 
-      function drawWings(px, py, wingsId, facing) {
+      function drawWings(px, py, wingsId, facing, wingFlap) {
         if (!wingsId) return;
         const item = COSMETIC_LOOKUP.wings[wingsId];
         if (!item) return;
+        const flap = Number(wingFlap) || 0;
         ctx.fillStyle = item.color;
         const leftDir = facing === 1 ? -1 : 1;
         ctx.beginPath();
         ctx.moveTo(px + PLAYER_W / 2, py + 14);
-        ctx.lineTo(px + PLAYER_W / 2 + leftDir * 16, py + 8);
-        ctx.lineTo(px + PLAYER_W / 2 + leftDir * 20, py + 20);
+        ctx.lineTo(px + PLAYER_W / 2 + leftDir * 16, py + 8 - flap);
+        ctx.lineTo(px + PLAYER_W / 2 + leftDir * 20, py + 20 + flap * 0.35);
         ctx.closePath();
         ctx.fill();
         ctx.beginPath();
         ctx.moveTo(px + PLAYER_W / 2, py + 14);
-        ctx.lineTo(px + PLAYER_W / 2 - leftDir * 16, py + 8);
-        ctx.lineTo(px + PLAYER_W / 2 - leftDir * 20, py + 20);
+        ctx.lineTo(px + PLAYER_W / 2 - leftDir * 16, py + 8 - flap);
+        ctx.lineTo(px + PLAYER_W / 2 - leftDir * 20, py + 20 + flap * 0.35);
         ctx.closePath();
         ctx.fill();
       }
@@ -2377,66 +2382,105 @@
         ctx.fillRect(px + 2, py + 15, PLAYER_W - 4, PLAYER_H - 15);
       }
 
-      function drawSword(px, py, swordId, facing) {
+      function drawSword(px, py, swordId, facing, swordSwing) {
         if (!swordId) return;
         const item = COSMETIC_LOOKUP.swords[swordId];
         if (!item) return;
         ctx.fillStyle = item.color;
-        const handX = facing === 1 ? px + PLAYER_W - 1 : px - 9;
-        ctx.fillRect(handX, py + 14, 9, 3);
+        const swing = Number(swordSwing) || 0;
+        const handX = facing === 1 ? px + PLAYER_W - 1 + swing : px - 9 - swing;
+        ctx.fillRect(handX, py + 14 + swing * 0.25, 9, 3);
       }
 
       function drawPlayer() {
+        const nowMs = performance.now();
         const px = player.x - cameraX;
         const py = player.y - cameraY;
         const cosmetics = equippedCosmetics;
+        const localMotion = typeof animationsModule.sampleLocal === "function"
+          ? animationsModule.sampleLocal(player)
+          : { speed: Math.abs(player.vx), vy: player.vy, grounded: player.grounded };
+        const pose = typeof animationsModule.buildPose === "function"
+          ? animationsModule.buildPose(localMotion, nowMs, playerId)
+          : { bodyBob: 0, bodyTilt: 0, wingFlap: 0, swordSwing: 0, eyeYOffset: 0, eyeHeight: 3 };
+        const basePy = py + (pose.bodyBob || 0);
 
-        drawWings(px, py, cosmetics.wings, player.facing);
+        drawWings(px, basePy, cosmetics.wings, player.facing, pose.wingFlap || 0);
+
+        ctx.save();
+        ctx.translate(px + PLAYER_W / 2, basePy + PLAYER_H / 2);
+        ctx.rotate(Number(pose.bodyTilt) || 0);
+        ctx.translate(-(px + PLAYER_W / 2), -(basePy + PLAYER_H / 2));
 
         ctx.fillStyle = "#263238";
-        ctx.fillRect(px, py, PLAYER_W, PLAYER_H);
+        ctx.fillRect(px, basePy, PLAYER_W, PLAYER_H);
 
-        drawClothes(px, py, cosmetics.clothes);
+        drawClothes(px, basePy, cosmetics.clothes);
 
         ctx.fillStyle = "#ffdbac";
-        ctx.fillRect(px + 4, py + 4, PLAYER_W - 8, 10);
+        ctx.fillRect(px + 4, basePy + 4, PLAYER_W - 8, 10);
 
         ctx.fillStyle = "#0d0d0d";
         const eyeX = player.facing === 1 ? px + PLAYER_W - 7 : px + 4;
-        ctx.fillRect(eyeX, py + 8, 3, 3);
+        const eyeY = basePy + 8 + (pose.eyeYOffset || 0);
+        const eyeHeight = Math.max(1, Math.floor(Number(pose.eyeHeight) || 3));
+        ctx.fillRect(eyeX, eyeY, 3, eyeHeight);
 
-        drawSword(px, py, cosmetics.swords, player.facing);
+        drawSword(px, basePy, cosmetics.swords, player.facing, pose.swordSwing || 0);
+        ctx.restore();
       }
 
       function drawRemotePlayers() {
+        const nowMs = performance.now();
+        const keepIds = [];
         remotePlayers.forEach((other) => {
+          const otherId = (other.id || "").toString();
+          keepIds.push(otherId);
           const px = other.x - cameraX;
           const py = other.y - cameraY;
           if (px < -40 || py < -40 || px > canvas.width + 40 || py > canvas.height + 40) return;
           const cosmetics = other.cosmetics || {};
+          const remoteMotion = typeof animationsModule.sampleRemote === "function"
+            ? animationsModule.sampleRemote(remoteAnimationTracker, otherId, other.x, other.y, nowMs)
+            : { speed: 0, vy: 0, grounded: true };
+          const pose = typeof animationsModule.buildPose === "function"
+            ? animationsModule.buildPose(remoteMotion, nowMs, otherId)
+            : { bodyBob: 0, bodyTilt: 0, wingFlap: 0, swordSwing: 0, eyeYOffset: 0, eyeHeight: 3 };
+          const basePy = py + (pose.bodyBob || 0);
 
-          drawWings(px, py, cosmetics.wings || "", other.facing || 1);
+          drawWings(px, basePy, cosmetics.wings || "", other.facing || 1, pose.wingFlap || 0);
+
+          ctx.save();
+          ctx.translate(px + PLAYER_W / 2, basePy + PLAYER_H / 2);
+          ctx.rotate(Number(pose.bodyTilt) || 0);
+          ctx.translate(-(px + PLAYER_W / 2), -(basePy + PLAYER_H / 2));
 
           ctx.fillStyle = "#2a75bb";
-          ctx.fillRect(px, py, PLAYER_W, PLAYER_H);
+          ctx.fillRect(px, basePy, PLAYER_W, PLAYER_H);
 
-          drawClothes(px, py, cosmetics.clothes || "");
+          drawClothes(px, basePy, cosmetics.clothes || "");
 
           ctx.fillStyle = "#ffdbac";
-          ctx.fillRect(px + 4, py + 4, PLAYER_W - 8, 10);
+          ctx.fillRect(px + 4, basePy + 4, PLAYER_W - 8, 10);
 
           ctx.fillStyle = "#102338";
           const eyeX = other.facing === 1 ? px + PLAYER_W - 7 : px + 4;
-          ctx.fillRect(eyeX, py + 8, 3, 3);
+          const eyeY = basePy + 8 + (pose.eyeYOffset || 0);
+          const eyeHeight = Math.max(1, Math.floor(Number(pose.eyeHeight) || 3));
+          ctx.fillRect(eyeX, eyeY, 3, eyeHeight);
 
-          drawSword(px, py, cosmetics.swords || "", other.facing || 1);
+          drawSword(px, basePy, cosmetics.swords || "", other.facing || 1, pose.swordSwing || 0);
+          ctx.restore();
 
           ctx.fillStyle = "rgba(10, 25, 40, 0.75)";
-          ctx.fillRect(px - 4, py - 19, 74, 15);
+          ctx.fillRect(px - 4, basePy - 19, 74, 15);
           ctx.fillStyle = "#f3fbff";
           ctx.font = "12px 'Trebuchet MS', sans-serif";
-          ctx.fillText(other.name || "Player", px, py - 8);
+          ctx.fillText(other.name || "Player", px, basePy - 8);
         });
+        if (typeof animationsModule.pruneTracker === "function") {
+          animationsModule.pruneTracker(remoteAnimationTracker, keepIds);
+        }
       }
 
       function wrapChatText(text, maxTextWidth) {
