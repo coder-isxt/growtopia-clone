@@ -3307,7 +3307,7 @@
         if (configured > 0) return configured;
         if (id === WORLD_LOCK_ID) return 8;
         if (id === VENDING_ID || id === CAMERA_ID || id === WEATHER_MACHINE_ID) return 6;
-        if (id === BEDROCK_ID) return Infinity;
+        if (id === SPAWN_BASE_ID) return Infinity;
         if (def.stair || def.oneWay || def.liquid || id === SIGN_ID) return 2;
         return 3;
       }
