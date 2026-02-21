@@ -126,11 +126,32 @@ canvas {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
-  max-height: min(48vh, 410px);
-  overflow-y: auto;
-  overflow-x: hidden;
+  width: 100%;
+  min-height: 126px;
+  height: 330px;
+  overflow-y: scroll;
+  overflow-x: clip;
   touch-action: pan-y;
-  transition: transform 0.1s ease-out;
+  transition: height 0.08s ease-out, transform 0.08s ease-out;
+  z-index: 12;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 209, 102, 0.85) rgba(6, 18, 30, 0.45);
+}
+
+.toolbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.toolbar::-webkit-scrollbar-track {
+  background: rgba(6, 18, 30, 0.45);
+  border-radius: 8px;
+}
+
+.toolbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 209, 102, 0.85);
+  border-radius: 8px;
+  border: 2px solid rgba(6, 18, 30, 0.45);
 }
 
 .toolbar.dragging {
@@ -145,6 +166,8 @@ canvas {
   border: 1px dashed rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   padding: 3px 6px;
+  cursor: grab;
+  user-select: none;
 }
 
 .inventory-section {

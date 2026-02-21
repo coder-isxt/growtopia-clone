@@ -164,11 +164,10 @@
       let playerSessionId = "";
       let playerSessionStartedAt = 0;
       let worldChatStartedAt = 0;
-      let toolbarOffsetY = 0;
+      let toolbarTranslateYPx = 0;
       let toolbarDragActive = false;
-      let toolbarDragPointerId = 0;
       let toolbarDragStartClientY = 0;
-      let toolbarDragStartOffsetY = 0;
+      let toolbarDragStartTranslateY = 0;
       let gameBootstrapped = false;
       let pendingTeleportSelf = null;
       let lastHandledTeleportCommandId = "";
@@ -958,6 +957,20 @@
         a.remove();
         URL.revokeObjectURL(url);
         postLocalSystemChat("Audit exported (" + rows.length + " entries).");
+      }
+
+      async function hardReloadClient() {
+        try {
+          if ("caches" in window && window.caches && typeof window.caches.keys === "function") {
+            const keys = await window.caches.keys();
+            await Promise.all(keys.map((key) => window.caches.delete(key)));
+          }
+        } catch (error) {
+          // ignore cache cleanup failures
+        }
+        const url = new URL(window.location.href);
+        url.searchParams.set("_fr", Date.now().toString());
+        window.location.replace(url.toString());
       }
 
       function triggerForceReloadAll(sourceTag) {
@@ -1929,7 +1942,7 @@
         inWorld = Boolean(nextValue);
         menuScreenEl.classList.toggle("hidden", inWorld);
         toolbar.classList.toggle("hidden", !inWorld);
-        applyToolbarOffset();
+        applyToolbarPosition();
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
         chatToggleBtn.classList.toggle("hidden", !inWorld);
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
@@ -3549,9 +3562,9 @@
             }
             lastHandledForceReloadEventId = eventId;
             saveForceReloadMarker(eventId);
-            addClientLog("Global reload requested by @" + ((value.actorUsername || "owner").toString().slice(0, 20)) + ". Reloading...");
+            addClientLog("Global reload requested by @" + ((value.actorUsername || "owner").toString().slice(0, 20)) + ". Hard reloading...");
             setTimeout(() => {
-              window.location.reload();
+              hardReloadClient();
             }, 120);
           };
           network.handlers.adminAccounts = (snapshot) => {
@@ -3723,7 +3736,7 @@
         toolbar.innerHTML = "";
         const dragHint = document.createElement("div");
         dragHint.className = "toolbar-drag-hint";
-        dragHint.textContent = "Drag inventory up/down";
+        dragHint.textContent = "Drag to move inventory";
         toolbar.appendChild(dragHint);
         const blockSection = createInventorySection("Blocks & Tools", "Select with 1-" + slotOrder.length);
         const cosmeticEntries = [];
@@ -3836,50 +3849,76 @@
         bindHoldButton(mobileJumpBtn, "jump");
       }
 
-      function clampToolbarOffset(nextOffset) {
+      function clampToolbarTranslate(nextTranslate) {
         const viewportHeight = Math.max(320, window.innerHeight || 0);
-        const maxUp = Math.round(viewportHeight * 0.55);
-        const maxDown = Math.round(viewportHeight * 0.06);
-        return Math.max(-maxUp, Math.min(maxDown, Math.round(nextOffset)));
+        const maxUp = Math.round(viewportHeight * 0.42);
+        const maxDown = Math.round(viewportHeight * 0.12);
+        return Math.max(-maxUp, Math.min(maxDown, Math.round(nextTranslate)));
       }
 
-      function applyToolbarOffset() {
-        toolbarOffsetY = clampToolbarOffset(toolbarOffsetY);
-        toolbar.style.transform = "translateY(" + toolbarOffsetY + "px)";
+      function applyToolbarPosition() {
+        toolbarTranslateYPx = clampToolbarTranslate(toolbarTranslateYPx);
+        toolbar.style.transform = "translateY(" + toolbarTranslateYPx + "px)";
+      }
+
+      function extractClientY(event) {
+        if (typeof event.clientY === "number") return event.clientY;
+        const touch = event.touches && event.touches[0] ? event.touches[0] : (event.changedTouches && event.changedTouches[0] ? event.changedTouches[0] : null);
+        return touch ? touch.clientY : 0;
       }
 
       function handleToolbarDragMove(event) {
         if (!toolbarDragActive) return;
-        if (event.pointerId !== toolbarDragPointerId) return;
-        const deltaY = event.clientY - toolbarDragStartClientY;
-        toolbarOffsetY = clampToolbarOffset(toolbarDragStartOffsetY + deltaY);
-        applyToolbarOffset();
+        const deltaY = extractClientY(event) - toolbarDragStartClientY;
+        toolbarTranslateYPx = clampToolbarTranslate(toolbarDragStartTranslateY + deltaY);
+        applyToolbarPosition();
+        if (event.cancelable) {
+          event.preventDefault();
+        }
       }
 
-      function handleToolbarDragEnd(event) {
+      function handleToolbarDragEnd() {
         if (!toolbarDragActive) return;
-        if (event.pointerId !== toolbarDragPointerId) return;
         toolbarDragActive = false;
         toolbar.classList.remove("dragging");
       }
 
       function initToolbarDrag() {
         if (!toolbar) return;
-        toolbar.addEventListener("pointerdown", (event) => {
+        const startDrag = (event) => {
           const target = event.target;
           if (!(target instanceof HTMLElement)) return;
-          if (target.closest(".inventory-slot")) return;
-          if (event.pointerType === "mouse" && event.button !== 0) return;
+          const moveHandle = target.closest(".toolbar-drag-hint");
+          if (!moveHandle) return;
+          if (typeof event.button === "number" && event.button !== 0) return;
           toolbarDragActive = true;
-          toolbarDragPointerId = event.pointerId;
-          toolbarDragStartClientY = event.clientY;
-          toolbarDragStartOffsetY = toolbarOffsetY;
+          toolbarDragStartClientY = extractClientY(event);
+          toolbarDragStartTranslateY = toolbarTranslateYPx;
           toolbar.classList.add("dragging");
-          toolbar.setPointerCapture(event.pointerId);
+          if (event.cancelable) {
+            event.preventDefault();
+          }
+        };
+        toolbar.addEventListener("pointerdown", startDrag);
+        toolbar.addEventListener("mousedown", startDrag);
+        toolbar.addEventListener("touchstart", startDrag, { passive: false });
+        toolbar.addEventListener("dblclick", (event) => {
+          const target = event.target;
+          if (!(target instanceof HTMLElement)) return;
+          if (target.closest(".toolbar-drag-hint")) {
+            toolbarTranslateYPx = 0;
+            applyToolbarPosition();
+            return;
+          }
         });
-        toolbar.addEventListener("pointermove", handleToolbarDragMove);
-        toolbar.addEventListener("pointerup", handleToolbarDragEnd);
-        toolbar.addEventListener("pointercancel", handleToolbarDragEnd);
+        window.addEventListener("pointermove", handleToolbarDragMove, { passive: false });
+        window.addEventListener("mousemove", handleToolbarDragMove, { passive: false });
+        window.addEventListener("touchmove", handleToolbarDragMove, { passive: false });
+        window.addEventListener("pointerup", handleToolbarDragEnd);
+        window.addEventListener("mouseup", handleToolbarDragEnd);
+        window.addEventListener("touchend", handleToolbarDragEnd);
+        window.addEventListener("pointercancel", handleToolbarDragEnd);
+        window.addEventListener("touchcancel", handleToolbarDragEnd);
       }
 
       function resizeCanvas() {
@@ -3891,7 +3930,7 @@
         canvas.width = Math.max(minWidth, Math.floor(rect.width));
         canvas.height = Math.max(minHeight, Math.floor(rect.height));
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
-        applyToolbarOffset();
+        applyToolbarPosition();
       }
 
       window.addEventListener("resize", resizeCanvas);
