@@ -172,14 +172,25 @@
       const COSMETIC_CATALOG = typeof itemsModule.getCosmeticItemsBySlot === "function"
         ? itemsModule.getCosmeticItemsBySlot()
         : { clothes: [], wings: [], swords: [] };
+      const COSMETIC_ASSET_BASE = typeof itemsModule.getCosmeticAssetBasePath === "function"
+        ? (itemsModule.getCosmeticAssetBasePath() || "./assets/cosmetics")
+        : "./assets/cosmetics";
       const COSMETIC_LOOKUP = {};
       const COSMETIC_ITEMS = [];
+      const cosmeticImageCache = new Map();
       for (const slot of COSMETIC_SLOTS) {
         const map = {};
         const slotItems = Array.isArray(COSMETIC_CATALOG[slot]) ? COSMETIC_CATALOG[slot] : [];
         for (const item of slotItems) {
-          map[item.id] = item;
-          COSMETIC_ITEMS.push({ slot, ...item });
+          const imagePath = (item && item.image ? String(item.image) : "").trim();
+          const resolvedImage = imagePath
+            ? (/^(https?:)?\/\//.test(imagePath) || imagePath.startsWith("/") || imagePath.startsWith("./") || imagePath.startsWith("../")
+              ? imagePath
+              : (COSMETIC_ASSET_BASE.replace(/\/+$/, "") + "/" + imagePath.replace(/^\/+/, "")))
+            : "";
+          const normalized = { slot, ...item, imagePath: resolvedImage };
+          map[item.id] = normalized;
+          COSMETIC_ITEMS.push(normalized);
         }
         COSMETIC_LOOKUP[slot] = map;
       }
@@ -676,9 +687,18 @@
         }
         isAdminOpen = Boolean(open);
         adminPanelEl.classList.toggle("hidden", !isAdminOpen);
+        if (isAdminOpen) {
+          refreshAuditActionFilterOptions();
+          renderAdminPanel();
+        }
         if (!isAdminOpen) {
           closeAdminInventoryModal();
         }
+      }
+
+      function renderAdminPanelFromLiveUpdate() {
+        if (isAdminOpen) return;
+        renderAdminPanel();
       }
 
       function escapeHtml(value) {
@@ -3046,11 +3066,44 @@
         ctx.restore();
       }
 
+      function getCosmeticImage(item) {
+        if (!item || !item.imagePath) return null;
+        const key = String(item.imagePath);
+        if (!cosmeticImageCache.has(key)) {
+          const img = new Image();
+          img.decoding = "async";
+          img.src = key;
+          cosmeticImageCache.set(key, img);
+        }
+        const img = cosmeticImageCache.get(key);
+        if (!img || !img.complete || img.naturalWidth <= 0 || img.naturalHeight <= 0) return null;
+        return img;
+      }
+
+      function drawCosmeticSprite(item, x, y, w, h, facing) {
+        const img = getCosmeticImage(item);
+        if (!img) return false;
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        if (facing === -1) {
+          const pivot = x + w / 2;
+          ctx.translate(pivot, 0);
+          ctx.scale(-1, 1);
+          ctx.translate(-pivot, 0);
+        }
+        ctx.drawImage(img, x, y, w, h);
+        ctx.restore();
+        return true;
+      }
+
       function drawWings(px, py, wingsId, facing, wingFlap) {
         if (!wingsId) return;
         const item = COSMETIC_LOOKUP.wings[wingsId];
         if (!item) return;
         const flap = Number(wingFlap) || 0;
+        if (drawCosmeticSprite(item, px - 10, py + 7 + flap * 1.5, PLAYER_W + 20, 20, facing)) {
+          return;
+        }
         ctx.fillStyle = item.color;
         const centerX = px + PLAYER_W / 2;
         const centerY = py + 14;
@@ -3080,6 +3133,9 @@
         if (!clothesId) return;
         const item = COSMETIC_LOOKUP.clothes[clothesId];
         if (!item) return;
+        if (drawCosmeticSprite(item, px + 3, py + 12, PLAYER_W - 6, 14, 1)) {
+          return;
+        }
         ctx.fillStyle = item.color;
         ctx.fillRect(px + 5, py + 14, PLAYER_W - 10, 10);
       }
@@ -3091,6 +3147,9 @@
         ctx.fillStyle = item.color;
         const swing = Number(swordSwing) || 0;
         const handX = facing === 1 ? px + PLAYER_W - 3 + swing : px - 7 - swing;
+        if (drawCosmeticSprite(item, handX - 2, py + 12 + swing * 0.25, 12, 8, facing)) {
+          return;
+        }
         ctx.fillRect(handX, py + 15 + swing * 0.25, 8, 3);
       }
 
@@ -4319,16 +4378,16 @@
           };
           network.handlers.adminAccounts = (snapshot) => {
             adminState.accounts = snapshot.val() || {};
-            renderAdminPanel();
+            renderAdminPanelFromLiveUpdate();
           };
           network.handlers.adminUsernames = (snapshot) => {
             adminState.usernames = snapshot.val() || {};
-            renderAdminPanel();
+            renderAdminPanelFromLiveUpdate();
           };
           network.handlers.adminRoles = (snapshot) => {
             adminState.roles = snapshot.val() || {};
             refreshAdminCapabilities();
-            renderAdminPanel();
+            renderAdminPanelFromLiveUpdate();
           };
           network.handlers.adminAudit = (snapshot) => {
             const data = snapshot.val() || {};
@@ -4349,20 +4408,22 @@
               };
             }).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
             adminState.audit = entries;
-            refreshAuditActionFilterOptions();
-            renderAdminPanel();
+            if (!isAdminOpen) {
+              refreshAuditActionFilterOptions();
+            }
+            renderAdminPanelFromLiveUpdate();
           };
           network.handlers.adminBans = (snapshot) => {
             adminState.bans = snapshot.val() || {};
-            renderAdminPanel();
+            renderAdminPanelFromLiveUpdate();
           };
           network.handlers.adminSessions = (snapshot) => {
             adminState.sessions = snapshot.val() || {};
-            renderAdminPanel();
+            renderAdminPanelFromLiveUpdate();
           };
           network.handlers.adminInventories = (snapshot) => {
             adminState.inventories = snapshot.val() || {};
-            renderAdminPanel();
+            renderAdminPanelFromLiveUpdate();
           };
 
           network.connectedRef.on("value", network.handlers.connected);
