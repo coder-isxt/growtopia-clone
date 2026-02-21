@@ -1055,6 +1055,16 @@ canvas {
   gap: 8px;
 }
 
+.vending-section {
+  display: grid;
+  gap: 8px;
+}
+
+.vending-section-title {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 .vending-actions button:disabled {
   opacity: 0.45;
   cursor: not-allowed;

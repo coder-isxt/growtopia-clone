@@ -2419,15 +2419,14 @@
             text,
             expiresAt: performance.now() + CHAT_BUBBLE_MS
           });
+          chatInputEl.value = "";
+          setChatOpen(false);
           network.chatRef.push({
             name: playerName,
             playerId,
             sessionId: playerSessionId || "",
             text,
             createdAt: firebase.database.ServerValue.TIMESTAMP
-          }).then(() => {
-            chatInputEl.value = "";
-            setChatOpen(false);
           }).catch(() => {
             setNetworkState("Chat send error", true);
           });

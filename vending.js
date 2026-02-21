@@ -5,6 +5,8 @@ window.GTModules.vending = (function createVendingModule() {
     const opts = options || {};
     const machines = new Map();
     let modalCtx = null;
+    let pendingInventoryPick = null;
+    const pendingListingByTile = new Map();
 
     function get(k, fallback) {
       const fn = opts[k];
@@ -145,38 +147,38 @@ window.GTModules.vending = (function createVendingModule() {
       const bundleQty = Math.max(1, Math.floor(Number(vm.sellQuantity) || 1));
       const canManageMachine = canManage(vm) || (!vm.ownerAccountId && get("getPlayerProfileId", ""));
       const listingLabel = getListingLabel(vm);
-      const prevCtx = modalCtx && modalCtx.tx === tx && modalCtx.ty === ty ? modalCtx : null;
-      const selectedToken = (prevCtx && prevCtx.pendingToken) || getListingIdentity(vm) || "";
+      const tileKey = getTileKey(tx, ty);
+      const selectedToken = pendingListingByTile.get(tileKey) || getListingIdentity(vm) || "";
       const selectedParsed = parseItemToken(selectedToken);
       const selectedLabel = selectedParsed
         ? (selectedParsed.type === "cosmetic"
           ? getListingLabel({ sellType: "cosmetic", sellCosmeticId: selectedParsed.cosmeticId })
           : getListingLabel({ sellType: "block", sellBlockId: selectedParsed.blockId }))
         : "None selected";
-      const pickingFromInventory = Boolean(prevCtx && prevCtx.pickingFromInventory);
       const buyBundleMax = Math.max(0, Math.floor((vm.stock || 0) / bundleQty));
       els.title.textContent = "Vending Machine (" + tx + "," + ty + ")";
 
       let bodyHtml =
+        '<div class="vending-section">' +
+        '<div class="vending-section-title">Machine</div>' +
         '<div class="vending-stat-grid">' +
         '<div class="vending-stat"><span>Owner</span><strong>@' + esc(owner) + '</strong></div>' +
         '<div class="vending-stat"><span>Listing</span><strong>' + esc(listingLabel) + '</strong></div>' +
         '<div class="vending-stat"><span>Offer</span><strong>' + bundleQty + ' for ' + (vm.priceLocks || 0) + ' WL</strong></div>' +
         '<div class="vending-stat"><span>Stock</span><strong>' + (vm.stock || 0) + ' (' + buyBundleMax + ' buys)</strong></div>' +
         '<div class="vending-stat"><span>Earnings</span><strong>' + (vm.earningsLocks || 0) + ' WL</strong></div>' +
+        '</div>' +
         '</div>';
 
       if (canManageMachine) {
         bodyHtml +=
-          '<div class="vending-divider"></div>' +
-          '<div class="vending-edit">' +
+          '<div class="vending-section">' +
           '<div class="vending-edit-title">Edit Listing</div>' +
           '<input type="hidden" data-vending-input="item" value="' + esc(selectedToken) + '">' +
           '<div class="vending-select-row">' +
           '<button type="button" class="vending-pick-trigger" data-vending-act="pickitem">Select From Inventory</button>' +
           '<div class="vending-selected-label">' + esc(selectedLabel) + '</div>' +
           '</div>' +
-          '<div class="vending-select-status">' + (pickingFromInventory ? "Click an inventory item/cosmetic to select listing." : "") + '</div>' +
           '<div class="vending-field-grid">' +
           '<label class="vending-field"><span>Offer Qty</span><input data-vending-input="packQty" type="number" min="1" step="1" value="' + bundleQty + '"></label>' +
           '<label class="vending-field"><span>Price (WL)</span><input data-vending-input="price" type="number" min="1" step="1" value="' + Math.max(1, vm.priceLocks || 1) + '"></label>' +
@@ -186,9 +188,11 @@ window.GTModules.vending = (function createVendingModule() {
           '</div>';
       } else {
         bodyHtml +=
-          '<div class="vending-divider"></div>' +
+          '<div class="vending-section">' +
+          '<div class="vending-section-title">Buy</div>' +
           '<div class="vending-field-grid">' +
           '<label class="vending-field"><span>Buy Amount</span><input data-vending-input="buyAmount" type="number" min="1" step="1" value="1"></label>' +
+          '</div>' +
           '</div>';
       }
 
@@ -205,12 +209,7 @@ window.GTModules.vending = (function createVendingModule() {
         els.actions.innerHTML = '<button data-vending-act="buy"' + buyDisabled + '>Buy</button>';
       }
 
-      modalCtx = {
-        tx,
-        ty,
-        pendingToken: selectedToken,
-        pickingFromInventory
-      };
+      modalCtx = { tx, ty };
       els.modal.classList.remove("hidden");
     }
 
@@ -378,6 +377,7 @@ window.GTModules.vending = (function createVendingModule() {
         }
         (opts.saveInventory || (() => {}))();
         (opts.refreshToolbar || (() => {}))();
+        pendingListingByTile.delete(getTileKey(tx, ty));
         post("Vending listing updated.");
       }).catch(() => {
         post("Failed to update vending machine.");
@@ -385,7 +385,7 @@ window.GTModules.vending = (function createVendingModule() {
     }
 
     function handleInventoryPick(selection) {
-      if (!modalCtx || !modalCtx.pickingFromInventory) return false;
+      if (!pendingInventoryPick) return false;
       if (!selection || typeof selection !== "object") return false;
       const inv = get("getInventory", {});
       const cosmeticInv = get("getCosmeticInventory", {});
@@ -403,9 +403,11 @@ window.GTModules.vending = (function createVendingModule() {
       } else {
         return false;
       }
-      modalCtx.pendingToken = token;
-      modalCtx.pickingFromInventory = false;
-      const vm = getLocal(modalCtx.tx, modalCtx.ty) || {
+      const tx = pendingInventoryPick.tx;
+      const ty = pendingInventoryPick.ty;
+      pendingInventoryPick = null;
+      pendingListingByTile.set(getTileKey(tx, ty), token);
+      const vm = getLocal(tx, ty) || {
         ownerAccountId: "",
         ownerName: "",
         sellType: "block",
@@ -417,7 +419,7 @@ window.GTModules.vending = (function createVendingModule() {
         stock: 0,
         earningsLocks: 0
       };
-      renderModal(modalCtx.tx, modalCtx.ty, vm);
+      renderModal(tx, ty, vm);
       const post = opts.postLocalSystemChat || (() => {});
       post("Listing item selected from inventory.");
       return true;
@@ -673,10 +675,10 @@ window.GTModules.vending = (function createVendingModule() {
             earningsLocks: 0
           };
           if (action === "pickitem") {
-            modalCtx.pickingFromInventory = true;
+            pendingInventoryPick = { tx, ty };
             const post = opts.postLocalSystemChat || (() => {});
-            post("Click an inventory item/cosmetic to select vending listing.");
-            renderModal(tx, ty, vm);
+            closeModal();
+            post("Vending picker active: click an inventory item/cosmetic to select listing.");
             return;
           }
           if (action === "configure") configureMachine(tx, ty, vm);
@@ -693,6 +695,8 @@ window.GTModules.vending = (function createVendingModule() {
 
     function clearAll() {
       machines.clear();
+      pendingInventoryPick = null;
+      pendingListingByTile.clear();
       closeModal();
     }
 
