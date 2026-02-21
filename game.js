@@ -9,6 +9,8 @@
       const canvas = document.getElementById("game");
       const ctx = canvas.getContext("2d");
       const toolbar = document.getElementById("toolbar");
+      const leftPanelResizeHandleEl = document.getElementById("leftPanelResizeHandle");
+      const rightPanelResizeHandleEl = document.getElementById("rightPanelResizeHandle");
       const canvasWrapEl = document.getElementById("canvasWrap");
       const menuScreenEl = document.getElementById("menuScreen");
       const mobileControlsEl = document.getElementById("mobileControls");
@@ -69,6 +71,25 @@
       const doorPublicBtn = document.getElementById("doorPublicBtn");
       const doorOwnerOnlyBtn = document.getElementById("doorOwnerOnlyBtn");
       const doorCloseBtn = document.getElementById("doorCloseBtn");
+      const cameraModalEl = document.getElementById("cameraModal");
+      const cameraTitleEl = document.getElementById("cameraTitle");
+      const cameraCloseBtn = document.getElementById("cameraCloseBtn");
+      const cameraSaveBtn = document.getElementById("cameraSaveBtn");
+      const cameraEventJoinEl = document.getElementById("cameraEventJoin");
+      const cameraEventLeaveEl = document.getElementById("cameraEventLeave");
+      const cameraEventVendingEl = document.getElementById("cameraEventVending");
+      const cameraFilterStaffEl = document.getElementById("cameraFilterStaff");
+      const cameraLogsListEl = document.getElementById("cameraLogsList");
+      const weatherModalEl = document.getElementById("weatherModal");
+      const weatherTitleEl = document.getElementById("weatherTitle");
+      const weatherCloseBtn = document.getElementById("weatherCloseBtn");
+      const weatherPresetSelectEl = document.getElementById("weatherPresetSelect");
+      const weatherImageUrlInputEl = document.getElementById("weatherImageUrlInput");
+      const weatherResolvedLabelEl = document.getElementById("weatherResolvedLabel");
+      const weatherPreviewImgEl = document.getElementById("weatherPreviewImg");
+      const weatherPreviewEmptyEl = document.getElementById("weatherPreviewEmpty");
+      const weatherSaveBtn = document.getElementById("weatherSaveBtn");
+      const weatherClearBtn = document.getElementById("weatherClearBtn");
       const updatingOverlayEl = document.getElementById("updatingOverlay");
       const chatPanelEl = document.getElementById("chatPanel");
       const chatMessagesEl = document.getElementById("chatMessages");
@@ -111,6 +132,10 @@
       const WATER_GRAVITY_MULT = 0.35;
       const WATER_FALL_MULT = 0.52;
       const WATER_FRICTION_MULT = 0.86;
+      const ANTI_GRAV_RADIUS_TILES = Math.max(2, Number(SETTINGS.ANTI_GRAV_RADIUS_TILES) || 8);
+      const ANTI_GRAV_GRAVITY_MULT = Math.max(0.05, Math.min(1, Number(SETTINGS.ANTI_GRAV_GRAVITY_MULT) || 0.2));
+      const ANTI_GRAV_FALL_MULT = Math.max(0.05, Math.min(1, Number(SETTINGS.ANTI_GRAV_FALL_MULT) || 0.42));
+      const ANTI_GRAV_AIR_JUMP_COOLDOWN_MS = Math.max(70, Number(SETTINGS.ANTI_GRAV_AIR_JUMP_COOLDOWN_MS) || 140);
       const BASE_PATH = typeof SETTINGS.BASE_PATH === "string" && SETTINGS.BASE_PATH ? SETTINGS.BASE_PATH : "growtopia-test";
       const LOG_VIEWER_USERNAMES = Array.isArray(SETTINGS.LOG_VIEWER_USERNAMES) ? SETTINGS.LOG_VIEWER_USERNAMES : ["isxt"];
       const ADMIN_USERNAMES = Array.isArray(SETTINGS.ADMIN_USERNAMES) ? SETTINGS.ADMIN_USERNAMES : ["isxt"];
@@ -120,6 +145,11 @@
       const JUMP_COOLDOWN_MS = Number(SETTINGS.JUMP_COOLDOWN_MS) || 200;
       const PLAYER_SYNC_MIN_MS = Math.max(25, Number(SETTINGS.PLAYER_SYNC_MIN_MS) || 90);
       const GLOBAL_SYNC_MIN_MS = Math.max(PLAYER_SYNC_MIN_MS, Number(SETTINGS.GLOBAL_SYNC_MIN_MS) || 240);
+      const LAYOUT_PREFS_KEY = "gt_layout_panels_v1";
+      const DESKTOP_PANEL_LEFT_DEFAULT = 320;
+      const DESKTOP_PANEL_RIGHT_DEFAULT = 300;
+      const DESKTOP_PANEL_MIN = 220;
+      const DESKTOP_PANEL_MAX_RATIO = 0.42;
       const MOVE_ACCEL = Number(SETTINGS.MOVE_ACCEL) || 0.46;
       const JUMP_VELOCITY = Number(SETTINGS.JUMP_VELOCITY) || -7.2;
       const MAX_MOVE_SPEED = Number(SETTINGS.MAX_MOVE_SPEED) || 3.7;
@@ -148,6 +178,9 @@
       const ADMIN_COMMAND_COOLDOWNS_MS = SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS && typeof SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS === "object"
         ? SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS
         : DEFAULT_COMMAND_COOLDOWNS_MS;
+      const WEATHER_PRESET_IMAGES = Array.isArray(SETTINGS.WEATHER_PRESET_IMAGES)
+        ? SETTINGS.WEATHER_PRESET_IMAGES
+        : [];
       const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
       const FORCE_RELOAD_MARKER_KEY = "growtopia_force_reload_marker_v1";
 
@@ -170,7 +203,10 @@
         15: { key: "stair_block_r2", name: "Stair SW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs" },
         16: { key: "stair_block_r3", name: "Stair NW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs" },
         17: { key: "vending_machine", name: "Vending Machine", color: "#4d6b8b", solid: true, icon: "VM", faIcon: "fa-solid fa-store" },
-        18: { key: "sign_block", name: "Sign", color: "#b98a58", solid: false, icon: "SG", faIcon: "fa-solid fa-signs-post" }
+        18: { key: "sign_block", name: "Sign", color: "#b98a58", solid: false, icon: "SG", faIcon: "fa-solid fa-signs-post" },
+        19: { key: "anti_gravity_generator", name: "Anti Gravity Generator", color: "#6de9ff", solid: true, icon: "AG", faIcon: "fa-solid fa-meteor" },
+        20: { key: "camera_block", name: "Camera", color: "#8eb7d6", solid: true, icon: "CM", faIcon: "fa-solid fa-video" },
+        21: { key: "weather_machine", name: "Weather Machine", color: "#7aa8d9", solid: true, icon: "WM", faIcon: "fa-solid fa-cloud-sun-rain" }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
@@ -185,10 +221,13 @@
       const STAIR_ROTATION_IDS = [13, 14, 15, 16];
       const VENDING_ID = 17;
       const SIGN_ID = 18;
+      const ANTI_GRAV_ID = 19;
+      const CAMERA_ID = 20;
+      const WEATHER_MACHINE_ID = 21;
       const TOOL_FIST = "fist";
       const TOOL_WRENCH = "wrench";
-      const slotOrder = [TOOL_FIST, TOOL_WRENCH, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18];
-      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18];
+      const slotOrder = [TOOL_FIST, TOOL_WRENCH, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21];
+      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21];
       const COSMETIC_SLOTS = ["clothes", "wings", "swords"];
       const blockMaps = typeof blockKeysModule.buildMaps === "function"
         ? blockKeysModule.buildMaps(blockDefs)
@@ -207,6 +246,23 @@
       const blockImageCache = new Map();
       const waterFramePathCache = [];
       const WATER_FRAME_MS = Math.max(80, Number(SETTINGS.WATER_FRAME_MS) || 170);
+      const WEATHER_PRESETS = (() => {
+        const out = [];
+        const seen = new Set();
+        out.push({ id: "none", name: "Default Sky", url: "" });
+        seen.add("none");
+        for (let i = 0; i < WEATHER_PRESET_IMAGES.length; i++) {
+          const row = WEATHER_PRESET_IMAGES[i] || {};
+          const id = String(row.id || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+          const name = String(row.name || "").trim().slice(0, 36);
+          const url = String(row.url || "").trim().slice(0, 420);
+          if (!id || seen.has(id)) continue;
+          out.push({ id, name: name || id, url });
+          seen.add(id);
+        }
+        return out;
+      })();
+      const WEATHER_PRESET_MAP = new Map(WEATHER_PRESETS.map((preset) => [preset.id, preset]));
       for (const slot of COSMETIC_SLOTS) {
         const map = {};
         const slotItems = Array.isArray(COSMETIC_CATALOG[slot]) ? COSMETIC_CATALOG[slot] : [];
@@ -236,7 +292,10 @@
         12: 0,
         13: 0,
         17: 0,
-        18: 0
+        18: 0,
+        19: 0,
+        20: 0,
+        21: 0
       };
 
       let selectedSlot = 0;
@@ -248,10 +307,9 @@
       let playerSessionId = "";
       let playerSessionStartedAt = 0;
       let worldChatStartedAt = 0;
-      let toolbarTranslateYPx = 0;
-      let toolbarDragActive = false;
-      let toolbarDragStartClientY = 0;
-      let toolbarDragStartTranslateY = 0;
+      let desktopLeftPanelWidth = DESKTOP_PANEL_LEFT_DEFAULT;
+      let desktopRightPanelWidth = DESKTOP_PANEL_RIGHT_DEFAULT;
+      let layoutResizeSide = "";
       let gameBootstrapped = false;
       let pendingTeleportSelf = null;
       let lastHandledTeleportCommandId = "";
@@ -262,12 +320,19 @@
       const overheadChatByPlayer = new Map();
       const signTexts = new Map();
       const doorAccessByTile = new Map();
+      const antiGravityByTile = new Map();
+      const cameraConfigsByTile = new Map();
+      const cameraLogsByTile = new Map();
+      const localWeatherByWorld = new Map();
       const worldOccupancy = new Map();
       let vendingController = null;
       let tradeController = null;
       let signEditContext = null;
       let worldLockEditContext = null;
       let doorEditContext = null;
+      let cameraEditContext = null;
+      let weatherEditContext = null;
+      let currentWorldWeather = null;
       let knownWorldIds = [];
       let totalOnlinePlayers = 0;
       let hasRenderedMenuWorldList = false;
@@ -346,7 +411,21 @@
           getVendingTitleEl: () => vendingTitleEl,
           getVendingBodyEl: () => vendingBodyEl,
           getVendingActionsEl: () => vendingActionsEl,
-          getVendingCloseBtnEl: () => vendingCloseBtn
+          getVendingCloseBtnEl: () => vendingCloseBtn,
+          onVendingPurchase: (payload) => {
+            const raw = payload && typeof payload === "object" ? payload : {};
+            const buyerName = (raw.buyerName || playerName || "player").toString().slice(0, 20);
+            const buyerAccountId = (raw.buyerAccountId || playerProfileId || "").toString();
+            const itemLabel = (raw.itemLabel || "item").toString().slice(0, 44);
+            const totalItems = Math.max(1, Math.floor(Number(raw.totalItems) || 1));
+            const totalPrice = Math.max(0, Math.floor(Number(raw.totalPrice) || 0));
+            logCameraEvent(
+              "vending_purchase",
+              buyerName + " bought " + totalItems + "x " + itemLabel + " for " + totalPrice + " WL.",
+              buyerAccountId,
+              buyerName
+            );
+          }
         });
         if (typeof vendingController.bindModalEvents === "function") {
           vendingController.bindModalEvents();
@@ -446,6 +525,11 @@
         vendingRef: null,
         signsRef: null,
         doorsRef: null,
+        antiGravRef: null,
+        weatherRef: null,
+        camerasRef: null,
+        cameraLogsRef: null,
+        cameraLogsFeedRef: null,
         lockRef: null,
         chatRef: null,
         chatFeedRef: null,
@@ -487,6 +571,14 @@
           doorAdded: null,
           doorChanged: null,
           doorRemoved: null,
+          antiGravAdded: null,
+          antiGravChanged: null,
+          antiGravRemoved: null,
+          worldWeather: null,
+          cameraAdded: null,
+          cameraChanged: null,
+          cameraRemoved: null,
+          cameraLogAdded: null,
           worldLock: null,
           chatAdded: null,
           accountLogAdded: null,
@@ -2600,13 +2692,19 @@
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
         signTexts.clear();
         doorAccessByTile.clear();
+        antiGravityByTile.clear();
+        cameraConfigsByTile.clear();
+        cameraLogsByTile.clear();
         closeSignModal();
         closeWorldLockModal();
         closeDoorModal();
+        closeCameraModal();
+        closeWeatherModal();
         closeTradeMenuModal();
         closeTradeRequestModal();
         updateOnlineCount();
         world = makeWorld(currentWorldId);
+        setLocalWorldWeather(localWeatherByWorld.get(currentWorldId) || null);
         if (blockSyncer && typeof blockSyncer.reset === "function") {
           blockSyncer.reset();
         }
@@ -2625,9 +2723,6 @@
         inWorld = Boolean(nextValue);
         menuScreenEl.classList.toggle("hidden", inWorld);
         toolbar.classList.toggle("hidden", !inWorld);
-        if (inWorld) {
-          toolbarTranslateYPx = 0;
-        }
         applyToolbarPosition();
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
         chatToggleBtn.classList.toggle("hidden", !inWorld);
@@ -2642,6 +2737,8 @@
           closeSignModal();
           closeWorldLockModal();
           closeDoorModal();
+          closeCameraModal();
+          closeWeatherModal();
           closeTradeMenuModal();
           closeTradeRequestModal();
           if (!hasRenderedMenuWorldList) {
@@ -2916,6 +3013,12 @@
         saveInventoryToLocal();
         if (inWorld) {
           sendSystemWorldMessage(playerName + " left the world.");
+          logCameraEvent(
+            "player_leave",
+            playerName + " left " + currentWorldId + ".",
+            playerProfileId,
+            playerName
+          );
         }
         detachCurrentWorldListeners();
         teardownGlobalRealtimeListeners();
@@ -3141,6 +3244,413 @@
       function getLocalDoorMode(tx, ty) {
         const entry = doorAccessByTile.get(getTileKey(tx, ty));
         return entry && entry.mode === "owner" ? "owner" : "public";
+      }
+
+      function normalizeAntiGravityRecord(value) {
+        if (value === undefined || value === null) return null;
+        let enabled = true;
+        if (typeof value === "boolean") {
+          enabled = value;
+        } else if (typeof value === "string") {
+          const normalized = value.toLowerCase().trim();
+          enabled = !(normalized === "0" || normalized === "false" || normalized === "off" || normalized === "disabled");
+        } else if (typeof value === "object") {
+          if (typeof value.enabled === "boolean") {
+            enabled = value.enabled;
+          } else if (value.enabled !== undefined && value.enabled !== null) {
+            const normalized = String(value.enabled).toLowerCase().trim();
+            enabled = !(normalized === "0" || normalized === "false" || normalized === "off" || normalized === "disabled");
+          }
+        }
+        return {
+          enabled: Boolean(enabled),
+          updatedAt: value && typeof value.updatedAt === "number" ? value.updatedAt : 0
+        };
+      }
+
+      function setLocalAntiGravityState(tx, ty, value) {
+        const key = getTileKey(tx, ty);
+        const normalized = normalizeAntiGravityRecord(value);
+        if (!normalized) {
+          antiGravityByTile.delete(key);
+          return;
+        }
+        antiGravityByTile.set(key, normalized);
+      }
+
+      function isAntiGravityEnabledAt(tx, ty) {
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return false;
+        if (world[ty][tx] !== ANTI_GRAV_ID) return false;
+        const entry = antiGravityByTile.get(getTileKey(tx, ty));
+        if (!entry) return true;
+        return entry.enabled !== false;
+      }
+
+      function saveAntiGravityState(tx, ty, enabled) {
+        if (world[ty][tx] !== ANTI_GRAV_ID) {
+          setLocalAntiGravityState(tx, ty, null);
+          return;
+        }
+        const payload = {
+          enabled: Boolean(enabled),
+          updatedAt: Date.now()
+        };
+        setLocalAntiGravityState(tx, ty, payload);
+        if (network.enabled && network.antiGravRef) {
+          network.antiGravRef.child(getTileKey(tx, ty)).set({
+            enabled: Boolean(enabled),
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+          }).catch(() => {});
+        }
+      }
+
+      function toggleAntiGravityGenerator(tx, ty) {
+        if (!canEditTarget(tx, ty)) return;
+        if (world[ty][tx] !== ANTI_GRAV_ID) return;
+        if (!canEditCurrentWorld()) {
+          notifyWorldLockedDenied();
+          return;
+        }
+        const nextEnabled = !isAntiGravityEnabledAt(tx, ty);
+        saveAntiGravityState(tx, ty, nextEnabled);
+        postLocalSystemChat("Anti gravity generator " + (nextEnabled ? "enabled." : "disabled."));
+      }
+
+      function isPlayerInAntiGravityField(x, y, w, h) {
+        const centerTx = Math.floor((x + w / 2) / TILE);
+        const centerTy = Math.floor((y + h / 2) / TILE);
+        const startX = Math.max(0, centerTx - ANTI_GRAV_RADIUS_TILES);
+        const endX = Math.min(WORLD_W - 1, centerTx + ANTI_GRAV_RADIUS_TILES);
+        const startY = Math.max(0, centerTy - ANTI_GRAV_RADIUS_TILES);
+        const endY = Math.min(WORLD_H - 1, centerTy + ANTI_GRAV_RADIUS_TILES);
+        for (let ty = startY; ty <= endY; ty++) {
+          for (let tx = startX; tx <= endX; tx++) {
+            if (!isAntiGravityEnabledAt(tx, ty)) continue;
+            const dx = tx - centerTx;
+            const dy = ty - centerTy;
+            if ((dx * dx + dy * dy) <= (ANTI_GRAV_RADIUS_TILES * ANTI_GRAV_RADIUS_TILES)) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+
+      function buildDefaultCameraConfig() {
+        return {
+          events: {
+            playerJoin: true,
+            playerLeave: true,
+            vendingPurchase: true
+          },
+          excludeAdminOwner: false,
+          updatedAt: 0
+        };
+      }
+
+      function normalizeCameraConfig(value) {
+        const defaults = buildDefaultCameraConfig();
+        if (!value || typeof value !== "object") return defaults;
+        const eventsRaw = value.events && typeof value.events === "object" ? value.events : {};
+        return {
+          events: {
+            playerJoin: eventsRaw.playerJoin !== false,
+            playerLeave: eventsRaw.playerLeave !== false,
+            vendingPurchase: eventsRaw.vendingPurchase !== false
+          },
+          excludeAdminOwner: Boolean(value.excludeAdminOwner),
+          updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : 0
+        };
+      }
+
+      function setLocalCameraConfig(tx, ty, value) {
+        const key = getTileKey(tx, ty);
+        if (!value) {
+          cameraConfigsByTile.delete(key);
+          cameraLogsByTile.delete(key);
+          if (cameraEditContext && cameraEditContext.tx === tx && cameraEditContext.ty === ty) {
+            closeCameraModal();
+          }
+          return;
+        }
+        cameraConfigsByTile.set(key, normalizeCameraConfig(value));
+        if (cameraEditContext && cameraEditContext.tx === tx && cameraEditContext.ty === ty) {
+          renderCameraModal();
+        }
+      }
+
+      function appendLocalCameraLog(tileKey, value) {
+        if (!tileKey) return;
+        const current = cameraLogsByTile.get(tileKey) || [];
+        current.push(value);
+        if (current.length > 120) {
+          current.splice(0, current.length - 120);
+        }
+        cameraLogsByTile.set(tileKey, current);
+        if (cameraEditContext && getTileKey(cameraEditContext.tx, cameraEditContext.ty) === tileKey) {
+          renderCameraModal();
+        }
+      }
+
+      function closeCameraModal() {
+        cameraEditContext = null;
+        if (cameraModalEl) cameraModalEl.classList.add("hidden");
+      }
+
+      function renderCameraModal() {
+        if (!cameraEditContext || !cameraModalEl || !cameraTitleEl || !cameraLogsListEl) return;
+        const tx = Number(cameraEditContext.tx);
+        const ty = Number(cameraEditContext.ty);
+        if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H || world[ty][tx] !== CAMERA_ID) {
+          closeCameraModal();
+          return;
+        }
+        const key = getTileKey(tx, ty);
+        const config = normalizeCameraConfig(cameraConfigsByTile.get(key) || buildDefaultCameraConfig());
+        cameraTitleEl.textContent = "Camera (" + tx + "," + ty + ")";
+        if (cameraEventJoinEl) cameraEventJoinEl.checked = config.events.playerJoin !== false;
+        if (cameraEventLeaveEl) cameraEventLeaveEl.checked = config.events.playerLeave !== false;
+        if (cameraEventVendingEl) cameraEventVendingEl.checked = config.events.vendingPurchase !== false;
+        if (cameraFilterStaffEl) cameraFilterStaffEl.checked = Boolean(config.excludeAdminOwner);
+
+        const rows = (cameraLogsByTile.get(key) || []).slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        cameraLogsListEl.innerHTML = rows.length
+          ? rows.map((row) => {
+            const time = formatChatTimestamp(Number(row.createdAt) || 0);
+            const line = (time ? "[" + time + "] " : "") + (row.text || "");
+            return "<div class='camera-log-row'>" + escapeHtml(line) + "</div>";
+          }).join("")
+          : "<div class='camera-log-row'>No logs yet.</div>";
+        cameraLogsListEl.scrollTop = cameraLogsListEl.scrollHeight;
+      }
+
+      function saveCameraConfig(tx, ty, config) {
+        if (!world[ty] || world[ty][tx] !== CAMERA_ID) {
+          setLocalCameraConfig(tx, ty, null);
+          return;
+        }
+        const normalized = normalizeCameraConfig(config || {});
+        normalized.updatedAt = Date.now();
+        setLocalCameraConfig(tx, ty, normalized);
+        if (network.enabled && network.camerasRef) {
+          network.camerasRef.child(getTileKey(tx, ty)).set({
+            events: {
+              playerJoin: normalized.events.playerJoin,
+              playerLeave: normalized.events.playerLeave,
+              vendingPurchase: normalized.events.vendingPurchase
+            },
+            excludeAdminOwner: normalized.excludeAdminOwner,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+          }).catch(() => {});
+        }
+      }
+
+      function openCameraModal(tx, ty) {
+        if (!cameraModalEl || !cameraTitleEl) return;
+        if (!canEditTarget(tx, ty)) return;
+        if (world[ty][tx] !== CAMERA_ID) return;
+        cameraEditContext = { tx, ty };
+        renderCameraModal();
+        cameraModalEl.classList.remove("hidden");
+      }
+
+      function isAdminOrOwnerActor(accountId, username) {
+        const role = getAccountRole(accountId || "", username || "");
+        return role === "admin" || role === "manager" || role === "owner";
+      }
+
+      function logCameraEvent(eventType, text, actorAccountId, actorName) {
+        if (!inWorld) return;
+        const safeText = (text || "").toString().replace(/\s+/g, " ").trim().slice(0, 180);
+        if (!safeText) return;
+        const tileKeys = [];
+        for (const [tileKey, configValue] of cameraConfigsByTile.entries()) {
+          const config = normalizeCameraConfig(configValue);
+          let enabled = false;
+          if (eventType === "player_join") enabled = config.events.playerJoin !== false;
+          if (eventType === "player_leave") enabled = config.events.playerLeave !== false;
+          if (eventType === "vending_purchase") enabled = config.events.vendingPurchase !== false;
+          if (!enabled) continue;
+          if (config.excludeAdminOwner && isAdminOrOwnerActor(actorAccountId, actorName)) continue;
+          tileKeys.push(tileKey);
+        }
+        if (!tileKeys.length) return;
+        const createdAt = Date.now();
+        if (!network.enabled || !network.cameraLogsRef) {
+          for (const tileKey of tileKeys) {
+            appendLocalCameraLog(tileKey, {
+              tileKey,
+              eventType,
+              text: safeText,
+              actorAccountId: actorAccountId || "",
+              actorName: actorName || "",
+              createdAt
+            });
+          }
+          return;
+        }
+        for (const tileKey of tileKeys) {
+          network.cameraLogsRef.push({
+            tileKey,
+            eventType,
+            text: safeText,
+            actorAccountId: actorAccountId || "",
+            actorName: actorName || "",
+            createdAt: firebase.database.ServerValue.TIMESTAMP
+          }).catch(() => {});
+        }
+      }
+
+      function normalizeWeatherRecord(value) {
+        if (!value || typeof value !== "object") return null;
+        const presetRaw = String(value.presetId || "").trim().toLowerCase();
+        const presetId = WEATHER_PRESET_MAP.has(presetRaw) ? presetRaw : "none";
+        const imageUrl = String(value.imageUrl || "").trim().slice(0, 420);
+        const sourceTxNum = Math.floor(Number(value.sourceTx));
+        const sourceTyNum = Math.floor(Number(value.sourceTy));
+        const sourceTx = Number.isInteger(sourceTxNum) ? sourceTxNum : -1;
+        const sourceTy = Number.isInteger(sourceTyNum) ? sourceTyNum : -1;
+        if (presetId === "none" && !imageUrl) return null;
+        return {
+          presetId,
+          imageUrl,
+          sourceTx,
+          sourceTy,
+          updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : 0
+        };
+      }
+
+      function getWeatherPresetUrl(presetId) {
+        const preset = WEATHER_PRESET_MAP.get(String(presetId || "").trim().toLowerCase());
+        return preset ? String(preset.url || "").trim() : "";
+      }
+
+      function getActiveWeatherImageUrl() {
+        const weather = normalizeWeatherRecord(currentWorldWeather);
+        if (!weather) return "";
+        if (
+          Number.isInteger(weather.sourceTx) &&
+          Number.isInteger(weather.sourceTy) &&
+          weather.sourceTx >= 0 &&
+          weather.sourceTy >= 0 &&
+          weather.sourceTx < WORLD_W &&
+          weather.sourceTy < WORLD_H &&
+          world[weather.sourceTy] &&
+          world[weather.sourceTy][weather.sourceTx] !== WEATHER_MACHINE_ID
+        ) {
+          return "";
+        }
+        const custom = String(weather.imageUrl || "").trim();
+        if (custom) return custom;
+        return getWeatherPresetUrl(weather.presetId);
+      }
+
+      function setLocalWorldWeather(value) {
+        currentWorldWeather = normalizeWeatherRecord(value);
+        if (currentWorldId) {
+          if (currentWorldWeather) {
+            localWeatherByWorld.set(currentWorldId, currentWorldWeather);
+          } else {
+            localWeatherByWorld.delete(currentWorldId);
+          }
+        }
+        if (weatherEditContext) {
+          renderWeatherModal();
+        }
+      }
+
+      function closeWeatherModal() {
+        weatherEditContext = null;
+        if (weatherModalEl) weatherModalEl.classList.add("hidden");
+      }
+
+      function refreshWeatherPreview() {
+        if (!weatherPresetSelectEl || !weatherImageUrlInputEl) return;
+        const presetId = String(weatherPresetSelectEl.value || "none").trim().toLowerCase();
+        const custom = String(weatherImageUrlInputEl.value || "").trim();
+        const resolved = custom || getWeatherPresetUrl(presetId);
+        if (weatherResolvedLabelEl) {
+          weatherResolvedLabelEl.textContent = resolved ? ("Active image: " + resolved) : "Active image: Default Sky";
+        }
+        if (weatherPreviewImgEl) {
+          if (resolved) {
+            weatherPreviewImgEl.src = resolved;
+            weatherPreviewImgEl.classList.remove("hidden");
+            if (weatherPreviewEmptyEl) weatherPreviewEmptyEl.classList.add("hidden");
+          } else {
+            weatherPreviewImgEl.classList.add("hidden");
+            weatherPreviewImgEl.removeAttribute("src");
+            if (weatherPreviewEmptyEl) weatherPreviewEmptyEl.classList.remove("hidden");
+          }
+        }
+      }
+
+      function renderWeatherModal() {
+        if (!weatherEditContext || !weatherModalEl || !weatherTitleEl || !weatherPresetSelectEl || !weatherImageUrlInputEl) return;
+        const tx = Number(weatherEditContext.tx);
+        const ty = Number(weatherEditContext.ty);
+        if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H || world[ty][tx] !== WEATHER_MACHINE_ID) {
+          closeWeatherModal();
+          return;
+        }
+        weatherTitleEl.textContent = "Weather Machine (" + tx + "," + ty + ")";
+        weatherPresetSelectEl.innerHTML = WEATHER_PRESETS.map((preset) => {
+          return "<option value=\"" + escapeHtml(preset.id) + "\">" + escapeHtml(preset.name) + "</option>";
+        }).join("");
+        const record = normalizeWeatherRecord(currentWorldWeather) || { presetId: "none", imageUrl: "" };
+        weatherPresetSelectEl.value = WEATHER_PRESET_MAP.has(record.presetId) ? record.presetId : "none";
+        weatherImageUrlInputEl.value = String(record.imageUrl || "");
+        refreshWeatherPreview();
+      }
+
+      function saveWorldWeatherFromMachine(tx, ty, presetIdRaw, imageUrlRaw) {
+        if (!world[ty] || world[ty][tx] !== WEATHER_MACHINE_ID) {
+          setLocalWorldWeather(null);
+          return;
+        }
+        const presetId = WEATHER_PRESET_MAP.has(String(presetIdRaw || "").trim().toLowerCase())
+          ? String(presetIdRaw || "").trim().toLowerCase()
+          : "none";
+        const imageUrl = String(imageUrlRaw || "").trim().slice(0, 420);
+        if (presetId === "none" && !imageUrl) {
+          setLocalWorldWeather(null);
+          if (network.enabled && network.weatherRef) {
+            network.weatherRef.remove().catch(() => {});
+          }
+          return;
+        }
+        const payload = {
+          presetId,
+          imageUrl,
+          sourceTx: tx,
+          sourceTy: ty,
+          updatedAt: Date.now()
+        };
+        setLocalWorldWeather(payload);
+        if (network.enabled && network.weatherRef) {
+          network.weatherRef.set({
+            presetId,
+            imageUrl,
+            sourceTx: tx,
+            sourceTy: ty,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+          }).catch(() => {});
+        }
+      }
+
+      function openWeatherModal(tx, ty) {
+        if (!weatherModalEl || !weatherTitleEl) return;
+        if (!canEditTarget(tx, ty)) return;
+        if (world[ty][tx] !== WEATHER_MACHINE_ID) return;
+        if (!canEditCurrentWorld()) {
+          notifyWorldLockedDenied();
+          return;
+        }
+        weatherEditContext = { tx, ty };
+        renderWeatherModal();
+        weatherModalEl.classList.remove("hidden");
       }
 
       function closeDoorModal() {
@@ -3613,12 +4123,17 @@
         const jumpPressedThisFrame = jump && !wasJumpHeld;
         const hasWingDoubleJump = Boolean(equippedCosmetics.wings);
         const inWater = rectTouchesLiquid(player.x, player.y, PLAYER_W, PLAYER_H);
+        const inAntiGravity = isPlayerInAntiGravityField(player.x, player.y, PLAYER_W, PLAYER_H);
         const moveAccel = inWater ? MOVE_ACCEL * WATER_MOVE_MULT : MOVE_ACCEL;
         const maxMoveSpeed = inWater ? MAX_MOVE_SPEED * WATER_MOVE_MULT : MAX_MOVE_SPEED;
-        const gravityNow = inWater ? GRAVITY * WATER_GRAVITY_MULT : GRAVITY;
-        const maxFallNow = inWater ? MAX_FALL_SPEED * WATER_FALL_MULT : MAX_FALL_SPEED;
+        let gravityNow = inWater ? GRAVITY * WATER_GRAVITY_MULT : GRAVITY;
+        let maxFallNow = inWater ? MAX_FALL_SPEED * WATER_FALL_MULT : MAX_FALL_SPEED;
         const frictionNow = inWater ? Math.min(0.96, FRICTION * WATER_FRICTION_MULT) : FRICTION;
         const airFrictionNow = inWater ? Math.min(0.985, AIR_FRICTION * WATER_FRICTION_MULT) : AIR_FRICTION;
+        if (inAntiGravity) {
+          gravityNow *= ANTI_GRAV_GRAVITY_MULT;
+          maxFallNow *= ANTI_GRAV_FALL_MULT;
+        }
 
         if (moveLeft) {
           player.vx -= player.grounded ? moveAccel : moveAccel * AIR_CONTROL;
@@ -3633,6 +4148,14 @@
           player.grounded = false;
           lastJumpAtMs = nowMs;
           airJumpsUsed = 0;
+        } else if (
+          jumpPressedThisFrame &&
+          !player.grounded &&
+          inAntiGravity &&
+          (nowMs - lastAirJumpAtMs) >= ANTI_GRAV_AIR_JUMP_COOLDOWN_MS
+        ) {
+          player.vy = JUMP_VELOCITY;
+          lastAirJumpAtMs = nowMs;
         } else if (
           jumpPressedThisFrame &&
           !player.grounded &&
@@ -3741,6 +4264,26 @@
       }
 
       function drawBackground() {
+        const weatherImageUrl = getActiveWeatherImageUrl();
+        if (weatherImageUrl) {
+          const weatherImg = getBlockImageByPath(weatherImageUrl);
+          if (weatherImg) {
+            const sx = weatherImg.naturalWidth || weatherImg.width || 1;
+            const sy = weatherImg.naturalHeight || weatherImg.height || 1;
+            const scale = Math.max(canvas.width / sx, canvas.height / sy);
+            const drawW = sx * scale;
+            const drawH = sy * scale;
+            const drawX = (canvas.width - drawW) * 0.5;
+            const drawY = (canvas.height - drawH) * 0.5;
+            ctx.save();
+            ctx.imageSmoothingEnabled = true;
+            ctx.drawImage(weatherImg, drawX, drawY, drawW, drawH);
+            ctx.fillStyle = "rgba(11, 24, 38, 0.1)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
+            return;
+          }
+        }
         const t = performance.now() * 0.00008;
         const cloudShift = Math.sin(t) * 30;
 
@@ -4510,6 +5053,10 @@
             seedVendingMachineOwner(tx, ty);
           } else if (id === SIGN_ID) {
             saveSignText(tx, ty, "");
+          } else if (id === ANTI_GRAV_ID) {
+            saveAntiGravityState(tx, ty, true);
+          } else if (id === CAMERA_ID) {
+            saveCameraConfig(tx, ty, buildDefaultCameraConfig());
           }
           saveInventory();
           refreshToolbar();
@@ -4607,6 +5154,27 @@
           setLocalDoorAccess(tx, ty, null);
           if (network.enabled && network.doorsRef) {
             network.doorsRef.child(getTileKey(tx, ty)).remove().catch(() => {});
+          }
+        }
+        if (id === ANTI_GRAV_ID) {
+          setLocalAntiGravityState(tx, ty, null);
+          if (network.enabled && network.antiGravRef) {
+            network.antiGravRef.child(getTileKey(tx, ty)).remove().catch(() => {});
+          }
+        }
+        if (id === CAMERA_ID) {
+          setLocalCameraConfig(tx, ty, null);
+          if (network.enabled && network.camerasRef) {
+            network.camerasRef.child(getTileKey(tx, ty)).remove().catch(() => {});
+          }
+        }
+        if (id === WEATHER_MACHINE_ID) {
+          const active = normalizeWeatherRecord(currentWorldWeather);
+          if (active && active.sourceTx === tx && active.sourceTy === ty) {
+            setLocalWorldWeather(null);
+            if (network.enabled && network.weatherRef) {
+              network.weatherRef.remove().catch(() => {});
+            }
           }
         }
 
@@ -4707,8 +5275,20 @@
           openSignModal(tx, ty);
           return;
         }
+        if (id === ANTI_GRAV_ID) {
+          toggleAntiGravityGenerator(tx, ty);
+          return;
+        }
         if (id === DOOR_BLOCK_ID) {
           openDoorModal(tx, ty);
+          return;
+        }
+        if (id === CAMERA_ID) {
+          openCameraModal(tx, ty);
+          return;
+        }
+        if (id === WEATHER_MACHINE_ID) {
+          openWeatherModal(tx, ty);
         }
       }
 
@@ -4837,6 +5417,30 @@
         if (network.doorsRef && network.handlers.doorRemoved) {
           network.doorsRef.off("child_removed", network.handlers.doorRemoved);
         }
+        if (network.antiGravRef && network.handlers.antiGravAdded) {
+          network.antiGravRef.off("child_added", network.handlers.antiGravAdded);
+        }
+        if (network.antiGravRef && network.handlers.antiGravChanged) {
+          network.antiGravRef.off("child_changed", network.handlers.antiGravChanged);
+        }
+        if (network.antiGravRef && network.handlers.antiGravRemoved) {
+          network.antiGravRef.off("child_removed", network.handlers.antiGravRemoved);
+        }
+        if (network.weatherRef && network.handlers.worldWeather) {
+          network.weatherRef.off("value", network.handlers.worldWeather);
+        }
+        if (network.camerasRef && network.handlers.cameraAdded) {
+          network.camerasRef.off("child_added", network.handlers.cameraAdded);
+        }
+        if (network.camerasRef && network.handlers.cameraChanged) {
+          network.camerasRef.off("child_changed", network.handlers.cameraChanged);
+        }
+        if (network.camerasRef && network.handlers.cameraRemoved) {
+          network.camerasRef.off("child_removed", network.handlers.cameraRemoved);
+        }
+        if (network.cameraLogsFeedRef && network.handlers.cameraLogAdded) {
+          network.cameraLogsFeedRef.off("child_added", network.handlers.cameraLogAdded);
+        }
         if (typeof syncWorldsModule.detachWorldListeners === "function") {
           syncWorldsModule.detachWorldListeners(network, network.handlers, true);
         } else if (network.playerRef) {
@@ -4852,6 +5456,11 @@
         network.vendingRef = null;
         network.signsRef = null;
         network.doorsRef = null;
+        network.antiGravRef = null;
+        network.weatherRef = null;
+        network.camerasRef = null;
+        network.cameraLogsRef = null;
+        network.cameraLogsFeedRef = null;
         network.lockRef = null;
         network.chatRef = null;
         network.chatFeedRef = null;
@@ -4868,6 +5477,14 @@
         network.handlers.doorAdded = null;
         network.handlers.doorChanged = null;
         network.handlers.doorRemoved = null;
+        network.handlers.antiGravAdded = null;
+        network.handlers.antiGravChanged = null;
+        network.handlers.antiGravRemoved = null;
+        network.handlers.worldWeather = null;
+        network.handlers.cameraAdded = null;
+        network.handlers.cameraChanged = null;
+        network.handlers.cameraRemoved = null;
+        network.handlers.cameraLogAdded = null;
         network.handlers.worldLock = null;
         network.handlers.chatAdded = null;
         currentWorldLock = null;
@@ -4875,15 +5492,27 @@
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
         signTexts.clear();
         doorAccessByTile.clear();
+        antiGravityByTile.clear();
+        cameraConfigsByTile.clear();
+        cameraLogsByTile.clear();
+        currentWorldWeather = null;
         closeSignModal();
         closeWorldLockModal();
         closeDoorModal();
+        closeCameraModal();
+        closeWeatherModal();
         closeTradeMenuModal();
         closeTradeRequestModal();
       }
 
       function leaveCurrentWorld() {
         sendSystemWorldMessage(playerName + " left the world.");
+        logCameraEvent(
+          "player_leave",
+          playerName + " left " + currentWorldId + ".",
+          playerProfileId,
+          playerName
+        );
         addClientLog("Left world: " + currentWorldId + ".");
         detachCurrentWorldListeners();
         remotePlayers.clear();
@@ -4950,6 +5579,12 @@
 
         if (wasInWorld && previousWorldId && previousWorldId !== worldId) {
           sendSystemWorldMessage(playerName + " left the world.");
+          logCameraEvent(
+            "player_leave",
+            playerName + " left " + previousWorldId + ".",
+            playerProfileId,
+            playerName
+          );
           addClientLog("Switched away from world: " + previousWorldId + ".");
         }
         setInWorldState(true);
@@ -4969,6 +5604,11 @@
         network.vendingRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/vending");
         network.signsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/signs");
         network.doorsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/doors");
+        network.antiGravRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/anti-gravity");
+        network.weatherRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/weather");
+        network.camerasRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/cameras");
+        network.cameraLogsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/camera-logs");
+        network.cameraLogsFeedRef = network.cameraLogsRef.limitToLast(500);
         network.lockRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/lock");
         network.chatRef = worldRefs && worldRefs.chatRef ? worldRefs.chatRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/chat");
         network.chatFeedRef = typeof syncWorldsModule.createChatFeed === "function"
@@ -5001,6 +5641,8 @@
             setLocalVendingMachine(tx, ty, null);
             setLocalSignText(tx, ty, null);
             setLocalDoorAccess(tx, ty, null);
+            setLocalAntiGravityState(tx, ty, null);
+            setLocalCameraConfig(tx, ty, null);
             return;
           }
           world[ty][tx] = id;
@@ -5013,6 +5655,12 @@
           if (id !== DOOR_BLOCK_ID) {
             setLocalDoorAccess(tx, ty, null);
           }
+          if (id !== ANTI_GRAV_ID) {
+            setLocalAntiGravityState(tx, ty, null);
+          }
+          if (id !== CAMERA_ID) {
+            setLocalCameraConfig(tx, ty, null);
+          }
         };
         const clearBlockValue = (tx, ty) => {
           const requiredId = getProtectedTileRequiredId(tx, ty);
@@ -5024,12 +5672,16 @@
             setLocalVendingMachine(tx, ty, null);
             setLocalSignText(tx, ty, null);
             setLocalDoorAccess(tx, ty, null);
+            setLocalAntiGravityState(tx, ty, null);
+            setLocalCameraConfig(tx, ty, null);
             return;
           }
           world[ty][tx] = 0;
           setLocalVendingMachine(tx, ty, null);
           setLocalSignText(tx, ty, null);
           setLocalDoorAccess(tx, ty, null);
+          setLocalAntiGravityState(tx, ty, null);
+          setLocalCameraConfig(tx, ty, null);
         };
 
         const handlers = typeof syncWorldsModule.buildWorldHandlers === "function"
@@ -5086,6 +5738,46 @@
           if (!tile) return;
           setLocalDoorAccess(tile.tx, tile.ty, null);
         };
+        network.handlers.antiGravAdded = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalAntiGravityState(tile.tx, tile.ty, snapshot.val());
+        };
+        network.handlers.antiGravChanged = network.handlers.antiGravAdded;
+        network.handlers.antiGravRemoved = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalAntiGravityState(tile.tx, tile.ty, null);
+        };
+        network.handlers.worldWeather = (snapshot) => {
+          setLocalWorldWeather(snapshot.val());
+        };
+        network.handlers.cameraAdded = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalCameraConfig(tile.tx, tile.ty, snapshot.val());
+        };
+        network.handlers.cameraChanged = network.handlers.cameraAdded;
+        network.handlers.cameraRemoved = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalCameraConfig(tile.tx, tile.ty, null);
+        };
+        network.handlers.cameraLogAdded = (snapshot) => {
+          const value = snapshot.val() || {};
+          const tileKey = (value.tileKey || "").toString();
+          const tile = parseTileKey(tileKey);
+          if (!tile) return;
+          if (!cameraConfigsByTile.has(tileKey) && (!world[tile.ty] || world[tile.ty][tile.tx] !== CAMERA_ID)) return;
+          appendLocalCameraLog(tileKey, {
+            tileKey,
+            eventType: (value.eventType || "").toString().slice(0, 40),
+            text: (value.text || "").toString().slice(0, 180),
+            actorAccountId: (value.actorAccountId || "").toString().slice(0, 80),
+            actorName: (value.actorName || "").toString().slice(0, 24),
+            createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now()
+          });
+        };
         if (typeof syncWorldsModule.attachWorldListeners === "function") {
           syncWorldsModule.attachWorldListeners(network, network.handlers);
         }
@@ -5104,10 +5796,35 @@
           network.doorsRef.on("child_changed", network.handlers.doorChanged);
           network.doorsRef.on("child_removed", network.handlers.doorRemoved);
         }
+        if (network.antiGravRef && network.handlers.antiGravAdded) {
+          network.antiGravRef.on("child_added", network.handlers.antiGravAdded);
+          network.antiGravRef.on("child_changed", network.handlers.antiGravChanged);
+          network.antiGravRef.on("child_removed", network.handlers.antiGravRemoved);
+        }
+        if (network.weatherRef && network.handlers.worldWeather) {
+          network.weatherRef.on("value", network.handlers.worldWeather);
+        }
+        if (network.camerasRef && network.handlers.cameraAdded) {
+          network.camerasRef.on("child_added", network.handlers.cameraAdded);
+          network.camerasRef.on("child_changed", network.handlers.cameraChanged);
+          network.camerasRef.on("child_removed", network.handlers.cameraRemoved);
+        }
+        if (network.cameraLogsFeedRef && network.handlers.cameraLogAdded) {
+          network.cameraLogsFeedRef.on("child_added", network.handlers.cameraLogAdded);
+        }
         enforceSpawnStructureInWorldData();
         enforceSpawnStructureInDatabase();
         addClientLog("Joined world: " + worldId + ".");
         sendSystemWorldMessage(playerName + " joined the world.");
+        setTimeout(() => {
+          if (!inWorld || currentWorldId !== worldId) return;
+          logCameraEvent(
+            "player_join",
+            playerName + " entered " + worldId + ".",
+            playerProfileId,
+            playerName
+          );
+        }, 140);
         network.playersRef.once("value").then((snapshot) => {
           const players = snapshot.val() || {};
           let count = Object.keys(players).length;
@@ -5365,6 +6082,109 @@
             saveDoorMode(tx, ty, "owner");
             openDoorModal(tx, ty);
             postLocalSystemChat("Door access set to owner only.");
+          });
+        }
+        if (cameraCloseBtn) {
+          cameraCloseBtn.addEventListener("click", () => {
+            closeCameraModal();
+          });
+        }
+        if (cameraModalEl) {
+          cameraModalEl.addEventListener("click", (event) => {
+            if (event.target === cameraModalEl) {
+              closeCameraModal();
+            }
+          });
+        }
+        if (cameraSaveBtn) {
+          cameraSaveBtn.addEventListener("click", () => {
+            if (!cameraEditContext) return;
+            const tx = Number(cameraEditContext.tx);
+            const ty = Number(cameraEditContext.ty);
+            if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
+            if (!canEditCurrentWorld()) {
+              notifyWorldLockedDenied();
+              closeCameraModal();
+              return;
+            }
+            if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H || world[ty][tx] !== CAMERA_ID) {
+              closeCameraModal();
+              return;
+            }
+            saveCameraConfig(tx, ty, {
+              events: {
+                playerJoin: Boolean(cameraEventJoinEl && cameraEventJoinEl.checked),
+                playerLeave: Boolean(cameraEventLeaveEl && cameraEventLeaveEl.checked),
+                vendingPurchase: Boolean(cameraEventVendingEl && cameraEventVendingEl.checked)
+              },
+              excludeAdminOwner: Boolean(cameraFilterStaffEl && cameraFilterStaffEl.checked)
+            });
+            postLocalSystemChat("Camera settings saved.");
+            renderCameraModal();
+          });
+        }
+        if (weatherPreviewImgEl && weatherPreviewEmptyEl) {
+          weatherPreviewImgEl.addEventListener("error", () => {
+            weatherPreviewImgEl.classList.add("hidden");
+            if (weatherPreviewEmptyEl) weatherPreviewEmptyEl.classList.remove("hidden");
+          });
+          weatherPreviewImgEl.addEventListener("load", () => {
+            weatherPreviewImgEl.classList.remove("hidden");
+            if (weatherPreviewEmptyEl) weatherPreviewEmptyEl.classList.add("hidden");
+          });
+        }
+        if (weatherCloseBtn) {
+          weatherCloseBtn.addEventListener("click", () => {
+            closeWeatherModal();
+          });
+        }
+        if (weatherModalEl) {
+          weatherModalEl.addEventListener("click", (event) => {
+            if (event.target === weatherModalEl) {
+              closeWeatherModal();
+            }
+          });
+        }
+        if (weatherPresetSelectEl) {
+          weatherPresetSelectEl.addEventListener("change", () => {
+            refreshWeatherPreview();
+          });
+        }
+        if (weatherImageUrlInputEl) {
+          weatherImageUrlInputEl.addEventListener("input", () => {
+            refreshWeatherPreview();
+          });
+        }
+        if (weatherSaveBtn) {
+          weatherSaveBtn.addEventListener("click", () => {
+            if (!weatherEditContext) return;
+            const tx = Number(weatherEditContext.tx);
+            const ty = Number(weatherEditContext.ty);
+            if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
+            if (!canEditCurrentWorld()) {
+              notifyWorldLockedDenied();
+              closeWeatherModal();
+              return;
+            }
+            if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H || world[ty][tx] !== WEATHER_MACHINE_ID) {
+              closeWeatherModal();
+              return;
+            }
+            const presetId = weatherPresetSelectEl ? weatherPresetSelectEl.value : "none";
+            const imageUrl = weatherImageUrlInputEl ? weatherImageUrlInputEl.value : "";
+            saveWorldWeatherFromMachine(tx, ty, presetId, imageUrl);
+            postLocalSystemChat("Weather updated.");
+            renderWeatherModal();
+          });
+        }
+        if (weatherClearBtn) {
+          weatherClearBtn.addEventListener("click", () => {
+            if (!weatherEditContext) return;
+            const accepted = window.confirm("Clear world weather and return to default sky?");
+            if (!accepted) return;
+            saveWorldWeatherFromMachine(Number(weatherEditContext.tx), Number(weatherEditContext.ty), "none", "");
+            postLocalSystemChat("Weather cleared.");
+            renderWeatherModal();
           });
         }
         const tradeCtrl = getTradeController();
@@ -5842,10 +6662,6 @@
 
       function refreshToolbar() {
         toolbar.innerHTML = "";
-        const dragHint = document.createElement("div");
-        dragHint.className = "toolbar-drag-hint";
-        dragHint.textContent = "Drag to move inventory";
-        toolbar.appendChild(dragHint);
         const blockSection = createInventorySection("Blocks & Tools", "Click to select (1: Fist, 2: Wrench)");
         const cosmeticEntries = [];
         for (let i = 0; i < slotOrder.length; i++) {
@@ -5984,84 +6800,125 @@
         bindHoldButton(mobileJumpBtn, "jump");
       }
 
-      function clampToolbarTranslate(nextTranslate) {
-        const viewportHeight = Math.max(320, window.innerHeight || 0);
-        const maxUp = Math.round(viewportHeight * 0.42);
-        const maxDown = Math.round(viewportHeight * 0.12);
-        return Math.max(-maxUp, Math.min(maxDown, Math.round(nextTranslate)));
-      }
-
       function applyToolbarPosition() {
-        toolbarTranslateYPx = clampToolbarTranslate(toolbarTranslateYPx);
-        toolbar.style.transform = "translateY(" + toolbarTranslateYPx + "px)";
+        toolbar.style.transform = "none";
       }
 
-      function extractClientY(event) {
-        if (typeof event.clientY === "number") return event.clientY;
-        const touch = event.touches && event.touches[0] ? event.touches[0] : (event.changedTouches && event.changedTouches[0] ? event.changedTouches[0] : null);
-        return touch ? touch.clientY : 0;
+      function clampPanelWidths(leftValue, rightValue) {
+        const viewportWidth = Math.max(980, window.innerWidth || 0);
+        const centerMin = viewportWidth < 1220 ? 460 : 560;
+        const maxByRatio = Math.floor(viewportWidth * DESKTOP_PANEL_MAX_RATIO);
+        let left = Math.max(DESKTOP_PANEL_MIN, Math.min(maxByRatio, Math.round(Number(leftValue) || DESKTOP_PANEL_LEFT_DEFAULT)));
+        let right = Math.max(DESKTOP_PANEL_MIN, Math.min(maxByRatio, Math.round(Number(rightValue) || DESKTOP_PANEL_RIGHT_DEFAULT)));
+        const edgePadding = 40;
+        let centerWidth = viewportWidth - left - right - edgePadding;
+        if (centerWidth < centerMin) {
+          let deficit = centerMin - centerWidth;
+          const leftSlack = Math.max(0, left - DESKTOP_PANEL_MIN);
+          const rightSlack = Math.max(0, right - DESKTOP_PANEL_MIN);
+          const totalSlack = leftSlack + rightSlack;
+          if (totalSlack > 0) {
+            const leftCut = Math.min(leftSlack, Math.round(deficit * (leftSlack / totalSlack)));
+            left -= leftCut;
+            deficit -= leftCut;
+            const rightCut = Math.min(rightSlack, deficit);
+            right -= rightCut;
+          }
+        }
+        return {
+          left: Math.max(DESKTOP_PANEL_MIN, left),
+          right: Math.max(DESKTOP_PANEL_MIN, right)
+        };
       }
 
-      function handleToolbarDragMove(event) {
-        if (!toolbarDragActive) return;
-        const deltaY = extractClientY(event) - toolbarDragStartClientY;
-        toolbarTranslateYPx = clampToolbarTranslate(toolbarDragStartTranslateY + deltaY);
-        applyToolbarPosition();
-        if (event.cancelable) {
-          event.preventDefault();
+      function applyDesktopPanelLayout(leftValue, rightValue, persist) {
+        const next = clampPanelWidths(leftValue, rightValue);
+        desktopLeftPanelWidth = next.left;
+        desktopRightPanelWidth = next.right;
+        document.documentElement.style.setProperty("--left-panel-w", desktopLeftPanelWidth + "px");
+        document.documentElement.style.setProperty("--right-panel-w", desktopRightPanelWidth + "px");
+        if (persist) {
+          try {
+            localStorage.setItem(LAYOUT_PREFS_KEY, JSON.stringify({
+              left: desktopLeftPanelWidth,
+              right: desktopRightPanelWidth
+            }));
+          } catch (error) {
+            // ignore localStorage failures
+          }
         }
       }
 
-      function handleToolbarDragEnd() {
-        if (!toolbarDragActive) return;
-        toolbarDragActive = false;
-        toolbar.classList.remove("dragging");
+      function loadDesktopPanelLayout() {
+        let savedLeft = DESKTOP_PANEL_LEFT_DEFAULT;
+        let savedRight = DESKTOP_PANEL_RIGHT_DEFAULT;
+        try {
+          const raw = localStorage.getItem(LAYOUT_PREFS_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            savedLeft = Number(parsed && parsed.left);
+            savedRight = Number(parsed && parsed.right);
+          }
+        } catch (error) {
+          // ignore parse failures
+        }
+        applyDesktopPanelLayout(savedLeft, savedRight, false);
       }
 
-      function initToolbarDrag() {
-        if (!toolbar) return;
-        const startDrag = (event) => {
-          const target = event.target;
-          if (!(target instanceof HTMLElement)) return;
-          const moveHandle = target.closest(".toolbar-drag-hint");
-          if (!moveHandle) return;
-          if (typeof event.button === "number" && event.button !== 0) return;
-          toolbarDragActive = true;
-          toolbarDragStartClientY = extractClientY(event);
-          toolbarDragStartTranslateY = toolbarTranslateYPx;
-          toolbar.classList.add("dragging");
-          if (event.cancelable) {
+      function setLayoutResizeHandlesVisible() {
+        const desktopMode = !isCoarsePointer;
+        if (leftPanelResizeHandleEl) leftPanelResizeHandleEl.classList.toggle("hidden", !desktopMode);
+        if (rightPanelResizeHandleEl) rightPanelResizeHandleEl.classList.toggle("hidden", !desktopMode);
+      }
+
+      function onLayoutResizeMove(event) {
+        if (!layoutResizeSide || isCoarsePointer) return;
+        const clientX = Number(event.clientX);
+        if (!Number.isFinite(clientX)) return;
+        const viewportWidth = Math.max(980, window.innerWidth || 0);
+        if (layoutResizeSide === "left") {
+          const nextLeft = clientX - 12;
+          applyDesktopPanelLayout(nextLeft, desktopRightPanelWidth, true);
+        } else if (layoutResizeSide === "right") {
+          const nextRight = viewportWidth - clientX - 12;
+          applyDesktopPanelLayout(desktopLeftPanelWidth, nextRight, true);
+        }
+        resizeCanvas();
+      }
+
+      function onLayoutResizeEnd() {
+        if (!layoutResizeSide) return;
+        layoutResizeSide = "";
+        document.body.classList.remove("layout-resizing");
+      }
+
+      function initDesktopLayoutResize() {
+        loadDesktopPanelLayout();
+        setLayoutResizeHandlesVisible();
+        const bindHandle = (handle, side) => {
+          if (!handle) return;
+          handle.addEventListener("pointerdown", (event) => {
+            if (isCoarsePointer) return;
+            if (typeof event.button === "number" && event.button !== 0) return;
+            layoutResizeSide = side;
+            document.body.classList.add("layout-resizing");
             event.preventDefault();
-          }
+          });
         };
-        toolbar.addEventListener("pointerdown", startDrag);
-        toolbar.addEventListener("mousedown", startDrag);
-        toolbar.addEventListener("touchstart", startDrag, { passive: false });
-        toolbar.addEventListener("dblclick", (event) => {
-          const target = event.target;
-          if (!(target instanceof HTMLElement)) return;
-          if (target.closest(".toolbar-drag-hint")) {
-            toolbarTranslateYPx = 0;
-            applyToolbarPosition();
-            return;
-          }
-        });
-        window.addEventListener("pointermove", handleToolbarDragMove, { passive: false });
-        window.addEventListener("mousemove", handleToolbarDragMove, { passive: false });
-        window.addEventListener("touchmove", handleToolbarDragMove, { passive: false });
-        window.addEventListener("pointerup", handleToolbarDragEnd);
-        window.addEventListener("mouseup", handleToolbarDragEnd);
-        window.addEventListener("touchend", handleToolbarDragEnd);
-        window.addEventListener("pointercancel", handleToolbarDragEnd);
-        window.addEventListener("touchcancel", handleToolbarDragEnd);
+        bindHandle(leftPanelResizeHandleEl, "left");
+        bindHandle(rightPanelResizeHandleEl, "right");
+        window.addEventListener("pointermove", onLayoutResizeMove, { passive: true });
+        window.addEventListener("pointerup", onLayoutResizeEnd);
+        window.addEventListener("pointercancel", onLayoutResizeEnd);
+        resizeCanvas();
       }
 
       function resizeCanvas() {
         const wrap = canvas.parentElement;
         const rect = wrap.getBoundingClientRect();
         isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
-        const minWidth = isCoarsePointer ? 320 : 720;
-        const minHeight = isCoarsePointer ? 220 : 360;
+        const minWidth = isCoarsePointer ? 320 : 480;
+        const minHeight = isCoarsePointer ? 220 : 280;
         const targetWidth = Math.max(minWidth, Math.floor(rect.width));
         const targetHeight = Math.max(minHeight, Math.floor(rect.height));
         canvas.width = targetWidth;
@@ -6069,12 +6926,16 @@
         ctx.imageSmoothingEnabled = false;
         ctx.textBaseline = "alphabetic";
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
+        setLayoutResizeHandlesVisible();
+        if (!isCoarsePointer) {
+          applyDesktopPanelLayout(desktopLeftPanelWidth, desktopRightPanelWidth, false);
+        }
         applyToolbarPosition();
       }
 
       window.addEventListener("resize", resizeCanvas);
       resizeCanvas();
-      initToolbarDrag();
+      initDesktopLayoutResize();
 
       window.addEventListener("keydown", (e) => {
         const activeEl = document.activeElement;
@@ -6105,6 +6966,11 @@
         if (e.key === "Escape" && doorModalEl && !doorModalEl.classList.contains("hidden")) {
           e.preventDefault();
           closeDoorModal();
+          return;
+        }
+        if (e.key === "Escape" && weatherModalEl && !weatherModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeWeatherModal();
           return;
         }
         if (e.key === "Escape" && tradeMenuModalEl && !tradeMenuModalEl.classList.contains("hidden")) {

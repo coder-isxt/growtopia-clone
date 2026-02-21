@@ -204,6 +204,7 @@ window.GTModules.vending = (function createVendingModule() {
         els.actions.innerHTML =
           '<button data-vending-act="configure">Save Listing</button>' +
           '<button data-vending-act="collect">Collect Earnings</button>' +
+          '<button data-vending-act="clear">Clear Machine</button>' +
           '<button data-vending-act="buy"' + buyDisabled + '>Buy</button>';
       } else {
         els.actions.innerHTML = '<button data-vending-act="buy"' + buyDisabled + '>Buy</button>';
@@ -448,6 +449,61 @@ window.GTModules.vending = (function createVendingModule() {
       });
     }
 
+    function clearMachine(tx, ty, vm) {
+      const post = opts.postLocalSystemChat || (() => {});
+      if (!canManage(vm)) {
+        post("Only the vending owner can clear this machine.");
+        return;
+      }
+      const stock = Math.max(0, Math.floor(vm.stock || 0));
+      const earnings = Math.max(0, Math.floor(vm.earningsLocks || 0));
+      if (stock <= 0 && earnings <= 0) {
+        post("Machine is already empty.");
+        return;
+      }
+      const listingLabel = getListingLabel(vm);
+      const parts = [];
+      if (stock > 0) parts.push(stock + "x " + listingLabel);
+      if (earnings > 0) parts.push(earnings + " WL");
+      if (!window.confirm("Clear machine and claim " + parts.join(" + ") + "?")) return;
+
+      const inventory = get("getInventory", {});
+      const cosmeticInv = get("getCosmeticInventory", {});
+      const worldLockId = get("getWorldLockId", 0);
+      let claimedStock = 0;
+      let claimedEarnings = 0;
+      let claimedType = "block";
+      let claimedBlockId = 0;
+      let claimedCosmeticId = "";
+      createOrUpdateMachine(tx, ty, (current) => {
+        claimedStock = Math.max(0, Math.floor(Number(current && current.stock) || 0));
+        claimedEarnings = Math.max(0, Math.floor(Number(current && current.earningsLocks) || 0));
+        claimedType = current && current.sellType === "cosmetic" ? "cosmetic" : "block";
+        claimedBlockId = Math.max(0, Math.floor(Number(current && current.sellBlockId) || 0));
+        claimedCosmeticId = String(current && current.sellCosmeticId || "");
+        return { ...current, stock: 0, earningsLocks: 0 };
+      }).then(() => {
+        if (claimedEarnings > 0) {
+          inventory[worldLockId] = Math.max(0, Math.floor((inventory[worldLockId] || 0) + claimedEarnings));
+        }
+        if (claimedStock > 0) {
+          if (claimedType === "cosmetic" && claimedCosmeticId) {
+            cosmeticInv[claimedCosmeticId] = Math.max(0, Math.floor((cosmeticInv[claimedCosmeticId] || 0) + claimedStock));
+          } else if (claimedBlockId > 0) {
+            inventory[claimedBlockId] = Math.max(0, Math.floor((inventory[claimedBlockId] || 0) + claimedStock));
+          }
+        }
+        (opts.saveInventory || (() => {}))();
+        (opts.refreshToolbar || (() => {}))();
+        const resultParts = [];
+        if (claimedStock > 0) resultParts.push("returned " + claimedStock + "x " + listingLabel);
+        if (claimedEarnings > 0) resultParts.push("collected " + claimedEarnings + " WL");
+        post(resultParts.length ? ("Machine cleared: " + resultParts.join(", ") + ".") : "Machine cleared.");
+      }).catch(() => {
+        post("Failed to clear machine.");
+      });
+    }
+
     function removeMachine(tx, ty, vm) {
       const post = opts.postLocalSystemChat || (() => {});
       if (!canManage(vm)) {
@@ -477,6 +533,14 @@ window.GTModules.vending = (function createVendingModule() {
 
     function buy(tx, ty, vm) {
       const post = opts.postLocalSystemChat || (() => {});
+      const emitPurchase = (details) => {
+        if (typeof opts.onVendingPurchase !== "function") return;
+        try {
+          opts.onVendingPurchase(details || {});
+        } catch (error) {
+          // keep vending flow resilient even if telemetry callback fails
+        }
+      };
       const token = getListingIdentity(vm);
       const selected = parseItemToken(token);
       const sellQuantity = Math.max(1, Math.floor(Number(vm && vm.sellQuantity) || 1));
@@ -525,6 +589,15 @@ window.GTModules.vending = (function createVendingModule() {
         }
         (opts.saveInventory || (() => {}))();
         (opts.refreshToolbar || (() => {}))();
+        emitPurchase({
+          tx,
+          ty,
+          itemLabel,
+          totalItems,
+          totalPrice,
+          buyerAccountId: profileId || "",
+          buyerName: (get("getPlayerName", "") || "").toString().slice(0, 20)
+        });
         post("Purchased from vending.");
         return;
       }
@@ -574,6 +647,15 @@ window.GTModules.vending = (function createVendingModule() {
               post("Purchase failed.");
               return false;
             }
+            emitPurchase({
+              tx,
+              ty,
+              itemLabel,
+              totalItems,
+              totalPrice,
+              buyerAccountId: profileId || "",
+              buyerName: (get("getPlayerName", "") || "").toString().slice(0, 20)
+            });
             post("Purchased " + totalItems + "x " + itemLabel + ".");
             return true;
           });
@@ -676,6 +758,7 @@ window.GTModules.vending = (function createVendingModule() {
           }
           if (action === "configure") configureMachine(tx, ty, vm);
           if (action === "collect") collectEarnings(tx, ty, vm);
+          if (action === "clear") clearMachine(tx, ty, vm);
           if (action === "remove") removeMachine(tx, ty, vm);
           if (action === "buy") buy(tx, ty, vm);
           setTimeout(() => {
@@ -701,6 +784,7 @@ window.GTModules.vending = (function createVendingModule() {
       seedOwner,
       configureMachine,
       collectEarnings,
+      clearMachine,
       removeMachine,
       buy,
       handleInventoryPick,

@@ -41,6 +41,20 @@ window.GT_SETTINGS = {
   ],
   WATER_FRAME_MS: 170,
 
+  // Anti-gravity generator tuning
+  ANTI_GRAV_RADIUS_TILES: 8,
+  ANTI_GRAV_GRAVITY_MULT: 0.2,
+  ANTI_GRAV_FALL_MULT: 0.42,
+  ANTI_GRAV_AIR_JUMP_COOLDOWN_MS: 140,
+  // Weather machine presets.
+  // Edit/add URLs here to control selectable weather backgrounds.
+  WEATHER_PRESET_IMAGES: [
+    { id: "none", name: "Default Sky", url: "" },
+    { id: "day", name: "Day", url: "./assets/weather/day.png" },
+    { id: "sunset", name: "Sunset", url: "./assets/weather/sunset.png" },
+    { id: "night", name: "Night", url: "./assets/weather/night.png" }
+  ],
+
   PLAYER_SYNC_MIN_MS: 90,
   GLOBAL_SYNC_MIN_MS: 240
 };
