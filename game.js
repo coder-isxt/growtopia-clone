@@ -708,7 +708,7 @@
         if (Math.abs(normalized - cameraZoom) < 0.0001) return;
         cameraZoom = normalized;
         if (persist) saveCameraZoomPref(cameraZoom);
-        resizeCanvas();
+        updateCamera(true);
       }
 
       function changeCameraZoom(delta) {
@@ -4299,14 +4299,19 @@
         wasJumpHeld = jump;
       }
 
-      function updateCamera() {
+      function updateCamera(forceSnap) {
         const viewW = getCameraViewWidth();
         const viewH = getCameraViewHeight();
         const targetX = player.x + PLAYER_W / 2 - viewW / 2;
         const targetY = player.y + PLAYER_H / 2 - viewH / 2;
 
-        cameraX += (targetX - cameraX) * 0.12;
-        cameraY += (targetY - cameraY) * 0.12;
+        if (forceSnap) {
+          cameraX = targetX;
+          cameraY = targetY;
+        } else {
+          cameraX += (targetX - cameraX) * 0.12;
+          cameraY += (targetY - cameraY) * 0.12;
+        }
 
         cameraX = Math.max(0, Math.min(cameraX, WORLD_W * TILE - viewW));
         cameraY = Math.max(0, Math.min(cameraY, WORLD_H * TILE - viewH));
