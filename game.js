@@ -2388,6 +2388,10 @@
         return Boolean(def && def.oneWay);
       }
 
+      function isStairTileId(id) {
+        return STAIR_ROTATION_IDS.includes(id);
+      }
+
       function getRotatedBlockId(id) {
         const idx = STAIR_ROTATION_IDS.indexOf(id);
         if (idx < 0) return 0;
@@ -2464,6 +2468,20 @@
         return false;
       }
 
+      function rectTouchesStair(x, y, w, h) {
+        const left = Math.floor(x / TILE);
+        const right = Math.floor((x + w - 1) / TILE);
+        const top = Math.floor(y / TILE);
+        const bottom = Math.floor((y + h - 1) / TILE);
+        for (let ty = top; ty <= bottom; ty++) {
+          for (let tx = left; tx <= right; tx++) {
+            if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) continue;
+            if (isStairTileId(world[ty][tx])) return true;
+          }
+        }
+        return false;
+      }
+
       function rectCollidesOneWayPlatformDownward(x, prevY, nextY, w, h) {
         if (nextY <= prevY) return false;
         const left = Math.floor(x / TILE);
@@ -2534,11 +2552,25 @@
         if (!rectCollides(nextX, player.y, PLAYER_W, PLAYER_H)) {
           player.x = nextX;
         } else {
-          const step = Math.sign(player.vx);
-          while (!rectCollides(player.x + step, player.y, PLAYER_W, PLAYER_H)) {
-            player.x += step;
+          let climbedStair = false;
+          if (player.vy >= 0 && rectTouchesStair(nextX, player.y, PLAYER_W, PLAYER_H)) {
+            const maxStepUp = Math.min(TILE, Math.ceil(PLAYER_H * 0.7));
+            for (let stepUp = 1; stepUp <= maxStepUp; stepUp++) {
+              const testY = player.y - stepUp;
+              if (rectCollides(nextX, testY, PLAYER_W, PLAYER_H)) continue;
+              player.x = nextX;
+              player.y = testY;
+              climbedStair = true;
+              break;
+            }
           }
-          player.vx = 0;
+          if (!climbedStair) {
+            const step = Math.sign(player.vx);
+            while (!rectCollides(player.x + step, player.y, PLAYER_W, PLAYER_H)) {
+              player.x += step;
+            }
+            player.vx = 0;
+          }
         }
 
         let nextY = player.y + player.vy;
@@ -2634,9 +2666,9 @@
 
             if (id === PLATFORM_ID) {
               ctx.fillStyle = "#6d4f35";
-              ctx.fillRect(x, y + TILE - 8, TILE, 6);
+              ctx.fillRect(x, y + 2, TILE, 6);
               ctx.fillStyle = "rgba(255, 238, 202, 0.25)";
-              ctx.fillRect(x + 1, y + TILE - 8, TILE - 2, 2);
+              ctx.fillRect(x + 1, y + 2, TILE - 2, 2);
               continue;
             }
 
