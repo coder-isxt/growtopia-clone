@@ -95,6 +95,7 @@
       const chatModule = modules.chat || {};
       const menuModule = modules.menu || {};
       const vendingModule = modules.vending || {};
+      const tradeModule = modules.trade || {};
 
       const SETTINGS = window.GT_SETTINGS || {};
       const TILE = Number(SETTINGS.TILE_SIZE) || 32;
@@ -178,6 +179,7 @@
 
       const WORLD_LOCK_ID = 9;
       const DOOR_BLOCK_ID = 10;
+      const WATER_ID = 11;
       const PLATFORM_ID = 12;
       const STAIR_BASE_ID = 13;
       const STAIR_ROTATION_IDS = [13, 14, 15, 16];
@@ -203,6 +205,8 @@
       const COSMETIC_ITEMS = [];
       const cosmeticImageCache = new Map();
       const blockImageCache = new Map();
+      const waterFramePathCache = [];
+      const WATER_FRAME_MS = Math.max(80, Number(SETTINGS.WATER_FRAME_MS) || 170);
       for (const slot of COSMETIC_SLOTS) {
         const map = {};
         const slotItems = Array.isArray(COSMETIC_CATALOG[slot]) ? COSMETIC_CATALOG[slot] : [];
@@ -260,11 +264,10 @@
       const doorAccessByTile = new Map();
       const worldOccupancy = new Map();
       let vendingController = null;
+      let tradeController = null;
       let signEditContext = null;
       let worldLockEditContext = null;
       let doorEditContext = null;
-      let tradeMenuContext = null;
-      let incomingTradeRequest = null;
       let knownWorldIds = [];
       let totalOnlinePlayers = 0;
       let hasRenderedMenuWorldList = false;
@@ -349,6 +352,51 @@
         return vendingController;
       }
 
+      function getTradeController() {
+        if (tradeController) return tradeController;
+        if (typeof tradeModule.createController !== "function") return null;
+        tradeController = tradeModule.createController({
+          getFirebase: () => (typeof firebase !== "undefined" ? firebase : null),
+          getNetwork: () => network,
+          getBasePath: () => BASE_PATH,
+          getCurrentWorldId: () => currentWorldId,
+          getPlayerProfileId: () => playerProfileId,
+          getPlayerName: () => playerName,
+          getPlayerSessionStartedAt: () => playerSessionStartedAt,
+          getInventory: () => inventory,
+          getCosmeticInventory: () => cosmeticInventory,
+          getEquippedCosmetics: () => equippedCosmetics,
+          getInventoryIds: () => INVENTORY_IDS,
+          getCosmeticItems: () => COSMETIC_ITEMS,
+          getCosmeticSlots: () => COSMETIC_SLOTS,
+          getRemotePlayers: () => remotePlayers,
+          getBlockDefs: () => blockDefs,
+          getBlockKeyById,
+          getPlayerRect: () => ({ w: PLAYER_W, h: PLAYER_H }),
+          getTileSize: () => TILE,
+          rectsOverlap,
+          postLocalSystemChat,
+          showAnnouncementPopup,
+          refreshToolbar,
+          saveInventory,
+          getTradeMenuModalEl: () => tradeMenuModalEl,
+          getTradeMenuTitleEl: () => tradeMenuTitleEl,
+          getTradeMenuCloseBtnEl: () => tradeMenuCloseBtn,
+          getTradeStartBtnEl: () => tradeStartBtn,
+          getTradeCancelBtnEl: () => tradeCancelBtn,
+          getTradeRequestModalEl: () => tradeRequestModalEl,
+          getTradeRequestTextEl: () => tradeRequestTextEl,
+          getTradeAcceptBtnEl: () => tradeAcceptBtn,
+          getTradeDeclineBtnEl: () => tradeDeclineBtn,
+          getTradePanelModalEl: () => document.getElementById("tradePanelModal"),
+          getTradePanelTitleEl: () => document.getElementById("tradePanelTitle"),
+          getTradePanelBodyEl: () => document.getElementById("tradePanelBody"),
+          getTradePanelActionsEl: () => document.getElementById("tradePanelActions"),
+          getTradePanelCloseBtnEl: () => document.getElementById("tradePanelCloseBtn")
+        });
+        return tradeController;
+      }
+
       let cameraX = 0;
       let cameraY = 0;
       let mouseWorld = { tx: 0, ty: 0 };
@@ -390,6 +438,7 @@
         myCommandRef: null,
         myTradeRequestRef: null,
         myTradeResponseRef: null,
+        myActiveTradeRef: null,
         playersRef: null,
         blocksRef: null,
         vendingRef: null,
@@ -422,6 +471,7 @@
           myCommand: null,
           myTradeRequest: null,
           myTradeResponse: null,
+          myActiveTrade: null,
           players: null,
           blockAdded: null,
           blockChanged: null,
@@ -787,7 +837,67 @@
       function closeAdminInventoryModal() {
         if (adminInventoryModalEl) {
           adminInventoryModalEl.classList.add("hidden");
+          delete adminInventoryModalEl.dataset.accountId;
         }
+      }
+
+      function canEditAdminInventoryModal() {
+        return getRoleRank(currentAdminRole) >= getRoleRank("manager");
+      }
+
+      function syncAdminPanelAfterInventoryChange(accountId) {
+        if (!accountId) return;
+        if (isAdminOpen) {
+          renderAdminPanel();
+        }
+        if (adminInventoryModalEl && !adminInventoryModalEl.classList.contains("hidden") && adminInventoryModalEl.dataset.accountId === accountId) {
+          openAdminInventoryModal(accountId);
+        }
+      }
+
+      function setLocalInventoryBlockCount(accountId, blockId, nextValue) {
+        if (!accountId) return;
+        if (!adminState.inventories[accountId] || typeof adminState.inventories[accountId] !== "object") {
+          adminState.inventories[accountId] = {};
+        }
+        const safeId = Number(blockId);
+        adminState.inventories[accountId][safeId] = Math.max(0, Math.floor(Number(nextValue) || 0));
+      }
+
+      function setLocalInventoryCosmeticCount(accountId, itemId, nextValue) {
+        if (!accountId) return;
+        if (!adminState.inventories[accountId] || typeof adminState.inventories[accountId] !== "object") {
+          adminState.inventories[accountId] = {};
+        }
+        if (!adminState.inventories[accountId].cosmeticItems || typeof adminState.inventories[accountId].cosmeticItems !== "object") {
+          adminState.inventories[accountId].cosmeticItems = {};
+        }
+        const safeItemId = String(itemId || "");
+        adminState.inventories[accountId].cosmeticItems[safeItemId] = Math.max(0, Math.floor(Number(nextValue) || 0));
+      }
+
+      function adjustLocalInventoryBlockCount(accountId, blockId, delta) {
+        const safeId = Number(blockId);
+        const current = Math.max(0, Math.floor(Number(adminState.inventories[accountId] && adminState.inventories[accountId][safeId]) || 0));
+        setLocalInventoryBlockCount(accountId, safeId, current + Number(delta || 0));
+      }
+
+      function adjustLocalInventoryCosmeticCount(accountId, itemId, delta) {
+        const safeItemId = String(itemId || "");
+        const current = Math.max(0, Math.floor(Number(adminState.inventories[accountId] && adminState.inventories[accountId].cosmeticItems && adminState.inventories[accountId].cosmeticItems[safeItemId]) || 0));
+        setLocalInventoryCosmeticCount(accountId, safeItemId, current + Number(delta || 0));
+      }
+
+      function buildAdminInventoryItemOptions(kind) {
+        if (kind === "cosmetic") {
+          return COSMETIC_ITEMS.map((item) => {
+            return '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name + " (" + item.id + ")") + "</option>";
+          }).join("");
+        }
+        return INVENTORY_IDS.map((id) => {
+          const label = blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id);
+          return '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml(label + " (" + getBlockKeyById(id) + ")") + "</option>";
+        }).join("");
       }
 
       function openAdminInventoryModal(accountId) {
@@ -815,10 +925,24 @@
           });
         }
         adminInventoryTitleEl.textContent = "@" + username + " Inventory";
+        adminInventoryModalEl.dataset.accountId = accountId;
+        const canEdit = canEditAdminInventoryModal() && canActorGrantTarget(accountId, getAccountRole(accountId, username));
+        const editorMarkup = canEdit
+          ? "<div class='admin-inventory-tools'>" +
+            "<select class='admin-inv-kind' data-account-id='" + escapeHtml(accountId) + "'>" +
+            "<option value='block'>Blocks</option>" +
+            "<option value='cosmetic'>Cosmetics</option>" +
+            "</select>" +
+            "<select class='admin-inv-item' data-account-id='" + escapeHtml(accountId) + "'>" + buildAdminInventoryItemOptions("block") + "</select>" +
+            "<input class='admin-inv-amount' data-account-id='" + escapeHtml(accountId) + "' type='number' min='1' step='1' value='1'>" +
+            "<button data-admin-inv-act='add' data-account-id='" + escapeHtml(accountId) + "'>Add</button>" +
+            "<button data-admin-inv-act='remove' data-account-id='" + escapeHtml(accountId) + "'>Remove</button>" +
+            "</div>"
+          : "";
         if (!rows.length) {
-          adminInventoryBodyEl.innerHTML = "<div class='admin-inventory-row'><span class='admin-inventory-item'>No items.</span><span class='admin-inventory-qty'>0</span></div>";
+          adminInventoryBodyEl.innerHTML = editorMarkup + "<div class='admin-inventory-row'><span class='admin-inventory-item'>No items.</span><span class='admin-inventory-qty'>0</span></div>";
         } else {
-          adminInventoryBodyEl.innerHTML = rows.map((row) => {
+          adminInventoryBodyEl.innerHTML = editorMarkup + rows.map((row) => {
             return "<div class='admin-inventory-row'><span class='admin-inventory-item'>" + escapeHtml(row.label) + "</span><span class='admin-inventory-qty'>" + row.qty + "</span></div>";
           }).join("");
         }
@@ -1112,6 +1236,74 @@
         }
       }
 
+      function handleAdminInventoryModalChange(event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (!(target instanceof HTMLSelectElement)) return;
+        if (!target.classList.contains("admin-inv-kind")) return;
+        const accountId = target.dataset.accountId || "";
+        if (!accountId) return;
+        const itemSelect = adminInventoryBodyEl.querySelector('.admin-inv-item[data-account-id="' + accountId + '"]');
+        if (!(itemSelect instanceof HTMLSelectElement)) return;
+        itemSelect.innerHTML = buildAdminInventoryItemOptions(target.value === "cosmetic" ? "cosmetic" : "block");
+      }
+
+      function handleAdminInventoryModalAction(event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const action = (target.dataset.adminInvAct || "").trim();
+        if (!action) return;
+        if (!network.db || !canUseAdminPanel) return;
+        const accountId = (target.dataset.accountId || "").trim();
+        if (!accountId) return;
+        const account = adminState.accounts[accountId] || {};
+        const username = (account.username || accountId).toString();
+        const role = getAccountRole(accountId, username);
+        if (!canEditAdminInventoryModal() || !canActorGrantTarget(accountId, role)) {
+          postLocalSystemChat("Permission denied.");
+          return;
+        }
+        const kindSelect = adminInventoryBodyEl.querySelector('.admin-inv-kind[data-account-id="' + accountId + '"]');
+        const itemSelect = adminInventoryBodyEl.querySelector('.admin-inv-item[data-account-id="' + accountId + '"]');
+        const amountInput = adminInventoryBodyEl.querySelector('.admin-inv-amount[data-account-id="' + accountId + '"]');
+        if (!(kindSelect instanceof HTMLSelectElement) || !(itemSelect instanceof HTMLSelectElement) || !(amountInput instanceof HTMLInputElement)) return;
+        const amount = Math.max(1, Math.floor(Number(amountInput.value) || 1));
+        const delta = action === "remove" ? -amount : amount;
+        if (kindSelect.value === "cosmetic") {
+          const itemId = (itemSelect.value || "").toString();
+          if (!itemId) return;
+          const itemDef = COSMETIC_ITEMS.find((it) => it.id === itemId);
+          if (!itemDef) return;
+          network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/cosmeticItems/" + itemId).transaction((current) => {
+            const now = Math.max(0, Math.floor(Number(current) || 0));
+            return Math.max(0, now + delta);
+          }).then((result) => {
+            const next = Math.max(0, Math.floor(Number(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0) || 0));
+            setLocalInventoryCosmeticCount(accountId, itemId, next);
+            logAdminAudit("Admin(inventory-modal) " + (delta > 0 ? "added " : "removed ") + "item " + itemId + " x" + amount + " for @" + username + ".");
+            pushAdminAuditEntry(delta > 0 ? "inventory_add" : "inventory_remove", accountId, "item=" + itemId + " amount=" + amount);
+            syncAdminPanelAfterInventoryChange(accountId);
+          }).catch(() => {
+            postLocalSystemChat("Failed to update cosmetic item.");
+          });
+          return;
+        }
+        const blockId = parseBlockRef(itemSelect.value || "");
+        if (!INVENTORY_IDS.includes(blockId)) return;
+        network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + blockId).transaction((current) => {
+          const now = Math.max(0, Math.floor(Number(current) || 0));
+          return Math.max(0, now + delta);
+        }).then((result) => {
+          const next = Math.max(0, Math.floor(Number(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0) || 0));
+          setLocalInventoryBlockCount(accountId, blockId, next);
+          logAdminAudit("Admin(inventory-modal) " + (delta > 0 ? "added " : "removed ") + "block " + blockId + " x" + amount + " for @" + username + ".");
+          pushAdminAuditEntry(delta > 0 ? "inventory_add" : "inventory_remove", accountId, "block=" + blockId + " amount=" + amount);
+          syncAdminPanelAfterInventoryChange(accountId);
+        }).catch(() => {
+          postLocalSystemChat("Failed to update block item.");
+        });
+      }
+
       function refreshAuditActionFilterOptions() {
         if (!(adminAuditActionFilterEl instanceof HTMLSelectElement)) return;
         const current = adminAuditActionFilterEl.value || "";
@@ -1259,10 +1451,13 @@
         network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + safeBlock).transaction((current) => {
           const next = (Number(current) || 0) + safeAmount;
           return Math.max(0, next);
-        }).then(() => {
+        }).then((result) => {
+          const next = Math.max(0, Math.floor(Number(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0) || 0));
+          setLocalInventoryBlockCount(accountId, safeBlock, next);
           const target = targetLabel || targetUsername || accountId;
           logAdminAudit("Admin(" + sourceTag + ") gave @" + target + " block " + safeBlock + " amount " + safeAmount + ".");
           pushAdminAuditEntry("givex", accountId, "block=" + safeBlock + " amount=" + safeAmount);
+          syncAdminPanelAfterInventoryChange(accountId);
           //postLocalSystemChat("Granted block " + safeBlock + " x" + safeAmount + " to @" + target + ".");
         }).catch(() => {
           postLocalSystemChat("Failed to update inventory.");
@@ -1293,10 +1488,13 @@
         network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/cosmeticItems/" + itemIdSafe).transaction((current) => {
           const next = (Number(current) || 0) + amountSafe;
           return Math.max(0, next);
-        }).then(() => {
+        }).then((result) => {
+          const next = Math.max(0, Math.floor(Number(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0) || 0));
+          setLocalInventoryCosmeticCount(accountId, itemIdSafe, next);
           const target = targetLabel || targetUsername || accountId;
           logAdminAudit("Admin(" + sourceTag + ") gave @" + target + " item " + itemIdSafe + " x" + amountSafe + ".");
           pushAdminAuditEntry("giveitem", accountId, "item=" + itemIdSafe + " amount=" + amountSafe);
+          syncAdminPanelAfterInventoryChange(accountId);
           //postLocalSystemChat("Granted item " + itemIdSafe + " x" + amountSafe + " to @" + target + ".");
         }).catch(() => {
           postLocalSystemChat("Failed to give item.");
@@ -1396,8 +1594,10 @@
             equippedCosmetics: { clothes: "", wings: "", swords: "" }
           };
           network.db.ref(BASE_PATH + "/player-inventories/" + accountId).set(resetPayload).then(() => {
+            adminState.inventories[accountId] = JSON.parse(JSON.stringify(resetPayload));
             logAdminAudit("Admin(" + sourceTag + ") reset inventory for " + accountId + ".");
             pushAdminAuditEntry("resetinv", accountId, "");
+            syncAdminPanelAfterInventoryChange(accountId);
           }).catch(() => {});
           return true;
         }
@@ -2530,6 +2730,9 @@
         if (network.myTradeResponseRef && network.handlers.myTradeResponse) {
           network.myTradeResponseRef.off("value", network.handlers.myTradeResponse);
         }
+        if (network.myActiveTradeRef && network.handlers.myActiveTrade) {
+          network.myActiveTradeRef.off("value", network.handlers.myActiveTrade);
+        }
         if (network.worldsIndexRef && network.handlers.worldsIndex) {
           network.worldsIndexRef.off("value", network.handlers.worldsIndex);
         }
@@ -3166,94 +3369,28 @@
         worldLockModalEl.classList.remove("hidden");
       }
 
-      function findRemotePlayerAtTile(tx, ty) {
-        const bx = tx * TILE;
-        const by = ty * TILE;
-        for (const other of remotePlayers.values()) {
-          if (!other || typeof other.x !== "number" || typeof other.y !== "number") continue;
-          if (rectsOverlap(bx, by, TILE, TILE, other.x, other.y, PLAYER_W, PLAYER_H)) {
-            return other;
-          }
-        }
-        return null;
-      }
-
       function closeTradeMenuModal() {
-        tradeMenuContext = null;
-        if (tradeMenuModalEl) tradeMenuModalEl.classList.add("hidden");
-      }
-
-      function openTradeMenuForPlayer(target) {
-        if (!tradeMenuModalEl || !tradeMenuTitleEl || !target) return;
-        const targetName = (target.name || "Player").toString().slice(0, 20);
-        tradeMenuContext = {
-          accountId: (target.accountId || "").toString(),
-          name: targetName,
-          playerId: (target.id || "").toString()
-        };
-        tradeMenuTitleEl.textContent = "@" + targetName;
-        tradeMenuModalEl.classList.remove("hidden");
+        const ctrl = getTradeController();
+        if (!ctrl || typeof ctrl.closeAll !== "function") return;
+        ctrl.closeAll();
       }
 
       function closeTradeRequestModal() {
-        incomingTradeRequest = null;
-        if (tradeRequestModalEl) tradeRequestModalEl.classList.add("hidden");
+        const ctrl = getTradeController();
+        if (!ctrl || typeof ctrl.closeRequestModal !== "function") return;
+        ctrl.closeRequestModal();
       }
 
       function showIncomingTradeRequest(req) {
-        if (!tradeRequestModalEl || !tradeRequestTextEl) return;
-        const fromName = (req && req.fromName ? req.fromName : "Player").toString().slice(0, 20);
-        incomingTradeRequest = {
-          id: (req && req.id ? req.id : "").toString(),
-          fromAccountId: (req && req.fromAccountId ? req.fromAccountId : "").toString(),
-          fromName
-        };
-        tradeRequestTextEl.textContent = "@" + fromName + " wants to trade with you.";
-        tradeRequestModalEl.classList.remove("hidden");
-      }
-
-      function sendTradeRequestToTarget(targetAccountId, targetName) {
-        if (!network.db || !playerProfileId) return;
-        const safeAccountId = (targetAccountId || "").toString().trim();
-        if (!safeAccountId || safeAccountId === playerProfileId) {
-          postLocalSystemChat("Invalid trade target.");
-          return;
-        }
-        const requestId = "tr_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
-        network.db.ref(BASE_PATH + "/account-commands/" + safeAccountId + "/tradeRequest").set({
-          id: requestId,
-          fromAccountId: playerProfileId,
-          fromName: (playerName || "player").toString().slice(0, 20),
-          fromWorld: currentWorldId,
-          createdAt: firebase.database.ServerValue.TIMESTAMP
-        }).then(() => {
-          postLocalSystemChat("Trade request sent to @" + ((targetName || safeAccountId).toString().slice(0, 20)) + ".");
-        }).catch(() => {
-          postLocalSystemChat("Failed to send trade request.");
-        });
+        const ctrl = getTradeController();
+        if (!ctrl || typeof ctrl.onTradeRequest !== "function") return;
+        ctrl.onTradeRequest(req);
       }
 
       function respondToTradeRequest(accept) {
-        if (!network.db || !incomingTradeRequest) return;
-        const fromAccountId = (incomingTradeRequest.fromAccountId || "").toString();
-        if (!fromAccountId) return;
-        const responseId = "trr_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
-        network.db.ref(BASE_PATH + "/account-commands/" + fromAccountId + "/tradeResponse").set({
-          id: responseId,
-          accepted: Boolean(accept),
-          byAccountId: playerProfileId || "",
-          byName: (playerName || "player").toString().slice(0, 20),
-          createdAt: firebase.database.ServerValue.TIMESTAMP
-        }).catch(() => {});
-        if (network.myTradeRequestRef) {
-          network.myTradeRequestRef.remove().catch(() => {});
-        }
-        if (accept) {
-          postLocalSystemChat("Trade accepted. Full trade window coming next.");
-        } else {
-          postLocalSystemChat("Trade declined.");
-        }
-        closeTradeRequestModal();
+        const ctrl = getTradeController();
+        if (!ctrl || typeof ctrl.respondToTradeRequest !== "function") return;
+        ctrl.respondToTradeRequest(accept);
       }
 
       function removeWorldAdmin(accountId) {
@@ -3624,6 +3761,10 @@
               continue;
             }
 
+            if (id === WATER_ID && drawAnimatedWater(def, x, y, tx, ty)) {
+              continue;
+            }
+
             if (drawBlockImage(def, x, y)) {
               continue;
             }
@@ -3704,6 +3845,82 @@
         const img = blockImageCache.get(key);
         if (!img || !img.complete || img.naturalWidth <= 0 || img.naturalHeight <= 0) return null;
         return img;
+      }
+
+      function getBlockImageByPath(path) {
+        const key = String(path || "").trim();
+        if (!key) return null;
+        if (!blockImageCache.has(key)) {
+          const img = new Image();
+          img.decoding = "async";
+          img.src = key;
+          blockImageCache.set(key, img);
+        }
+        const img = blockImageCache.get(key);
+        if (!img || !img.complete || img.naturalWidth <= 0 || img.naturalHeight <= 0) return null;
+        return img;
+      }
+
+      function buildWaterFramePaths(def) {
+        if (!def || !def.imagePath) return [];
+        const explicit = Array.isArray(SETTINGS.WATER_FRAME_PATHS)
+          ? SETTINGS.WATER_FRAME_PATHS.map((x) => String(x || "").trim()).filter(Boolean)
+          : [];
+        if (explicit.length >= 4) {
+          return explicit.slice(0, 4);
+        }
+        const base = String(def.imagePath).trim();
+        const extIdx = base.lastIndexOf(".");
+        const hasExt = extIdx > 0;
+        const stem = hasExt ? base.slice(0, extIdx) : base;
+        const ext = hasExt ? base.slice(extIdx) : "";
+        const underscored = [1, 2, 3, 4].map((i) => stem + "_" + i + ext);
+        const numbered = [1, 2, 3, 4].map((i) => stem + i + ext);
+        const candidates = [];
+        for (const p of underscored.concat(numbered)) {
+          if (!candidates.includes(p) && p !== base) candidates.push(p);
+        }
+        return candidates.slice(0, 8);
+      }
+
+      function getWaterFrameImages(def) {
+        if (!waterFramePathCache.length) {
+          const paths = buildWaterFramePaths(def);
+          for (const p of paths) waterFramePathCache.push(p);
+        }
+        const ready = [];
+        for (const p of waterFramePathCache) {
+          const img = getBlockImageByPath(p);
+          if (img) ready.push(img);
+          if (ready.length >= 4) break;
+        }
+        return ready;
+      }
+
+      function drawAnimatedWater(def, x, y, tx, ty) {
+        const frames = getWaterFrameImages(def);
+        if (!frames.length) return false;
+        if (frames.length === 1) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(frames[0], x, y, TILE, TILE);
+          ctx.restore();
+          return true;
+        }
+        const now = performance.now();
+        const phaseOffset = ((tx * 31 + ty * 17) % 997) / 997;
+        const animPos = ((now / WATER_FRAME_MS) + phaseOffset) % frames.length;
+        const i0 = Math.floor(animPos) % frames.length;
+        const i1 = (i0 + 1) % frames.length;
+        const blend = animPos - Math.floor(animPos);
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.globalAlpha = 1 - blend;
+        ctx.drawImage(frames[i0], x, y, TILE, TILE);
+        ctx.globalAlpha = blend;
+        ctx.drawImage(frames[i1], x, y, TILE, TILE);
+        ctx.restore();
+        return true;
       }
 
       function drawBlockImage(def, x, y) {
@@ -4315,9 +4532,8 @@
 
       function interactWithWrench(tx, ty) {
         if (!canEditTarget(tx, ty)) return;
-        const targetPlayer = findRemotePlayerAtTile(tx, ty);
-        if (targetPlayer) {
-          openTradeMenuForPlayer(targetPlayer);
+        const tradeCtrl = getTradeController();
+        if (tradeCtrl && typeof tradeCtrl.handleWrenchAt === "function" && tradeCtrl.handleWrenchAt(tx, ty)) {
           return;
         }
         const id = world[ty][tx];
@@ -4869,6 +5085,10 @@
             }
           });
         }
+        if (adminInventoryBodyEl) {
+          adminInventoryBodyEl.addEventListener("click", handleAdminInventoryModalAction);
+          adminInventoryBodyEl.addEventListener("change", handleAdminInventoryModalChange);
+        }
         const vendingCtrl = getVendingController();
         if (vendingCtrl && typeof vendingCtrl.bindModalEvents === "function") {
           vendingCtrl.bindModalEvents();
@@ -4989,52 +5209,9 @@
             postLocalSystemChat("Door access set to owner only.");
           });
         }
-        if (tradeMenuCloseBtn) {
-          tradeMenuCloseBtn.addEventListener("click", () => {
-            closeTradeMenuModal();
-          });
-        }
-        if (tradeCancelBtn) {
-          tradeCancelBtn.addEventListener("click", () => {
-            closeTradeMenuModal();
-          });
-        }
-        if (tradeStartBtn) {
-          tradeStartBtn.addEventListener("click", () => {
-            if (!tradeMenuContext) return;
-            const accountId = (tradeMenuContext.accountId || "").toString();
-            if (!accountId) {
-              postLocalSystemChat("That player can't be traded with right now.");
-              closeTradeMenuModal();
-              return;
-            }
-            sendTradeRequestToTarget(accountId, tradeMenuContext.name || "");
-            closeTradeMenuModal();
-          });
-        }
-        if (tradeMenuModalEl) {
-          tradeMenuModalEl.addEventListener("click", (event) => {
-            if (event.target === tradeMenuModalEl) {
-              closeTradeMenuModal();
-            }
-          });
-        }
-        if (tradeAcceptBtn) {
-          tradeAcceptBtn.addEventListener("click", () => {
-            respondToTradeRequest(true);
-          });
-        }
-        if (tradeDeclineBtn) {
-          tradeDeclineBtn.addEventListener("click", () => {
-            respondToTradeRequest(false);
-          });
-        }
-        if (tradeRequestModalEl) {
-          tradeRequestModalEl.addEventListener("click", (event) => {
-            if (event.target === tradeRequestModalEl) {
-              respondToTradeRequest(false);
-            }
-          });
+        const tradeCtrl = getTradeController();
+        if (tradeCtrl && typeof tradeCtrl.bindUiEvents === "function") {
+          tradeCtrl.bindUiEvents();
         }
         if (adminSearchInput) {
           adminSearchInput.addEventListener("input", () => {
@@ -5122,6 +5299,7 @@
           network.myCommandRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/teleport");
           network.myTradeRequestRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/tradeRequest");
           network.myTradeResponseRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/tradeResponse");
+          network.myActiveTradeRef = network.db.ref(BASE_PATH + "/active-trades/" + playerProfileId);
           network.inventoryRef = network.db.ref(BASE_PATH + "/player-inventories/" + playerProfileId);
           network.accountLogsRootRef = network.db.ref(BASE_PATH + "/account-logs");
           network.forceReloadRef = network.db.ref(BASE_PATH + "/system/force-reload");
@@ -5184,26 +5362,19 @@
             applySelfTeleport(value.world, value.x, value.y);
           };
           network.handlers.myTradeRequest = (snapshot) => {
-            const value = snapshot.val() || {};
-            const requestId = (value.id || "").toString();
-            if (!requestId) return;
-            const fromAccountId = (value.fromAccountId || "").toString();
-            if (!fromAccountId || fromAccountId === playerProfileId) return;
-            const createdAt = Number(value.createdAt) || 0;
-            if (createdAt > 0 && playerSessionStartedAt > 0 && createdAt <= playerSessionStartedAt) return;
-            showIncomingTradeRequest(value);
+            const ctrl = getTradeController();
+            if (!ctrl || typeof ctrl.onTradeRequest !== "function") return;
+            ctrl.onTradeRequest(snapshot.val() || {});
           };
           network.handlers.myTradeResponse = (snapshot) => {
-            const value = snapshot.val() || {};
-            const responseId = (value.id || "").toString();
-            if (!responseId) return;
-            const byName = (value.byName || "player").toString().slice(0, 20);
-            const accepted = Boolean(value.accepted);
-            postLocalSystemChat("@" + byName + (accepted ? " accepted your trade request." : " declined your trade request."));
-            showAnnouncementPopup("Trade: @" + byName + (accepted ? " accepted" : " declined") + " your request.");
-            if (network.myTradeResponseRef) {
-              network.myTradeResponseRef.remove().catch(() => {});
-            }
+            const ctrl = getTradeController();
+            if (!ctrl || typeof ctrl.onTradeResponse !== "function") return;
+            ctrl.onTradeResponse(snapshot.val() || {});
+          };
+          network.handlers.myActiveTrade = (snapshot) => {
+            const ctrl = getTradeController();
+            if (!ctrl || typeof ctrl.onActiveTradePointer !== "function") return;
+            ctrl.onActiveTradePointer(snapshot.val() || "");
           };
 
           network.handlers.worldsIndex = (snapshot) => {
@@ -5378,6 +5549,7 @@
           network.myCommandRef.on("value", network.handlers.myCommand);
           network.myTradeRequestRef.on("value", network.handlers.myTradeRequest);
           network.myTradeResponseRef.on("value", network.handlers.myTradeResponse);
+          network.myActiveTradeRef.on("value", network.handlers.myActiveTrade);
           network.worldsIndexRef.on("value", network.handlers.worldsIndex);
           network.globalPlayersRef.on("value", network.handlers.globalPlayers);
           network.myBanRef.on("value", network.handlers.myBan);
@@ -5774,6 +5946,12 @@
         if (e.key === "Escape" && tradeRequestModalEl && !tradeRequestModalEl.classList.contains("hidden")) {
           e.preventDefault();
           respondToTradeRequest(false);
+          return;
+        }
+        const tradePanelEl = document.getElementById("tradePanelModal");
+        if (e.key === "Escape" && tradePanelEl && !tradePanelEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeTradeMenuModal();
           return;
         }
         if (e.key === "Escape" && adminInventoryModalEl && !adminInventoryModalEl.classList.contains("hidden")) {

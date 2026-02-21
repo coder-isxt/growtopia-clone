@@ -188,6 +188,16 @@
         </div>
       </div>
     </div>
+    <div id="tradePanelModal" class="vending-modal hidden">
+      <div class="vending-card trade-card">
+        <div class="vending-header">
+          <strong id="tradePanelTitle">Trade</strong>
+          <button id="tradePanelCloseBtn" type="button">Close</button>
+        </div>
+        <div id="tradePanelBody" class="trade-body"></div>
+        <div id="tradePanelActions" class="vending-actions"></div>
+      </div>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
@@ -229,6 +239,7 @@
         "sync_blocks.js",
         "sync_worlds.js",
         "vending.js",
+        "trade.js",
         "chat.js",
         "menu.js",
         "game.js"
