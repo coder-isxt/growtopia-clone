@@ -105,6 +105,21 @@
         <div id="vendingActions" class="vending-actions"></div>
       </div>
     </div>
+    <div id="signModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="signTitle">Sign</strong>
+          <button id="signCloseBtn" type="button">Close</button>
+        </div>
+        <div class="sign-body">
+          <textarea id="signTextInput" maxlength="120" placeholder="Enter sign text..."></textarea>
+          <div class="sign-hint">Shown when standing on top of this sign.</div>
+        </div>
+        <div class="vending-actions">
+          <button id="signSaveBtn" type="button">Save</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>

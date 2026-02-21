@@ -42,6 +42,11 @@
       const vendingBodyEl = document.getElementById("vendingBody");
       const vendingActionsEl = document.getElementById("vendingActions");
       const vendingCloseBtn = document.getElementById("vendingCloseBtn");
+      const signModalEl = document.getElementById("signModal");
+      const signTitleEl = document.getElementById("signTitle");
+      const signTextInputEl = document.getElementById("signTextInput");
+      const signSaveBtn = document.getElementById("signSaveBtn");
+      const signCloseBtn = document.getElementById("signCloseBtn");
       const chatPanelEl = document.getElementById("chatPanel");
       const chatMessagesEl = document.getElementById("chatMessages");
       const chatInputRowEl = document.getElementById("chatInputRow");
@@ -140,7 +145,8 @@
         14: { key: "stair_block_r1", name: "Stair SE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S2", faIcon: "fa-solid fa-stairs" },
         15: { key: "stair_block_r2", name: "Stair SW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs" },
         16: { key: "stair_block_r3", name: "Stair NW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs" },
-        17: { key: "vending_machine", name: "Vending Machine", color: "#4d6b8b", solid: true, icon: "VM", faIcon: "fa-solid fa-store" }
+        17: { key: "vending_machine", name: "Vending Machine", color: "#4d6b8b", solid: true, icon: "VM", faIcon: "fa-solid fa-store" },
+        18: { key: "sign_block", name: "Sign", color: "#b98a58", solid: false, icon: "SG", faIcon: "fa-solid fa-signs-post" }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
@@ -152,10 +158,11 @@
       const STAIR_BASE_ID = 13;
       const STAIR_ROTATION_IDS = [13, 14, 15, 16];
       const VENDING_ID = 17;
+      const SIGN_ID = 18;
       const TOOL_FIST = "fist";
       const TOOL_WRENCH = "wrench";
-      const slotOrder = [TOOL_FIST, TOOL_WRENCH, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17];
-      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17];
+      const slotOrder = [TOOL_FIST, TOOL_WRENCH, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18];
+      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18];
       const COSMETIC_SLOTS = ["clothes", "wings", "swords"];
       const blockMaps = typeof blockKeysModule.buildMaps === "function"
         ? blockKeysModule.buildMaps(blockDefs)
@@ -188,7 +195,8 @@
         11: 0,
         12: 0,
         13: 0,
-        17: 0
+        17: 0,
+        18: 0
       };
 
       let selectedSlot = 0;
@@ -212,8 +220,10 @@
         ? animationsModule.createTracker()
         : new Map();
       const overheadChatByPlayer = new Map();
+      const signTexts = new Map();
       const worldOccupancy = new Map();
       let vendingController = null;
+      let signEditContext = null;
       let knownWorldIds = [];
       let totalOnlinePlayers = 0;
       let hasRenderedMenuWorldList = false;
@@ -222,6 +232,7 @@
       let lastHandledForceReloadEventId = loadForceReloadMarker();
       let isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
       let isChatOpen = false;
+      let suppressChatOpenUntilMs = 0;
       let isLogsOpen = false;
       let canViewAccountLogs = false;
       let canUseAdminPanel = false;
@@ -336,6 +347,7 @@
         playersRef: null,
         blocksRef: null,
         vendingRef: null,
+        signsRef: null,
         lockRef: null,
         chatRef: null,
         chatFeedRef: null,
@@ -367,6 +379,9 @@
           vendingAdded: null,
           vendingChanged: null,
           vendingRemoved: null,
+          signAdded: null,
+          signChanged: null,
+          signRemoved: null,
           worldLock: null,
           chatAdded: null,
           accountLogAdded: null,
@@ -2032,6 +2047,8 @@
         remotePlayers.clear();
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
+        signTexts.clear();
+        closeSignModal();
         updateOnlineCount();
         world = makeWorld(currentWorldId);
         if (blockSyncer && typeof blockSyncer.reset === "function") {
@@ -2062,6 +2079,7 @@
         } else {
           setChatOpen(false);
           closeVendingModal();
+          closeSignModal();
           if (!hasRenderedMenuWorldList) {
             refreshWorldButtons(null, true);
             hasRenderedMenuWorldList = true;
@@ -2395,6 +2413,7 @@
         const raw = chatInputEl.value || "";
         const trimmed = raw.trim();
         if (!trimmed) return;
+        suppressChatOpenUntilMs = performance.now() + 300;
         if (handleAdminChatCommand(trimmed)) {
           chatInputEl.value = "";
           setChatOpen(false);
@@ -2507,6 +2526,82 @@
 
       function getTileKey(tx, ty) {
         return String(tx) + "_" + String(ty);
+      }
+
+      function normalizeSignRecord(value) {
+        if (!value) return null;
+        let text = "";
+        if (typeof value === "string") {
+          text = value;
+        } else if (typeof value === "object") {
+          text = (value.text || "").toString();
+        }
+        text = text.replace(/\s+/g, " ").trim().slice(0, 120);
+        if (!text) return null;
+        return {
+          text,
+          updatedAt: value && typeof value.updatedAt === "number" ? value.updatedAt : 0
+        };
+      }
+
+      function setLocalSignText(tx, ty, value) {
+        const key = getTileKey(tx, ty);
+        const normalized = normalizeSignRecord(value);
+        if (!normalized) {
+          signTexts.delete(key);
+          if (signEditContext && signEditContext.tx === tx && signEditContext.ty === ty) {
+            closeSignModal();
+          }
+          return;
+        }
+        signTexts.set(key, normalized);
+      }
+
+      function getLocalSignText(tx, ty) {
+        const entry = signTexts.get(getTileKey(tx, ty));
+        return entry && entry.text ? entry.text : "";
+      }
+
+      function closeSignModal() {
+        signEditContext = null;
+        if (signModalEl) signModalEl.classList.add("hidden");
+      }
+
+      function saveSignText(tx, ty, rawText) {
+        const text = (rawText || "").toString().replace(/\s+/g, " ").trim().slice(0, 120);
+        if (!text) {
+          setLocalSignText(tx, ty, null);
+          if (network.enabled && network.signsRef) {
+            network.signsRef.child(getTileKey(tx, ty)).remove().catch(() => {});
+          }
+          return;
+        }
+        const payload = {
+          text,
+          updatedAt: Date.now()
+        };
+        setLocalSignText(tx, ty, payload);
+        if (network.enabled && network.signsRef) {
+          network.signsRef.child(getTileKey(tx, ty)).set({
+            text,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+          }).catch(() => {});
+        }
+      }
+
+      function openSignModal(tx, ty) {
+        if (!signModalEl || !signTextInputEl || !signTitleEl) return;
+        if (!canEditTarget(tx, ty)) return;
+        if (world[ty][tx] !== SIGN_ID) return;
+        if (!canEditCurrentWorld()) {
+          notifyWorldLockedDenied();
+          return;
+        }
+        signEditContext = { tx, ty };
+        signTitleEl.textContent = "Sign (" + tx + "," + ty + ")";
+        signTextInputEl.value = getLocalSignText(tx, ty);
+        signModalEl.classList.remove("hidden");
+        signTextInputEl.focus();
       }
 
       function normalizeVendingRecord(value) {
@@ -2879,6 +2974,16 @@
               continue;
             }
 
+            if (id === SIGN_ID) {
+              ctx.fillStyle = "#8b5f35";
+              ctx.fillRect(x + 14, y + 8, 4, TILE - 8);
+              ctx.fillStyle = "#d9b27a";
+              ctx.fillRect(x + 5, y + 4, TILE - 10, 12);
+              ctx.fillStyle = "rgba(70, 44, 24, 0.6)";
+              ctx.fillRect(x + 7, y + 6, TILE - 14, 2);
+              continue;
+            }
+
             if (id === VENDING_ID) {
               ctx.fillStyle = "#4d6b8b";
               ctx.fillRect(x, y, TILE, TILE);
@@ -2907,6 +3012,38 @@
             }
           }
         }
+      }
+
+      function drawSignTopText() {
+        const tx = Math.floor((player.x + PLAYER_W / 2) / TILE);
+        const ty = Math.floor((player.y + PLAYER_H + 1) / TILE);
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
+        if (world[ty][tx] !== SIGN_ID) return;
+        const text = getLocalSignText(tx, ty);
+        if (!text) return;
+        ctx.save();
+        ctx.font = "13px 'Trebuchet MS', sans-serif";
+        const padX = 8;
+        const padY = 6;
+        const maxW = Math.min(420, canvas.width - 24);
+        const lines = wrapChatText(text, maxW - padX * 2).slice(0, 4);
+        let widest = 0;
+        for (let i = 0; i < lines.length; i++) {
+          widest = Math.max(widest, ctx.measureText(lines[i]).width);
+        }
+        const bubbleW = Math.min(maxW, Math.max(70, widest + padX * 2));
+        const bubbleH = lines.length * 15 + padY * 2;
+        const x = (canvas.width - bubbleW) / 2;
+        const y = 18;
+        ctx.fillStyle = "rgba(12, 24, 35, 0.9)";
+        ctx.fillRect(x, y, bubbleW, bubbleH);
+        ctx.strokeStyle = "rgba(255,255,255,0.28)";
+        ctx.strokeRect(x, y, bubbleW, bubbleH);
+        ctx.fillStyle = "#f4f9ff";
+        for (let i = 0; i < lines.length; i++) {
+          ctx.fillText(lines[i], x + padX, y + padY + 11 + i * 15);
+        }
+        ctx.restore();
       }
 
       function drawWings(px, py, wingsId, facing, wingFlap) {
@@ -3189,6 +3326,7 @@
         drawWorld();
         drawRemotePlayers();
         drawPlayer();
+        drawSignTopText();
         drawAllOverheadChats();
         drawCrosshair();
       }
@@ -3243,6 +3381,8 @@
               updatedAt: Date.now()
             });
             seedVendingMachineOwner(tx, ty);
+          } else if (id === SIGN_ID) {
+            saveSignText(tx, ty, "");
           }
           saveInventory();
           refreshToolbar();
@@ -3326,6 +3466,12 @@
             return;
           }
         }
+        if (id === SIGN_ID) {
+          saveSignText(tx, ty, "");
+          if (signEditContext && signEditContext.tx === tx && signEditContext.ty === ty) {
+            closeSignModal();
+          }
+        }
 
         world[ty][tx] = 0;
         const dropId = getInventoryDropId(id);
@@ -3405,11 +3551,23 @@
         ctrl.interact(tx, ty);
       }
 
+      function interactWithWrench(tx, ty) {
+        if (!canEditTarget(tx, ty)) return;
+        const id = world[ty][tx];
+        if (id === VENDING_ID) {
+          interactWithVendingMachine(tx, ty);
+          return;
+        }
+        if (id === SIGN_ID) {
+          openSignModal(tx, ty);
+        }
+      }
+
       function useActionAt(tx, ty) {
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
         if (selectedId === TOOL_WRENCH) {
-          interactWithVendingMachine(tx, ty);
+          interactWithWrench(tx, ty);
           return;
         }
         if (selectedId === TOOL_FIST) {
@@ -3423,7 +3581,7 @@
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
         if (selectedId === TOOL_WRENCH) {
-          interactWithVendingMachine(tx, ty);
+          interactWithWrench(tx, ty);
           return;
         }
         if (selectedId !== TOOL_FIST) return;
@@ -3512,6 +3670,15 @@
         if (network.vendingRef && network.handlers.vendingRemoved) {
           network.vendingRef.off("child_removed", network.handlers.vendingRemoved);
         }
+        if (network.signsRef && network.handlers.signAdded) {
+          network.signsRef.off("child_added", network.handlers.signAdded);
+        }
+        if (network.signsRef && network.handlers.signChanged) {
+          network.signsRef.off("child_changed", network.handlers.signChanged);
+        }
+        if (network.signsRef && network.handlers.signRemoved) {
+          network.signsRef.off("child_removed", network.handlers.signRemoved);
+        }
         if (typeof syncWorldsModule.detachWorldListeners === "function") {
           syncWorldsModule.detachWorldListeners(network, network.handlers, true);
         } else if (network.playerRef) {
@@ -3525,6 +3692,7 @@
         network.playersRef = null;
         network.blocksRef = null;
         network.vendingRef = null;
+        network.signsRef = null;
         network.lockRef = null;
         network.chatRef = null;
         network.chatFeedRef = null;
@@ -3535,11 +3703,16 @@
         network.handlers.vendingAdded = null;
         network.handlers.vendingChanged = null;
         network.handlers.vendingRemoved = null;
+        network.handlers.signAdded = null;
+        network.handlers.signChanged = null;
+        network.handlers.signRemoved = null;
         network.handlers.worldLock = null;
         network.handlers.chatAdded = null;
         currentWorldLock = null;
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
+        signTexts.clear();
+        closeSignModal();
       }
 
       function leaveCurrentWorld() {
@@ -3627,6 +3800,7 @@
         network.playersRef = worldRefs && worldRefs.playersRef ? worldRefs.playersRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/players");
         network.blocksRef = worldRefs && worldRefs.blocksRef ? worldRefs.blocksRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/blocks");
         network.vendingRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/vending");
+        network.signsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/signs");
         network.lockRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/lock");
         network.chatRef = worldRefs && worldRefs.chatRef ? worldRefs.chatRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/chat");
         network.chatFeedRef = typeof syncWorldsModule.createChatFeed === "function"
@@ -3650,11 +3824,15 @@
               network.blocksRef.child(tx + "_" + ty).set(requiredId).catch(() => {});
             }
             setLocalVendingMachine(tx, ty, null);
+            setLocalSignText(tx, ty, null);
             return;
           }
           world[ty][tx] = id;
           if (id !== VENDING_ID) {
             setLocalVendingMachine(tx, ty, null);
+          }
+          if (id !== SIGN_ID) {
+            setLocalSignText(tx, ty, null);
           }
         };
         const clearBlockValue = (tx, ty) => {
@@ -3665,10 +3843,12 @@
               network.blocksRef.child(tx + "_" + ty).set(requiredId).catch(() => {});
             }
             setLocalVendingMachine(tx, ty, null);
+            setLocalSignText(tx, ty, null);
             return;
           }
           world[ty][tx] = 0;
           setLocalVendingMachine(tx, ty, null);
+          setLocalSignText(tx, ty, null);
         };
 
         const handlers = typeof syncWorldsModule.buildWorldHandlers === "function"
@@ -3703,6 +3883,17 @@
           if (!tile) return;
           setLocalVendingMachine(tile.tx, tile.ty, null);
         };
+        network.handlers.signAdded = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalSignText(tile.tx, tile.ty, snapshot.val());
+        };
+        network.handlers.signChanged = network.handlers.signAdded;
+        network.handlers.signRemoved = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalSignText(tile.tx, tile.ty, null);
+        };
         if (typeof syncWorldsModule.attachWorldListeners === "function") {
           syncWorldsModule.attachWorldListeners(network, network.handlers);
         }
@@ -3710,6 +3901,11 @@
           network.vendingRef.on("child_added", network.handlers.vendingAdded);
           network.vendingRef.on("child_changed", network.handlers.vendingChanged);
           network.vendingRef.on("child_removed", network.handlers.vendingRemoved);
+        }
+        if (network.signsRef && network.handlers.signAdded) {
+          network.signsRef.on("child_added", network.handlers.signAdded);
+          network.signsRef.on("child_changed", network.handlers.signChanged);
+          network.signsRef.on("child_removed", network.handlers.signRemoved);
         }
         enforceSpawnStructureInWorldData();
         enforceSpawnStructureInDatabase();
@@ -3844,6 +4040,38 @@
         if (vendingCtrl && typeof vendingCtrl.bindModalEvents === "function") {
           vendingCtrl.bindModalEvents();
         }
+        if (signCloseBtn) {
+          signCloseBtn.addEventListener("click", () => {
+            closeSignModal();
+          });
+        }
+        if (signModalEl) {
+          signModalEl.addEventListener("click", (event) => {
+            if (event.target === signModalEl) {
+              closeSignModal();
+            }
+          });
+        }
+        if (signSaveBtn) {
+          signSaveBtn.addEventListener("click", () => {
+            if (!signEditContext || !signTextInputEl) return;
+            const tx = Number(signEditContext.tx);
+            const ty = Number(signEditContext.ty);
+            if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
+            if (!canEditCurrentWorld()) {
+              notifyWorldLockedDenied();
+              closeSignModal();
+              return;
+            }
+            if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H || world[ty][tx] !== SIGN_ID) {
+              closeSignModal();
+              return;
+            }
+            saveSignText(tx, ty, signTextInputEl.value || "");
+            closeSignModal();
+            postLocalSystemChat("Sign saved.");
+          });
+        }
         if (adminSearchInput) {
           adminSearchInput.addEventListener("input", () => {
             adminSearchQuery = (adminSearchInput.value || "").trim().toLowerCase();
@@ -3889,6 +4117,7 @@
         chatInputEl.addEventListener("keydown", (event) => {
           if (event.key === "Enter") {
             event.preventDefault();
+            event.stopPropagation();
             sendChatMessage();
           }
         });
@@ -4492,6 +4721,11 @@
           closeVendingModal();
           return;
         }
+        if (e.key === "Escape" && signModalEl && !signModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeSignModal();
+          return;
+        }
         if (e.key === "Escape" && adminInventoryModalEl && !adminInventoryModalEl.classList.contains("hidden")) {
           e.preventDefault();
           closeAdminInventoryModal();
@@ -4508,6 +4742,7 @@
           return;
         }
         if (inWorld && !isCoarsePointer && e.key === "Enter" && !e.shiftKey) {
+          if (performance.now() < suppressChatOpenUntilMs) return;
           if (document.activeElement === chatInputEl) return;
           e.preventDefault();
           setChatOpen(true);

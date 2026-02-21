@@ -1070,6 +1070,32 @@ canvas {
   cursor: not-allowed;
 }
 
+.sign-card {
+  width: min(460px, 94vw);
+}
+
+.sign-body {
+  display: grid;
+  gap: 8px;
+}
+
+.sign-body textarea {
+  width: 100%;
+  min-height: 100px;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-radius: 8px;
+  font: inherit;
+  padding: 8px;
+}
+
+.sign-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
 .vending-stat-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

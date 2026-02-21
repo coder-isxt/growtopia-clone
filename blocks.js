@@ -19,7 +19,8 @@ window.GTModules.blocks = {
       14: { key: "stair_block_r1", name: "Stair SE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S2", faIcon: "fa-solid fa-stairs" },
       15: { key: "stair_block_r2", name: "Stair SW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs" },
       16: { key: "stair_block_r3", name: "Stair NW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs" },
-      17: { key: "vending_machine", name: "Vending Machine", color: "#4d6b8b", solid: true, icon: "VM", faIcon: "fa-solid fa-store" }
+      17: { key: "vending_machine", name: "Vending Machine", color: "#4d6b8b", solid: true, icon: "VM", faIcon: "fa-solid fa-store" },
+      18: { key: "sign_block", name: "Sign", color: "#b98a58", solid: false, icon: "SG", faIcon: "fa-solid fa-signs-post" }
     };
   },
   hashWorldSeed(worldId) {
