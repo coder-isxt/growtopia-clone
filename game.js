@@ -278,6 +278,8 @@
           canEditTarget,
           getInventory: () => inventory,
           getInventoryIds: () => INVENTORY_IDS,
+          getCosmeticInventory: () => cosmeticInventory,
+          getCosmeticItems: () => COSMETIC_ITEMS,
           getVendingId: () => VENDING_ID,
           getWorldLockId: () => WORLD_LOCK_ID,
           getWorld: () => world,
@@ -3231,7 +3233,10 @@
             setLocalVendingMachine(tx, ty, {
               ownerAccountId: playerProfileId || "",
               ownerName: (playerName || "").toString().slice(0, 20),
+              sellType: "block",
               sellBlockId: 0,
+              sellCosmeticId: "",
+              sellQuantity: 1,
               sellBlockKey: "",
               priceLocks: 0,
               stock: 0,
@@ -4255,7 +4260,7 @@
         dragHint.className = "toolbar-drag-hint";
         dragHint.textContent = "Drag to move inventory";
         toolbar.appendChild(dragHint);
-        const blockSection = createInventorySection("Blocks & Tools", "Select with 1-" + slotOrder.length);
+        const blockSection = createInventorySection("Blocks & Tools", "Click to select (1: Fist, 2: Wrench)");
         const cosmeticEntries = [];
         for (let i = 0; i < slotOrder.length; i++) {
           const id = slotOrder[i];
@@ -4269,7 +4274,7 @@
             selected: i === selectedSlot,
             variant: "inventory-slot-block",
             title: title + (isTool ? "" : " (x" + (inventory[id] || 0) + ")"),
-            keyLabel: String(i + 1),
+            keyLabel: isFist ? "1" : (isWrench ? "2" : ""),
             color: isFist ? "#c59b81" : (isWrench ? "#90a4ae" : (blockDef && blockDef.color ? blockDef.color : "#999")),
             iconClass: isTool ? "icon-fist" : "icon-block",
             faIconClass: isFist ? "fa-solid fa-hand-fist" : (isWrench ? "fa-solid fa-screwdriver-wrench" : (blockDef && blockDef.faIcon ? blockDef.faIcon : "")),
@@ -4277,6 +4282,14 @@
             name: title,
             countText: isTool ? "" : "x" + (inventory[id] || 0),
             onClick: () => {
+              if (!isTool) {
+                const ctrl = getVendingController();
+                if (ctrl && typeof ctrl.handleInventoryPick === "function") {
+                  if (ctrl.handleInventoryPick({ type: "block", blockId: id })) {
+                    return;
+                  }
+                }
+              }
               selectedSlot = i;
               refreshToolbar();
             }
@@ -4311,7 +4324,15 @@
               name: item.name,
               countText: "x" + item.count,
               badgeText: equipped ? "E" : "",
-              onClick: () => equipCosmetic(item.slot, item.id)
+              onClick: () => {
+                const ctrl = getVendingController();
+                if (ctrl && typeof ctrl.handleInventoryPick === "function") {
+                  if (ctrl.handleInventoryPick({ type: "cosmetic", cosmeticId: item.id })) {
+                    return;
+                  }
+                }
+                equipCosmetic(item.slot, item.id);
+              }
             });
             cosmeticSection.grid.appendChild(slotEl);
           }
@@ -4457,6 +4478,16 @@
       initToolbarDrag();
 
       window.addEventListener("keydown", (e) => {
+        const activeEl = document.activeElement;
+        const isTypingContext = Boolean(
+          activeEl &&
+          (
+            activeEl.tagName === "INPUT" ||
+            activeEl.tagName === "TEXTAREA" ||
+            activeEl.tagName === "SELECT" ||
+            activeEl.isContentEditable
+          )
+        );
         if (e.key === "Escape" && vendingModalEl && !vendingModalEl.classList.contains("hidden")) {
           e.preventDefault();
           closeVendingModal();
@@ -4486,13 +4517,18 @@
         if (isChatOpen && document.activeElement === chatInputEl) {
           return;
         }
-        if (e.code.startsWith("Digit")) {
-          const digit = Number(e.code.replace("Digit", ""));
-          const idx = digit === 0 ? 9 : digit - 1;
-          if (idx >= 0 && idx < slotOrder.length) {
-            selectedSlot = idx;
+        if (!isTypingContext && e.code.startsWith("Digit")) {
+          if (e.code === "Digit1") {
+            selectedSlot = 0;
+            refreshToolbar();
+          } else if (e.code === "Digit2") {
+            selectedSlot = 1;
             refreshToolbar();
           }
+        }
+
+        if (isTypingContext) {
+          return;
         }
 
         if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) {

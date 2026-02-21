@@ -12,20 +12,65 @@ window.GTModules.vending = (function createVendingModule() {
       return fallback;
     }
 
+    function esc(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
     function getTileKey(tx, ty) {
       return String(tx) + "_" + String(ty);
+    }
+
+    function parseItemToken(tokenRaw) {
+      const token = String(tokenRaw || "").trim();
+      if (!token) return null;
+      if (token.startsWith("b:")) {
+        const id = Math.floor(Number(token.slice(2)) || 0);
+        if (!id) return null;
+        return { type: "block", blockId: id, cosmeticId: "", token: "b:" + id };
+      }
+      if (token.startsWith("c:")) {
+        const cosmeticId = token.slice(2).trim();
+        if (!cosmeticId) return null;
+        return { type: "cosmetic", blockId: 0, cosmeticId, token: "c:" + cosmeticId };
+      }
+      return null;
+    }
+
+    function getCosmeticItemMap() {
+      const out = {};
+      const items = Array.isArray(get("getCosmeticItems", [])) ? get("getCosmeticItems", []) : [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (!item || !item.id) continue;
+        out[item.id] = item;
+      }
+      return out;
     }
 
     function normalizeRecord(value) {
       if (!value || typeof value !== "object") return null;
       const ownerAccountId = (value.ownerAccountId || "").toString();
       if (!ownerAccountId) return null;
-      const sellBlockId = Number(value.sellBlockId) || 0;
-      const getBlockKeyById = opts.getBlockKeyById || (() => "block_" + sellBlockId);
+      const rawType = String(value.sellType || "").toLowerCase();
+      const sellBlockId = Math.max(0, Math.floor(Number(value.sellBlockId) || 0));
+      const sellCosmeticId = String(value.sellCosmeticId || "").trim();
+      const sellType = rawType === "cosmetic"
+        ? "cosmetic"
+        : (sellCosmeticId ? "cosmetic" : "block");
+      const sellQuantity = Math.max(1, Math.floor(Number(value.sellQuantity) || 1));
+      const getBlockKeyById = opts.getBlockKeyById || ((id) => "block_" + id);
       return {
         ownerAccountId,
         ownerName: (value.ownerName || "").toString().slice(0, 20),
-        sellBlockId,
+        sellType,
+        sellBlockId: sellType === "block" ? sellBlockId : 0,
+        sellCosmeticId: sellType === "cosmetic" ? sellCosmeticId : "",
+        sellQuantity,
         sellBlockKey: (value.sellBlockKey || getBlockKeyById(sellBlockId)).toString(),
         priceLocks: Math.max(0, Math.floor(Number(value.priceLocks) || 0)),
         stock: Math.max(0, Math.floor(Number(value.stock) || 0)),
@@ -53,6 +98,31 @@ window.GTModules.vending = (function createVendingModule() {
       return Boolean(vm && pid && vm.ownerAccountId === pid);
     }
 
+    function getListingIdentity(vm) {
+      if (!vm) return null;
+      if (vm.sellType === "cosmetic") {
+        const id = String(vm.sellCosmeticId || "");
+        if (!id) return null;
+        return "c:" + id;
+      }
+      const id = Math.max(0, Math.floor(Number(vm.sellBlockId) || 0));
+      if (!id) return null;
+      return "b:" + id;
+    }
+
+    function getListingLabel(vm) {
+      if (!vm) return "none";
+      const getBlockKeyById = opts.getBlockKeyById || ((id) => "block_" + id);
+      if (vm.sellType === "cosmetic") {
+        const cmap = getCosmeticItemMap();
+        const cid = String(vm.sellCosmeticId || "");
+        const item = cmap[cid];
+        return item ? item.name : (cid || "none");
+      }
+      const id = Math.max(0, Math.floor(Number(vm.sellBlockId) || 0));
+      return id ? getBlockKeyById(id) : "none";
+    }
+
     function getModalEls() {
       return {
         modal: get("getVendingModalEl", null),
@@ -71,53 +141,76 @@ window.GTModules.vending = (function createVendingModule() {
     function renderModal(tx, ty, vm) {
       const els = getModalEls();
       if (!els.modal || !els.title || !els.body || !els.actions) return;
-      const getBlockKeyById = opts.getBlockKeyById || ((id) => "block_" + id);
       const owner = vm.ownerName || "owner";
-      const blockLabel = vm.sellBlockId ? getBlockKeyById(vm.sellBlockId) : "none";
-      const inv = get("getInventory", {});
-      const inventoryIds = get("getInventoryIds", []);
-      const vendingId = get("getVendingId", 0);
-      els.title.textContent = "Vending Machine (" + tx + "," + ty + ")";
+      const bundleQty = Math.max(1, Math.floor(Number(vm.sellQuantity) || 1));
       const canManageMachine = canManage(vm) || (!vm.ownerAccountId && get("getPlayerProfileId", ""));
-      const listingRows =
-        "<div>Owner: @" + owner + "</div>" +
-        "<div>Listing: " + blockLabel + "</div>" +
-        "<div>Price: " + (vm.priceLocks || 0) + " World Locks</div>" +
-        "<div>Stock: " + (vm.stock || 0) + "</div>" +
-        "<div>Earnings: " + (vm.earningsLocks || 0) + " World Locks</div>";
+      const listingLabel = getListingLabel(vm);
+      const prevCtx = modalCtx && modalCtx.tx === tx && modalCtx.ty === ty ? modalCtx : null;
+      const selectedToken = (prevCtx && prevCtx.pendingToken) || getListingIdentity(vm) || "";
+      const selectedParsed = parseItemToken(selectedToken);
+      const selectedLabel = selectedParsed
+        ? (selectedParsed.type === "cosmetic"
+          ? getListingLabel({ sellType: "cosmetic", sellCosmeticId: selectedParsed.cosmeticId })
+          : getListingLabel({ sellType: "block", sellBlockId: selectedParsed.blockId }))
+        : "None selected";
+      const pickingFromInventory = Boolean(prevCtx && prevCtx.pickingFromInventory);
+      const buyBundleMax = Math.max(0, Math.floor((vm.stock || 0) / bundleQty));
+      els.title.textContent = "Vending Machine (" + tx + "," + ty + ")";
+
+      let bodyHtml =
+        '<div class="vending-stat-grid">' +
+        '<div class="vending-stat"><span>Owner</span><strong>@' + esc(owner) + '</strong></div>' +
+        '<div class="vending-stat"><span>Listing</span><strong>' + esc(listingLabel) + '</strong></div>' +
+        '<div class="vending-stat"><span>Offer</span><strong>' + bundleQty + ' for ' + (vm.priceLocks || 0) + ' WL</strong></div>' +
+        '<div class="vending-stat"><span>Stock</span><strong>' + (vm.stock || 0) + ' (' + buyBundleMax + ' buys)</strong></div>' +
+        '<div class="vending-stat"><span>Earnings</span><strong>' + (vm.earningsLocks || 0) + ' WL</strong></div>' +
+        '</div>';
+
       if (canManageMachine) {
-        const optionRows = [];
-        for (let i = 0; i < inventoryIds.length; i++) {
-          const id = inventoryIds[i];
-          if (id === vendingId) continue;
-          const qty = Math.max(0, Math.floor(Number(inv[id]) || 0));
-          if (qty <= 0 && id !== vm.sellBlockId) continue;
-          const selected = id === vm.sellBlockId ? " selected" : "";
-          optionRows.push("<option value=\"" + id + "\"" + selected + ">" + getBlockKeyById(id) + " (inv " + qty + ")</option>");
-        }
-        if (!optionRows.length) {
-          optionRows.push("<option value=\"0\">No stockable items</option>");
-        }
-        const defaultPrice = vm.priceLocks > 0 ? vm.priceLocks : 1;
-        const defaultStock = Math.max(0, Math.floor(Number(vm.stock) || 0));
-        els.body.innerHTML =
-          listingRows +
-          "<hr>" +
-          "<div><strong>Edit Listing</strong></div>" +
-          "<div>Item: <select data-vending-input=\"block\">" + optionRows.join("") + "</select></div>" +
-          "<div>Price: <input data-vending-input=\"price\" type=\"number\" min=\"1\" step=\"1\" value=\"" + defaultPrice + "\"></div>" +
-          "<div>Set stock total: <input data-vending-input=\"stock\" type=\"number\" min=\"0\" step=\"1\" value=\"" + defaultStock + "\"></div>";
+        bodyHtml +=
+          '<div class="vending-divider"></div>' +
+          '<div class="vending-edit">' +
+          '<div class="vending-edit-title">Edit Listing</div>' +
+          '<input type="hidden" data-vending-input="item" value="' + esc(selectedToken) + '">' +
+          '<div class="vending-select-row">' +
+          '<button type="button" class="vending-pick-trigger" data-vending-act="pickitem">Select From Inventory</button>' +
+          '<div class="vending-selected-label">' + esc(selectedLabel) + '</div>' +
+          '</div>' +
+          '<div class="vending-select-status">' + (pickingFromInventory ? "Click an inventory item/cosmetic to select listing." : "") + '</div>' +
+          '<div class="vending-field-grid">' +
+          '<label class="vending-field"><span>Offer Qty</span><input data-vending-input="packQty" type="number" min="1" step="1" value="' + bundleQty + '"></label>' +
+          '<label class="vending-field"><span>Price (WL)</span><input data-vending-input="price" type="number" min="1" step="1" value="' + Math.max(1, vm.priceLocks || 1) + '"></label>' +
+          '<label class="vending-field"><span>Stock Total</span><input data-vending-input="stock" type="number" min="0" step="1" value="' + Math.max(0, vm.stock || 0) + '"></label>' +
+          '<label class="vending-field"><span>Buy Amount</span><input data-vending-input="buyAmount" type="number" min="1" step="1" value="1"></label>' +
+          '</div>' +
+          '</div>';
       } else {
-        els.body.innerHTML = listingRows;
+        bodyHtml +=
+          '<div class="vending-divider"></div>' +
+          '<div class="vending-field-grid">' +
+          '<label class="vending-field"><span>Buy Amount</span><input data-vending-input="buyAmount" type="number" min="1" step="1" value="1"></label>' +
+          '</div>';
       }
-      const canBuy = Boolean(vm.sellBlockId && vm.stock > 0 && vm.priceLocks > 0);
-      const manageDisabled = canManageMachine ? "" : " disabled";
+
+      els.body.innerHTML = bodyHtml;
+
+      const canBuy = Boolean(selectedToken && vm.stock >= bundleQty && vm.priceLocks > 0);
       const buyDisabled = canBuy ? "" : " disabled";
-      els.actions.innerHTML =
-        '<button data-vending-act="configure"' + manageDisabled + '>Configure / Add Stock</button>' +
-        '<button data-vending-act="collect"' + manageDisabled + '>Collect Earnings</button>' +
-        '<button data-vending-act="buy"' + buyDisabled + '>Buy 1 Item</button>';
-      modalCtx = { tx, ty };
+      if (canManageMachine) {
+        els.actions.innerHTML =
+          '<button data-vending-act="configure">Save Listing</button>' +
+          '<button data-vending-act="collect">Collect Earnings</button>' +
+          '<button data-vending-act="buy"' + buyDisabled + '>Buy</button>';
+      } else {
+        els.actions.innerHTML = '<button data-vending-act="buy"' + buyDisabled + '>Buy</button>';
+      }
+
+      modalCtx = {
+        tx,
+        ty,
+        pendingToken: selectedToken,
+        pickingFromInventory
+      };
       els.modal.classList.remove("hidden");
     }
 
@@ -133,7 +226,10 @@ window.GTModules.vending = (function createVendingModule() {
         const current = getLocal(tx, ty) || {
           ownerAccountId: playerProfileId || "",
           ownerName: playerName,
+          sellType: "block",
           sellBlockId: 0,
+          sellCosmeticId: "",
+          sellQuantity: 1,
           sellBlockKey: "",
           priceLocks: 0,
           stock: 0,
@@ -149,7 +245,10 @@ window.GTModules.vending = (function createVendingModule() {
         const current = normalizeRecord(currentRaw) || {
           ownerAccountId: playerProfileId || "",
           ownerName: playerName,
+          sellType: "block",
           sellBlockId: 0,
+          sellCosmeticId: "",
+          sellQuantity: 1,
           sellBlockKey: "",
           priceLocks: 0,
           stock: 0,
@@ -186,7 +285,10 @@ window.GTModules.vending = (function createVendingModule() {
         return {
           ownerAccountId: pid,
           ownerName: name,
+          sellType: "block",
           sellBlockId: 0,
+          sellCosmeticId: "",
+          sellQuantity: 1,
           sellBlockKey: "",
           priceLocks: 0,
           stock: 0,
@@ -196,82 +298,129 @@ window.GTModules.vending = (function createVendingModule() {
       }).catch(() => {});
     }
 
-    function promptPositiveInt(message, fallback) {
-      const raw = window.prompt(message, String(fallback || 1));
-      if (!raw) return 0;
-      const value = Math.floor(Number(raw));
-      if (!Number.isInteger(value) || value <= 0) return 0;
-      return value;
-    }
-
     function configureMachine(tx, ty, vm) {
       const post = opts.postLocalSystemChat || (() => {});
       if (!canManage(vm)) {
         post("Only the vending owner can configure this machine.");
         return;
       }
-      const parseBlockRef = opts.parseBlockRef || (() => 0);
-      const getBlockKeyById = opts.getBlockKeyById || ((id) => "block_" + id);
-      const getActiveSellableBlockId = opts.getActiveSellableBlockId || (() => 0);
-      const inventory = get("getInventory", {});
-      const inventoryIds = get("getInventoryIds", []);
-      const vendingId = get("getVendingId", 0);
       const els = getModalEls();
-      const blockInput = els.body ? els.body.querySelector('[data-vending-input="block"]') : null;
+      const itemInput = els.body ? els.body.querySelector('[data-vending-input="item"]') : null;
+      const packQtyInput = els.body ? els.body.querySelector('[data-vending-input="packQty"]') : null;
       const priceInput = els.body ? els.body.querySelector('[data-vending-input="price"]') : null;
       const stockInput = els.body ? els.body.querySelector('[data-vending-input="stock"]') : null;
-      let blockId = 0;
-      if (blockInput) {
-        blockId = Math.floor(Number(blockInput.value) || 0);
-      } else {
-        const fallbackBlockId = vm.sellBlockId || getActiveSellableBlockId() || 4;
-        const blockText = window.prompt("Sell which block? Enter block key or id.", getBlockKeyById(fallbackBlockId));
-        if (!blockText) return;
-        blockId = parseBlockRef(blockText);
+      if (!itemInput || !packQtyInput || !priceInput || !stockInput) {
+        post("Listing controls are missing.");
+        return;
       }
-      if (!inventoryIds.includes(blockId) || blockId === vendingId) {
+
+      const selected = parseItemToken(itemInput.value);
+      if (!selected) {
+        post("Select an item to list.");
+        return;
+      }
+
+      const inventory = get("getInventory", {});
+      const cosmeticInv = get("getCosmeticInventory", {});
+      const inventoryIds = get("getInventoryIds", []);
+      const cosmetics = Array.isArray(get("getCosmeticItems", [])) ? get("getCosmeticItems", []) : [];
+      const cosmeticSet = new Set(cosmetics.map((it) => it && it.id).filter(Boolean));
+      const getBlockKeyById = opts.getBlockKeyById || ((id) => "block_" + id);
+
+      if (selected.type === "block" && !inventoryIds.includes(selected.blockId)) {
         post("Invalid block selection.");
         return;
       }
-      const sameBlock = Number(vm.sellBlockId) === blockId;
-      const currentStockForListing = sameBlock ? Math.max(0, Math.floor(Number(vm.stock) || 0)) : 0;
-      const ownedNow = Math.max(0, Math.floor(inventory[blockId] || 0));
-      const desiredStock = stockInput
-        ? Math.max(0, Math.floor(Number(stockInput.value) || 0))
-        : promptPositiveInt("Set stock total:", currentStockForListing);
+      if (selected.type === "cosmetic" && !cosmeticSet.has(selected.cosmeticId)) {
+        post("Invalid cosmetic selection.");
+        return;
+      }
+
+      const previousToken = getListingIdentity(vm) || "";
+      const sameListing = previousToken === selected.token;
+      const currentStockForListing = sameListing ? Math.max(0, Math.floor(Number(vm.stock) || 0)) : 0;
+      const desiredStock = Math.max(0, Math.floor(Number(stockInput.value) || 0));
       const delta = desiredStock - currentStockForListing;
+      const ownedNow = selected.type === "block"
+        ? Math.max(0, Math.floor(Number(inventory[selected.blockId]) || 0))
+        : Math.max(0, Math.floor(Number(cosmeticInv[selected.cosmeticId]) || 0));
       if (delta > ownedNow) {
         post("Not enough inventory to set that stock.");
         return;
       }
-      const price = priceInput
-        ? Math.max(0, Math.floor(Number(priceInput.value) || 0))
-        : promptPositiveInt("Price per item (World Locks):", vm.priceLocks > 0 ? vm.priceLocks : 1);
-      if (!price) {
-        post("Invalid price.");
-        return;
-      }
-      const saveInventory = opts.saveInventory || (() => {});
-      const refreshToolbar = opts.refreshToolbar || (() => {});
+
+      const sellQuantity = Math.max(1, Math.floor(Number(packQtyInput.value) || 0));
+      const priceLocks = Math.max(1, Math.floor(Number(priceInput.value) || 0));
+
       createOrUpdateMachine(tx, ty, (current) => ({
         ownerAccountId: current.ownerAccountId || (get("getPlayerProfileId", "") || ""),
         ownerName: current.ownerName || (get("getPlayerName", "") || "").toString().slice(0, 20),
-        sellBlockId: blockId,
-        sellBlockKey: getBlockKeyById(blockId),
-        priceLocks: price,
+        sellType: selected.type,
+        sellBlockId: selected.type === "block" ? selected.blockId : 0,
+        sellCosmeticId: selected.type === "cosmetic" ? selected.cosmeticId : "",
+        sellQuantity,
+        sellBlockKey: selected.type === "block" ? getBlockKeyById(selected.blockId) : "",
+        priceLocks,
         stock: desiredStock,
         earningsLocks: current.earningsLocks || 0
       })).then(() => {
-        if (!sameBlock && vm.sellBlockId && vm.stock > 0) {
-          inventory[vm.sellBlockId] = Math.max(0, Math.floor((inventory[vm.sellBlockId] || 0) + Math.floor(vm.stock || 0)));
+        if (!sameListing && vm && vm.stock > 0) {
+          if (vm.sellType === "cosmetic" && vm.sellCosmeticId) {
+            cosmeticInv[vm.sellCosmeticId] = Math.max(0, Math.floor((cosmeticInv[vm.sellCosmeticId] || 0) + vm.stock));
+          } else if (vm.sellBlockId) {
+            inventory[vm.sellBlockId] = Math.max(0, Math.floor((inventory[vm.sellBlockId] || 0) + vm.stock));
+          }
         }
-        inventory[blockId] = Math.max(0, Math.floor((inventory[blockId] || 0) - delta));
-        saveInventory();
-        refreshToolbar();
+        if (selected.type === "cosmetic") {
+          cosmeticInv[selected.cosmeticId] = Math.max(0, Math.floor((cosmeticInv[selected.cosmeticId] || 0) - delta));
+        } else {
+          inventory[selected.blockId] = Math.max(0, Math.floor((inventory[selected.blockId] || 0) - delta));
+        }
+        (opts.saveInventory || (() => {}))();
+        (opts.refreshToolbar || (() => {}))();
         post("Vending listing updated.");
       }).catch(() => {
         post("Failed to update vending machine.");
       });
+    }
+
+    function handleInventoryPick(selection) {
+      if (!modalCtx || !modalCtx.pickingFromInventory) return false;
+      if (!selection || typeof selection !== "object") return false;
+      const inv = get("getInventory", {});
+      const cosmeticInv = get("getCosmeticInventory", {});
+      let token = "";
+      if (selection.type === "block") {
+        const id = Math.max(0, Math.floor(Number(selection.blockId) || 0));
+        if (!id) return false;
+        if ((Number(inv[id]) || 0) <= 0) return false;
+        token = "b:" + id;
+      } else if (selection.type === "cosmetic") {
+        const cosmeticId = String(selection.cosmeticId || "").trim();
+        if (!cosmeticId) return false;
+        if ((Number(cosmeticInv[cosmeticId]) || 0) <= 0) return false;
+        token = "c:" + cosmeticId;
+      } else {
+        return false;
+      }
+      modalCtx.pendingToken = token;
+      modalCtx.pickingFromInventory = false;
+      const vm = getLocal(modalCtx.tx, modalCtx.ty) || {
+        ownerAccountId: "",
+        ownerName: "",
+        sellType: "block",
+        sellBlockId: 0,
+        sellCosmeticId: "",
+        sellQuantity: 1,
+        sellBlockKey: "",
+        priceLocks: 0,
+        stock: 0,
+        earningsLocks: 0
+      };
+      renderModal(modalCtx.tx, modalCtx.ty, vm);
+      const post = opts.postLocalSystemChat || (() => {});
+      post("Listing item selected from inventory.");
+      return true;
     }
 
     function collectEarnings(tx, ty, vm) {
@@ -287,12 +436,10 @@ window.GTModules.vending = (function createVendingModule() {
       }
       const inventory = get("getInventory", {});
       const worldLockId = get("getWorldLockId", 0);
-      const saveInventory = opts.saveInventory || (() => {});
-      const refreshToolbar = opts.refreshToolbar || (() => {});
       createOrUpdateMachine(tx, ty, (current) => ({ ...current, earningsLocks: 0 })).then(() => {
         inventory[worldLockId] = Math.max(0, Math.floor((inventory[worldLockId] || 0) + earnings));
-        saveInventory();
-        refreshToolbar();
+        (opts.saveInventory || (() => {}))();
+        (opts.refreshToolbar || (() => {}))();
         post("Collected " + earnings + " World Locks from vending.");
       }).catch(() => {
         post("Failed to collect vending earnings.");
@@ -314,8 +461,7 @@ window.GTModules.vending = (function createVendingModule() {
       const inv = get("getInventory", {});
       const vendingId = get("getVendingId", 0);
       inv[vendingId] = Math.max(0, Math.floor((inv[vendingId] || 0) + 1));
-      const syncBlock = opts.syncBlock || (() => {});
-      syncBlock(tx, ty, 0);
+      (opts.syncBlock || (() => {}))(tx, ty, 0);
       (opts.saveInventory || (() => {}))();
       (opts.refreshToolbar || (() => {}))();
       machines.delete(getTileKey(tx, ty));
@@ -329,39 +475,69 @@ window.GTModules.vending = (function createVendingModule() {
 
     function buy(tx, ty, vm) {
       const post = opts.postLocalSystemChat || (() => {});
-      const blockId = Number(vm && vm.sellBlockId) || 0;
+      const token = getListingIdentity(vm);
+      const selected = parseItemToken(token);
+      const sellQuantity = Math.max(1, Math.floor(Number(vm && vm.sellQuantity) || 1));
       const stock = Math.max(0, Math.floor(vm && vm.stock || 0));
       const price = Math.max(0, Math.floor(vm && vm.priceLocks || 0));
+      const els = getModalEls();
+      const buyAmountInput = els.body ? els.body.querySelector('[data-vending-input="buyAmount"]') : null;
+      const buyAmount = Math.max(1, Math.floor(Number(buyAmountInput ? buyAmountInput.value : 1) || 1));
+      const totalItems = sellQuantity * buyAmount;
+      const totalPrice = price * buyAmount;
       const inv = get("getInventory", {});
+      const cosmeticInv = get("getCosmeticInventory", {});
       const worldLockId = get("getWorldLockId", 0);
       const getBlockKeyById = opts.getBlockKeyById || ((id) => "block_" + id);
-      if (!blockId || stock <= 0 || price <= 0) {
+      const cmap = getCosmeticItemMap();
+
+      if (!selected || stock < sellQuantity || price <= 0) {
         post("Machine is out of stock.");
         return;
       }
-      if ((inv[worldLockId] || 0) < price) {
-        post("Not enough World Locks. Need " + price + ".");
+      if (stock < totalItems) {
+        post("Not enough stock for that amount.");
         return;
       }
-      if (!window.confirm("Buy 1x " + getBlockKeyById(blockId) + " for " + price + " World Locks?")) return;
+      if ((inv[worldLockId] || 0) < totalPrice) {
+        post("Not enough World Locks. Need " + totalPrice + ".");
+        return;
+      }
+
+      const itemLabel = selected.type === "cosmetic"
+        ? ((cmap[selected.cosmeticId] && cmap[selected.cosmeticId].name) || selected.cosmeticId)
+        : getBlockKeyById(selected.blockId);
+
+      if (!window.confirm("Buy " + totalItems + "x " + itemLabel + " for " + totalPrice + " World Locks?")) return;
+
       const network = get("getNetwork", null);
       const basePath = get("getBasePath", "");
       const profileId = get("getPlayerProfileId", "");
+
       if (!network || !network.enabled || !network.db || !network.vendingRef) {
-        inv[worldLockId] = Math.max(0, Math.floor((inv[worldLockId] || 0) - price));
-        inv[blockId] = Math.max(0, Math.floor((inv[blockId] || 0) + 1));
+        inv[worldLockId] = Math.max(0, Math.floor((inv[worldLockId] || 0) - totalPrice));
+        if (selected.type === "cosmetic") {
+          cosmeticInv[selected.cosmeticId] = Math.max(0, Math.floor((cosmeticInv[selected.cosmeticId] || 0) + totalItems));
+        } else {
+          inv[selected.blockId] = Math.max(0, Math.floor((inv[selected.blockId] || 0) + totalItems));
+        }
         (opts.saveInventory || (() => {}))();
         (opts.refreshToolbar || (() => {}))();
         post("Purchased from vending.");
         return;
       }
+
       const key = getTileKey(tx, ty);
       const buyerLocksRef = network.db.ref(basePath + "/player-inventories/" + profileId + "/" + worldLockId);
       const machineRef = network.vendingRef.child(key);
+      const grantPath = selected.type === "cosmetic"
+        ? basePath + "/player-inventories/" + profileId + "/cosmeticItems/" + selected.cosmeticId
+        : basePath + "/player-inventories/" + profileId + "/" + selected.blockId;
+
       buyerLocksRef.transaction((current) => {
         const have = Math.max(0, Math.floor(Number(current) || 0));
-        if (have < price) return;
-        return have - price;
+        if (have < totalPrice) return;
+        return have - totalPrice;
       }).then((lockResult) => {
         if (!lockResult.committed) {
           post("Not enough World Locks.");
@@ -370,27 +546,33 @@ window.GTModules.vending = (function createVendingModule() {
         return machineRef.transaction((currentRaw) => {
           const current = normalizeRecord(currentRaw);
           if (!current) return currentRaw;
-          if (current.stock <= 0 || current.priceLocks !== price || current.sellBlockId !== blockId) return;
+          const currentToken = getListingIdentity(current);
+          if (
+            currentToken !== token ||
+            current.stock < totalItems ||
+            current.priceLocks !== price ||
+            Math.max(1, Math.floor(Number(current.sellQuantity) || 1)) !== sellQuantity
+          ) return;
           return {
             ...current,
-            stock: current.stock - 1,
-            earningsLocks: (current.earningsLocks || 0) + price,
+            stock: current.stock - totalItems,
+            earningsLocks: (current.earningsLocks || 0) + totalPrice,
             updatedAt: Date.now()
           };
         }).then((vmResult) => {
           if (!vmResult.committed) {
-            buyerLocksRef.transaction((current) => (Math.max(0, Math.floor(Number(current) || 0)) + price)).catch(() => {});
+            buyerLocksRef.transaction((current) => (Math.max(0, Math.floor(Number(current) || 0)) + totalPrice)).catch(() => {});
             post("Purchase failed (stock changed).");
             return false;
           }
-          return network.db.ref(basePath + "/player-inventories/" + profileId + "/" + blockId).transaction((current) => {
-            return Math.max(0, Math.floor(Number(current) || 0) + 1);
+          return network.db.ref(grantPath).transaction((current) => {
+            return Math.max(0, Math.floor(Number(current) || 0) + totalItems);
           }).then((grantResult) => {
             if (!grantResult.committed) {
               post("Purchase failed.");
               return false;
             }
-            post("Purchased 1x " + getBlockKeyById(blockId) + ".");
+            post("Purchased " + totalItems + "x " + itemLabel + ".");
             return true;
           });
         });
@@ -405,10 +587,14 @@ window.GTModules.vending = (function createVendingModule() {
       if (!world || !world[ty] || world[ty][tx] !== vendingId) return false;
       const vm = getLocal(tx, ty);
       const inv = get("getInventory", {});
-      const invIds = get("getInventoryIds", []);
+      const cosmeticInv = get("getCosmeticInventory", {});
       const worldLockId = get("getWorldLockId", 0);
-      if (vm && vm.stock > 0 && invIds.includes(vm.sellBlockId)) {
-        inv[vm.sellBlockId] = Math.max(0, Math.floor((inv[vm.sellBlockId] || 0) + vm.stock));
+      if (vm && vm.stock > 0) {
+        if (vm.sellType === "cosmetic" && vm.sellCosmeticId) {
+          cosmeticInv[vm.sellCosmeticId] = Math.max(0, Math.floor((cosmeticInv[vm.sellCosmeticId] || 0) + vm.stock));
+        } else if (vm.sellBlockId) {
+          inv[vm.sellBlockId] = Math.max(0, Math.floor((inv[vm.sellBlockId] || 0) + vm.stock));
+        }
       }
       if (vm && vm.earningsLocks > 0) {
         inv[worldLockId] = Math.max(0, Math.floor((inv[worldLockId] || 0) + vm.earningsLocks));
@@ -436,7 +622,10 @@ window.GTModules.vending = (function createVendingModule() {
       let vm = getLocal(tx, ty) || {
         ownerAccountId: "",
         ownerName: "",
+        sellType: "block",
         sellBlockId: 0,
+        sellCosmeticId: "",
+        sellQuantity: 1,
         sellBlockKey: "",
         priceLocks: 0,
         stock: 0,
@@ -466,6 +655,7 @@ window.GTModules.vending = (function createVendingModule() {
             closeModal();
             return;
           }
+
           const action = target.dataset.vendingAct;
           if (!action || !modalCtx) return;
           const tx = Number(modalCtx.tx);
@@ -473,12 +663,22 @@ window.GTModules.vending = (function createVendingModule() {
           const vm = getLocal(tx, ty) || {
             ownerAccountId: "",
             ownerName: "",
+            sellType: "block",
             sellBlockId: 0,
+            sellCosmeticId: "",
+            sellQuantity: 1,
             sellBlockKey: "",
             priceLocks: 0,
             stock: 0,
             earningsLocks: 0
           };
+          if (action === "pickitem") {
+            modalCtx.pickingFromInventory = true;
+            const post = opts.postLocalSystemChat || (() => {});
+            post("Click an inventory item/cosmetic to select vending listing.");
+            renderModal(tx, ty, vm);
+            return;
+          }
           if (action === "configure") configureMachine(tx, ty, vm);
           if (action === "collect") collectEarnings(tx, ty, vm);
           if (action === "remove") removeMachine(tx, ty, vm);
@@ -506,6 +706,7 @@ window.GTModules.vending = (function createVendingModule() {
       collectEarnings,
       removeMachine,
       buy,
+      handleInventoryPick,
       closeModal,
       renderModal,
       interact,
