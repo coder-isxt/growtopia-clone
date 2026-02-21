@@ -37,6 +37,11 @@
       const adminInventoryTitleEl = document.getElementById("adminInventoryTitle");
       const adminInventoryBodyEl = document.getElementById("adminInventoryBody");
       const adminInventoryCloseBtn = document.getElementById("adminInventoryCloseBtn");
+      const vendingModalEl = document.getElementById("vendingModal");
+      const vendingTitleEl = document.getElementById("vendingTitle");
+      const vendingBodyEl = document.getElementById("vendingBody");
+      const vendingActionsEl = document.getElementById("vendingActions");
+      const vendingCloseBtn = document.getElementById("vendingCloseBtn");
       const chatPanelEl = document.getElementById("chatPanel");
       const chatMessagesEl = document.getElementById("chatMessages");
       const chatInputRowEl = document.getElementById("chatInputRow");
@@ -49,16 +54,19 @@
       const modules = window.GTModules || {};
       const adminModule = modules.admin || {};
       const blocksModule = modules.blocks || {};
+      const blockKeysModule = modules.blockKeys || {};
       const itemsModule = modules.items || {};
       const playerModule = modules.player || {};
       const authStorageModule = modules.authStorage || {};
       const worldModule = modules.world || {};
+      const physicsModule = modules.physics || {};
       const animationsModule = modules.animations || {};
       const syncPlayerModule = modules.syncPlayer || {};
       const syncBlocksModule = modules.syncBlocks || {};
       const syncWorldsModule = modules.syncWorlds || {};
       const chatModule = modules.chat || {};
       const menuModule = modules.menu || {};
+      const vendingModule = modules.vending || {};
 
       const SETTINGS = window.GT_SETTINGS || {};
       const TILE = Number(SETTINGS.TILE_SIZE) || 32;
@@ -131,7 +139,8 @@
         13: { key: "stair_block", name: "Stair NE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S1", faIcon: "fa-solid fa-stairs" },
         14: { key: "stair_block_r1", name: "Stair SE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S2", faIcon: "fa-solid fa-stairs" },
         15: { key: "stair_block_r2", name: "Stair SW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs" },
-        16: { key: "stair_block_r3", name: "Stair NW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs" }
+        16: { key: "stair_block_r3", name: "Stair NW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs" },
+        17: { key: "vending_machine", name: "Vending Machine", color: "#4d6b8b", solid: true, icon: "VM", faIcon: "fa-solid fa-store" }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
@@ -142,19 +151,17 @@
       const PLATFORM_ID = 12;
       const STAIR_BASE_ID = 13;
       const STAIR_ROTATION_IDS = [13, 14, 15, 16];
-      const slotOrder = ["fist", 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13];
-      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13];
+      const VENDING_ID = 17;
+      const TOOL_FIST = "fist";
+      const TOOL_WRENCH = "wrench";
+      const slotOrder = [TOOL_FIST, TOOL_WRENCH, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17];
+      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17];
       const COSMETIC_SLOTS = ["clothes", "wings", "swords"];
-      const BLOCK_ID_TO_KEY = {};
-      const BLOCK_KEY_TO_ID = {};
-      Object.keys(blockDefs).forEach((key) => {
-        const id = Number(key);
-        const def = blockDefs[id];
-        if (!def) return;
-        const blockKey = (def.key || ("block_" + id)).toString();
-        BLOCK_ID_TO_KEY[id] = blockKey;
-        BLOCK_KEY_TO_ID[blockKey] = id;
-      });
+      const blockMaps = typeof blockKeysModule.buildMaps === "function"
+        ? blockKeysModule.buildMaps(blockDefs)
+        : { idToKey: {}, keyToId: {} };
+      const BLOCK_ID_TO_KEY = blockMaps.idToKey || {};
+      const BLOCK_KEY_TO_ID = blockMaps.keyToId || {};
       const COSMETIC_CATALOG = typeof itemsModule.getCosmeticItemsBySlot === "function"
         ? itemsModule.getCosmeticItemsBySlot()
         : { clothes: [], wings: [], swords: [] };
@@ -180,7 +187,8 @@
         10: 0,
         11: 0,
         12: 0,
-        13: 0
+        13: 0,
+        17: 0
       };
 
       let selectedSlot = 0;
@@ -205,6 +213,7 @@
         : new Map();
       const overheadChatByPlayer = new Map();
       const worldOccupancy = new Map();
+      let vendingController = null;
       let knownWorldIds = [];
       let totalOnlinePlayers = 0;
       let hasRenderedMenuWorldList = false;
@@ -249,6 +258,41 @@
         swords: ""
       };
 
+      function getVendingController() {
+        if (vendingController) return vendingController;
+        if (typeof vendingModule.createController !== "function") return null;
+        vendingController = vendingModule.createController({
+          getNetwork: () => network,
+          getBasePath: () => BASE_PATH,
+          getCurrentWorldId: () => currentWorldId,
+          getPlayerProfileId: () => playerProfileId,
+          getPlayerName: () => playerName,
+          getFirebase: () => (typeof firebase !== "undefined" ? firebase : null),
+          getBlockKeyById,
+          parseBlockRef,
+          getActiveSellableBlockId,
+          saveInventory,
+          refreshToolbar,
+          syncBlock,
+          postLocalSystemChat,
+          canEditTarget,
+          getInventory: () => inventory,
+          getInventoryIds: () => INVENTORY_IDS,
+          getVendingId: () => VENDING_ID,
+          getWorldLockId: () => WORLD_LOCK_ID,
+          getWorld: () => world,
+          getVendingModalEl: () => vendingModalEl,
+          getVendingTitleEl: () => vendingTitleEl,
+          getVendingBodyEl: () => vendingBodyEl,
+          getVendingActionsEl: () => vendingActionsEl,
+          getVendingCloseBtnEl: () => vendingCloseBtn
+        });
+        if (typeof vendingController.bindModalEvents === "function") {
+          vendingController.bindModalEvents();
+        }
+        return vendingController;
+      }
+
       let cameraX = 0;
       let cameraY = 0;
       let mouseWorld = { tx: 0, ty: 0 };
@@ -289,6 +333,7 @@
         myCommandRef: null,
         playersRef: null,
         blocksRef: null,
+        vendingRef: null,
         lockRef: null,
         chatRef: null,
         chatFeedRef: null,
@@ -317,6 +362,9 @@
           blockAdded: null,
           blockChanged: null,
           blockRemoved: null,
+          vendingAdded: null,
+          vendingChanged: null,
+          vendingRemoved: null,
           worldLock: null,
           chatAdded: null,
           accountLogAdded: null,
@@ -695,6 +743,22 @@
           }).join("");
         }
         adminInventoryModalEl.classList.remove("hidden");
+      }
+
+      function closeVendingModal() {
+        const ctrl = getVendingController();
+        if (ctrl && typeof ctrl.closeModal === "function") {
+          ctrl.closeModal();
+          return;
+        }
+        if (vendingModalEl) vendingModalEl.classList.add("hidden");
+      }
+
+      function renderVendingModal(tx, ty, vm) {
+        const ctrl = getVendingController();
+        if (ctrl && typeof ctrl.renderModal === "function") {
+          ctrl.renderModal(tx, ty, vm);
+        }
       }
 
       function renderAdminPanel() {
@@ -1964,6 +2028,8 @@
 
       function resetForWorldChange() {
         remotePlayers.clear();
+        const ctrl = getVendingController();
+        if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
         updateOnlineCount();
         world = makeWorld(currentWorldId);
         if (blockSyncer && typeof blockSyncer.reset === "function") {
@@ -1993,6 +2059,7 @@
           setChatOpen(false);
         } else {
           setChatOpen(false);
+          closeVendingModal();
           if (!hasRenderedMenuWorldList) {
             refreshWorldButtons(null, true);
             hasRenderedMenuWorldList = true;
@@ -2392,6 +2459,9 @@
       }
 
       function parseBlockRef(value) {
+        if (typeof blockKeysModule.parseBlockRef === "function") {
+          return blockKeysModule.parseBlockRef(value, BLOCK_KEY_TO_ID, blockDefs);
+        }
         const raw = (value || "").toString().trim().toLowerCase();
         if (!raw) return 0;
         if (BLOCK_KEY_TO_ID[raw] !== undefined) return Number(BLOCK_KEY_TO_ID[raw]);
@@ -2401,6 +2471,9 @@
       }
 
       function isLiquidTile(tx, ty) {
+        if (typeof physicsModule.isLiquidTile === "function") {
+          return physicsModule.isLiquidTile(world, blockDefs, tx, ty, WORLD_W, WORLD_H);
+        }
         if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return false;
         const id = world[ty][tx];
         const def = blockDefs[id];
@@ -2408,6 +2481,9 @@
       }
 
       function isOneWayPlatformTile(tx, ty) {
+        if (typeof physicsModule.isOneWayPlatformTile === "function") {
+          return physicsModule.isOneWayPlatformTile(world, blockDefs, tx, ty, WORLD_W, WORLD_H);
+        }
         if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return false;
         const id = world[ty][tx];
         const def = blockDefs[id];
@@ -2426,6 +2502,57 @@
 
       function getInventoryDropId(id) {
         return STAIR_ROTATION_IDS.includes(id) ? STAIR_BASE_ID : id;
+      }
+
+      function getTileKey(tx, ty) {
+        return String(tx) + "_" + String(ty);
+      }
+
+      function normalizeVendingRecord(value) {
+        const ctrl = getVendingController();
+        if (!ctrl || typeof ctrl.normalizeRecord !== "function") return null;
+        return ctrl.normalizeRecord(value);
+      }
+
+      function setLocalVendingMachine(tx, ty, value) {
+        const ctrl = getVendingController();
+        if (!ctrl || typeof ctrl.setLocal !== "function") return;
+        ctrl.setLocal(tx, ty, value);
+      }
+
+      function getLocalVendingMachine(tx, ty) {
+        const ctrl = getVendingController();
+        if (!ctrl || typeof ctrl.getLocal !== "function") return null;
+        return ctrl.getLocal(tx, ty);
+      }
+
+      function canManageVending(vm) {
+        return Boolean(vm && playerProfileId && vm.ownerAccountId === playerProfileId);
+      }
+
+      function getActiveSellableBlockId() {
+        const selectedId = slotOrder[selectedSlot];
+        if (typeof selectedId === "number" && INVENTORY_IDS.includes(selectedId) && selectedId !== VENDING_ID) {
+          return selectedId;
+        }
+        return 0;
+      }
+
+      function selectVendingBlockForSale(defaultId) {
+        const defaultKey = defaultId ? getBlockKeyById(defaultId) : "";
+        const text = window.prompt("Sell which block? Enter block key or id (e.g. wood_block).", defaultKey);
+        if (!text) return 0;
+        const parsed = parseBlockRef(text);
+        if (!INVENTORY_IDS.includes(parsed) || parsed === VENDING_ID) return 0;
+        return parsed;
+      }
+
+      function promptPositiveInt(message, fallback) {
+        const raw = window.prompt(message, String(fallback || 1));
+        if (!raw) return 0;
+        const value = Math.floor(Number(raw));
+        if (!Number.isInteger(value) || value <= 0) return 0;
+        return value;
       }
 
       function normalizeWorldLock(value) {
@@ -2468,6 +2595,9 @@
       }
 
       function rectCollides(x, y, w, h) {
+        if (typeof physicsModule.rectCollides === "function") {
+          return physicsModule.rectCollides(world, blockDefs, x, y, w, h, TILE, WORLD_W, WORLD_H);
+        }
         const left = Math.floor(x / TILE);
         const right = Math.floor((x + w - 1) / TILE);
         const top = Math.floor(y / TILE);
@@ -2482,6 +2612,9 @@
       }
 
       function rectTouchesLiquid(x, y, w, h) {
+        if (typeof physicsModule.rectTouchesLiquid === "function") {
+          return physicsModule.rectTouchesLiquid(world, blockDefs, x, y, w, h, TILE, WORLD_W, WORLD_H);
+        }
         const left = Math.floor(x / TILE);
         const right = Math.floor((x + w - 1) / TILE);
         const top = Math.floor(y / TILE);
@@ -2495,6 +2628,9 @@
       }
 
       function getStairSurfaceY(id, tx, ty, worldX) {
+        if (typeof physicsModule.getStairSurfaceY === "function") {
+          return physicsModule.getStairSurfaceY(id, tx, ty, worldX, TILE);
+        }
         const localX = Math.max(0, Math.min(1, (worldX - tx * TILE) / TILE));
         let localY = 1 - localX;
         if (id === 14 || id === 15) {
@@ -2504,6 +2640,9 @@
       }
 
       function snapPlayerToStairSurface() {
+        if (typeof physicsModule.snapPlayerToStairSurface === "function") {
+          return physicsModule.snapPlayerToStairSurface(player, world, STAIR_ROTATION_IDS, TILE, PLAYER_W, PLAYER_H, WORLD_W, WORLD_H);
+        }
         const footLeftX = player.x + 3;
         const footRightX = player.x + PLAYER_W - 3;
         const bottomY = player.y + PLAYER_H;
@@ -2530,6 +2669,9 @@
       }
 
       function rectCollidesOneWayPlatformDownward(x, prevY, nextY, w, h) {
+        if (typeof physicsModule.rectCollidesOneWayPlatformDownward === "function") {
+          return physicsModule.rectCollidesOneWayPlatformDownward(world, blockDefs, x, prevY, nextY, w, h, TILE, WORLD_W, WORLD_H);
+        }
         if (nextY <= prevY) return false;
         const left = Math.floor(x / TILE);
         const right = Math.floor((x + w - 1) / TILE);
@@ -2733,6 +2875,18 @@
               ctx.fill();
               ctx.fillStyle = "rgba(255,255,255,0.11)";
               ctx.fillRect(x + 2, y + 2, TILE - 4, 4);
+              continue;
+            }
+
+            if (id === VENDING_ID) {
+              ctx.fillStyle = "#4d6b8b";
+              ctx.fillRect(x, y, TILE, TILE);
+              ctx.fillStyle = "rgba(255,255,255,0.12)";
+              ctx.fillRect(x + 3, y + 3, TILE - 6, 8);
+              ctx.fillStyle = "#9cd8ff";
+              ctx.fillRect(x + 6, y + 14, TILE - 12, 10);
+              ctx.fillStyle = "#ffd166";
+              ctx.fillRect(x + TILE - 10, y + 6, 4, 4);
               continue;
             }
 
@@ -3007,9 +3161,11 @@
         const tx = Math.floor((player.x + PLAYER_W / 2) / TILE);
         const ty = Math.floor((player.y + PLAYER_H / 2) / TILE);
         const selectedId = slotOrder[selectedSlot];
-        const usingFist = selectedId === "fist";
-        const itemName = usingFist ? "Fist" : blockDefs[selectedId].name;
-        const countText = usingFist ? "infinite" : String(inventory[selectedId]);
+        const usingFist = selectedId === TOOL_FIST;
+        const usingWrench = selectedId === TOOL_WRENCH;
+        const usingTool = usingFist || usingWrench;
+        const itemName = usingFist ? "Fist" : (usingWrench ? "Wrench" : blockDefs[selectedId].name);
+        const countText = usingTool ? "infinite" : String(inventory[selectedId]);
         let cosmeticOwned = 0;
         for (const item of COSMETIC_ITEMS) {
           cosmeticOwned += Math.max(0, Number(cosmeticInventory[item.id]) || 0);
@@ -3071,6 +3227,19 @@
           world[ty][tx] = id;
           inventory[id]--;
           syncBlock(tx, ty, id);
+          if (id === VENDING_ID) {
+            setLocalVendingMachine(tx, ty, {
+              ownerAccountId: playerProfileId || "",
+              ownerName: (playerName || "").toString().slice(0, 20),
+              sellBlockId: 0,
+              sellBlockKey: "",
+              priceLocks: 0,
+              stock: 0,
+              earningsLocks: 0,
+              updatedAt: Date.now()
+            });
+            seedVendingMachineOwner(tx, ty);
+          }
           saveInventory();
           refreshToolbar();
         };
@@ -3147,6 +3316,13 @@
           return;
         }
 
+        if (id === VENDING_ID) {
+          const ctrl = getVendingController();
+          if (ctrl && typeof ctrl.onBreakWithFist === "function" && ctrl.onBreakWithFist(tx, ty)) {
+            return;
+          }
+        }
+
         world[ty][tx] = 0;
         const dropId = getInventoryDropId(id);
         if (INVENTORY_IDS.includes(dropId)) {
@@ -3183,10 +3359,56 @@
         syncBlock(tx, ty, nextId);
       }
 
+      function createOrUpdateVendingMachine(tx, ty, updater) {
+        const ctrl = getVendingController();
+        if (!ctrl || typeof ctrl.createOrUpdateMachine !== "function") return Promise.resolve(null);
+        return ctrl.createOrUpdateMachine(tx, ty, updater);
+      }
+
+      function seedVendingMachineOwner(tx, ty) {
+        const ctrl = getVendingController();
+        if (!ctrl || typeof ctrl.seedOwner !== "function") return;
+        ctrl.seedOwner(tx, ty);
+      }
+
+      function configureVendingMachine(tx, ty, vm) {
+        const ctrl = getVendingController();
+        if (!ctrl || typeof ctrl.configureMachine !== "function") return;
+        ctrl.configureMachine(tx, ty, vm);
+      }
+
+      function collectVendingEarnings(tx, ty, vm) {
+        const ctrl = getVendingController();
+        if (!ctrl || typeof ctrl.collectEarnings !== "function") return;
+        ctrl.collectEarnings(tx, ty, vm);
+      }
+
+      function removeVendingMachine(tx, ty, vm) {
+        const ctrl = getVendingController();
+        if (!ctrl || typeof ctrl.removeMachine !== "function") return;
+        ctrl.removeMachine(tx, ty, vm);
+      }
+
+      function buyFromVendingMachine(tx, ty, vm) {
+        const ctrl = getVendingController();
+        if (!ctrl || typeof ctrl.buy !== "function") return;
+        ctrl.buy(tx, ty, vm);
+      }
+
+      function interactWithVendingMachine(tx, ty) {
+        const ctrl = getVendingController();
+        if (!ctrl || typeof ctrl.interact !== "function") return;
+        ctrl.interact(tx, ty);
+      }
+
       function useActionAt(tx, ty) {
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
-        if (selectedId === "fist") {
+        if (selectedId === TOOL_WRENCH) {
+          interactWithVendingMachine(tx, ty);
+          return;
+        }
+        if (selectedId === TOOL_FIST) {
           tryBreak(tx, ty);
           return;
         }
@@ -3196,7 +3418,11 @@
       function useSecondaryActionAt(tx, ty) {
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
-        if (selectedId !== "fist") return;
+        if (selectedId === TOOL_WRENCH) {
+          interactWithVendingMachine(tx, ty);
+          return;
+        }
+        if (selectedId !== TOOL_FIST) return;
         tryRotate(tx, ty);
       }
 
@@ -3273,6 +3499,15 @@
         if (network.lockRef && network.handlers.worldLock) {
           network.lockRef.off("value", network.handlers.worldLock);
         }
+        if (network.vendingRef && network.handlers.vendingAdded) {
+          network.vendingRef.off("child_added", network.handlers.vendingAdded);
+        }
+        if (network.vendingRef && network.handlers.vendingChanged) {
+          network.vendingRef.off("child_changed", network.handlers.vendingChanged);
+        }
+        if (network.vendingRef && network.handlers.vendingRemoved) {
+          network.vendingRef.off("child_removed", network.handlers.vendingRemoved);
+        }
         if (typeof syncWorldsModule.detachWorldListeners === "function") {
           syncWorldsModule.detachWorldListeners(network, network.handlers, true);
         } else if (network.playerRef) {
@@ -3285,6 +3520,7 @@
         network.playerRef = null;
         network.playersRef = null;
         network.blocksRef = null;
+        network.vendingRef = null;
         network.lockRef = null;
         network.chatRef = null;
         network.chatFeedRef = null;
@@ -3292,9 +3528,14 @@
         network.handlers.blockAdded = null;
         network.handlers.blockChanged = null;
         network.handlers.blockRemoved = null;
+        network.handlers.vendingAdded = null;
+        network.handlers.vendingChanged = null;
+        network.handlers.vendingRemoved = null;
         network.handlers.worldLock = null;
         network.handlers.chatAdded = null;
         currentWorldLock = null;
+        const ctrl = getVendingController();
+        if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
       }
 
       function leaveCurrentWorld() {
@@ -3381,6 +3622,7 @@
           : null;
         network.playersRef = worldRefs && worldRefs.playersRef ? worldRefs.playersRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/players");
         network.blocksRef = worldRefs && worldRefs.blocksRef ? worldRefs.blocksRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/blocks");
+        network.vendingRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/vending");
         network.lockRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/lock");
         network.chatRef = worldRefs && worldRefs.chatRef ? worldRefs.chatRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/chat");
         network.chatFeedRef = typeof syncWorldsModule.createChatFeed === "function"
@@ -3403,9 +3645,13 @@
             if (id !== requiredId && network.blocksRef) {
               network.blocksRef.child(tx + "_" + ty).set(requiredId).catch(() => {});
             }
+            setLocalVendingMachine(tx, ty, null);
             return;
           }
           world[ty][tx] = id;
+          if (id !== VENDING_ID) {
+            setLocalVendingMachine(tx, ty, null);
+          }
         };
         const clearBlockValue = (tx, ty) => {
           const requiredId = getProtectedTileRequiredId(tx, ty);
@@ -3414,9 +3660,11 @@
             if (network.blocksRef) {
               network.blocksRef.child(tx + "_" + ty).set(requiredId).catch(() => {});
             }
+            setLocalVendingMachine(tx, ty, null);
             return;
           }
           world[ty][tx] = 0;
+          setLocalVendingMachine(tx, ty, null);
         };
 
         const handlers = typeof syncWorldsModule.buildWorldHandlers === "function"
@@ -3440,8 +3688,24 @@
         network.handlers.blockChanged = handlers.blockChanged;
         network.handlers.blockRemoved = handlers.blockRemoved;
         network.handlers.chatAdded = handlers.chatAdded;
+        network.handlers.vendingAdded = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalVendingMachine(tile.tx, tile.ty, snapshot.val());
+        };
+        network.handlers.vendingChanged = network.handlers.vendingAdded;
+        network.handlers.vendingRemoved = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalVendingMachine(tile.tx, tile.ty, null);
+        };
         if (typeof syncWorldsModule.attachWorldListeners === "function") {
           syncWorldsModule.attachWorldListeners(network, network.handlers);
+        }
+        if (network.vendingRef && network.handlers.vendingAdded) {
+          network.vendingRef.on("child_added", network.handlers.vendingAdded);
+          network.vendingRef.on("child_changed", network.handlers.vendingChanged);
+          network.vendingRef.on("child_removed", network.handlers.vendingRemoved);
         }
         enforceSpawnStructureInWorldData();
         enforceSpawnStructureInDatabase();
@@ -3571,6 +3835,10 @@
               closeAdminInventoryModal();
             }
           });
+        }
+        const vendingCtrl = getVendingController();
+        if (vendingCtrl && typeof vendingCtrl.bindModalEvents === "function") {
+          vendingCtrl.bindModalEvents();
         }
         if (adminSearchInput) {
           adminSearchInput.addEventListener("input", () => {
@@ -3991,21 +4259,23 @@
         const cosmeticEntries = [];
         for (let i = 0; i < slotOrder.length; i++) {
           const id = slotOrder[i];
-          const isFist = id === "fist";
-          if (!isFist && Math.max(0, Number(inventory[id]) || 0) <= 0) continue;
-          const blockDef = isFist ? null : blockDefs[id];
-          const title = isFist ? "Fist" : (blockDef && blockDef.name ? blockDef.name : "Block");
+          const isFist = id === TOOL_FIST;
+          const isWrench = id === TOOL_WRENCH;
+          const isTool = isFist || isWrench;
+          if (!isTool && Math.max(0, Number(inventory[id]) || 0) <= 0) continue;
+          const blockDef = isTool ? null : blockDefs[id];
+          const title = isFist ? "Fist" : (isWrench ? "Wrench" : (blockDef && blockDef.name ? blockDef.name : "Block"));
           const slotEl = createInventorySlot({
             selected: i === selectedSlot,
             variant: "inventory-slot-block",
-            title: title + (isFist ? "" : " (x" + (inventory[id] || 0) + ")"),
+            title: title + (isTool ? "" : " (x" + (inventory[id] || 0) + ")"),
             keyLabel: String(i + 1),
-            color: isFist ? "#c59b81" : (blockDef && blockDef.color ? blockDef.color : "#999"),
-            iconClass: isFist ? "icon-fist" : "icon-block",
-            faIconClass: isFist ? "fa-solid fa-hand-fist" : (blockDef && blockDef.faIcon ? blockDef.faIcon : ""),
-            iconLabel: isFist ? "F" : ((blockDef && blockDef.icon) || title.slice(0, 2).toUpperCase()),
+            color: isFist ? "#c59b81" : (isWrench ? "#90a4ae" : (blockDef && blockDef.color ? blockDef.color : "#999")),
+            iconClass: isTool ? "icon-fist" : "icon-block",
+            faIconClass: isFist ? "fa-solid fa-hand-fist" : (isWrench ? "fa-solid fa-screwdriver-wrench" : (blockDef && blockDef.faIcon ? blockDef.faIcon : "")),
+            iconLabel: isFist ? "F" : (isWrench ? "W" : ((blockDef && blockDef.icon) || title.slice(0, 2).toUpperCase())),
             name: title,
-            countText: isFist ? "" : "x" + (inventory[id] || 0),
+            countText: isTool ? "" : "x" + (inventory[id] || 0),
             onClick: () => {
               selectedSlot = i;
               refreshToolbar();
@@ -4187,6 +4457,11 @@
       initToolbarDrag();
 
       window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && vendingModalEl && !vendingModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeVendingModal();
+          return;
+        }
         if (e.key === "Escape" && adminInventoryModalEl && !adminInventoryModalEl.classList.contains("hidden")) {
           e.preventDefault();
           closeAdminInventoryModal();

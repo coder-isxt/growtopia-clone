@@ -25,7 +25,7 @@
       <div><strong>Growtopia Test</strong> | Move: A/D or Arrows, Jump: W/Space</div>
       <div class="hint">
         World: <span id="currentWorldLabel" class="world-tag">menu</span> |
-        Action: Click/Tap (Fist breaks, Right-click rotates) | Slots: 1-0 + click | Enter: Chat |
+        Action: Click/Tap (Fist breaks, Wrench interacts, Right-click rotates) | Slots: 1-0 + click | Enter: Chat |
         <span id="networkState" class="danger">Offline</span> |
         <span id="onlineCount">1 world online</span> |
         <span id="totalOnlineCount">1 total online</span> |
@@ -95,6 +95,16 @@
         <div id="adminInventoryBody" class="admin-inventory-body"></div>
       </div>
     </div>
+    <div id="vendingModal" class="vending-modal hidden">
+      <div class="vending-card">
+        <div class="vending-header">
+          <strong id="vendingTitle">Vending Machine</strong>
+          <button id="vendingCloseBtn" type="button">Close</button>
+        </div>
+        <div id="vendingBody" class="vending-body"></div>
+        <div id="vendingActions" class="vending-actions"></div>
+      </div>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
@@ -125,14 +135,17 @@
         "settings.js",
         "admin.js",
         "blocks.js",
+        "block_keys.js",
         "items.js",
         "player.js",
         "auth_storage.js",
         "world.js",
+        "physics.js",
         "animations.js",
         "sync_player.js",
         "sync_blocks.js",
         "sync_worlds.js",
+        "vending.js",
         "chat.js",
         "menu.js",
         "game.js"
