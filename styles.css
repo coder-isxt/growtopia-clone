@@ -1,42 +1,78 @@
 :root {
   --bg-1: #8fd9ff;
   --bg-2: #4fb0ff;
-  --panel: rgba(14, 36, 56, 0.85);
+  --panel: rgba(14, 36, 56, 0.88);
+  --panel-strong: rgba(8, 26, 42, 0.94);
+  --panel-soft: rgba(255, 255, 255, 0.06);
   --accent: #ffd166;
+  --accent-2: #ffbd4a;
   --text: #f5fbff;
   --danger: #ff5d73;
+  --frame: rgba(255, 255, 255, 0.24);
+  --shadow-lg: 0 14px 38px rgba(2, 10, 18, 0.38);
+  --shadow-md: 0 8px 22px rgba(2, 10, 18, 0.28);
+  --radius-lg: 16px;
+  --radius-md: 12px;
 }
 
 * {
   box-sizing: border-box;
 }
 
+button,
+input,
+select,
+textarea {
+  transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.08s ease, box-shadow 0.16s ease;
+}
+
+button:hover {
+  border-color: rgba(255, 255, 255, 0.42);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible {
+  outline: 2px solid rgba(255, 209, 102, 0.7);
+  outline-offset: 1px;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-family: "Segoe UI Variable Text", "Segoe UI", "Trebuchet MS", sans-serif;
+  font-size: 15px;
   color: var(--text);
   background: radial-gradient(circle at 20% 0%, var(--bg-1), var(--bg-2) 55%, #2a84d6 100%);
   display: grid;
   place-items: center;
   overflow: hidden;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .game-shell {
-  width: min(1220px, 100vw);
-  height: min(760px, 100vh);
-  padding: 12px;
+  width: min(1340px, 100vw);
+  height: min(850px, 100vh);
+  padding: 14px;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  gap: 10px;
+  gap: 12px;
 }
 
 .auth-screen {
   width: min(420px, 94vw);
-  background: var(--panel);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 14px;
-  padding: 16px;
+  background: linear-gradient(180deg, rgba(16, 44, 68, 0.95), rgba(9, 28, 45, 0.95));
+  border: 1px solid var(--frame);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-lg);
 }
 
 .auth-card {
@@ -53,12 +89,12 @@ body {
 .auth-card input,
 .auth-card button {
   border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.28);
   color: var(--text);
-  border-radius: 8px;
+  border-radius: 10px;
   font: inherit;
-  min-height: 36px;
-  padding: 7px 10px;
+  min-height: 38px;
+  padding: 8px 11px;
 }
 
 .auth-actions {
@@ -68,7 +104,7 @@ body {
 }
 
 .auth-card button {
-  background: rgba(255, 209, 102, 0.22);
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.3), rgba(255, 189, 74, 0.2));
   cursor: pointer;
 }
 
@@ -79,14 +115,16 @@ body {
 }
 
 .hud {
-  background: var(--panel);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(15, 42, 65, 0.92), rgba(8, 26, 42, 0.92));
+  border: 1px solid var(--frame);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 8px;
-  font-size: 14px;
+  gap: 9px;
+  font-size: 15px;
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(4px);
 }
 
 .hud strong {
@@ -100,28 +138,30 @@ body {
 }
 
 .canvas-wrap {
-  background: rgba(15, 42, 65, 0.45);
-  border: 2px solid rgba(255, 255, 255, 0.18);
-  border-radius: 14px;
-  padding: 8px;
+  background: rgba(15, 42, 65, 0.52);
+  border: 1px solid var(--frame);
+  border-radius: var(--radius-lg);
+  padding: 10px;
   display: grid;
   position: relative;
+  box-shadow: var(--shadow-lg);
 }
 
 canvas {
   width: 100%;
   height: 100%;
-  border-radius: 8px;
+  border-radius: 10px;
   background: linear-gradient(#8dd7ff, #71c6ff 42%, #5cb4ef);
   image-rendering: pixelated;
   cursor: crosshair;
   touch-action: none;
+  outline: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .toolbar {
-  background: var(--panel);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(15, 42, 65, 0.92), rgba(8, 26, 42, 0.92));
+  border: 1px solid var(--frame);
+  border-radius: var(--radius-md);
   padding: 10px;
   display: grid;
   grid-template-columns: 1fr;
@@ -137,6 +177,7 @@ canvas {
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 209, 102, 0.85) rgba(6, 18, 30, 0.45);
+  box-shadow: var(--shadow-md);
 }
 
 .toolbar::-webkit-scrollbar {
@@ -160,7 +201,7 @@ canvas {
 }
 
 .toolbar-drag-hint {
-  font-size: 11px;
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.72);
   text-align: center;
   border: 1px dashed rgba(255, 255, 255, 0.2);
@@ -183,7 +224,7 @@ canvas {
 }
 
 .inventory-section-head strong {
-  font-size: 13px;
+  font-size: 14px;
   color: #fff7d7;
   letter-spacing: 0.25px;
 }
@@ -195,20 +236,20 @@ canvas {
 
 .inventory-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+  gap: 8px;
 }
 
 .inventory-slot {
-  border-radius: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.22);
-  min-height: 70px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(0, 0, 0, 0.26);
+  min-height: 76px;
   display: grid;
   grid-template-rows: auto 1fr auto;
   place-items: center stretch;
   gap: 2px;
-  padding: 4px;
+  padding: 5px;
   position: relative;
   user-select: none;
   color: var(--text);
@@ -357,13 +398,14 @@ canvas {
 .hud button,
 .menu-screen button {
   border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 209, 102, 0.22);
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.32), rgba(255, 189, 74, 0.2));
   color: var(--text);
-  border-radius: 8px;
-  padding: 6px 10px;
+  border-radius: 10px;
+  padding: 7px 11px;
   font: inherit;
-  min-height: 32px;
+  min-height: 34px;
   cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .hud button {
@@ -372,12 +414,13 @@ canvas {
 }
 
 .menu-screen {
-  background: var(--panel);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  padding: 16px;
+  background: linear-gradient(180deg, rgba(16, 44, 68, 0.93), rgba(9, 28, 45, 0.93));
+  border: 1px solid var(--frame);
+  border-radius: var(--radius-md);
+  padding: 18px;
   display: grid;
   align-content: center;
+  box-shadow: var(--shadow-lg);
 }
 
 .menu-card {
@@ -389,18 +432,19 @@ canvas {
 
 .menu-title {
   margin: 0;
-  font-size: 22px;
+  font-size: 24px;
   color: var(--accent);
+  letter-spacing: 0.01em;
 }
 
 .menu-screen input {
   border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.28);
   color: var(--text);
-  border-radius: 8px;
-  padding: 6px 8px;
+  border-radius: 10px;
+  padding: 8px 10px;
   font: inherit;
-  min-height: 32px;
+  min-height: 36px;
 }
 
 .menu-screen input {
@@ -431,9 +475,9 @@ canvas {
 }
 
 .mobile-controls {
-  background: var(--panel);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
+  background: var(--panel-strong);
+  border: 1px solid var(--frame);
+  border-radius: var(--radius-md);
   padding: 8px;
   display: flex;
   justify-content: space-between;
@@ -442,7 +486,7 @@ canvas {
 
 .mobile-controls button {
   border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 209, 102, 0.2);
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.3), rgba(255, 189, 74, 0.18));
   color: var(--text);
   border-radius: 10px;
   font: inherit;
@@ -464,19 +508,20 @@ canvas {
   top: 74px;
   width: 320px;
   height: calc(100vh - 164px);
-  background: rgba(8, 28, 44, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(11, 33, 50, 0.92), rgba(7, 22, 35, 0.94));
+  border: 1px solid var(--frame);
+  border-radius: 12px;
   display: grid;
   grid-template-rows: 1fr auto;
   overflow: hidden;
   z-index: 28;
+  box-shadow: var(--shadow-md);
 }
 
 .chat-messages {
-  padding: 8px;
+  padding: 10px;
   overflow-y: auto;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.35;
   display: flex;
   flex-direction: column;
@@ -501,7 +546,7 @@ canvas {
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(0, 0, 0, 0.26);
   color: var(--text);
-  border-radius: 8px;
+  border-radius: 10px;
   font: inherit;
   min-height: 30px;
   padding: 5px 8px;
@@ -567,12 +612,13 @@ canvas {
   width: min(1320px, 99vw);
   height: min(920px, 93vh);
   background: linear-gradient(180deg, rgba(15, 40, 62, 0.97), rgba(8, 23, 36, 0.97));
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 12px;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius-md);
   overflow: hidden;
   z-index: 40;
   display: grid;
   grid-template-rows: auto 1fr;
+  box-shadow: var(--shadow-lg);
 }
 
 .admin-header {
@@ -606,7 +652,7 @@ canvas {
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(255, 209, 102, 0.22);
   color: var(--text);
-  border-radius: 8px;
+  border-radius: 10px;
   font: inherit;
   min-height: 30px;
   padding: 5px 10px;
@@ -709,9 +755,9 @@ canvas {
 
 .admin-row {
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 12px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: 14px;
+  padding: 11px;
+  background: rgba(255, 255, 255, 0.05);
   display: grid;
   gap: 8px;
 }
@@ -1070,7 +1116,7 @@ canvas {
 
 .admin-inventory-tools {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) 90px auto auto;
+  grid-template-columns: 120px minmax(0, 1fr) 90px auto auto minmax(0, 1fr) auto;
   gap: 8px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 8px;
@@ -1103,12 +1149,24 @@ canvas {
 
 .admin-inventory-row {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
   padding: 7px 9px;
   background: rgba(255, 255, 255, 0.04);
+}
+
+.admin-inventory-row button {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 117, 117, 0.22);
+  color: var(--text);
+  border-radius: 8px;
+  font: inherit;
+  min-height: 26px;
+  padding: 3px 9px;
+  cursor: pointer;
 }
 
 .admin-inventory-item {
@@ -1311,14 +1369,48 @@ canvas {
   color: rgba(255, 255, 255, 0.7);
 }
 
-.trade-add {
+.trade-inventory-list {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) 90px auto;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 6px;
+}
+
+.trade-inventory-item {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border-radius: 8px;
+  min-height: 32px;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.trade-amount-menu {
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  display: grid;
   gap: 8px;
 }
 
-.trade-add select,
-.trade-add input {
+.trade-amount-title {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.trade-amount-row {
+  display: grid;
+  grid-template-columns: 110px auto auto;
+  gap: 8px;
+}
+
+.trade-amount-row input {
   border: 1px solid rgba(255, 255, 255, 0.24);
   background: rgba(8, 22, 34, 0.8);
   color: var(--text);
@@ -1328,9 +1420,9 @@ canvas {
   padding: 4px 8px;
 }
 
-.trade-add button {
+.trade-amount-row button {
   border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(110, 200, 145, 0.22);
+  background: rgba(255, 209, 102, 0.22);
   color: var(--text);
   border-radius: 8px;
   font: inherit;
@@ -1662,7 +1754,7 @@ canvas {
   .game-shell {
     width: 100vw;
     height: 100vh;
-    padding: 8px;
+    padding: 9px;
     gap: 8px;
   }
 
@@ -1689,7 +1781,7 @@ canvas {
   }
 
   .menu-title {
-    font-size: 18px;
+    font-size: 20px;
   }
 
   .menu-screen input {
@@ -1705,7 +1797,7 @@ canvas {
   }
 
   .canvas-wrap {
-    padding: 4px;
+    padding: 6px;
     border-radius: 10px;
   }
 
@@ -1714,17 +1806,17 @@ canvas {
   }
 
   .toolbar {
-    padding: 6px;
+    padding: 7px;
     gap: 6px;
     max-height: min(52vh, 430px);
   }
 
   .inventory-grid {
-    grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
   }
 
   .inventory-slot {
-    min-height: 60px;
+    min-height: 64px;
   }
 
   .slot-key {
@@ -1772,7 +1864,7 @@ canvas {
   }
 
   .chat-messages {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .logs-panel {

@@ -11,6 +11,7 @@ window.GTModules.trade = (function () {
     let tradeHandler = null;
     let lastReqId = "";
     let lastRespId = "";
+    let pendingPick = null;
 
     const g = (k, d) => {
       const v = opts[k];
@@ -94,7 +95,14 @@ window.GTModules.trade = (function () {
       if (tradeData && tradeId) { renderPanel(); return true; }
       const p = findRemoteAt(tx, ty);
       if (!p) return false;
-      menuCtx = { accountId: String(p.accountId || ""), name: String(p.name || "Player").slice(0, 20) };
+      return handleWrenchPlayer(p);
+    }
+
+    function handleWrenchPlayer(playerData) {
+      if (tradeData && tradeId) { renderPanel(); return true; }
+      const accountId = String(playerData && playerData.accountId || "");
+      if (!accountId || accountId === me()) return false;
+      menuCtx = { accountId, name: String(playerData && playerData.name || "Player").slice(0, 20) };
       const m = g("getTradeMenuModalEl", null), t = g("getTradeMenuTitleEl", null);
       if (t) t.textContent = "@" + menuCtx.name;
       if (m) m.classList.remove("hidden");
@@ -251,26 +259,49 @@ window.GTModules.trade = (function () {
       }).catch(() => {});
     }
 
-    function addOptionsHtml(type, mineOffer) {
-      if (type === "cosmetic") {
-        const o = [];
-        cosItems().forEach((it) => {
-          const have = Math.max(0, Math.floor(Number(cos()[it.id]) || 0));
-          const inOffer = Math.max(0, Math.floor(Number((mineOffer.cosmetics || {})[it.id]) || 0));
-          const free = have - inOffer; if (free <= 0) return;
-          o.push("<option value='" + esc(it.id) + "'>" + esc((it.name || it.id) + " (" + free + ")") + "</option>");
-        });
-        return o.join("");
-      }
-      const o = [];
+    function getAvailableEntries(mineOffer) {
+      const entries = [];
       invIds().forEach((bid) => {
         const key = String(Number(bid));
         const have = Math.max(0, Math.floor(Number(inv()[bid]) || 0));
         const inOffer = Math.max(0, Math.floor(Number((mineOffer.blocks || {})[key]) || 0));
-        const free = have - inOffer; if (free <= 0) return;
-        o.push("<option value='" + esc(key) + "'>" + esc(getBlockName(bid) + " (" + free + ")") + "</option>");
+        const free = have - inOffer;
+        if (free <= 0) return;
+        entries.push({
+          type: "block",
+          itemId: key,
+          label: getBlockName(key),
+          qty: free
+        });
       });
-      return o.join("");
+      cosItems().forEach((it) => {
+        const itemId = String(it.id || "");
+        if (!itemId) return;
+        const have = Math.max(0, Math.floor(Number(cos()[itemId]) || 0));
+        const inOffer = Math.max(0, Math.floor(Number((mineOffer.cosmetics || {})[itemId]) || 0));
+        const free = have - inOffer;
+        if (free <= 0) return;
+        entries.push({
+          type: "cosmetic",
+          itemId,
+          label: it.name || itemId,
+          qty: free
+        });
+      });
+      return entries;
+    }
+
+    function inventoryEntriesHtml(mineOffer) {
+      const entries = getAvailableEntries(mineOffer);
+      if (!entries.length) {
+        return "<div class='trade-offer-empty'>No available items to add.</div>";
+      }
+      return entries.map((entry) => {
+        return "<button class='trade-inventory-item' data-trade-act='pick' data-type='" + esc(entry.type) + "' data-item-id='" + esc(entry.itemId) + "' data-max='" + entry.qty + "'>" +
+          "<span>" + esc(entry.label) + "</span>" +
+          "<strong>x" + entry.qty + "</strong>" +
+          "</button>";
+      }).join("");
     }
 
     function offerRowsHtml(offer, mine) {
@@ -288,8 +319,18 @@ window.GTModules.trade = (function () {
       const myOffer = normOffer(tradeData.offers[mine]), his = normOffer(tradeData.offers[oid]);
       const aMe = !!tradeData.acceptedBy[mine], aHe = !!tradeData.acceptedBy[oid], bothA = aMe && aHe, cMe = !!tradeData.confirmedBy[mine];
       title.textContent = "Trade with @" + oname;
+      const amountMenuMarkup = pendingPick
+        ? "<div class='trade-amount-menu'>" +
+          "<div class='trade-amount-title'>Add " + esc(pendingPick.label) + " (max " + pendingPick.max + ")</div>" +
+          "<div class='trade-amount-row'>" +
+          "<input id='tradeAmountInput' type='number' min='1' step='1' value='1' max='" + pendingPick.max + "'>" +
+          "<button data-trade-act='amountadd'>Add</button>" +
+          "<button data-trade-act='amountcancel'>Cancel</button>" +
+          "</div>" +
+          "</div>"
+        : "";
       body.innerHTML = "<div class='trade-status'><span class='trade-chip " + (aMe ? "ready" : "wait") + "'>You: " + (aMe ? "Ready" : "Waiting") + "</span><span class='trade-chip " + (aHe ? "ready" : "wait") + "'>@" + esc(oname) + ": " + (aHe ? "Ready" : "Waiting") + "</span></div>" +
-        "<div class='trade-add'><select id='tradeAddType'><option value='block'>Blocks</option><option value='cosmetic'>Cosmetics</option></select><select id='tradeAddItem'>" + (addOptionsHtml("block", myOffer) || "<option value=''>No items</option>") + "</select><input id='tradeAddQty' type='number' min='1' step='1' value='1'><button data-trade-act='add'>Add</button></div>" +
+        "<div class='trade-offer'><div class='trade-offer-title'>Your Inventory (click to add)</div><div class='trade-inventory-list'>" + inventoryEntriesHtml(myOffer) + "</div>" + amountMenuMarkup + "</div>" +
         "<div class='trade-top'><div class='trade-offer'><div class='trade-offer-title'>Your Offer</div><div class='trade-offer-list'>" + offerRowsHtml(myOffer, true) + "</div></div><div class='trade-offer'><div class='trade-offer-title'>@" + esc(oname) + " Offer</div><div class='trade-offer-list'>" + offerRowsHtml(his, false) + "</div></div></div>";
       actions.innerHTML = "<button data-trade-act='accept'>" + (aMe ? "Unaccept" : "Accept") + "</button><button data-trade-act='confirm' " + (bothA ? "" : "disabled") + ">" + (cMe ? "Confirmed" : "Confirm") + "</button><button data-trade-act='cancel'>Cancel Trade</button>";
       modal.classList.remove("hidden");
@@ -333,22 +374,38 @@ window.GTModules.trade = (function () {
       if (pclose) pclose.addEventListener("click", () => { if (tradeData) cancelTrade(); else closePanel(); });
       if (pm) pm.addEventListener("click", (e) => { if (e.target === pm && tradeData) cancelTrade(); });
       if (pbody) {
-        pbody.addEventListener("change", (e) => {
-          const t = e.target; if (!(t instanceof HTMLElement) || t.id !== "tradeAddType") return;
-          const typeSel = pbody.querySelector("#tradeAddType"), itemSel = pbody.querySelector("#tradeAddItem");
-          if (!(typeSel instanceof HTMLSelectElement) || !(itemSel instanceof HTMLSelectElement)) return;
-          const mineOffer = tradeData ? normOffer((tradeData.offers || {})[me()]) : { blocks: {}, cosmetics: {} };
-          itemSel.innerHTML = addOptionsHtml(typeSel.value === "cosmetic" ? "cosmetic" : "block", mineOffer) || "<option value=''>No items</option>";
-        });
         pbody.addEventListener("click", (e) => {
           const t = e.target; if (!(t instanceof HTMLElement)) return;
           const act = String(t.dataset.tradeAct || "");
-          if (act === "add") {
-            const ts = pbody.querySelector("#tradeAddType"), is = pbody.querySelector("#tradeAddItem"), qs = pbody.querySelector("#tradeAddQty");
-            if (!(ts instanceof HTMLSelectElement) || !(is instanceof HTMLSelectElement) || !(qs instanceof HTMLInputElement)) return;
-            const itemId = String(is.value || ""); if (!itemId) return;
-            const qty = Math.max(1, Math.floor(Number(qs.value) || 1));
-            applyOfferDelta(ts.value === "cosmetic" ? "cosmetic" : "block", itemId, qty);
+          if (act === "pick") {
+            const type = String(t.dataset.type || "block") === "cosmetic" ? "cosmetic" : "block";
+            const itemId = String(t.dataset.itemId || "");
+            const max = Math.max(1, Math.floor(Number(t.dataset.max) || 1));
+            const labelNode = t.querySelector("span");
+            const label = labelNode ? labelNode.textContent || itemId : itemId;
+            if (!itemId) return;
+            if (max <= 1) {
+              pendingPick = null;
+              applyOfferDelta(type, itemId, 1);
+              return;
+            }
+            pendingPick = { type, itemId, max, label };
+            renderPanel();
+            return;
+          }
+          if (act === "amountcancel") {
+            pendingPick = null;
+            renderPanel();
+            return;
+          }
+          if (act === "amountadd") {
+            if (!pendingPick) return;
+            const amountInput = pbody.querySelector("#tradeAmountInput");
+            if (!(amountInput instanceof HTMLInputElement)) return;
+            const qty = Math.max(1, Math.min(pendingPick.max, Math.floor(Number(amountInput.value) || 1)));
+            const pick = pendingPick;
+            pendingPick = null;
+            applyOfferDelta(pick.type, pick.itemId, qty);
             return;
           }
           if (act === "remove") {
@@ -367,7 +424,7 @@ window.GTModules.trade = (function () {
       }
     }
 
-    return { bindUiEvents, closeAll, closeRequestModal: closeReq, handleWrenchAt, onTradeRequest, onTradeResponse, onActiveTradePointer, respondToTradeRequest };
+    return { bindUiEvents, closeAll, closeRequestModal: closeReq, handleWrenchAt, handleWrenchPlayer, onTradeRequest, onTradeResponse, onActiveTradePointer, respondToTradeRequest };
   }
 
   return { createController };

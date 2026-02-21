@@ -295,6 +295,8 @@
       const CHAT_BUBBLE_MS = 7000;
       const CHAT_BUBBLE_MAX_WIDTH = 190;
       const CHAT_BUBBLE_LINE_HEIGHT = 13;
+      const PLAYER_NAME_FONT = "12px 'Trebuchet MS', sans-serif";
+      const playerWrenchHitboxes = [];
 
       let currentWorldId = getInitialWorldId();
       let world = makeWorld(currentWorldId);
@@ -910,7 +912,10 @@
           const qty = Math.max(0, Math.floor(Number(inv[id]) || 0));
           if (qty <= 0) continue;
           const def = blockDefs[id] || {};
+          const blockKey = getBlockKeyById(id);
           rows.push({
+            kind: "block",
+            itemId: blockKey,
             label: def.name ? def.name + " (Block " + id + ")" : "Block " + id,
             qty
           });
@@ -920,6 +925,8 @@
           const qty = Math.max(0, Math.floor(Number(itemRecord[item.id]) || 0));
           if (qty <= 0) continue;
           rows.push({
+            kind: "cosmetic",
+            itemId: item.id,
             label: (item.name || item.id) + " (" + item.slot + ")",
             qty
           });
@@ -927,6 +934,11 @@
         adminInventoryTitleEl.textContent = "@" + username + " Inventory";
         adminInventoryModalEl.dataset.accountId = accountId;
         const canEdit = canEditAdminInventoryModal() && canActorGrantTarget(accountId, getAccountRole(accountId, username));
+        const currentItemOptions = rows.length
+          ? rows.map((row) => {
+            return '<option value="' + escapeHtml(row.kind + ":" + row.itemId) + '">' + escapeHtml(row.label + " x" + row.qty) + "</option>";
+          }).join("")
+          : "<option value=''>No owned items</option>";
         const editorMarkup = canEdit
           ? "<div class='admin-inventory-tools'>" +
             "<select class='admin-inv-kind' data-account-id='" + escapeHtml(accountId) + "'>" +
@@ -937,13 +949,21 @@
             "<input class='admin-inv-amount' data-account-id='" + escapeHtml(accountId) + "' type='number' min='1' step='1' value='1'>" +
             "<button data-admin-inv-act='add' data-account-id='" + escapeHtml(accountId) + "'>Add</button>" +
             "<button data-admin-inv-act='remove' data-account-id='" + escapeHtml(accountId) + "'>Remove</button>" +
+            "<select class='admin-inv-current' data-account-id='" + escapeHtml(accountId) + "'>" + currentItemOptions + "</select>" +
+            "<button data-admin-inv-act='removeallselected' data-account-id='" + escapeHtml(accountId) + "' " + (rows.length ? "" : "disabled") + ">Remove Selected All</button>" +
             "</div>"
           : "";
         if (!rows.length) {
           adminInventoryBodyEl.innerHTML = editorMarkup + "<div class='admin-inventory-row'><span class='admin-inventory-item'>No items.</span><span class='admin-inventory-qty'>0</span></div>";
         } else {
           adminInventoryBodyEl.innerHTML = editorMarkup + rows.map((row) => {
-            return "<div class='admin-inventory-row'><span class='admin-inventory-item'>" + escapeHtml(row.label) + "</span><span class='admin-inventory-qty'>" + row.qty + "</span></div>";
+            return "<div class='admin-inventory-row'>" +
+              "<span class='admin-inventory-item'>" + escapeHtml(row.label) + "</span>" +
+              "<span class='admin-inventory-qty'>" + row.qty + "</span>" +
+              (canEdit
+                ? "<button data-admin-inv-act='removeall' data-account-id='" + escapeHtml(accountId) + "' data-kind='" + escapeHtml(row.kind) + "' data-item-id='" + escapeHtml(row.itemId) + "'>Remove All</button>"
+                : "") +
+              "</div>";
           }).join("");
         }
         adminInventoryModalEl.classList.remove("hidden");
@@ -1267,6 +1287,49 @@
         const itemSelect = adminInventoryBodyEl.querySelector('.admin-inv-item[data-account-id="' + accountId + '"]');
         const amountInput = adminInventoryBodyEl.querySelector('.admin-inv-amount[data-account-id="' + accountId + '"]');
         if (!(kindSelect instanceof HTMLSelectElement) || !(itemSelect instanceof HTMLSelectElement) || !(amountInput instanceof HTMLInputElement)) return;
+        const removeAllItem = (kind, itemId) => {
+          const cleanKind = kind === "cosmetic" ? "cosmetic" : "block";
+          const cleanItemId = String(itemId || "").trim();
+          if (!cleanItemId) return;
+          if (cleanKind === "cosmetic") {
+            const itemDef = COSMETIC_ITEMS.find((it) => it.id === cleanItemId);
+            if (!itemDef) return;
+            network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/cosmeticItems/" + cleanItemId).set(0).then(() => {
+              setLocalInventoryCosmeticCount(accountId, cleanItemId, 0);
+              logAdminAudit("Admin(inventory-modal) removed all item " + cleanItemId + " for @" + username + ".");
+              pushAdminAuditEntry("inventory_remove_all", accountId, "item=" + cleanItemId);
+              syncAdminPanelAfterInventoryChange(accountId);
+            }).catch(() => {
+              postLocalSystemChat("Failed to remove cosmetic item.");
+            });
+            return;
+          }
+          const blockId = parseBlockRef(cleanItemId);
+          if (!INVENTORY_IDS.includes(blockId)) return;
+          network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + blockId).set(0).then(() => {
+            setLocalInventoryBlockCount(accountId, blockId, 0);
+            logAdminAudit("Admin(inventory-modal) removed all block " + blockId + " for @" + username + ".");
+            pushAdminAuditEntry("inventory_remove_all", accountId, "block=" + blockId);
+            syncAdminPanelAfterInventoryChange(accountId);
+          }).catch(() => {
+            postLocalSystemChat("Failed to remove block item.");
+          });
+        };
+        if (action === "removeallselected") {
+          const currentSelect = adminInventoryBodyEl.querySelector('.admin-inv-current[data-account-id="' + accountId + '"]');
+          if (!(currentSelect instanceof HTMLSelectElement)) return;
+          const raw = String(currentSelect.value || "");
+          const sep = raw.indexOf(":");
+          if (sep <= 0) return;
+          const selectedKind = raw.slice(0, sep);
+          const selectedItemId = raw.slice(sep + 1);
+          removeAllItem(selectedKind, selectedItemId);
+          return;
+        }
+        if (action === "removeall") {
+          removeAllItem(target.dataset.kind, target.dataset.itemId);
+          return;
+        }
         const amount = Math.max(1, Math.floor(Number(amountInput.value) || 1));
         const delta = action === "remove" ? -amount : amount;
         if (kindSelect.value === "cosmetic") {
@@ -4029,39 +4092,87 @@
         ctx.fillRect(handX, py + 15 + swing * 0.25, 8, 3);
       }
 
-      function drawHumanoid(px, py, facing, bodyColor, skinColor, eyeColor, clothesId, pose) {
+      function drawHumanoid(px, py, facing, bodyColor, skinColor, eyeColor, clothesId, pose, lookX, lookY) {
         const armSwing = Number(pose && pose.armSwing) || 0;
         const legSwing = Number(pose && pose.legSwing) || 0;
-        const leftArmY = py + 14 + Math.round(-armSwing);
-        const rightArmY = py + 14 + Math.round(armSwing);
-        const leftLegY = py + 25 + Math.round(-legSwing);
-        const rightLegY = py + 25 + Math.round(legSwing);
+        const leftArmY = py + 13 + Math.round(-armSwing * 0.7);
+        const rightArmY = py + 13 + Math.round(armSwing * 0.7);
+        const leftLegY = py + 23 + Math.round(-legSwing * 0.8);
+        const rightLegY = py + 23 + Math.round(legSwing * 0.8);
+        const lookDx = Math.max(-1, Math.min(1, Number(lookX) || 0));
+        const lookDy = Math.max(-1, Math.min(1, Number(lookY) || 0));
+        const pupilDx = Math.round(lookDx * 1.7);
+        const pupilDy = Math.round(lookDy * 1.2);
+        const faceTilt = facing === 1 ? 1 : -1;
+
+        const headX = px + 3;
+        const headY = py + 1;
+        const headW = PLAYER_W - 6;
+        const headH = 11;
+        const torsoX = px + 5;
+        const torsoY = py + 13;
+        const torsoW = PLAYER_W - 10;
+        const torsoH = 9;
 
         ctx.fillStyle = skinColor;
-        ctx.fillRect(px + 4, py + 3, PLAYER_W - 8, 10);
-        ctx.fillRect(px + 5, py + 14, PLAYER_W - 10, 11);
-        ctx.fillRect(px + 1, leftArmY, 4, 9);
-        ctx.fillRect(px + PLAYER_W - 5, rightArmY, 4, 9);
-        ctx.fillRect(px + 6, leftLegY, 4, 5);
-        ctx.fillRect(px + PLAYER_W - 10, rightLegY, 4, 5);
+        ctx.fillRect(headX, headY, headW, headH);
+        ctx.fillRect(torsoX, torsoY, torsoW, torsoH);
+        ctx.fillRect(px + 2, leftArmY, 3, 8);
+        ctx.fillRect(px + PLAYER_W - 5, rightArmY, 3, 8);
+        ctx.fillRect(px + 6, leftLegY, 4, 7);
+        ctx.fillRect(px + PLAYER_W - 10, rightLegY, 4, 7);
 
         drawClothes(px, py, clothesId);
 
-        ctx.fillStyle = "rgba(0,0,0,0.16)";
-        ctx.fillRect(px + 5, py + 12, PLAYER_W - 10, 1);
-        ctx.fillRect(px + 5, py + 24, PLAYER_W - 10, 1);
+        ctx.fillStyle = "rgba(0,0,0,0.18)";
+        ctx.fillRect(torsoX, torsoY - 1, torsoW, 1);
+        ctx.fillRect(torsoX, torsoY + torsoH, torsoW, 1);
 
+        const leftEyeX = px + 5 + (faceTilt > 0 ? 0 : -1);
+        const rightEyeX = px + PLAYER_W - 11 + (faceTilt > 0 ? 1 : 0);
+        const eyeY = py + 4;
         ctx.fillStyle = "#f3f6ff";
-        const leftEyeX = px + 4;
-        const rightEyeX = px + PLAYER_W - 10;
-        const eyeY = py + 3;
-        ctx.fillRect(leftEyeX, eyeY, 6, 4);
-        ctx.fillRect(rightEyeX, eyeY, 6, 4);
+        ctx.fillRect(leftEyeX, eyeY, 5, 4);
+        ctx.fillRect(rightEyeX, eyeY, 5, 4);
 
+        ctx.fillStyle = eyeColor;
+        ctx.fillRect(leftEyeX + 2 + pupilDx, eyeY + 1 + pupilDy, 2, 2);
+        ctx.fillRect(rightEyeX + 1 + pupilDx, eyeY + 1 + pupilDy, 2, 2);
+
+        const mouthX = px + 8 + (faceTilt > 0 ? 1 : -1);
+        const mouthY = py + 10 + Math.max(-1, Math.min(1, pupilDy));
         ctx.fillStyle = "rgba(85, 52, 43, 0.95)";
-        ctx.fillRect(px + 8, py + 10, 6, 2);
+        ctx.fillRect(mouthX, mouthY, 5, 2);
 
-        return { leftEyeX, rightEyeX };
+        const noseX = faceTilt > 0 ? px + 13 : px + 8;
+        ctx.fillStyle = "rgba(124, 84, 66, 0.9)";
+        ctx.fillRect(noseX, py + 8, 2, 2);
+
+        return {};
+      }
+
+      function getLocalLookVector() {
+        const centerX = player.x + PLAYER_W / 2;
+        const centerY = player.y + PLAYER_H / 2;
+        const targetX = mouseWorld.tx * TILE + TILE / 2;
+        const targetY = mouseWorld.ty * TILE + TILE / 2;
+        const dx = (targetX - centerX) / (TILE * 3.2);
+        const dy = (targetY - centerY) / (TILE * 3.2);
+        return {
+          x: Math.max(-1, Math.min(1, dx)),
+          y: Math.max(-1, Math.min(1, dy))
+        };
+      }
+
+      function getRemoteLookVector(other) {
+        const fx = (other && other.facing === -1) ? -0.75 : 0.75;
+        const vy = Number(other && other.vy);
+        let fy = 0;
+        if (Number.isFinite(vy)) {
+          if (vy < -1) fy = -0.45;
+          else if (vy > 1) fy = 0.45;
+        }
+        return { x: fx, y: fy };
       }
 
       function drawPlayer() {
@@ -4084,14 +4195,8 @@
         ctx.rotate(Number(pose.bodyTilt) || 0);
         ctx.translate(-(px + PLAYER_W / 2), -(basePy + PLAYER_H / 2));
 
-        const eyes = drawHumanoid(px, basePy, player.facing, "#263238", "#b98a78", "#0d0d0d", cosmetics.clothes, pose);
-        ctx.fillStyle = "#0d0d0d";
-        const eyeY = basePy + 4 + (pose.eyeYOffset || 0);
-        const eyeHeight = Math.max(1, Math.floor(Number(pose.eyeHeight) || 3));
-        const leftPupilX = eyes.leftEyeX + (player.facing === 1 ? 2 : 1);
-        const rightPupilX = eyes.rightEyeX + (player.facing === 1 ? 2 : 1);
-        ctx.fillRect(leftPupilX, eyeY, 2, eyeHeight);
-        ctx.fillRect(rightPupilX, eyeY, 2, eyeHeight);
+        const localLook = getLocalLookVector();
+        drawHumanoid(px, basePy, player.facing, "#263238", "#b98a78", "#0d0d0d", cosmetics.clothes, pose, localLook.x, localLook.y);
 
         drawSword(px, basePy, cosmetics.swords, player.facing, pose.swordSwing || 0);
         ctx.restore();
@@ -4100,6 +4205,8 @@
       function drawRemotePlayers() {
         const nowMs = performance.now();
         const keepIds = [];
+        playerWrenchHitboxes.length = 0;
+        const wrenchSelected = slotOrder[selectedSlot] === TOOL_WRENCH;
         remotePlayers.forEach((other) => {
           const otherId = (other.id || "").toString();
           keepIds.push(otherId);
@@ -4122,28 +4229,80 @@
           ctx.rotate(Number(pose.bodyTilt) || 0);
           ctx.translate(-(px + PLAYER_W / 2), -(basePy + PLAYER_H / 2));
 
-          const eyes = drawHumanoid(px, basePy, other.facing || 1, "#2a75bb", "#b98a78", "#102338", cosmetics.clothes || "", pose);
-          ctx.fillStyle = "#102338";
-          const eyeY = basePy + 4 + (pose.eyeYOffset || 0);
-          const eyeHeight = Math.max(1, Math.floor(Number(pose.eyeHeight) || 3));
-          const otherFacing = other.facing || 1;
-          const leftPupilX = eyes.leftEyeX + (otherFacing === 1 ? 2 : 1);
-          const rightPupilX = eyes.rightEyeX + (otherFacing === 1 ? 2 : 1);
-          ctx.fillRect(leftPupilX, eyeY, 2, eyeHeight);
-          ctx.fillRect(rightPupilX, eyeY, 2, eyeHeight);
+          const remoteLook = getRemoteLookVector(other);
+          drawHumanoid(px, basePy, other.facing || 1, "#2a75bb", "#b98a78", "#102338", cosmetics.clothes || "", pose, remoteLook.x, remoteLook.y);
 
           drawSword(px, basePy, cosmetics.swords || "", other.facing || 1, pose.swordSwing || 0);
           ctx.restore();
 
-          ctx.fillStyle = "rgba(10, 25, 40, 0.75)";
-          ctx.fillRect(px - 4, basePy - 19, 74, 15);
+          const nameText = String(other.name || "Player").slice(0, 20);
+          const nameX = px;
+          const nameY = basePy - 8;
+          ctx.font = PLAYER_NAME_FONT;
           ctx.fillStyle = "#f3fbff";
-          ctx.font = "12px 'Trebuchet MS', sans-serif";
-          ctx.fillText(other.name || "Player", px, basePy - 8);
+          ctx.fillText(nameText, nameX, nameY);
+          if (wrenchSelected && other.accountId) {
+            const textWidth = ctx.measureText(nameText).width;
+            const iconSize = 12;
+            const iconX = Math.floor(nameX + textWidth + 5);
+            const iconY = Math.floor(nameY - 10);
+            drawNameWrenchIcon(iconX, iconY, iconSize);
+            playerWrenchHitboxes.push({
+              x: iconX,
+              y: iconY,
+              w: iconSize,
+              h: iconSize,
+              accountId: String(other.accountId || ""),
+              name: nameText
+            });
+          }
         });
         if (typeof animationsModule.pruneTracker === "function") {
           animationsModule.pruneTracker(remoteAnimationTracker, keepIds);
         }
+      }
+
+      function drawNameWrenchIcon(x, y, size) {
+        ctx.save();
+        const r = size / 2;
+        ctx.fillStyle = "rgba(255, 209, 102, 0.95)";
+        ctx.beginPath();
+        ctx.arc(x + r, y + r, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(14, 36, 56, 0.9)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(14, 36, 56, 0.95)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x + 3, y + size - 4);
+        ctx.lineTo(x + size - 4, y + 4);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x + size - 4, y + 4, 2, 0.4, 2.75);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function hitWrenchNameIcon(canvasX, canvasY) {
+        if (!inWorld) return null;
+        for (let i = playerWrenchHitboxes.length - 1; i >= 0; i--) {
+          const hit = playerWrenchHitboxes[i];
+          if (canvasX >= hit.x && canvasX <= hit.x + hit.w && canvasY >= hit.y && canvasY <= hit.y + hit.h) {
+            return hit;
+          }
+        }
+        return null;
+      }
+
+      function openWrenchMenuFromNameIcon(clientX, clientY) {
+        if (slotOrder[selectedSlot] !== TOOL_WRENCH) return false;
+        const point = canvasPointFromClient(clientX, clientY);
+        const hit = hitWrenchNameIcon(point.x, point.y);
+        if (!hit || !hit.accountId) return false;
+        const tradeCtrl = getTradeController();
+        if (!tradeCtrl || typeof tradeCtrl.handleWrenchPlayer !== "function") return false;
+        return Boolean(tradeCtrl.handleWrenchPlayer({ accountId: hit.accountId, name: hit.name }));
       }
 
       function wrapChatText(text, maxTextWidth) {
@@ -5770,12 +5929,19 @@
         }
       }
 
-      function worldFromClient(clientX, clientY) {
+      function canvasPointFromClient(clientX, clientY) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
-        const x = (clientX - rect.left) * scaleX + cameraX;
-        const y = (clientY - rect.top) * scaleY + cameraY;
+        const x = (clientX - rect.left) * scaleX;
+        const y = (clientY - rect.top) * scaleY;
+        return { x, y };
+      }
+
+      function worldFromClient(clientX, clientY) {
+        const point = canvasPointFromClient(clientX, clientY);
+        const x = point.x + cameraX;
+        const y = point.y + cameraY;
         return {
           tx: Math.floor(x / TILE),
           ty: Math.floor(y / TILE)
@@ -5897,8 +6063,12 @@
         isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
         const minWidth = isCoarsePointer ? 320 : 720;
         const minHeight = isCoarsePointer ? 220 : 360;
-        canvas.width = Math.max(minWidth, Math.floor(rect.width));
-        canvas.height = Math.max(minHeight, Math.floor(rect.height));
+        const targetWidth = Math.max(minWidth, Math.floor(rect.width));
+        const targetHeight = Math.max(minHeight, Math.floor(rect.height));
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        ctx.imageSmoothingEnabled = false;
+        ctx.textBaseline = "alphabetic";
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
         applyToolbarPosition();
       }
@@ -6010,6 +6180,7 @@
 
       canvas.addEventListener("mousedown", (e) => {
         if (!inWorld) return;
+        if (e.button === 0 && openWrenchMenuFromNameIcon(e.clientX, e.clientY)) return;
         const pos = worldFromPointer(e);
         mouseWorld = pos;
         if (e.button === 0) {
@@ -6026,6 +6197,7 @@
         e.preventDefault();
         const touch = e.changedTouches[0];
         if (!touch) return;
+        if (openWrenchMenuFromNameIcon(touch.clientX, touch.clientY)) return;
         applyMobileEditAction(touch.clientX, touch.clientY);
       }, { passive: false });
 
