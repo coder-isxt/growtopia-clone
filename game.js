@@ -3559,7 +3559,7 @@
           return;
         }
         if (id === SIGN_ID) {
-          openSignModal(tx, ty);
+          openSignModal(tx, ty-1);
         }
       }
 
