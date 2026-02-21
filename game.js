@@ -145,11 +145,11 @@
       const JUMP_COOLDOWN_MS = Number(SETTINGS.JUMP_COOLDOWN_MS) || 200;
       const PLAYER_SYNC_MIN_MS = Math.max(25, Number(SETTINGS.PLAYER_SYNC_MIN_MS) || 90);
       const GLOBAL_SYNC_MIN_MS = Math.max(PLAYER_SYNC_MIN_MS, Number(SETTINGS.GLOBAL_SYNC_MIN_MS) || 240);
-      const LAYOUT_PREFS_KEY = "gt_layout_panels_v1";
-      const DESKTOP_PANEL_LEFT_DEFAULT = 280;
-      const DESKTOP_PANEL_RIGHT_DEFAULT = 260;
-      const DESKTOP_PANEL_MIN = 180;
-      const DESKTOP_PANEL_MAX_RATIO = 0.34;
+      const LAYOUT_PREFS_KEY = "gt_layout_panels_v2";
+      const DESKTOP_PANEL_LEFT_DEFAULT = 240;
+      const DESKTOP_PANEL_RIGHT_DEFAULT = 220;
+      const DESKTOP_PANEL_MIN = 160;
+      const DESKTOP_PANEL_MAX_RATIO = 0.3;
       const MOVE_ACCEL = Number(SETTINGS.MOVE_ACCEL) || 0.46;
       const JUMP_VELOCITY = Number(SETTINGS.JUMP_VELOCITY) || -7.2;
       const MAX_MOVE_SPEED = Number(SETTINGS.MAX_MOVE_SPEED) || 3.7;
@@ -6862,7 +6862,7 @@
 
       function clampPanelWidths(leftValue, rightValue) {
         const viewportWidth = Math.max(980, window.innerWidth || 0);
-        const centerMin = viewportWidth < 1220 ? 560 : 760;
+        const centerMin = viewportWidth < 1220 ? 620 : 840;
         const maxByRatio = Math.floor(viewportWidth * DESKTOP_PANEL_MAX_RATIO);
         let left = Math.max(DESKTOP_PANEL_MIN, Math.min(maxByRatio, Math.round(Number(leftValue) || DESKTOP_PANEL_LEFT_DEFAULT)));
         let right = Math.max(DESKTOP_PANEL_MIN, Math.min(maxByRatio, Math.round(Number(rightValue) || DESKTOP_PANEL_RIGHT_DEFAULT)));

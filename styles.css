@@ -13,10 +13,10 @@
   --shadow-md: 0 8px 22px rgba(2, 10, 18, 0.28);
   --radius-lg: 16px;
   --radius-md: 12px;
-  --left-panel-w: 280px;
-  --right-panel-w: 260px;
-  --desktop-shell-pad: 12px;
-  --desktop-side-gap: 12px;
+  --left-panel-w: 240px;
+  --right-panel-w: 220px;
+  --desktop-shell-pad: 8px;
+  --desktop-side-gap: 8px;
 }
 
 * {
@@ -1942,14 +1942,14 @@ canvas {
   }
 
   .game-shell {
-    padding: 10px var(--desktop-shell-pad);
-    gap: 8px;
+    padding: 8px var(--desktop-shell-pad);
+    gap: 6px;
     grid-template-rows: auto minmax(0, 1fr);
   }
 
   .hud {
-    min-height: 74px;
-    padding: 10px 12px;
+    min-height: 58px;
+    padding: 8px 10px;
   }
 
   .menu-screen,
@@ -1965,14 +1965,14 @@ canvas {
 
   .canvas-wrap {
     height: 100%;
-    min-height: 360px;
-    padding: 8px;
+    min-height: 420px;
+    padding: 6px;
   }
 
   .chat-panel {
     left: var(--desktop-shell-pad);
-    top: 96px;
-    bottom: 12px;
+    top: 82px;
+    bottom: 8px;
     width: var(--left-panel-w);
     height: auto;
     z-index: 26;
@@ -1981,8 +1981,8 @@ canvas {
   .toolbar {
     position: fixed;
     right: var(--desktop-shell-pad);
-    top: 96px;
-    bottom: 12px;
+    top: 82px;
+    bottom: 8px;
     width: var(--right-panel-w);
     height: auto;
     min-height: 0;
@@ -1993,8 +1993,8 @@ canvas {
   .layout-resize-handle {
     display: block;
     position: fixed;
-    top: 96px;
-    bottom: 12px;
+    top: 82px;
+    bottom: 8px;
     width: 10px;
     margin-left: -5px;
     border-radius: 999px;
