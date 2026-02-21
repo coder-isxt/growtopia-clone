@@ -54,6 +54,7 @@
       const worldModule = modules.world || {};
       const animationsModule = modules.animations || {};
       const syncPlayerModule = modules.syncPlayer || {};
+      const syncBlocksModule = modules.syncBlocks || {};
       const syncWorldsModule = modules.syncWorlds || {};
       const chatModule = modules.chat || {};
       const menuModule = modules.menu || {};
@@ -214,6 +215,13 @@
         ? syncPlayerModule.createController({
           playerMinIntervalMs: PLAYER_SYNC_MIN_MS,
           globalMinIntervalMs: GLOBAL_SYNC_MIN_MS
+        })
+        : null;
+      const blockSyncer = typeof syncBlocksModule.createBatchSync === "function"
+        ? syncBlocksModule.createBatchSync({
+          getRef: () => network.blocksRef,
+          onError: () => setNetworkState("Network error", true),
+          flushDelayMs: 16
         })
         : null;
       let lastJumpAtMs = -9999;
@@ -1791,6 +1799,9 @@
         remotePlayers.clear();
         updateOnlineCount();
         world = makeWorld(currentWorldId);
+        if (blockSyncer && typeof blockSyncer.reset === "function") {
+          blockSyncer.reset();
+        }
         player.x = TILE * SPAWN_TILE_X;
         player.y = TILE * SPAWN_TILE_Y;
         player.vx = 0;
@@ -2359,19 +2370,28 @@
         if (!item) return;
         const flap = Number(wingFlap) || 0;
         ctx.fillStyle = item.color;
-        const leftDir = facing === 1 ? -1 : 1;
-        ctx.beginPath();
-        ctx.moveTo(px + PLAYER_W / 2, py + 14);
-        ctx.lineTo(px + PLAYER_W / 2 + leftDir * 16, py + 8 - flap);
-        ctx.lineTo(px + PLAYER_W / 2 + leftDir * 20, py + 20 + flap * 0.35);
-        ctx.closePath();
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(px + PLAYER_W / 2, py + 14);
-        ctx.lineTo(px + PLAYER_W / 2 - leftDir * 16, py + 8 - flap);
-        ctx.lineTo(px + PLAYER_W / 2 - leftDir * 20, py + 20 + flap * 0.35);
-        ctx.closePath();
-        ctx.fill();
+        const centerX = px + PLAYER_W / 2;
+        const centerY = py + 14;
+        const forwardSign = facing === 1 ? 1 : -1;
+        const drawWing = (sideSign) => {
+          const dir = sideSign * forwardSign;
+          const base = 0.5 * sideSign;
+          const angle = base + flap * sideSign;
+          ctx.save();
+          ctx.translate(centerX, centerY);
+          ctx.rotate(angle);
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(16 * dir, -7);
+          ctx.lineTo(23 * dir, 2);
+          ctx.lineTo(17 * dir, 11);
+          ctx.lineTo(4 * dir, 9);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        };
+        drawWing(-1);
+        drawWing(1);
       }
 
       function drawClothes(px, py, clothesId) {
@@ -2392,22 +2412,39 @@
         ctx.fillRect(handX, py + 15 + swing * 0.25, 8, 3);
       }
 
-      function drawHumanoid(px, py, facing, bodyColor, skinColor, eyeColor, clothesId) {
-        ctx.fillStyle = bodyColor;
-        ctx.fillRect(px + 6, py + 13, PLAYER_W - 12, 12);
-        ctx.fillRect(px + 2, py + 14, 4, 9);
-        ctx.fillRect(px + PLAYER_W - 6, py + 14, 4, 9);
-        ctx.fillRect(px + 7, py + 25, 4, 5);
-        ctx.fillRect(px + PLAYER_W - 11, py + 25, 4, 5);
+      function drawHumanoid(px, py, facing, bodyColor, skinColor, eyeColor, clothesId, pose) {
+        const armSwing = Number(pose && pose.armSwing) || 0;
+        const legSwing = Number(pose && pose.legSwing) || 0;
+        const leftArmY = py + 14 + Math.round(-armSwing);
+        const rightArmY = py + 14 + Math.round(armSwing);
+        const leftLegY = py + 25 + Math.round(-legSwing);
+        const rightLegY = py + 25 + Math.round(legSwing);
+
+        ctx.fillStyle = skinColor;
+        ctx.fillRect(px + 4, py + 3, PLAYER_W - 8, 10);
+        ctx.fillRect(px + 5, py + 14, PLAYER_W - 10, 11);
+        ctx.fillRect(px + 1, leftArmY, 4, 9);
+        ctx.fillRect(px + PLAYER_W - 5, rightArmY, 4, 9);
+        ctx.fillRect(px + 6, leftLegY, 4, 5);
+        ctx.fillRect(px + PLAYER_W - 10, rightLegY, 4, 5);
 
         drawClothes(px, py, clothesId);
 
-        ctx.fillStyle = skinColor;
-        ctx.fillRect(px + 5, py + 3, PLAYER_W - 10, 10);
+        ctx.fillStyle = "rgba(0,0,0,0.16)";
+        ctx.fillRect(px + 5, py + 12, PLAYER_W - 10, 1);
+        ctx.fillRect(px + 5, py + 24, PLAYER_W - 10, 1);
 
-        ctx.fillStyle = eyeColor;
-        const eyeX = facing === 1 ? px + PLAYER_W - 9 : px + 6;
-        return eyeX;
+        ctx.fillStyle = "#f3f6ff";
+        const leftEyeX = px + 4;
+        const rightEyeX = px + PLAYER_W - 10;
+        const eyeY = py + 3;
+        ctx.fillRect(leftEyeX, eyeY, 6, 4);
+        ctx.fillRect(rightEyeX, eyeY, 6, 4);
+
+        ctx.fillStyle = "rgba(85, 52, 43, 0.95)";
+        ctx.fillRect(px + 8, py + 10, 6, 2);
+
+        return { leftEyeX, rightEyeX };
       }
 
       function drawPlayer() {
@@ -2430,11 +2467,14 @@
         ctx.rotate(Number(pose.bodyTilt) || 0);
         ctx.translate(-(px + PLAYER_W / 2), -(basePy + PLAYER_H / 2));
 
-        const eyeX = drawHumanoid(px, basePy, player.facing, "#263238", "#ffdbac", "#0d0d0d", cosmetics.clothes);
+        const eyes = drawHumanoid(px, basePy, player.facing, "#263238", "#b98a78", "#0d0d0d", cosmetics.clothes, pose);
         ctx.fillStyle = "#0d0d0d";
-        const eyeY = basePy + 8 + (pose.eyeYOffset || 0);
+        const eyeY = basePy + 4 + (pose.eyeYOffset || 0);
         const eyeHeight = Math.max(1, Math.floor(Number(pose.eyeHeight) || 3));
-        ctx.fillRect(eyeX, eyeY, 3, eyeHeight);
+        const leftPupilX = eyes.leftEyeX + (player.facing === 1 ? 2 : 1);
+        const rightPupilX = eyes.rightEyeX + (player.facing === 1 ? 2 : 1);
+        ctx.fillRect(leftPupilX, eyeY, 2, eyeHeight);
+        ctx.fillRect(rightPupilX, eyeY, 2, eyeHeight);
 
         drawSword(px, basePy, cosmetics.swords, player.facing, pose.swordSwing || 0);
         ctx.restore();
@@ -2465,11 +2505,15 @@
           ctx.rotate(Number(pose.bodyTilt) || 0);
           ctx.translate(-(px + PLAYER_W / 2), -(basePy + PLAYER_H / 2));
 
-          const eyeX = drawHumanoid(px, basePy, other.facing || 1, "#2a75bb", "#ffdbac", "#102338", cosmetics.clothes || "");
+          const eyes = drawHumanoid(px, basePy, other.facing || 1, "#2a75bb", "#b98a78", "#102338", cosmetics.clothes || "", pose);
           ctx.fillStyle = "#102338";
-          const eyeY = basePy + 8 + (pose.eyeYOffset || 0);
+          const eyeY = basePy + 4 + (pose.eyeYOffset || 0);
           const eyeHeight = Math.max(1, Math.floor(Number(pose.eyeHeight) || 3));
-          ctx.fillRect(eyeX, eyeY, 3, eyeHeight);
+          const otherFacing = other.facing || 1;
+          const leftPupilX = eyes.leftEyeX + (otherFacing === 1 ? 2 : 1);
+          const rightPupilX = eyes.rightEyeX + (otherFacing === 1 ? 2 : 1);
+          ctx.fillRect(leftPupilX, eyeY, 2, eyeHeight);
+          ctx.fillRect(rightPupilX, eyeY, 2, eyeHeight);
 
           drawSword(px, basePy, cosmetics.swords || "", other.facing || 1, pose.swordSwing || 0);
           ctx.restore();
@@ -2727,24 +2771,16 @@
       }
 
       function detachCurrentWorldListeners() {
-        if (network.playersRef && network.handlers.players) {
-          network.playersRef.off("value", network.handlers.players);
+        if (blockSyncer && typeof blockSyncer.flush === "function") {
+          blockSyncer.flush();
         }
-        if (network.blocksRef && network.handlers.blockAdded) {
-          network.blocksRef.off("child_added", network.handlers.blockAdded);
-        }
-        if (network.blocksRef && network.handlers.blockChanged) {
-          network.blocksRef.off("child_changed", network.handlers.blockChanged);
-        }
-        if (network.blocksRef && network.handlers.blockRemoved) {
-          network.blocksRef.off("child_removed", network.handlers.blockRemoved);
-        }
-        if (network.chatFeedRef && network.handlers.chatAdded) {
-          network.chatFeedRef.off("child_added", network.handlers.chatAdded);
-        }
-
-        if (network.playerRef) {
+        if (typeof syncWorldsModule.detachWorldListeners === "function") {
+          syncWorldsModule.detachWorldListeners(network, network.handlers, true);
+        } else if (network.playerRef) {
           network.playerRef.remove().catch(() => {});
+        }
+        if (blockSyncer && typeof blockSyncer.reset === "function") {
+          blockSyncer.reset();
         }
 
         network.playerRef = null;
@@ -2851,76 +2887,53 @@
             : network.chatRef.limitToLast(100));
         network.playerRef = network.playersRef.child(playerId);
 
-        network.handlers.players = (snapshot) => {
-          remotePlayers.clear();
-          const players = snapshot.val() || {};
-
-          Object.keys(players).forEach((id) => {
-            if (id === playerId) return;
-            const p = players[id];
-            if (!p || typeof p.x !== "number" || typeof p.y !== "number") return;
-
-            remotePlayers.set(id, {
-              id,
-              x: p.x,
-              y: p.y,
-              facing: p.facing || 1,
-              name: (p.name || "Player").toString().slice(0, 16),
-              cosmetics: normalizeRemoteEquippedCosmetics(p.cosmetics || {})
-            });
-          });
-
-          updateOnlineCount();
-        };
-
-        const applyNetworkBlock = (snapshot) => {
-          const tile = parseTileKey(snapshot.key || "");
-          if (!tile) return;
-          const id = Number(snapshot.val()) || 0;
-          const requiredId = getProtectedTileRequiredId(tile.tx, tile.ty);
+        const applyBlockValue = (tx, ty, id) => {
+          const requiredId = getProtectedTileRequiredId(tx, ty);
           if (requiredId) {
-            world[tile.ty][tile.tx] = requiredId;
+            world[ty][tx] = requiredId;
             if (id !== requiredId && network.blocksRef) {
-              network.blocksRef.child(tile.tx + "_" + tile.ty).set(requiredId).catch(() => {});
+              network.blocksRef.child(tx + "_" + ty).set(requiredId).catch(() => {});
             }
             return;
           }
-          world[tile.ty][tile.tx] = id;
+          world[ty][tx] = id;
         };
-
-        const clearNetworkBlock = (snapshot) => {
-          const tile = parseTileKey(snapshot.key || "");
-          if (!tile) return;
-          const requiredId = getProtectedTileRequiredId(tile.tx, tile.ty);
+        const clearBlockValue = (tx, ty) => {
+          const requiredId = getProtectedTileRequiredId(tx, ty);
           if (requiredId) {
-            world[tile.ty][tile.tx] = requiredId;
+            world[ty][tx] = requiredId;
             if (network.blocksRef) {
-              network.blocksRef.child(tile.tx + "_" + tile.ty).set(requiredId).catch(() => {});
+              network.blocksRef.child(tx + "_" + ty).set(requiredId).catch(() => {});
             }
             return;
           }
-          world[tile.ty][tile.tx] = 0;
+          world[ty][tx] = 0;
         };
 
-        network.handlers.blockAdded = applyNetworkBlock;
-        network.handlers.blockChanged = applyNetworkBlock;
-        network.handlers.blockRemoved = clearNetworkBlock;
-        network.handlers.chatAdded = (snapshot) => {
-          const value = snapshot.val() || {};
-          addChatMessage({
-            name: (value.name || "Guest").toString().slice(0, 16),
-            playerId: (value.playerId || "").toString(),
-            sessionId: (value.sessionId || "").toString(),
-            text: (value.text || "").toString().slice(0, 120),
-            createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now()
-          });
-        };
-
-        network.playersRef.on("value", network.handlers.players);
-        network.blocksRef.on("child_added", network.handlers.blockAdded);
-        network.blocksRef.on("child_changed", network.handlers.blockChanged);
-        network.blocksRef.on("child_removed", network.handlers.blockRemoved);
-        network.chatFeedRef.on("child_added", network.handlers.chatAdded);
+        const handlers = typeof syncWorldsModule.buildWorldHandlers === "function"
+          ? syncWorldsModule.buildWorldHandlers({
+            remotePlayers,
+            playerId,
+            normalizeRemoteEquippedCosmetics,
+            updateOnlineCount,
+            parseTileKey,
+            applyBlockValue,
+            clearBlockValue,
+            addChatMessage
+          })
+          : null;
+        if (!handlers) {
+          setNetworkState("Sync module missing", true);
+          return;
+        }
+        network.handlers.players = handlers.players;
+        network.handlers.blockAdded = handlers.blockAdded;
+        network.handlers.blockChanged = handlers.blockChanged;
+        network.handlers.blockRemoved = handlers.blockRemoved;
+        network.handlers.chatAdded = handlers.chatAdded;
+        if (typeof syncWorldsModule.attachWorldListeners === "function") {
+          syncWorldsModule.attachWorldListeners(network, network.handlers);
+        }
         enforceSpawnStructureInWorldData();
         enforceSpawnStructureInDatabase();
         addClientLog("Joined world: " + worldId + ".");
@@ -2961,7 +2974,10 @@
 
       function syncBlock(tx, ty, id) {
         if (!network.enabled || !network.blocksRef) return;
-
+        if (blockSyncer && typeof blockSyncer.enqueue === "function") {
+          blockSyncer.enqueue(tx, ty, id);
+          return;
+        }
         network.blocksRef.child(tx + "_" + ty).set(id).catch(() => {
           setNetworkState("Network error", true);
         });

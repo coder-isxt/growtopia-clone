@@ -73,18 +73,24 @@ window.GTModules.animations = (function createAnimationsModule() {
     let bodyTilt = 0;
     let wingFlap = 0;
     let swordSwing = 0;
+    let armSwing = 0;
+    let legSwing = 0;
     let eyeYOffset = 0;
 
     if (grounded) {
       bodyBob = Math.sin(phase) * (0.3 + stride * 1.3);
       bodyTilt = Math.sin(phase + 0.7) * (0.005 + stride * 0.025);
-      wingFlap = Math.sin(t * 0.012 + seed * 12) * (1 + stride * 4.2);
-      swordSwing = Math.sin(phase + 1.1) * (1 + stride * 4.5);
+      wingFlap = Math.sin(t * 0.01 + seed * 12) * (0.2 + stride * 0.6);
+      swordSwing = Math.sin(phase + 1.1) * (0.6 + stride * 2.2);
+      armSwing = Math.sin(phase) * (0.2 + stride * 2.2);
+      legSwing = Math.sin(phase + Math.PI) * (0.3 + stride * 2.6);
     } else {
       bodyBob = Math.sin(t * 0.01 + seed * 7) * 0.7;
       bodyTilt = clamp(vy * 0.02, -0.16, 0.16);
-      wingFlap = Math.sin(t * 0.02 + seed * 12) * 5.8;
-      swordSwing = clamp(vy * 0.35, -3, 3);
+      wingFlap = Math.sin(t * 0.017 + seed * 12) * 0.9;
+      swordSwing = clamp(vy * 0.2, -2, 2);
+      armSwing = clamp(vy * 0.18, -1.2, 1.2);
+      legSwing = clamp(vy * -0.22, -1.6, 1.6);
       eyeYOffset = vy < 0 ? -1 : 1;
     }
 
@@ -96,6 +102,8 @@ window.GTModules.animations = (function createAnimationsModule() {
       bodyTilt,
       wingFlap,
       swordSwing,
+      armSwing,
+      legSwing,
       eyeYOffset,
       eyeHeight
     };

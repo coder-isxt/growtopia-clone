@@ -17,15 +17,21 @@ window.GT_SETTINGS = {
   WORLD_HEIGHT_TILES: 30,
   PLAYER_WIDTH: 22,
   PLAYER_HEIGHT: 30,
-  GRAVITY: 0.25,
-  FRICTION_GROUND: 0.86,
-  FRICTION_AIR: 0.87,
-  AIR_CONTROL: 0.8,
-  MOVE_ACCEL: 0.43,
-  MAX_MOVE_SPEED: 3.7,
-  JUMP_VELOCITY: -7.5,
-  MAX_FALL_SPEED: 4,
-  JUMP_COOLDOWN_MS: 200,
+
+  GRAVITY: 0.15,        // low gravity (Mars-like)
+  MAX_FALL_SPEED: 3.9,  // slow falling cap
+
+  MOVE_ACCEL: 0.27,     // responsive movement
+  MAX_MOVE_SPEED: 2.05, // faster running
+
+  FRICTION_GROUND: 0.88, 
+  FRICTION_AIR: 0.985,
+
+  AIR_CONTROL: 0.48,    // good air steering
+
+  JUMP_VELOCITY: -4.8, // floaty jump arc
+  JUMP_COOLDOWN_MS: 160,
+
   PLAYER_SYNC_MIN_MS: 90,
   GLOBAL_SYNC_MIN_MS: 240
 };

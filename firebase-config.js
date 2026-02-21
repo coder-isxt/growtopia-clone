@@ -11,11 +11,45 @@ window.FIREBASE_CONFIG = {
 };
 
 window.FIREBASE_APIKEY_ENDPOINT = "https://growtopia.isxtgg.workers.dev/apikey";
+window.FIREBASE_LOCAL_APIKEY_STORAGE = "growtopia_local_firebase_apikey_v1";
 
 let __firebaseApiKeyPromise = null;
+function isLocalRuntime() {
+  const host = (window.location && window.location.hostname || "").toLowerCase();
+  const protocol = (window.location && window.location.protocol || "").toLowerCase();
+  return protocol === "file:" || host === "localhost" || host === "127.0.0.1" || host === "::1";
+}
+
+function getLocalApiKeyFromPrompt() {
+  const storageKey = window.FIREBASE_LOCAL_APIKEY_STORAGE || "growtopia_local_firebase_apikey_v1";
+  try {
+    const cached = localStorage.getItem(storageKey);
+    if (cached && cached.trim()) return cached.trim();
+  } catch (error) {
+    // ignore localStorage failures
+  }
+  const entered = window.prompt("Enter Firebase API key for local run:");
+  const safeKey = (entered || "").trim();
+  if (!safeKey) return "";
+  try {
+    localStorage.setItem(storageKey, safeKey);
+  } catch (error) {
+    // ignore localStorage failures
+  }
+  return safeKey;
+}
+
 window.getFirebaseApiKey = async function getFirebaseApiKey() {
   if (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey) {
     return window.FIREBASE_CONFIG.apiKey;
+  }
+  if (isLocalRuntime()) {
+    const localKey = getLocalApiKeyFromPrompt();
+    if (!localKey) throw new Error("Missing local Firebase API key.");
+    if (window.FIREBASE_CONFIG) {
+      window.FIREBASE_CONFIG.apiKey = localKey;
+    }
+    return localKey;
   }
   if (__firebaseApiKeyPromise) return __firebaseApiKeyPromise;
   __firebaseApiKeyPromise = fetch(window.FIREBASE_APIKEY_ENDPOINT, { cache: "no-store" }).then((res) => {
