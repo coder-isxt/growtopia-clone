@@ -2625,6 +2625,9 @@
         inWorld = Boolean(nextValue);
         menuScreenEl.classList.toggle("hidden", inWorld);
         toolbar.classList.toggle("hidden", !inWorld);
+        if (inWorld) {
+          toolbarTranslateYPx = 0;
+        }
         applyToolbarPosition();
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
         chatToggleBtn.classList.toggle("hidden", !inWorld);
