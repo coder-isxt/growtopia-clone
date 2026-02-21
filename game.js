@@ -29,6 +29,7 @@
       const adminAuditActionFilterEl = document.getElementById("adminAuditActionFilter");
       const adminAuditActorFilterEl = document.getElementById("adminAuditActorFilter");
       const adminAuditTargetFilterEl = document.getElementById("adminAuditTargetFilter");
+      const adminForceReloadBtn = document.getElementById("adminForceReloadBtn");
       const adminAuditExportBtn = document.getElementById("adminAuditExportBtn");
       const adminCloseBtn = document.getElementById("adminCloseBtn");
       const adminAccountsEl = document.getElementById("adminAccounts");
@@ -90,7 +91,7 @@
         owner: 4
       };
       const ADMIN_PERMISSIONS = {
-        owner: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "setrole", "clear_logs", "view_audit"],
+        owner: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "setrole", "clear_logs", "view_audit", "force_reload"],
         manager: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "setrole_limited", "clear_logs", "view_audit"],
         admin: ["panel_open", "view_logs", "kick", "resetinv", "givex", "tp", "bring"],
         moderator: ["panel_open", "kick", "tp", "bring"],
@@ -107,18 +108,19 @@
         ? SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS
         : DEFAULT_COMMAND_COOLDOWNS_MS;
       const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
+      const FORCE_RELOAD_MARKER_KEY = "growtopia_force_reload_marker_v1";
 
       const blockDefs = typeof blocksModule.getBlockDefs === "function" ? blocksModule.getBlockDefs() : {
-        0: { name: "Air", color: "transparent", solid: false },
-        1: { name: "Grass", color: "#4caf50", solid: true },
-        2: { name: "Dirt", color: "#8b5a2b", solid: true },
-        3: { name: "Stone", color: "#818a93", solid: true },
-        4: { name: "Wood", color: "#a87038", solid: true },
-        5: { name: "Sand", color: "#dfc883", solid: true },
-        6: { name: "Brick", color: "#bb5644", solid: true },
-        7: { name: "Door", color: "#57c2ff", solid: false, unbreakable: true },
-        8: { name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true },
-        9: { name: "World Lock", color: "#ffd166", solid: true }
+        0: { name: "Air", color: "transparent", solid: false, icon: "A" },
+        1: { name: "Grass", color: "#4caf50", solid: true, icon: "GR" },
+        2: { name: "Dirt", color: "#8b5a2b", solid: true, icon: "DI" },
+        3: { name: "Stone", color: "#818a93", solid: true, icon: "ST" },
+        4: { name: "Wood", color: "#a87038", solid: true, icon: "WO" },
+        5: { name: "Sand", color: "#dfc883", solid: true, icon: "SA" },
+        6: { name: "Brick", color: "#bb5644", solid: true, icon: "BR" },
+        7: { name: "Door", color: "#57c2ff", solid: false, unbreakable: true, icon: "DR" },
+        8: { name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true, icon: "BD" },
+        9: { name: "World Lock", color: "#ffd166", solid: true, icon: "WL" }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
@@ -176,6 +178,7 @@
       let hasRenderedMenuWorldList = false;
       let currentWorldLock = null;
       let lastLockDeniedNoticeAt = 0;
+      let lastHandledForceReloadEventId = loadForceReloadMarker();
       let isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
       let isChatOpen = false;
       let isLogsOpen = false;
@@ -261,6 +264,7 @@
         accountLogsRef: null,
         accountLogsFeedRef: null,
         accountLogsRootRef: null,
+        forceReloadRef: null,
         myBanRef: null,
         accountsRef: null,
         usernamesRef: null,
@@ -284,6 +288,7 @@
           worldLock: null,
           chatAdded: null,
           accountLogAdded: null,
+          forceReload: null,
           myBan: null,
           adminAccounts: null,
           adminUsernames: null,
@@ -360,6 +365,22 @@
         if (saved.password) authPasswordEl.value = saved.password;
       }
 
+      function loadForceReloadMarker() {
+        try {
+          return (sessionStorage.getItem(FORCE_RELOAD_MARKER_KEY) || "").toString();
+        } catch (error) {
+          return "";
+        }
+      }
+
+      function saveForceReloadMarker(eventId) {
+        try {
+          sessionStorage.setItem(FORCE_RELOAD_MARKER_KEY, (eventId || "").toString().slice(0, 60));
+        } catch (error) {
+          // ignore sessionStorage failures
+        }
+      }
+
       function canUserViewLogs(username) {
         const normalized = normalizeUsername(username);
         if (LOG_VIEWER_USERNAMES.includes(normalized)) return true;
@@ -405,6 +426,11 @@
         canUseAdminPanel = hasAdminPermission("panel_open");
         canViewAccountLogs = canUserViewLogs(playerName);
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
+        if (adminForceReloadBtn) {
+          const canForceReload = hasAdminPermission("force_reload");
+          adminForceReloadBtn.classList.toggle("hidden", !canForceReload);
+          adminForceReloadBtn.disabled = !canForceReload;
+        }
         if (adminAuditActionFilterEl) adminAuditActionFilterEl.disabled = !hasAdminPermission("view_audit");
         if (adminAuditActorFilterEl) adminAuditActorFilterEl.disabled = !hasAdminPermission("view_audit");
         if (adminAuditTargetFilterEl) adminAuditTargetFilterEl.disabled = !hasAdminPermission("view_audit");
@@ -727,7 +753,7 @@
                 </div>
                 <div class="admin-give-item-wrap">
                   <select class="admin-give-item-id" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>
-                    ${COSMETIC_ITEMS.map((item) => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.id) + "</option>").join("")}
+                    ${COSMETIC_ITEMS.map((item) => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name + " (" + item.id + ")") + "</option>").join("")}
                   </select>
                   <input class="admin-give-item-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="1" placeholder="amount">
                   <button data-admin-act="giveitem" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give Item</button>
@@ -927,6 +953,27 @@
         a.remove();
         URL.revokeObjectURL(url);
         postLocalSystemChat("Audit exported (" + rows.length + " entries).");
+      }
+
+      function triggerForceReloadAll(sourceTag) {
+        if (!network.db || !hasAdminPermission("force_reload")) {
+          postLocalSystemChat("Permission denied.");
+          return;
+        }
+        const eventId = "fr_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+        network.db.ref(BASE_PATH + "/system/force-reload").set({
+          id: eventId,
+          createdAt: firebase.database.ServerValue.TIMESTAMP,
+          actorAccountId: playerProfileId || "",
+          actorUsername: playerName || "",
+          source: (sourceTag || "panel").toString().slice(0, 16)
+        }).then(() => {
+          logAdminAudit("Admin(" + (sourceTag || "panel") + ") requested global client reload.");
+          pushAdminAuditEntry("force_reload", "", "all_clients");
+          postLocalSystemChat("Force reload broadcast sent.");
+        }).catch(() => {
+          postLocalSystemChat("Failed to send reload broadcast.");
+        });
       }
 
       function logAdminAudit(text) {
@@ -2040,6 +2087,9 @@
         }
         if (network.accountLogsRootRef && network.handlers.accountLogAdded) {
           network.accountLogsRootRef.off("value", network.handlers.accountLogAdded);
+        }
+        if (network.forceReloadRef && network.handlers.forceReload) {
+          network.forceReloadRef.off("value", network.handlers.forceReload);
         }
         if (network.myBanRef && network.handlers.myBan) {
           network.myBanRef.off("value", network.handlers.myBan);
@@ -3284,6 +3334,14 @@
             exportAuditTrail();
           });
         }
+        if (adminForceReloadBtn) {
+          adminForceReloadBtn.addEventListener("click", () => {
+            if (!hasAdminPermission("force_reload")) return;
+            const accepted = window.confirm("Force reload all currently connected clients?");
+            if (!accepted) return;
+            triggerForceReloadAll("panel");
+          });
+        }
         adminAccountsEl.addEventListener("click", handleAdminAction);
         adminAccountsEl.addEventListener("change", handleAdminInputChange);
         chatSendBtn.addEventListener("click", () => {
@@ -3332,6 +3390,7 @@
           network.myCommandRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/teleport");
           network.inventoryRef = network.db.ref(BASE_PATH + "/player-inventories/" + playerProfileId);
           network.accountLogsRootRef = network.db.ref(BASE_PATH + "/account-logs");
+          network.forceReloadRef = network.db.ref(BASE_PATH + "/system/force-reload");
           network.myBanRef = network.db.ref(BASE_PATH + "/bans/" + playerProfileId);
           network.accountsRef = network.db.ref(BASE_PATH + "/accounts");
           network.usernamesRef = network.db.ref(BASE_PATH + "/usernames");
@@ -3466,6 +3525,29 @@
             }
             forceLogout("Your account is temporarily banned for " + formatRemainingMs(status.remainingMs) + "." + reasonText);
           };
+          network.handlers.forceReload = (snapshot) => {
+            const value = snapshot.val() || {};
+            const eventId = (value.id || "").toString();
+            if (!eventId) return;
+            if (eventId === lastHandledForceReloadEventId) return;
+            const markerId = loadForceReloadMarker();
+            if (markerId && markerId === eventId) {
+              lastHandledForceReloadEventId = eventId;
+              return;
+            }
+            const createdAt = Number(value.createdAt) || 0;
+            if (createdAt > 0 && playerSessionStartedAt > 0 && createdAt <= playerSessionStartedAt) {
+              lastHandledForceReloadEventId = eventId;
+              saveForceReloadMarker(eventId);
+              return;
+            }
+            lastHandledForceReloadEventId = eventId;
+            saveForceReloadMarker(eventId);
+            addClientLog("Global reload requested by @" + ((value.actorUsername || "owner").toString().slice(0, 20)) + ". Reloading...");
+            setTimeout(() => {
+              window.location.reload();
+            }, 120);
+          };
           network.handlers.adminAccounts = (snapshot) => {
             adminState.accounts = snapshot.val() || {};
             renderAdminPanel();
@@ -3521,6 +3603,7 @@
           network.worldsIndexRef.on("value", network.handlers.worldsIndex);
           network.globalPlayersRef.on("value", network.handlers.globalPlayers);
           network.myBanRef.on("value", network.handlers.myBan);
+          network.forceReloadRef.on("value", network.handlers.forceReload);
           network.adminRolesRef.on("value", network.handlers.adminRoles);
           if (canViewAccountLogs) {
             network.accountLogsRootRef.on("value", network.handlers.accountLogAdded);
@@ -3564,44 +3647,124 @@
         syncPlayer(true);
       }
 
+      function createInventorySection(title, subtitle) {
+        const section = document.createElement("section");
+        section.className = "inventory-section";
+        const head = document.createElement("div");
+        head.className = "inventory-section-head";
+        const titleEl = document.createElement("strong");
+        titleEl.textContent = title;
+        const subtitleEl = document.createElement("span");
+        subtitleEl.textContent = subtitle || "";
+        head.appendChild(titleEl);
+        head.appendChild(subtitleEl);
+        const grid = document.createElement("div");
+        grid.className = "inventory-grid";
+        section.appendChild(head);
+        section.appendChild(grid);
+        return { section, grid };
+      }
+
+      function createIconChip(baseColor, label, extraClass) {
+        const icon = document.createElement("div");
+        icon.className = "item-icon " + (extraClass || "");
+        if (baseColor) icon.style.setProperty("--chip-color", baseColor);
+        icon.textContent = label || "";
+        return icon;
+      }
+
+      function createInventorySlot(opts) {
+        const slot = document.createElement("button");
+        slot.type = "button";
+        slot.className = "inventory-slot" + (opts.selected ? " selected" : "") + (opts.muted ? " muted" : "") + (opts.variant ? " " + opts.variant : "");
+        slot.title = opts.title || "";
+        const key = document.createElement("span");
+        key.className = "slot-key";
+        key.textContent = opts.keyLabel || "";
+        const icon = createIconChip(opts.color, opts.iconLabel, opts.iconClass);
+        const name = document.createElement("span");
+        name.className = "slot-name";
+        name.textContent = opts.name || "";
+        slot.appendChild(key);
+        slot.appendChild(icon);
+        slot.appendChild(name);
+        if (opts.countText) {
+          const count = document.createElement("span");
+          count.className = "slot-count";
+          count.textContent = opts.countText;
+          slot.appendChild(count);
+        }
+        if (opts.badgeText) {
+          const badge = document.createElement("span");
+          badge.className = "slot-badge";
+          badge.textContent = opts.badgeText;
+          slot.appendChild(badge);
+        }
+        if (typeof opts.onClick === "function") {
+          slot.addEventListener("click", opts.onClick);
+        }
+        return slot;
+      }
+
       function refreshToolbar() {
         toolbar.innerHTML = "";
+        const blockSection = createInventorySection("Blocks & Tools", "Select with 1-" + slotOrder.length);
+        const cosmeticEntries = [];
         for (let i = 0; i < slotOrder.length; i++) {
           const id = slotOrder[i];
           const isFist = id === "fist";
-          const chipColor = isFist ? "#f2c18d" : blockDefs[id].color;
-          const title = isFist ? "Fist" : blockDefs[id].name;
-          const countMarkup = isFist ? "" : '<span class="count">' + inventory[id] + "</span>";
-          const slot = document.createElement("div");
-          slot.className = "slot" + (i === selectedSlot ? " selected" : "");
-          slot.title = title;
-          slot.innerHTML =
-            '<span class="key">' + (i + 1) + "</span>" +
-            '<div class="block-chip" style="background:' + chipColor + '"></div>' +
-            countMarkup;
-          slot.addEventListener("click", () => {
-            selectedSlot = i;
-            refreshToolbar();
+          const blockDef = isFist ? null : blockDefs[id];
+          const title = isFist ? "Fist" : (blockDef && blockDef.name ? blockDef.name : "Block");
+          const slotEl = createInventorySlot({
+            selected: i === selectedSlot,
+            variant: "inventory-slot-block",
+            title: title + (isFist ? "" : " (x" + (inventory[id] || 0) + ")"),
+            keyLabel: String(i + 1),
+            color: isFist ? "#c59b81" : (blockDef && blockDef.color ? blockDef.color : "#999"),
+            iconClass: isFist ? "icon-fist" : "icon-block",
+            iconLabel: isFist ? "F" : ((blockDef && blockDef.icon) || title.slice(0, 2).toUpperCase()),
+            name: title,
+            countText: isFist ? "" : "x" + (inventory[id] || 0),
+            muted: !isFist && (inventory[id] || 0) <= 0,
+            onClick: () => {
+              selectedSlot = i;
+              refreshToolbar();
+            }
           });
-          toolbar.appendChild(slot);
+          blockSection.grid.appendChild(slotEl);
         }
+        toolbar.appendChild(blockSection.section);
         for (const item of COSMETIC_ITEMS) {
           const count = Math.max(0, Number(cosmeticInventory[item.id]) || 0);
           if (count <= 0) continue;
-          const equipped = equippedCosmetics[item.slot] === item.id;
-          const slot = document.createElement("div");
-          slot.className = "slot cosmetic-slot" + (equipped ? " selected" : "");
-          slot.title = item.slot + " | " + item.name + " | x" + count;
-          const shortName = item.name.split(" ").map((part) => part[0]).join("").slice(0, 3).toUpperCase();
-          slot.innerHTML =
-            '<span class="key">' + item.slot.slice(0, 1).toUpperCase() + "</span>" +
-            '<div class="block-chip" style="background:' + item.color + '"></div>' +
-            '<span class="count">x' + count + "</span>" +
-            '<span class="cosmetic-label">' + shortName + "</span>";
-          slot.addEventListener("click", () => {
-            equipCosmetic(item.slot, item.id);
+          cosmeticEntries.push({ ...item, count });
+        }
+        if (cosmeticEntries.length > 0) {
+          cosmeticEntries.sort((a, b) => {
+            const slotDiff = COSMETIC_SLOTS.indexOf(a.slot) - COSMETIC_SLOTS.indexOf(b.slot);
+            if (slotDiff !== 0) return slotDiff;
+            return a.name.localeCompare(b.name);
           });
-          toolbar.appendChild(slot);
+          const equippedCount = COSMETIC_SLOTS.reduce((sum, slot) => sum + (equippedCosmetics[slot] ? 1 : 0), 0);
+          const cosmeticSection = createInventorySection("Cosmetics", equippedCount + " equipped");
+          for (const item of cosmeticEntries) {
+            const equipped = equippedCosmetics[item.slot] === item.id;
+            const slotEl = createInventorySlot({
+              selected: equipped,
+              variant: "inventory-slot-cosmetic",
+              title: item.slot + " | " + item.name + " | x" + item.count,
+              keyLabel: item.slot.slice(0, 2).toUpperCase(),
+              color: item.color || "#8aa0b5",
+              iconClass: "icon-cosmetic icon-" + item.slot,
+              iconLabel: item.icon || item.name.slice(0, 2).toUpperCase(),
+              name: item.name,
+              countText: "x" + item.count,
+              badgeText: equipped ? "E" : "",
+              onClick: () => equipCosmetic(item.slot, item.id)
+            });
+            cosmeticSection.grid.appendChild(slotEl);
+          }
+          toolbar.appendChild(cosmeticSection.section);
         }
       }
 
