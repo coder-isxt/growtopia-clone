@@ -1763,6 +1763,13 @@
         grid[tiles.base.ty][tiles.base.tx] = tiles.base.id;
       }
 
+      function getProtectedTileRequiredId(tx, ty) {
+        const tiles = getSpawnStructureTiles();
+        if (tx === tiles.door.tx && ty === tiles.door.ty) return tiles.door.id;
+        if (tx === tiles.base.tx && ty === tiles.base.ty) return tiles.base.id;
+        return 0;
+      }
+
       function enforceSpawnStructureInWorldData() {
         applySpawnStructureToGrid(world);
       }
@@ -2566,6 +2573,7 @@
         const id = slotOrder[selectedSlot];
         if (typeof id !== "number") return;
         if (!canEditTarget(tx, ty)) return;
+        if (isProtectedSpawnTile(tx, ty)) return;
         if (inventory[id] <= 0) return;
         if (world[ty][tx] !== 0) return;
 
@@ -2600,6 +2608,7 @@
       }
 
       function useActionAt(tx, ty) {
+        if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
         if (selectedId === "fist") {
           tryBreak(tx, ty);
@@ -2822,12 +2831,28 @@
           const tile = parseTileKey(snapshot.key || "");
           if (!tile) return;
           const id = Number(snapshot.val()) || 0;
+          const requiredId = getProtectedTileRequiredId(tile.tx, tile.ty);
+          if (requiredId) {
+            world[tile.ty][tile.tx] = requiredId;
+            if (id !== requiredId && network.blocksRef) {
+              network.blocksRef.child(tile.tx + "_" + tile.ty).set(requiredId).catch(() => {});
+            }
+            return;
+          }
           world[tile.ty][tile.tx] = id;
         };
 
         const clearNetworkBlock = (snapshot) => {
           const tile = parseTileKey(snapshot.key || "");
           if (!tile) return;
+          const requiredId = getProtectedTileRequiredId(tile.tx, tile.ty);
+          if (requiredId) {
+            world[tile.ty][tile.tx] = requiredId;
+            if (network.blocksRef) {
+              network.blocksRef.child(tile.tx + "_" + tile.ty).set(requiredId).catch(() => {});
+            }
+            return;
+          }
           world[tile.ty][tile.tx] = 0;
         };
 
