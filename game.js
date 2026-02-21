@@ -4111,7 +4111,7 @@
         }
         const localX = Math.max(0, Math.min(1, (worldX - tx * TILE) / TILE));
         let localY = localX;
-        if (id === 14 || id === 16) localY = 1 - localX;
+        if (id === 14 || id === 15) localY = 1 - localX;
         return ty * TILE + localY * TILE;
       }
 
@@ -4124,7 +4124,7 @@
         const footCenterX = player.x + PLAYER_W * 0.5;
         const bottomY = player.y + PLAYER_H;
         const checkFeet = [footLeftX, footCenterX, footRightX];
-        let targetBottom = -Infinity;
+        let targetBottom = Infinity;
         let found = false;
         for (let i = 0; i < checkFeet.length; i++) {
           const fx = checkFeet[i];
@@ -4136,8 +4136,8 @@
             const id = world[ty][tx];
             if (!isStairTileId(id)) continue;
             const surfaceY = getStairSurfaceY(id, tx, ty, fx);
-            if (bottomY < surfaceY - 8 || bottomY > surfaceY + 12) continue;
-            targetBottom = Math.max(targetBottom, surfaceY);
+            if (bottomY < surfaceY - 6 || bottomY > surfaceY + 8) continue;
+            targetBottom = Math.min(targetBottom, surfaceY);
             found = true;
           }
         }

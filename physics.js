@@ -68,10 +68,9 @@ window.GTModules.physics = {
 
   getStairSurfaceY(id, tx, ty, worldX, tileSize) {
     const localX = Math.max(0, Math.min(1, (worldX - tx * tileSize) / tileSize));
-    // Stair surface alternates by rotation to keep slopes consistent.
-    // 13/15 use NW-SE slope, 14/16 use NE-SW slope.
+    // 13/16 share one diagonal, 14/15 share the opposite diagonal.
     let localY = localX;
-    if (id === 14 || id === 16) localY = 1 - localX;
+    if (id === 14 || id === 15) localY = 1 - localX;
     return ty * tileSize + localY * tileSize;
   },
 
@@ -81,7 +80,7 @@ window.GTModules.physics = {
     const footCenterX = player.x + playerW * 0.5;
     const bottomY = player.y + playerH;
     const checkFeet = [footLeftX, footCenterX, footRightX];
-    let targetBottom = -Infinity;
+    let targetBottom = Infinity;
     let found = false;
     for (let i = 0; i < checkFeet.length; i++) {
       const fx = checkFeet[i];
@@ -93,8 +92,9 @@ window.GTModules.physics = {
         const id = world[ty][tx];
         if (!stairIds.includes(id)) continue;
         const surfaceY = this.getStairSurfaceY(id, tx, ty, fx, tileSize);
-        if (bottomY < surfaceY - 8 || bottomY > surfaceY + 12) continue;
-        targetBottom = Math.max(targetBottom, surfaceY);
+        if (bottomY < surfaceY - 6 || bottomY > surfaceY + 8) continue;
+        // Pick the highest surface (smallest y) to avoid embedding in stairs.
+        targetBottom = Math.min(targetBottom, surfaceY);
         found = true;
       }
     }
