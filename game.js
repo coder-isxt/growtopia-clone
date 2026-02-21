@@ -146,10 +146,10 @@
       const PLAYER_SYNC_MIN_MS = Math.max(25, Number(SETTINGS.PLAYER_SYNC_MIN_MS) || 90);
       const GLOBAL_SYNC_MIN_MS = Math.max(PLAYER_SYNC_MIN_MS, Number(SETTINGS.GLOBAL_SYNC_MIN_MS) || 240);
       const LAYOUT_PREFS_KEY = "gt_layout_panels_v1";
-      const DESKTOP_PANEL_LEFT_DEFAULT = 320;
-      const DESKTOP_PANEL_RIGHT_DEFAULT = 300;
-      const DESKTOP_PANEL_MIN = 220;
-      const DESKTOP_PANEL_MAX_RATIO = 0.42;
+      const DESKTOP_PANEL_LEFT_DEFAULT = 280;
+      const DESKTOP_PANEL_RIGHT_DEFAULT = 260;
+      const DESKTOP_PANEL_MIN = 180;
+      const DESKTOP_PANEL_MAX_RATIO = 0.34;
       const MOVE_ACCEL = Number(SETTINGS.MOVE_ACCEL) || 0.46;
       const JUMP_VELOCITY = Number(SETTINGS.JUMP_VELOCITY) || -7.2;
       const MAX_MOVE_SPEED = Number(SETTINGS.MAX_MOVE_SPEED) || 3.7;
@@ -4756,27 +4756,17 @@
       }
 
       function getLocalLookVector() {
-        const centerX = player.x + PLAYER_W / 2;
-        const centerY = player.y + PLAYER_H / 2;
-        const targetX = mouseWorld.tx * TILE + TILE / 2;
-        const targetY = mouseWorld.ty * TILE + TILE / 2;
-        const dx = (targetX - centerX) / (TILE * 3.2);
-        const dy = (targetY - centerY) / (TILE * 3.2);
         return {
-          x: Math.max(-1, Math.min(1, dx)),
-          y: Math.max(-1, Math.min(1, dy))
+          x: player.facing === -1 ? -0.75 : 0.75,
+          y: 0
         };
       }
 
       function getRemoteLookVector(other) {
-        const fx = (other && other.facing === -1) ? -0.75 : 0.75;
-        const vy = Number(other && other.vy);
-        let fy = 0;
-        if (Number.isFinite(vy)) {
-          if (vy < -1) fy = -0.45;
-          else if (vy > 1) fy = 0.45;
-        }
-        return { x: fx, y: fy };
+        return {
+          x: (other && other.facing === -1) ? -0.75 : 0.75,
+          y: 0
+        };
       }
 
       function drawPlayer() {
@@ -6872,7 +6862,7 @@
 
       function clampPanelWidths(leftValue, rightValue) {
         const viewportWidth = Math.max(980, window.innerWidth || 0);
-        const centerMin = viewportWidth < 1220 ? 460 : 560;
+        const centerMin = viewportWidth < 1220 ? 560 : 760;
         const maxByRatio = Math.floor(viewportWidth * DESKTOP_PANEL_MAX_RATIO);
         let left = Math.max(DESKTOP_PANEL_MIN, Math.min(maxByRatio, Math.round(Number(leftValue) || DESKTOP_PANEL_LEFT_DEFAULT)));
         let right = Math.max(DESKTOP_PANEL_MIN, Math.min(maxByRatio, Math.round(Number(rightValue) || DESKTOP_PANEL_RIGHT_DEFAULT)));
