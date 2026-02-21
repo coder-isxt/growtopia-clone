@@ -581,6 +581,12 @@
           const banText = banned
             ? (banStatus.type === "permanent" ? "Perm Banned" : "Temp Banned (" + formatRemainingMs(banStatus.remainingMs) + ")")
             : "Active";
+          const roleControlMarkup = assignable.length > 0
+            ? `<div class="admin-role-wrap">
+                <select class="admin-role-select" data-account-id="${escapeHtml(accountId)}" ${canSetRole ? "" : "disabled"}>${roleOptions}</select>
+                <button data-admin-act="setrole" data-account-id="${escapeHtml(accountId)}" ${canSetRole ? "" : "disabled"}>Set Role</button>
+              </div>`
+            : "";
           return `
             <div class="admin-row" data-account-id="${escapeHtml(accountId)}">
               <div class="admin-meta">
@@ -588,13 +594,14 @@
                 <span>${online ? "Online" : "Offline"} | ${banText} | Blocks: ${invTotal}</span>
               </div>
               <div class="admin-actions">
-                <button data-admin-act="tempban" data-account-id="${escapeHtml(accountId)}" ${canTempBan ? "" : "disabled"}>Temp Ban</button>
-                <button data-admin-act="permban" data-account-id="${escapeHtml(accountId)}" ${canPermBan ? "" : "disabled"}>Perm Ban</button>
-                <button data-admin-act="unban" data-account-id="${escapeHtml(accountId)}" ${canUnban ? "" : "disabled"}>Unban</button>
-                <button data-admin-act="kick" data-account-id="${escapeHtml(accountId)}" ${canKick ? "" : "disabled"}>Kick</button>
-                <button data-admin-act="resetinv" data-account-id="${escapeHtml(accountId)}" ${canReset ? "" : "disabled"}>Reset Inv</button>
-                ${assignable.length > 0 ? `<select class="admin-role-select" data-account-id="${escapeHtml(accountId)}" ${canSetRole ? "" : "disabled"}>${roleOptions}</select>
-                <button data-admin-act="setrole" data-account-id="${escapeHtml(accountId)}" ${canSetRole ? "" : "disabled"}>Set Role</button>` : ""}
+                <div class="admin-quick-actions">
+                  <button data-admin-act="kick" data-account-id="${escapeHtml(accountId)}" ${canKick ? "" : "disabled"}>Kick</button>
+                  <button data-admin-act="resetinv" data-account-id="${escapeHtml(accountId)}" ${canReset ? "" : "disabled"}>Reset Inv</button>
+                  <button data-admin-act="unban" data-account-id="${escapeHtml(accountId)}" ${canUnban ? "" : "disabled"}>Unban</button>
+                  <button data-admin-act="tempban" data-account-id="${escapeHtml(accountId)}" ${canTempBan ? "" : "disabled"}>Temp Ban</button>
+                  <button data-admin-act="permban" data-account-id="${escapeHtml(accountId)}" ${canPermBan ? "" : "disabled"}>Perm Ban</button>
+                </div>
+                ${roleControlMarkup}
                 <div class="admin-ban-wrap">
                   <select class="admin-ban-preset" data-account-id="${escapeHtml(accountId)}" ${canTempBan ? "" : "disabled"}>
                     <option value="15m">15m</option>
@@ -644,9 +651,15 @@
           </div>`
           : "";
         adminAccountsEl.innerHTML = `
-          <div class="admin-summary">Signed in as <strong>${escapeHtml(playerName || "guest")}</strong> (${escapeHtml(currentAdminRole)}). Showing ${filteredIds.length}/${accountIds.length} players.</div>
-          ${auditMarkup}
-          ${rows.join("") || "<div class='admin-row'><div class='admin-meta'><strong>No players match filter.</strong></div></div>"}
+          <div class="admin-layout">
+            <div class="admin-main">
+              <div class="admin-summary">Signed in as <strong>${escapeHtml(playerName || "guest")}</strong> (${escapeHtml(currentAdminRole)}). Showing ${filteredIds.length}/${accountIds.length} players.</div>
+              <div class="admin-list">
+                ${rows.join("") || "<div class='admin-row'><div class='admin-meta'><strong>No players match filter.</strong></div></div>"}
+              </div>
+            </div>
+            ${auditMarkup}
+          </div>
         `;
       }
 
@@ -1653,8 +1666,6 @@
           setChatOpen(false);
         } else {
           setChatOpen(false);
-          chatMessages.length = 0;
-          renderChatMessages();
         }
         if (!canViewAccountLogs) {
           setLogsOpen(false);
@@ -1698,7 +1709,8 @@
 
       function setChatOpen(open) {
         isChatOpen = Boolean(open) && inWorld;
-        chatPanelEl.classList.toggle("hidden", !inWorld);
+        const showChatPanel = !gameShellEl.classList.contains("hidden");
+        chatPanelEl.classList.toggle("hidden", !showChatPanel);
         if (chatInputRowEl) {
           chatInputRowEl.classList.toggle("hidden", !isChatOpen);
         }
@@ -1950,6 +1962,7 @@
         if (adminAuditTargetFilterEl) adminAuditTargetFilterEl.value = "";
         gameShellEl.classList.add("hidden");
         authScreenEl.classList.remove("hidden");
+        setChatOpen(false);
         applySavedCredentialsToForm();
         setAuthStatus(reason || "Logged out.", true);
       }
@@ -2602,24 +2615,33 @@
       function switchWorld(nextWorldId, createIfMissing) {
         const worldId = normalizeWorldId(nextWorldId);
         if (!worldId) return;
-
-        setInWorldState(true);
+        const wasInWorld = inWorld;
+        const previousWorldId = currentWorldId;
 
         if (!network.enabled) {
+          setInWorldState(true);
           currentWorldId = worldId;
           localStorage.setItem("growtopia_current_world", worldId);
           setCurrentWorldUI();
           resetForWorldChange();
           refreshWorldButtons([worldId]);
+          addChatMessage({
+            name: "[System]",
+            playerId: "",
+            sessionId: playerSessionId || "",
+            text: "Entered " + worldId + " with 1 player.",
+            createdAt: Date.now()
+          });
           return;
         }
 
         if (worldId === currentWorldId && network.playersRef) return;
 
-        if (inWorld && currentWorldId) {
+        if (wasInWorld && previousWorldId && previousWorldId !== worldId) {
           sendSystemWorldMessage(playerName + " left the world.");
-          addClientLog("Switched away from world: " + currentWorldId + ".");
+          addClientLog("Switched away from world: " + previousWorldId + ".");
         }
+        setInWorldState(true);
         detachCurrentWorldListeners();
         currentWorldId = worldId;
         localStorage.setItem("growtopia_current_world", worldId);
@@ -2638,8 +2660,6 @@
           network.chatFeedRef = network.chatRef.limitToLast(100);
         }
         network.playerRef = network.playersRef.child(playerId);
-        chatMessages.length = 0;
-        renderChatMessages();
 
         network.handlers.players = (snapshot) => {
           remotePlayers.clear();
@@ -2697,6 +2717,18 @@
         network.chatFeedRef.on("child_added", network.handlers.chatAdded);
         addClientLog("Joined world: " + worldId + ".");
         sendSystemWorldMessage(playerName + " joined the world.");
+        network.playersRef.once("value").then((snapshot) => {
+          const players = snapshot.val() || {};
+          let count = Object.keys(players).length;
+          if (!players[playerId]) count += 1;
+          addChatMessage({
+            name: "[System]",
+            playerId: "",
+            sessionId: playerSessionId || "",
+            text: "Entered " + worldId + " with " + count + " player" + (count === 1 ? "" : "s") + ".",
+            createdAt: Date.now()
+          });
+        }).catch(() => {});
 
         if (network.connected) {
           if (network.globalPlayerRef) {

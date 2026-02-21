@@ -452,10 +452,10 @@ canvas {
 .admin-panel {
   position: fixed;
   left: 50%;
-  top: 52%;
+  top: 50%;
   transform: translate(-50%, -50%);
-  width: min(920px, 96vw);
-  max-height: 82vh;
+  width: min(1220px, 98vw);
+  height: min(860px, 90vh);
   background: linear-gradient(180deg, rgba(15, 40, 62, 0.97), rgba(8, 23, 36, 0.97));
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 12px;
@@ -466,13 +466,30 @@ canvas {
 }
 
 .admin-header {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
+  display: grid;
+  gap: 10px;
   padding: 10px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(5, 18, 30, 0.45);
+}
+
+.admin-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-header-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(130px, 0.8fr) minmax(150px, 1fr) minmax(150px, 1fr);
+  gap: 8px;
 }
 
 .admin-header button {
@@ -487,8 +504,8 @@ canvas {
 }
 
 .admin-header input {
-  flex: 1;
-  min-width: 180px;
+  width: 100%;
+  min-width: 0;
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(8, 22, 34, 0.85);
   color: var(--text);
@@ -500,12 +517,13 @@ canvas {
 
 #adminAuditActorFilter,
 #adminAuditTargetFilter {
-  min-width: 130px;
-  max-width: 180px;
+  min-width: 0;
+  max-width: none;
 }
 
 #adminAuditActionFilter {
-  min-width: 120px;
+  min-width: 0;
+  width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(8, 22, 34, 0.85);
   color: var(--text);
@@ -516,8 +534,24 @@ canvas {
 }
 
 .admin-accounts {
-  padding: 12px;
+  padding: 10px;
   overflow-y: auto;
+}
+
+.admin-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 12px;
+  align-items: start;
+}
+
+.admin-main {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.admin-list {
   display: grid;
   gap: 10px;
 }
@@ -525,9 +559,9 @@ canvas {
 .admin-summary {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 10px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   background: rgba(255, 255, 255, 0.05);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .admin-row {
@@ -578,9 +612,20 @@ canvas {
 }
 
 .admin-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-quick-actions {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.admin-role-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .admin-ban-wrap {
@@ -688,6 +733,8 @@ canvas {
   border-radius: 10px;
   padding: 8px;
   background: rgba(255, 255, 255, 0.04);
+  position: sticky;
+  top: 0;
 }
 
 .admin-audit-title {
@@ -699,7 +746,7 @@ canvas {
 }
 
 .admin-audit-list {
-  max-height: 120px;
+  max-height: calc(90vh - 250px);
   overflow-y: auto;
   font-size: 12px;
   line-height: 1.3;
@@ -728,6 +775,18 @@ canvas {
 @media (max-width: 860px) {
   .world-enter {
     width: 100%;
+  }
+
+  .admin-header-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-audit {
+    position: static;
   }
 }
 

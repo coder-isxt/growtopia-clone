@@ -74,15 +74,21 @@
     </div>
     <div id="adminPanel" class="admin-panel hidden">
       <div class="admin-header">
-        <strong>Admin Panel</strong>
-        <input id="adminSearchInput" type="text" placeholder="Search player/account">
-        <select id="adminAuditActionFilter">
-          <option value="">All actions</option>
-        </select>
-        <input id="adminAuditActorFilter" type="text" placeholder="Audit actor">
-        <input id="adminAuditTargetFilter" type="text" placeholder="Audit target">
-        <button id="adminAuditExportBtn" type="button">Export Audit</button>
-        <button id="adminCloseBtn" type="button">Close</button>
+        <div class="admin-header-top">
+          <strong>Admin Panel</strong>
+          <div class="admin-header-actions">
+            <button id="adminAuditExportBtn" type="button">Export Audit</button>
+            <button id="adminCloseBtn" type="button">Close</button>
+          </div>
+        </div>
+        <div class="admin-header-filters">
+          <input id="adminSearchInput" type="text" placeholder="Search player/account">
+          <select id="adminAuditActionFilter">
+            <option value="">All actions</option>
+          </select>
+          <input id="adminAuditActorFilter" type="text" placeholder="Audit actor">
+          <input id="adminAuditTargetFilter" type="text" placeholder="Audit target">
+        </div>
       </div>
       <div id="adminAccounts" class="admin-accounts"></div>
     </div>
