@@ -47,6 +47,7 @@
       const signTextInputEl = document.getElementById("signTextInput");
       const signSaveBtn = document.getElementById("signSaveBtn");
       const signCloseBtn = document.getElementById("signCloseBtn");
+      const updatingOverlayEl = document.getElementById("updatingOverlay");
       const chatPanelEl = document.getElementById("chatPanel");
       const chatMessagesEl = document.getElementById("chatMessages");
       const chatInputRowEl = document.getElementById("chatInputRow");
@@ -337,6 +338,7 @@
       let lastAirJumpAtMs = -9999;
       let airJumpsUsed = 0;
       let wasJumpHeld = false;
+      let suppressSpawnSafetyUntilMs = 0;
       let mobileLastTouchActionAt = 0;
       const touchControls = {
         left: false,
@@ -1124,6 +1126,11 @@
         window.location.replace(url.toString());
       }
 
+      function showUpdatingOverlay() {
+        if (!updatingOverlayEl) return;
+        updatingOverlayEl.classList.remove("hidden");
+      }
+
       function triggerForceReloadAll(sourceTag) {
         if (!network.db || !hasAdminPermission("force_reload")) {
           postLocalSystemChat("Permission denied.");
@@ -1400,10 +1407,12 @@
         const safeX = clampTeleport(x, 0, WORLD_W * TILE - PLAYER_W - 2);
         const safeY = clampTeleport(y, 0, WORLD_H * TILE - PLAYER_H - 2);
         if (!inWorld || currentWorldId !== safeWorld) {
+          suppressSpawnSafetyUntilMs = performance.now() + 2500;
           pendingTeleportSelf = { worldId: safeWorld, x: safeX, y: safeY };
           switchWorld(safeWorld, false);
           return;
         }
+        suppressSpawnSafetyUntilMs = performance.now() + 900;
         player.x = safeX;
         player.y = safeY;
         player.vx = 0;
@@ -2087,6 +2096,7 @@
 
       function ensurePlayerSafeSpawn(forceToDoor) {
         if (!inWorld && !forceToDoor) return;
+        if (performance.now() < suppressSpawnSafetyUntilMs) return;
         const force = Boolean(forceToDoor);
         if (!force && !rectCollides(player.x, player.y, PLAYER_W, PLAYER_H)) {
           return;
@@ -3462,6 +3472,25 @@
         return dist <= TILE * 4.5;
       }
 
+      function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
+        return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+      }
+
+      function tileOccupiedByAnyPlayer(tx, ty) {
+        const bx = tx * TILE;
+        const by = ty * TILE;
+        if (rectsOverlap(bx, by, TILE, TILE, player.x, player.y, PLAYER_W, PLAYER_H)) {
+          return true;
+        }
+        for (const other of remotePlayers.values()) {
+          if (!other || typeof other.x !== "number" || typeof other.y !== "number") continue;
+          if (rectsOverlap(bx, by, TILE, TILE, other.x, other.y, PLAYER_W, PLAYER_H)) {
+            return true;
+          }
+        }
+        return false;
+      }
+
       function tryPlace(tx, ty) {
         const id = slotOrder[selectedSlot];
         if (typeof id !== "number") return;
@@ -3473,6 +3502,7 @@
         }
         if (inventory[id] <= 0) return;
         if (world[ty][tx] !== 0) return;
+        if (tileOccupiedByAnyPlayer(tx, ty)) return;
 
         const bx = tx * TILE;
         const by = ty * TILE;
@@ -4054,6 +4084,7 @@
         }
 
         if (pendingTeleportSelf && pendingTeleportSelf.worldId === currentWorldId) {
+          suppressSpawnSafetyUntilMs = performance.now() + 2500;
           player.x = clampTeleport(pendingTeleportSelf.x, 0, WORLD_W * TILE - PLAYER_W - 2);
           player.y = clampTeleport(pendingTeleportSelf.y, 0, WORLD_H * TILE - PLAYER_H - 2);
           player.vx = 0;
@@ -4440,9 +4471,10 @@
             saveForceReloadMarker(eventId);
             const assetVersion = (value.assetVersion || "").toString().trim();
             addClientLog("Global reload requested by @" + ((value.actorUsername || "owner").toString().slice(0, 20)) + ". Hard reloading" + (assetVersion ? " (v=" + assetVersion + ")" : "") + "...");
+            showUpdatingOverlay();
             setTimeout(() => {
               hardReloadClient(assetVersion);
-            }, 120);
+            }, 900);
           };
           network.handlers.adminAccounts = (snapshot) => {
             adminState.accounts = snapshot.val() || {};
