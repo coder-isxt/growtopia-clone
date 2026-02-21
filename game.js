@@ -3016,7 +3016,7 @@
 
       function drawSignTopText() {
         const tx = Math.floor((player.x + PLAYER_W / 2) / TILE);
-        const ty = Math.floor((player.y + PLAYER_H + 1) / TILE);
+        const ty = Math.floor((player.y + PLAYER_H / 2) / TILE);
         if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
         if (world[ty][tx] !== SIGN_ID) return;
         const text = getLocalSignText(tx, ty);
@@ -3559,7 +3559,7 @@
           return;
         }
         if (id === SIGN_ID) {
-          openSignModal(tx, ty-1);
+          openSignModal(tx, ty);
         }
       }
 
