@@ -3159,10 +3159,14 @@
           const flapAngle = flap * 0.42;
           const wingH = 20;
           const wingW = Math.max(10, Math.round(wingH * (wingImg.naturalWidth / Math.max(1, wingImg.naturalHeight))));
+          const offsetX = Number(item && item.offsetX);
+          const offsetY = Number(item && item.offsetY);
+          const useOffsetX = Number.isFinite(offsetX) ? offsetX : 3;
+          const useOffsetY = Number.isFinite(offsetY) ? offsetY : 0;
           const drawWingSide = (sideSign) => {
             const angle = sideSign * (baseAngle + flapAngle);
             ctx.save();
-            ctx.translate(centerX + sideSign * 1.5, centerY);
+            ctx.translate(centerX + sideSign * (1.5 + useOffsetX), centerY + useOffsetY);
             ctx.rotate(angle);
             if (sideSign < 0) ctx.scale(-1, 1);
             // Wing sprite attach point is left edge of image.
