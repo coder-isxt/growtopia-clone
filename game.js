@@ -2189,6 +2189,11 @@
         return Boolean(def && def.unbreakable);
       }
 
+      function isProtectedSpawnTile(tx, ty) {
+        const tiles = getSpawnStructureTiles();
+        return (tx === tiles.door.tx && ty === tiles.door.ty) || (tx === tiles.base.tx && ty === tiles.base.ty);
+      }
+
       function rectCollides(x, y, w, h) {
         const left = Math.floor(x / TILE);
         const right = Math.floor((x + w - 1) / TILE);
@@ -2581,6 +2586,8 @@
         if (!canEditTarget(tx, ty)) return;
         const id = world[ty][tx];
         if (id === 0) return;
+        if (id === SPAWN_DOOR_ID) return;
+        if (isProtectedSpawnTile(tx, ty)) return;
         if (isUnbreakableTileId(id)) return;
 
         world[ty][tx] = 0;
