@@ -117,15 +117,17 @@
         5: { name: "Sand", color: "#dfc883", solid: true },
         6: { name: "Brick", color: "#bb5644", solid: true },
         7: { name: "Door", color: "#57c2ff", solid: false, unbreakable: true },
-        8: { name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true }
+        8: { name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true },
+        9: { name: "World Lock", color: "#ffd166", solid: true }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
       const SPAWN_DOOR_ID = 7;
       const SPAWN_BASE_ID = 8;
 
-      const slotOrder = ["fist", 1, 2, 3, 4, 5, 6];
-      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6];
+      const WORLD_LOCK_ID = 9;
+      const slotOrder = ["fist", 1, 2, 3, 4, 5, 6, 9];
+      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9];
       const COSMETIC_SLOTS = ["clothes", "wings", "swords"];
       const COSMETIC_CATALOG = typeof itemsModule.getCosmeticItemsBySlot === "function"
         ? itemsModule.getCosmeticItemsBySlot()
@@ -147,7 +149,8 @@
         3: 0,
         4: 0,
         5: 0,
-        6: 0
+        6: 0,
+        9: 0
       };
 
       let selectedSlot = 0;
@@ -171,6 +174,8 @@
       let knownWorldIds = [];
       let totalOnlinePlayers = 0;
       let hasRenderedMenuWorldList = false;
+      let currentWorldLock = null;
+      let lastLockDeniedNoticeAt = 0;
       let isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
       let isChatOpen = false;
       let isLogsOpen = false;
@@ -249,6 +254,7 @@
         myCommandRef: null,
         playersRef: null,
         blocksRef: null,
+        lockRef: null,
         chatRef: null,
         chatFeedRef: null,
         inventoryRef: null,
@@ -275,6 +281,7 @@
           blockAdded: null,
           blockChanged: null,
           blockRemoved: null,
+          worldLock: null,
           chatAdded: null,
           accountLogAdded: null,
           myBan: null,
@@ -714,7 +721,7 @@
                   <input class="admin-ban-reason" data-account-id="${escapeHtml(accountId)}" type="text" maxlength="80" value="Banned by admin" placeholder="reason" ${(canTempBan || canPermBan) ? "" : "disabled"}>
                 </div>
                 <div class="admin-give-wrap">
-                  <input class="admin-give-block" data-account-id="${escapeHtml(accountId)}" type="number" min="1" max="6" step="1" value="1" placeholder="block">
+                  <input class="admin-give-block" data-account-id="${escapeHtml(accountId)}" type="number" min="1" max="9" step="1" value="1" placeholder="block">
                   <input class="admin-give-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="10" placeholder="amount">
                   <button data-admin-act="give" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give</button>
                 </div>
@@ -943,7 +950,7 @@
         const safeAmount = Math.floor(Number(amount));
         const safeBlock = Number(blockId);
         if (!INVENTORY_IDS.includes(safeBlock) || !Number.isInteger(safeAmount) || safeAmount <= 0) {
-          postLocalSystemChat("Usage: blockId 1-6 and amount >= 1.");
+          postLocalSystemChat("Usage: blockId 1-6 or 9 and amount >= 1.");
           return false;
         }
         network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + safeBlock).transaction((current) => {
@@ -1210,8 +1217,61 @@
         if (!rawText.startsWith("/")) return false;
         const parts = rawText.trim().split(/\s+/);
         const command = (parts[0] || "").toLowerCase();
+        if (command === "/lock") {
+          if (!inWorld) {
+            postLocalSystemChat("Enter a world first.");
+            return true;
+          }
+          if (isWorldLocked()) {
+            if (isWorldLockOwner()) {
+              postLocalSystemChat("You already own this world's lock.");
+            } else {
+              notifyWorldLockedDenied();
+            }
+            return true;
+          }
+          const target = getSpawnStructureTiles().base;
+          const oldSelected = selectedSlot;
+          const idx = slotOrder.indexOf(WORLD_LOCK_ID);
+          if (idx < 0 || (inventory[WORLD_LOCK_ID] || 0) <= 0) {
+            postLocalSystemChat("You need a World Lock item.");
+            return true;
+          }
+          selectedSlot = idx;
+          tryPlace(target.tx, target.ty);
+          selectedSlot = oldSelected;
+          refreshToolbar();
+          return true;
+        }
+        if (command === "/unlock") {
+          if (!inWorld) {
+            postLocalSystemChat("Enter a world first.");
+            return true;
+          }
+          if (!isWorldLocked()) {
+            postLocalSystemChat("World is not locked.");
+            return true;
+          }
+          if (!isWorldLockOwner()) {
+            notifyWorldLockedDenied();
+            return true;
+          }
+          const lockTx = Number(currentWorldLock && currentWorldLock.tx);
+          const lockTy = Number(currentWorldLock && currentWorldLock.ty);
+          if (Number.isInteger(lockTx) && Number.isInteger(lockTy) && lockTx >= 0 && lockTy >= 0 && lockTx < WORLD_W && lockTy < WORLD_H) {
+            tryBreak(lockTx, lockTy);
+          } else {
+            currentWorldLock = null;
+            if (network.enabled && network.lockRef) {
+              network.lockRef.remove().catch(() => {});
+            }
+            postLocalSystemChat("World unlocked.");
+          }
+          return true;
+        }
         if (command === "/adminhelp") {
           const available = ["/myrole"];
+          available.push("/lock", "/unlock");
           if (hasAdminPermission("tempban")) available.push("/tempban", "/ban");
           if (hasAdminPermission("permban")) available.push("/permban");
           if (hasAdminPermission("unban")) available.push("/unban");
@@ -1265,7 +1325,7 @@
             return true;
           }
           if (!INVENTORY_IDS.includes(blockId) || !Number.isInteger(amount) || amount <= 0) {
-            postLocalSystemChat("Usage: /givex <user> <blockId 1-6> <amount>");
+            postLocalSystemChat("Usage: /givex <user> <blockId 1-6 or 9> <amount>");
             return true;
           }
           if (applyInventoryGrant(accountId, blockId, amount, "chat", targetRef)) {
@@ -2217,6 +2277,40 @@
         return Boolean(def && def.unbreakable);
       }
 
+      function normalizeWorldLock(value) {
+        if (!value || typeof value !== "object") return null;
+        const ownerAccountId = (value.ownerAccountId || "").toString();
+        if (!ownerAccountId) return null;
+        return {
+          ownerAccountId,
+          ownerName: (value.ownerName || "").toString(),
+          tx: Number.isInteger(value.tx) ? value.tx : Number(value.tx) || 0,
+          ty: Number.isInteger(value.ty) ? value.ty : Number(value.ty) || 0,
+          createdAt: typeof value.createdAt === "number" ? value.createdAt : 0
+        };
+      }
+
+      function isWorldLocked() {
+        return Boolean(currentWorldLock && currentWorldLock.ownerAccountId);
+      }
+
+      function isWorldLockOwner() {
+        return Boolean(playerProfileId && currentWorldLock && currentWorldLock.ownerAccountId === playerProfileId);
+      }
+
+      function canEditCurrentWorld() {
+        if (!isWorldLocked()) return true;
+        return isWorldLockOwner();
+      }
+
+      function notifyWorldLockedDenied() {
+        const now = performance.now();
+        if (now - lastLockDeniedNoticeAt < 900) return;
+        lastLockDeniedNoticeAt = now;
+        const owner = currentWorldLock && currentWorldLock.ownerName ? currentWorldLock.ownerName : "owner";
+        postLocalSystemChat("World is locked by @" + owner + ".");
+      }
+
       function isProtectedSpawnTile(tx, ty) {
         const tiles = getSpawnStructureTiles();
         return (tx === tiles.door.tx && ty === tiles.door.ty) || (tx === tiles.base.tx && ty === tiles.base.ty);
@@ -2670,6 +2764,10 @@
         if (typeof id !== "number") return;
         if (!canEditTarget(tx, ty)) return;
         if (isProtectedSpawnTile(tx, ty)) return;
+        if (!canEditCurrentWorld()) {
+          notifyWorldLockedDenied();
+          return;
+        }
         if (inventory[id] <= 0) return;
         if (world[ty][tx] !== 0) return;
 
@@ -2679,11 +2777,68 @@
           return;
         }
 
-        world[ty][tx] = id;
-        inventory[id]--;
-        syncBlock(tx, ty, id);
-        saveInventory();
-        refreshToolbar();
+        const finalizePlace = () => {
+          world[ty][tx] = id;
+          inventory[id]--;
+          syncBlock(tx, ty, id);
+          saveInventory();
+          refreshToolbar();
+        };
+
+        if (id === WORLD_LOCK_ID) {
+          if (isWorldLocked()) {
+            if (isWorldLockOwner()) {
+              postLocalSystemChat("This world already has your lock.");
+            } else {
+              notifyWorldLockedDenied();
+            }
+            return;
+          }
+          const ownerName = (playerName || "player").toString().slice(0, 20);
+          if (!network.enabled || !network.lockRef) {
+            currentWorldLock = {
+              ownerAccountId: playerProfileId || "",
+              ownerName,
+              tx,
+              ty,
+              createdAt: Date.now()
+            };
+            finalizePlace();
+            postLocalSystemChat("World locked.");
+            return;
+          }
+          network.lockRef.transaction((current) => {
+            if (current && current.ownerAccountId) return;
+            return {
+              ownerAccountId: playerProfileId || "",
+              ownerName,
+              tx,
+              ty,
+              createdAt: firebase.database.ServerValue.TIMESTAMP
+            };
+          }).then((result) => {
+            if (!result.committed) {
+              const existing = normalizeWorldLock(result.snapshot && result.snapshot.val ? result.snapshot.val() : null);
+              currentWorldLock = existing;
+              notifyWorldLockedDenied();
+              return;
+            }
+            currentWorldLock = normalizeWorldLock(result.snapshot && result.snapshot.val ? result.snapshot.val() : null) || {
+              ownerAccountId: playerProfileId || "",
+              ownerName,
+              tx,
+              ty,
+              createdAt: Date.now()
+            };
+            finalizePlace();
+            postLocalSystemChat("World locked.");
+          }).catch(() => {
+            postLocalSystemChat("Failed to place world lock.");
+          });
+          return;
+        }
+
+        finalizePlace();
       }
 
       function tryBreak(tx, ty) {
@@ -2691,14 +2846,29 @@
         const id = world[ty][tx];
         if (id === 0) return;
         if (id === SPAWN_DOOR_ID) return;
+        if (!canEditCurrentWorld()) {
+          notifyWorldLockedDenied();
+          return;
+        }
         if (isProtectedSpawnTile(tx, ty)) return;
         if (isUnbreakableTileId(id)) return;
+        if (id === WORLD_LOCK_ID && !isWorldLockOwner()) {
+          notifyWorldLockedDenied();
+          return;
+        }
 
         world[ty][tx] = 0;
         if (INVENTORY_IDS.includes(id)) {
           inventory[id] = (inventory[id] || 0) + 1;
         }
         syncBlock(tx, ty, 0);
+        if (id === WORLD_LOCK_ID) {
+          currentWorldLock = null;
+          if (network.enabled && network.lockRef) {
+            network.lockRef.remove().catch(() => {});
+          }
+          postLocalSystemChat("World unlocked.");
+        }
         saveInventory();
         refreshToolbar();
       }
@@ -2783,6 +2953,9 @@
         if (blockSyncer && typeof blockSyncer.flush === "function") {
           blockSyncer.flush();
         }
+        if (network.lockRef && network.handlers.worldLock) {
+          network.lockRef.off("value", network.handlers.worldLock);
+        }
         if (typeof syncWorldsModule.detachWorldListeners === "function") {
           syncWorldsModule.detachWorldListeners(network, network.handlers, true);
         } else if (network.playerRef) {
@@ -2795,13 +2968,16 @@
         network.playerRef = null;
         network.playersRef = null;
         network.blocksRef = null;
+        network.lockRef = null;
         network.chatRef = null;
         network.chatFeedRef = null;
         network.handlers.players = null;
         network.handlers.blockAdded = null;
         network.handlers.blockChanged = null;
         network.handlers.blockRemoved = null;
+        network.handlers.worldLock = null;
         network.handlers.chatAdded = null;
+        currentWorldLock = null;
       }
 
       function leaveCurrentWorld() {
@@ -2888,6 +3064,7 @@
           : null;
         network.playersRef = worldRefs && worldRefs.playersRef ? worldRefs.playersRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/players");
         network.blocksRef = worldRefs && worldRefs.blocksRef ? worldRefs.blocksRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/blocks");
+        network.lockRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/lock");
         network.chatRef = worldRefs && worldRefs.chatRef ? worldRefs.chatRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/chat");
         network.chatFeedRef = typeof syncWorldsModule.createChatFeed === "function"
           ? syncWorldsModule.createChatFeed(network.chatRef, worldChatStartedAt, 100)
@@ -2895,6 +3072,12 @@
             ? network.chatRef.orderByChild("createdAt").startAt(worldChatStartedAt).limitToLast(100)
             : network.chatRef.limitToLast(100));
         network.playerRef = network.playersRef.child(playerId);
+        network.handlers.worldLock = (snapshot) => {
+          currentWorldLock = normalizeWorldLock(snapshot.val());
+        };
+        if (network.lockRef && network.handlers.worldLock) {
+          network.lockRef.on("value", network.handlers.worldLock);
+        }
 
         const applyBlockValue = (tx, ty, id) => {
           const requiredId = getProtectedTileRequiredId(tx, ty);
