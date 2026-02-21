@@ -1022,16 +1022,10 @@
           const next = (Number(current) || 0) + safeAmount;
           return Math.max(0, next);
         }).then(() => {
-          if (accountId === playerProfileId) {
-            inventory[safeBlock] = Math.max(0, Math.floor((inventory[safeBlock] || 0) + safeAmount));
-            refreshToolbar();
-            saveInventory();
-            reloadMyInventoryFromServer();
-          }
           const target = targetLabel || targetUsername || accountId;
           logAdminAudit("Admin(" + sourceTag + ") gave @" + target + " block " + safeBlock + " amount " + safeAmount + ".");
           pushAdminAuditEntry("givex", accountId, "block=" + safeBlock + " amount=" + safeAmount);
-          postLocalSystemChat("Granted block " + safeBlock + " x" + safeAmount + " to @" + target + ".");
+          //postLocalSystemChat("Granted block " + safeBlock + " x" + safeAmount + " to @" + target + ".");
         }).catch(() => {
           postLocalSystemChat("Failed to update inventory.");
         });
@@ -1062,16 +1056,10 @@
           const next = (Number(current) || 0) + amountSafe;
           return Math.max(0, next);
         }).then(() => {
-          if (accountId === playerProfileId) {
-            cosmeticInventory[itemIdSafe] = Math.max(0, Math.floor((cosmeticInventory[itemIdSafe] || 0) + amountSafe));
-            refreshToolbar();
-            saveInventory();
-            reloadMyInventoryFromServer();
-          }
           const target = targetLabel || targetUsername || accountId;
           logAdminAudit("Admin(" + sourceTag + ") gave @" + target + " item " + itemIdSafe + " x" + amountSafe + ".");
           pushAdminAuditEntry("giveitem", accountId, "item=" + itemIdSafe + " amount=" + amountSafe);
-          postLocalSystemChat("Granted item " + itemIdSafe + " x" + amountSafe + " to @" + target + ".");
+          //postLocalSystemChat("Granted item " + itemIdSafe + " x" + amountSafe + " to @" + target + ".");
         }).catch(() => {
           postLocalSystemChat("Failed to give item.");
         });
