@@ -115,23 +115,23 @@
       const FORCE_RELOAD_MARKER_KEY = "growtopia_force_reload_marker_v1";
 
       const blockDefs = typeof blocksModule.getBlockDefs === "function" ? blocksModule.getBlockDefs() : {
-        0: { name: "Air", color: "transparent", solid: false, icon: "A", faIcon: "fa-regular fa-circle" },
-        1: { name: "Grass", color: "#4caf50", solid: true, icon: "GR", faIcon: "fa-solid fa-seedling" },
-        2: { name: "Dirt", color: "#8b5a2b", solid: true, icon: "DI", faIcon: "fa-solid fa-mound" },
-        3: { name: "Stone", color: "#818a93", solid: true, icon: "ST", faIcon: "fa-solid fa-cube" },
-        4: { name: "Wood", color: "#a87038", solid: true, icon: "WO", faIcon: "fa-solid fa-tree" },
-        5: { name: "Sand", color: "#dfc883", solid: true, icon: "SA", faIcon: "fa-regular fa-hourglass-half" },
-        6: { name: "Brick", color: "#bb5644", solid: true, icon: "BR", faIcon: "fa-solid fa-border-all" },
-        7: { name: "Door", color: "#57c2ff", solid: false, unbreakable: true, icon: "DR", faIcon: "fa-solid fa-door-open" },
-        8: { name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true, icon: "BD", faIcon: "fa-solid fa-mountain" },
-        9: { name: "World Lock", color: "#ffd166", solid: true, icon: "WL", faIcon: "fa-solid fa-lock" },
-        10: { name: "Door Block", color: "#5fc2ff", solid: false, icon: "DB", faIcon: "fa-solid fa-door-open" },
-        11: { name: "Water", color: "rgba(72, 174, 255, 0.7)", solid: false, liquid: true, icon: "WA", faIcon: "fa-solid fa-water" },
-        12: { name: "Platform", color: "#7a5a3f", solid: false, oneWay: true, icon: "PF", faIcon: "fa-solid fa-grip-lines" },
-        13: { name: "Stair NE", color: "#b28457", solid: true, rotatable: true, icon: "S1", faIcon: "fa-solid fa-stairs" },
-        14: { name: "Stair SE", color: "#b28457", solid: true, rotatable: true, icon: "S2", faIcon: "fa-solid fa-stairs" },
-        15: { name: "Stair SW", color: "#b28457", solid: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs" },
-        16: { name: "Stair NW", color: "#b28457", solid: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs" }
+        0: { key: "air", name: "Air", color: "transparent", solid: false, icon: "A", faIcon: "fa-regular fa-circle" },
+        1: { key: "grass_block", name: "Grass", color: "#4caf50", solid: true, icon: "GR", faIcon: "fa-solid fa-seedling" },
+        2: { key: "dirt_block", name: "Dirt", color: "#8b5a2b", solid: true, icon: "DI", faIcon: "fa-solid fa-mound" },
+        3: { key: "stone_block", name: "Stone", color: "#818a93", solid: true, icon: "ST", faIcon: "fa-solid fa-cube" },
+        4: { key: "wood_block", name: "Wood", color: "#a87038", solid: true, icon: "WO", faIcon: "fa-solid fa-tree" },
+        5: { key: "sand_block", name: "Sand", color: "#dfc883", solid: true, icon: "SA", faIcon: "fa-regular fa-hourglass-half" },
+        6: { key: "brick_block", name: "Brick", color: "#bb5644", solid: true, icon: "BR", faIcon: "fa-solid fa-border-all" },
+        7: { key: "spawn_door", name: "Door", color: "#57c2ff", solid: false, unbreakable: true, icon: "DR", faIcon: "fa-solid fa-door-open" },
+        8: { key: "bedrock", name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true, icon: "BD", faIcon: "fa-solid fa-mountain" },
+        9: { key: "world_lock", name: "World Lock", color: "#ffd166", solid: true, icon: "WL", faIcon: "fa-solid fa-lock" },
+        10: { key: "door_block", name: "Door Block", color: "#5fc2ff", solid: false, icon: "DB", faIcon: "fa-solid fa-door-open" },
+        11: { key: "water_block", name: "Water", color: "rgba(72, 174, 255, 0.7)", solid: false, liquid: true, icon: "WA", faIcon: "fa-solid fa-water" },
+        12: { key: "platform_block", name: "Platform", color: "#7a5a3f", solid: false, oneWay: true, icon: "PF", faIcon: "fa-solid fa-grip-lines" },
+        13: { key: "stair_block", name: "Stair NE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S1", faIcon: "fa-solid fa-stairs" },
+        14: { key: "stair_block_r1", name: "Stair SE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S2", faIcon: "fa-solid fa-stairs" },
+        15: { key: "stair_block_r2", name: "Stair SW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs" },
+        16: { key: "stair_block_r3", name: "Stair NW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs" }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
@@ -145,6 +145,16 @@
       const slotOrder = ["fist", 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13];
       const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13];
       const COSMETIC_SLOTS = ["clothes", "wings", "swords"];
+      const BLOCK_ID_TO_KEY = {};
+      const BLOCK_KEY_TO_ID = {};
+      Object.keys(blockDefs).forEach((key) => {
+        const id = Number(key);
+        const def = blockDefs[id];
+        if (!def) return;
+        const blockKey = (def.key || ("block_" + id)).toString();
+        BLOCK_ID_TO_KEY[id] = blockKey;
+        BLOCK_KEY_TO_ID[blockKey] = id;
+      });
       const COSMETIC_CATALOG = typeof itemsModule.getCosmeticItemsBySlot === "function"
         ? itemsModule.getCosmeticItemsBySlot()
         : { clothes: [], wings: [], swords: [] };
@@ -769,7 +779,9 @@
                   <input class="admin-ban-reason" data-account-id="${escapeHtml(accountId)}" type="text" maxlength="80" value="Banned by admin" placeholder="reason" ${(canTempBan || canPermBan) ? "" : "disabled"}>
                 </div>
                 <div class="admin-give-wrap">
-                  <input class="admin-give-block" data-account-id="${escapeHtml(accountId)}" type="number" min="1" max="13" step="1" value="1" placeholder="block">
+                  <select class="admin-give-block" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>
+                    ${INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
+                  </select>
                   <input class="admin-give-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="10" placeholder="amount">
                   <button data-admin-act="give" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give</button>
                 </div>
@@ -902,8 +914,8 @@
         if (action === "give") {
           const blockInput = adminAccountsEl.querySelector('.admin-give-block[data-account-id="' + accountId + '"]');
           const amountInput = adminAccountsEl.querySelector('.admin-give-amount[data-account-id="' + accountId + '"]');
-          if (!(blockInput instanceof HTMLInputElement) || !(amountInput instanceof HTMLInputElement)) return;
-          const blockId = Number(blockInput.value);
+          if (!(blockInput instanceof HTMLSelectElement) || !(amountInput instanceof HTMLInputElement)) return;
+          const blockId = blockInput.value || "";
           const amount = Number(amountInput.value);
           const username = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId;
           const ok = applyInventoryGrant(accountId, blockId, amount, "panel", username);
@@ -1053,9 +1065,9 @@
           return false;
         }
         const safeAmount = Math.floor(Number(amount));
-        const safeBlock = Number(blockId);
+        const safeBlock = parseBlockRef(blockId);
         if (!INVENTORY_IDS.includes(safeBlock) || !Number.isInteger(safeAmount) || safeAmount <= 0) {
-          postLocalSystemChat("Usage: blockId 1-6, 9-13 and amount >= 1.");
+          postLocalSystemChat("Usage: blockId <number|key> (e.g. wood_block) and amount >= 1.");
           return false;
         }
         network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + safeBlock).transaction((current) => {
@@ -1410,7 +1422,8 @@
         }
         if (command === "/givex") {
           const targetRef = parts[1] || "";
-          const blockId = Number(parts[2]);
+          const blockRef = parts[2] || "";
+          const blockId = parseBlockRef(blockRef);
           const amount = Number(parts[3]);
           const accountId = findAccountIdByUserRef(targetRef);
           if (!accountId) {
@@ -1418,10 +1431,10 @@
             return true;
           }
           if (!INVENTORY_IDS.includes(blockId) || !Number.isInteger(amount) || amount <= 0) {
-            postLocalSystemChat("Usage: /givex <user> <blockId 1-6 or 9> <amount>");
+            postLocalSystemChat("Usage: /givex <user> <block_key|block_id> <amount>");
             return true;
           }
-          if (applyInventoryGrant(accountId, blockId, amount, "chat", targetRef)) {
+          if (applyInventoryGrant(accountId, blockRef || blockId, amount, "chat", targetRef)) {
             postLocalSystemChat("Updated inventory for @" + targetRef + ".");
           }
           return true;
@@ -2374,6 +2387,19 @@
         return Boolean(def && def.unbreakable);
       }
 
+      function getBlockKeyById(id) {
+        return (BLOCK_ID_TO_KEY[id] || ("block_" + id)).toString();
+      }
+
+      function parseBlockRef(value) {
+        const raw = (value || "").toString().trim().toLowerCase();
+        if (!raw) return 0;
+        if (BLOCK_KEY_TO_ID[raw] !== undefined) return Number(BLOCK_KEY_TO_ID[raw]);
+        const numeric = Number(raw);
+        if (Number.isInteger(numeric) && blockDefs[numeric]) return numeric;
+        return 0;
+      }
+
       function isLiquidTile(tx, ty) {
         if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return false;
         const id = world[ty][tx];
@@ -2468,18 +2494,39 @@
         return false;
       }
 
-      function rectTouchesStair(x, y, w, h) {
-        const left = Math.floor(x / TILE);
-        const right = Math.floor((x + w - 1) / TILE);
-        const top = Math.floor(y / TILE);
-        const bottom = Math.floor((y + h - 1) / TILE);
-        for (let ty = top; ty <= bottom; ty++) {
-          for (let tx = left; tx <= right; tx++) {
-            if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) continue;
-            if (isStairTileId(world[ty][tx])) return true;
-          }
+      function getStairSurfaceY(id, tx, ty, worldX) {
+        const localX = Math.max(0, Math.min(1, (worldX - tx * TILE) / TILE));
+        let localY = 1 - localX;
+        if (id === 14 || id === 15) {
+          localY = localX;
         }
-        return false;
+        return ty * TILE + localY * TILE;
+      }
+
+      function snapPlayerToStairSurface() {
+        const footLeftX = player.x + 3;
+        const footRightX = player.x + PLAYER_W - 3;
+        const bottomY = player.y + PLAYER_H;
+        const checkFeet = [footLeftX, footRightX];
+        let targetBottom = Infinity;
+        let found = false;
+        for (let i = 0; i < checkFeet.length; i++) {
+          const fx = checkFeet[i];
+          const tx = Math.floor(fx / TILE);
+          const ty = Math.floor((bottomY - 1) / TILE);
+          if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) continue;
+          const id = world[ty][tx];
+          if (!isStairTileId(id)) continue;
+          const surfaceY = getStairSurfaceY(id, tx, ty, fx);
+          if (bottomY < surfaceY - 5 || bottomY > surfaceY + 10) continue;
+          targetBottom = Math.min(targetBottom, surfaceY);
+          found = true;
+        }
+        if (!found) return false;
+        player.y = targetBottom - PLAYER_H;
+        player.grounded = true;
+        if (player.vy > 0) player.vy = 0;
+        return true;
       }
 
       function rectCollidesOneWayPlatformDownward(x, prevY, nextY, w, h) {
@@ -2552,25 +2599,11 @@
         if (!rectCollides(nextX, player.y, PLAYER_W, PLAYER_H)) {
           player.x = nextX;
         } else {
-          let climbedStair = false;
-          if (player.vy >= 0 && rectTouchesStair(nextX, player.y, PLAYER_W, PLAYER_H)) {
-            const maxStepUp = Math.min(TILE, Math.ceil(PLAYER_H * 0.7));
-            for (let stepUp = 1; stepUp <= maxStepUp; stepUp++) {
-              const testY = player.y - stepUp;
-              if (rectCollides(nextX, testY, PLAYER_W, PLAYER_H)) continue;
-              player.x = nextX;
-              player.y = testY;
-              climbedStair = true;
-              break;
-            }
+          const step = Math.sign(player.vx);
+          while (!rectCollides(player.x + step, player.y, PLAYER_W, PLAYER_H)) {
+            player.x += step;
           }
-          if (!climbedStair) {
-            const step = Math.sign(player.vx);
-            while (!rectCollides(player.x + step, player.y, PLAYER_W, PLAYER_H)) {
-              player.x += step;
-            }
-            player.vx = 0;
-          }
+          player.vx = 0;
         }
 
         let nextY = player.y + player.vy;
@@ -2603,6 +2636,10 @@
 
         if (player.grounded) {
           airJumpsUsed = 0;
+        }
+
+        if (!player.grounded || player.vy >= 0) {
+          snapPlayerToStairSurface();
         }
 
         if (player.y > WORLD_H * TILE) {
