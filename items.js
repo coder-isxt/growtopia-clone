@@ -14,9 +14,7 @@ window.GTModules.items = {
         { id: "angel_white", name: "Angel Wings", color: "#ecf3ff", icon: "AW", faIcon: "fa-solid fa-dove", rarity: "rare", doubleJump: true, image: "wings/angel_white.png" },
         { id: "bat_dark", name: "Bat Wings", color: "#48505f", icon: "BW", faIcon: "fa-solid fa-feather-pointed", rarity: "rare", doubleJump: true, image: "wings/bat_dark.png" },
         { id: "leaf_green", name: "Leaf Wings", color: "#5ebd79", icon: "LW", faIcon: "fa-solid fa-leaf", rarity: "rare", doubleJump: true, image: "wings/leaf_green.png" },
-        { id: "test", name: "Test Wings", color: "#5ebd79", icon: "TW", faIcon: "fa-solid fa-leaf", rarity: "epic", doubleJump: true, image: "wings/test.png" },
-        { id: "blue_wings", name: "Blue Wings", color: "#5ebd79", icon: "BW", faIcon: "fa-solid fa-leaf", rarity: "legendary", doubleJump: true, image: "wings/blue_wing.png" },
-        { id: "pink_wings", name: "Pink Wings", color: "#5ebd79", icon: "PW", faIcon: "fa-solid fa-leaf", rarity: "legendary", doubleJump: true, image: "wings/pink_wing.png" }
+        { id: "black_outline_wings", name: "Black Outline Wings", color: "#5ebd79", icon: "TW", faIcon: "fa-solid fa-leaf", rarity: "epic", doubleJump: true, image: "wings/black_outline_wings.png" },
       ],
       swords: [
         { id: "wood_blade", name: "Wood Blade", color: "#9a6a3f", icon: "WB", faIcon: "fa-solid fa-sword", rarity: "common", image: "swords/wood_blade.png" },

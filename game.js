@@ -3141,7 +3141,26 @@
         const item = COSMETIC_LOOKUP.wings[wingsId];
         if (!item) return;
         const flap = Number(wingFlap) || 0;
-        if (drawCosmeticSprite(item, px - 10, py + 7 + flap * 1.5, PLAYER_W + 20, 20, facing)) {
+        const wingImg = getCosmeticImage(item);
+        if (wingImg) {
+          const centerX = px + PLAYER_W / 2;
+          const centerY = py + 14;
+          const baseAngle = 0.42;
+          const flapAngle = flap * 0.42;
+          const wingH = 20;
+          const wingW = Math.max(10, Math.round(wingH * (wingImg.naturalWidth / Math.max(1, wingImg.naturalHeight))));
+          const drawWingSide = (sideSign) => {
+            const angle = sideSign * (baseAngle + flapAngle);
+            ctx.save();
+            ctx.translate(centerX + sideSign * 1.5, centerY);
+            ctx.rotate(angle);
+            if (sideSign < 0) ctx.scale(-1, 1);
+            // Wing sprite attach point is left edge of image.
+            ctx.drawImage(wingImg, 0, -wingH / 2, wingW, wingH);
+            ctx.restore();
+          };
+          drawWingSide(-1);
+          drawWingSide(1);
           return;
         }
         ctx.fillStyle = item.color;
@@ -4544,17 +4563,35 @@
         return { section, grid };
       }
 
-      function createIconChip(baseColor, label, extraClass, faIconClass) {
+      function createIconChip(baseColor, label, extraClass, faIconClass, imageSrc) {
         const icon = document.createElement("div");
         icon.className = "item-icon " + (extraClass || "");
         if (baseColor) icon.style.setProperty("--chip-color", baseColor);
+        const fallbackLabel = document.createElement("span");
+        fallbackLabel.className = "item-icon-fallback-label";
+        fallbackLabel.textContent = label || "";
+        icon.appendChild(fallbackLabel);
         if (faIconClass) {
-          icon.textContent = label || "";
-          const iconNode = document.createElement("i");
-          iconNode.className = faIconClass;
-          icon.appendChild(iconNode);
-        } else {
-          icon.textContent = label || "";
+          const fallbackIcon = document.createElement("i");
+          fallbackIcon.className = "item-icon-fallback-icon " + faIconClass;
+          icon.appendChild(fallbackIcon);
+        }
+        if (imageSrc) {
+          const img = document.createElement("img");
+          img.className = "item-icon-image";
+          img.alt = "";
+          img.loading = "lazy";
+          img.decoding = "async";
+          img.addEventListener("load", () => {
+            icon.classList.add("image-ready");
+          });
+          img.addEventListener("error", () => {
+            icon.classList.remove("image-ready");
+            img.remove();
+          });
+          img.src = imageSrc;
+          icon.appendChild(img);
+          return icon;
         }
         return icon;
       }
@@ -4567,7 +4604,7 @@
         const key = document.createElement("span");
         key.className = "slot-key";
         key.textContent = opts.keyLabel || "";
-        const icon = createIconChip(opts.color, opts.iconLabel, opts.iconClass, opts.faIconClass);
+        const icon = createIconChip(opts.color, opts.iconLabel, opts.iconClass, opts.faIconClass, opts.imageSrc);
         const name = document.createElement("span");
         name.className = "slot-name";
         name.textContent = opts.name || "";
@@ -4658,6 +4695,7 @@
               color: item.color || "#8aa0b5",
               iconClass: "icon-cosmetic icon-" + item.slot,
               faIconClass: item.faIcon || "",
+              imageSrc: item.imagePath || "",
               iconLabel: item.icon || item.name.slice(0, 2).toUpperCase(),
               name: item.name,
               countText: "x" + item.count,

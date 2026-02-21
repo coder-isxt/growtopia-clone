@@ -288,7 +288,7 @@ canvas {
   overflow: hidden;
 }
 
-.item-icon i {
+.item-icon .item-icon-fallback-icon {
   position: absolute;
   inset: 0;
   display: grid;
@@ -297,6 +297,27 @@ canvas {
   color: rgba(17, 31, 44, 0.86);
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
   pointer-events: none;
+}
+
+.item-icon .item-icon-fallback-label {
+  position: relative;
+  z-index: 1;
+}
+
+.item-icon-image {
+  width: 86%;
+  height: 86%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  pointer-events: none;
+  position: absolute;
+  inset: 7%;
+  z-index: 2;
+}
+
+.item-icon.image-ready .item-icon-fallback-label,
+.item-icon.image-ready .item-icon-fallback-icon {
+  display: none;
 }
 
 .item-icon.icon-fist {
