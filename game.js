@@ -179,6 +179,7 @@
       const COSMETIC_LOOKUP = {};
       const COSMETIC_ITEMS = [];
       const cosmeticImageCache = new Map();
+      const blockImageCache = new Map();
       for (const slot of COSMETIC_SLOTS) {
         const map = {};
         const slotItems = Array.isArray(COSMETIC_CATALOG[slot]) ? COSMETIC_CATALOG[slot] : [];
@@ -3087,6 +3088,10 @@
               continue;
             }
 
+            if (drawBlockImage(def, x, y)) {
+              continue;
+            }
+
             ctx.fillStyle = def.color;
             ctx.fillRect(x, y, TILE, TILE);
             if (def.liquid) {
@@ -3149,6 +3154,30 @@
         const img = cosmeticImageCache.get(key);
         if (!img || !img.complete || img.naturalWidth <= 0 || img.naturalHeight <= 0) return null;
         return img;
+      }
+
+      function getBlockImage(def) {
+        if (!def || !def.imagePath) return null;
+        const key = String(def.imagePath);
+        if (!blockImageCache.has(key)) {
+          const img = new Image();
+          img.decoding = "async";
+          img.src = key;
+          blockImageCache.set(key, img);
+        }
+        const img = blockImageCache.get(key);
+        if (!img || !img.complete || img.naturalWidth <= 0 || img.naturalHeight <= 0) return null;
+        return img;
+      }
+
+      function drawBlockImage(def, x, y) {
+        const img = getBlockImage(def);
+        if (!img) return false;
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, x, y, TILE, TILE);
+        ctx.restore();
+        return true;
       }
 
       function drawCosmeticSprite(item, x, y, w, h, facing) {
@@ -4710,6 +4739,7 @@
             color: isFist ? "#c59b81" : (isWrench ? "#90a4ae" : (blockDef && blockDef.color ? blockDef.color : "#999")),
             iconClass: isTool ? "icon-fist" : "icon-block",
             faIconClass: isFist ? "fa-solid fa-hand-fist" : (isWrench ? "fa-solid fa-screwdriver-wrench" : (blockDef && blockDef.faIcon ? blockDef.faIcon : "")),
+            imageSrc: !isTool && blockDef && blockDef.imagePath ? blockDef.imagePath : "",
             iconLabel: isFist ? "F" : (isWrench ? "W" : ((blockDef && blockDef.icon) || title.slice(0, 2).toUpperCase())),
             name: title,
             countText: isTool ? "" : "x" + (inventory[id] || 0),
