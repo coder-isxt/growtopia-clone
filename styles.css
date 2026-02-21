@@ -1969,8 +1969,23 @@ canvas {
   .menu-screen,
   .canvas-wrap {
     margin-left: calc(var(--desktop-shell-pad) + var(--left-panel-w) + var(--desktop-side-gap));
-    margin-right: calc(var(--desktop-shell-pad) + var(--right-panel-w) + var(--desktop-side-gap));
+    margin-right: 0;
+    width: max(320px, calc(
+      100vw
+      - (var(--desktop-shell-pad) * 2)
+      - var(--left-panel-w)
+      - var(--right-panel-w)
+      - (var(--desktop-side-gap) * 2)
+    ));
+    max-width: max(320px, calc(
+      100vw
+      - (var(--desktop-shell-pad) * 2)
+      - var(--left-panel-w)
+      - var(--right-panel-w)
+      - (var(--desktop-side-gap) * 2)
+    ));
     min-height: 0;
+    justify-self: start;
   }
 
   .menu-screen {
