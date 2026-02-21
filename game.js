@@ -715,6 +715,14 @@
         setCameraZoom(cameraZoom + Number(delta || 0), true);
       }
 
+      function getCameraViewWidth() {
+        return canvas.width / Math.max(0.01, cameraZoom);
+      }
+
+      function getCameraViewHeight() {
+        return canvas.height / Math.max(0.01, cameraZoom);
+      }
+
       function canUserViewLogs(username) {
         const normalized = normalizeUsername(username);
         if (LOG_VIEWER_USERNAMES.includes(normalized)) return true;
@@ -4292,33 +4300,37 @@
       }
 
       function updateCamera() {
-        const targetX = player.x + PLAYER_W / 2 - canvas.width / 2;
-        const targetY = player.y + PLAYER_H / 2 - canvas.height / 2;
+        const viewW = getCameraViewWidth();
+        const viewH = getCameraViewHeight();
+        const targetX = player.x + PLAYER_W / 2 - viewW / 2;
+        const targetY = player.y + PLAYER_H / 2 - viewH / 2;
 
         cameraX += (targetX - cameraX) * 0.12;
         cameraY += (targetY - cameraY) * 0.12;
 
-        cameraX = Math.max(0, Math.min(cameraX, WORLD_W * TILE - canvas.width));
-        cameraY = Math.max(0, Math.min(cameraY, WORLD_H * TILE - canvas.height));
+        cameraX = Math.max(0, Math.min(cameraX, WORLD_W * TILE - viewW));
+        cameraY = Math.max(0, Math.min(cameraY, WORLD_H * TILE - viewH));
       }
 
       function drawBackground() {
+        const viewW = getCameraViewWidth();
+        const viewH = getCameraViewHeight();
         const weatherImageUrl = getActiveWeatherImageUrl();
         if (weatherImageUrl) {
           const weatherImg = getBlockImageByPath(weatherImageUrl);
           if (weatherImg) {
             const sx = weatherImg.naturalWidth || weatherImg.width || 1;
             const sy = weatherImg.naturalHeight || weatherImg.height || 1;
-            const scale = Math.max(canvas.width / sx, canvas.height / sy);
+            const scale = Math.max(viewW / sx, viewH / sy);
             const drawW = sx * scale;
             const drawH = sy * scale;
-            const drawX = (canvas.width - drawW) * 0.5;
-            const drawY = (canvas.height - drawH) * 0.5;
+            const drawX = (viewW - drawW) * 0.5;
+            const drawY = (viewH - drawH) * 0.5;
             ctx.save();
             ctx.imageSmoothingEnabled = true;
             ctx.drawImage(weatherImg, drawX, drawY, drawW, drawH);
             ctx.fillStyle = "rgba(11, 24, 38, 0.1)";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, viewW, viewH);
             ctx.restore();
             return;
           }
@@ -4327,11 +4339,11 @@
         const cloudShift = Math.sin(t) * 30;
 
         ctx.fillStyle = "#8fd9ff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, viewW, viewH);
 
         ctx.fillStyle = "rgba(255,255,255,0.55)";
         for (let i = 0; i < 8; i++) {
-          const x = ((i * 180 + cloudShift * (i % 2 ? 1 : -1)) % (canvas.width + 220)) - 110;
+          const x = ((i * 180 + cloudShift * (i % 2 ? 1 : -1)) % (viewW + 220)) - 110;
           const y = 40 + (i % 3) * 48;
           ctx.beginPath();
           ctx.ellipse(x, y, 55, 20, 0, 0, Math.PI * 2);
@@ -4339,14 +4351,16 @@
         }
 
         ctx.fillStyle = "#78c16a";
-        ctx.fillRect(0, canvas.height - 46, canvas.width, 46);
+        ctx.fillRect(0, viewH - 46, viewW, 46);
       }
 
       function drawWorld() {
+        const viewW = getCameraViewWidth();
+        const viewH = getCameraViewHeight();
         const startX = Math.floor(cameraX / TILE);
-        const endX = Math.ceil((cameraX + canvas.width) / TILE);
+        const endX = Math.ceil((cameraX + viewW) / TILE);
         const startY = Math.floor(cameraY / TILE);
-        const endY = Math.ceil((cameraY + canvas.height) / TILE);
+        const endY = Math.ceil((cameraY + viewH) / TILE);
 
         for (let ty = startY; ty <= endY; ty++) {
           if (ty < 0 || ty >= WORLD_H) continue;
@@ -4789,6 +4803,8 @@
 
       function drawRemotePlayers() {
         const nowMs = performance.now();
+        const viewW = getCameraViewWidth();
+        const viewH = getCameraViewHeight();
         const keepIds = [];
         playerWrenchHitboxes.length = 0;
         const wrenchSelected = slotOrder[selectedSlot] === TOOL_WRENCH;
@@ -4797,7 +4813,7 @@
           keepIds.push(otherId);
           const px = other.x - cameraX;
           const py = other.y - cameraY;
-          if (px < -40 || py < -40 || px > canvas.width + 40 || py > canvas.height + 40) return;
+          if (px < -40 || py < -40 || px > viewW + 40 || py > viewH + 40) return;
           const cosmetics = other.cosmetics || {};
           const remoteMotion = typeof animationsModule.sampleRemote === "function"
             ? animationsModule.sampleRemote(remoteAnimationTracker, otherId, other.x, other.y, nowMs)
@@ -4883,7 +4899,7 @@
       function openWrenchMenuFromNameIcon(clientX, clientY) {
         if (slotOrder[selectedSlot] !== TOOL_WRENCH) return false;
         const point = canvasPointFromClient(clientX, clientY);
-        const hit = hitWrenchNameIcon(point.x, point.y);
+        const hit = hitWrenchNameIcon(point.x / Math.max(0.01, cameraZoom), point.y / Math.max(0.01, cameraZoom));
         if (!hit || !hit.accountId) return false;
         const tradeCtrl = getTradeController();
         if (!tradeCtrl || typeof tradeCtrl.handleWrenchPlayer !== "function") return false;
@@ -4949,7 +4965,8 @@
         let bubbleX = centerX - bubbleW / 2;
         let bubbleY = baseY - bubbleH - 2;
         if (bubbleX < 4) bubbleX = 4;
-        if (bubbleX + bubbleW > canvas.width - 4) bubbleX = canvas.width - 4 - bubbleW;
+        const viewW = getCameraViewWidth();
+        if (bubbleX + bubbleW > viewW - 4) bubbleX = viewW - 4 - bubbleW;
         if (bubbleY < 4) bubbleY = 4;
 
         ctx.fillStyle = "rgba(10, 25, 40, 0.92)";
@@ -5001,13 +5018,17 @@
       }
 
       function render() {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.setTransform(cameraZoom, 0, 0, cameraZoom, 0, 0);
         drawBackground();
         drawWorld();
         drawRemotePlayers();
         drawPlayer();
-        drawSignTopText();
         drawAllOverheadChats();
         drawCrosshair();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        drawSignTopText();
       }
 
       function canEditTarget(tx, ty) {
@@ -6794,8 +6815,9 @@
 
       function worldFromClient(clientX, clientY) {
         const point = canvasPointFromClient(clientX, clientY);
-        const x = point.x + cameraX;
-        const y = point.y + cameraY;
+        const zoom = Math.max(0.01, cameraZoom);
+        const x = point.x / zoom + cameraX;
+        const y = point.y / zoom + cameraY;
         return {
           tx: Math.floor(x / TILE),
           ty: Math.floor(y / TILE)
@@ -6960,10 +6982,8 @@
         const minHeight = isCoarsePointer ? 220 : 280;
         const targetWidth = Math.max(minWidth, Math.floor(rect.width));
         const targetHeight = Math.max(minHeight, Math.floor(rect.height));
-        const logicalWidth = Math.max(200, Math.floor(targetWidth / cameraZoom));
-        const logicalHeight = Math.max(140, Math.floor(targetHeight / cameraZoom));
-        canvas.width = logicalWidth;
-        canvas.height = logicalHeight;
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
         canvas.style.width = targetWidth + "px";
         canvas.style.height = targetHeight + "px";
         ctx.imageSmoothingEnabled = false;
