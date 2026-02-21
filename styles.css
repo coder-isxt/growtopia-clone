@@ -50,7 +50,7 @@ body {
   color: var(--text);
   background: radial-gradient(circle at 20% 0%, var(--bg-1), var(--bg-2) 55%, #2a84d6 100%);
   display: grid;
-  place-items: center;
+  place-items: stretch;
   overflow: hidden;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -58,16 +58,17 @@ body {
 }
 
 .game-shell {
-  width: min(1340px, 100vw);
-  height: min(850px, 100vh);
-  padding: 14px;
+  width: 100vw;
+  height: 100vh;
+  padding: 12px;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  gap: 12px;
+  gap: 10px;
 }
 
 .auth-screen {
   width: min(420px, 94vw);
+  place-self: center;
   background: linear-gradient(180deg, rgba(16, 44, 68, 0.95), rgba(9, 28, 45, 0.95));
   border: 1px solid var(--frame);
   border-radius: var(--radius-lg);
@@ -1077,8 +1078,8 @@ canvas {
 }
 
 .admin-inventory-card {
-  width: min(560px, 96vw);
-  max-height: 80vh;
+  width: min(980px, 97vw);
+  max-height: 88vh;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 12px;
@@ -1109,20 +1110,21 @@ canvas {
 
 .admin-inventory-body {
   overflow-y: auto;
-  padding: 10px 12px;
+  padding: 12px;
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .admin-inventory-tools {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) 90px auto auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(120px, 160px) minmax(150px, 1fr) minmax(84px, 110px) auto auto minmax(170px, 1fr) auto;
   gap: 8px;
   border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 8px;
-  padding: 8px;
+  border-radius: 10px;
+  padding: 10px;
   background: rgba(255, 255, 255, 0.05);
-  margin-bottom: 2px;
+  margin-bottom: 4px;
+  align-items: center;
 }
 
 .admin-inventory-tools select,
@@ -1148,13 +1150,13 @@ canvas {
 }
 
 .admin-inventory-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  padding: 7px 9px;
+  border-radius: 10px;
+  padding: 8px 10px;
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -1171,6 +1173,8 @@ canvas {
 
 .admin-inventory-item {
   color: rgba(255, 255, 255, 0.92);
+  min-width: 0;
+  word-break: break-word;
 }
 
 .admin-inventory-qty {
@@ -1776,6 +1780,15 @@ canvas {
 
   .admin-inventory-tools {
     grid-template-columns: 1fr;
+  }
+
+  .admin-inventory-card {
+    width: min(98vw, 700px);
+    max-height: 90vh;
+  }
+
+  .admin-inventory-row {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .vending-card {
