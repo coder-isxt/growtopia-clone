@@ -9,7 +9,7 @@ window.GTModules.blocks = {
       4: { name: "Wood", color: "#a87038", solid: true },
       5: { name: "Sand", color: "#dfc883", solid: true },
       6: { name: "Brick", color: "#bb5644", solid: true },
-      7: { name: "Door", color: "#57c2ff", solid: false },
+      7: { name: "Door", color: "#57c2ff", solid: false, unbreakable: true },
       8: { name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true }
     };
   },

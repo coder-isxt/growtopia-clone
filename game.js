@@ -50,6 +50,8 @@
       const blocksModule = modules.blocks || {};
       const itemsModule = modules.items || {};
       const playerModule = modules.player || {};
+      const authStorageModule = modules.authStorage || {};
+      const worldModule = modules.world || {};
       const syncPlayerModule = modules.syncPlayer || {};
       const syncWorldsModule = modules.syncWorlds || {};
       const chatModule = modules.chat || {};
@@ -112,7 +114,7 @@
         4: { name: "Wood", color: "#a87038", solid: true },
         5: { name: "Sand", color: "#dfc883", solid: true },
         6: { name: "Brick", color: "#bb5644", solid: true },
-        7: { name: "Door", color: "#57c2ff", solid: false },
+        7: { name: "Door", color: "#57c2ff", solid: false, unbreakable: true },
         8: { name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true }
       };
       const SPAWN_TILE_X = 8;
@@ -301,6 +303,10 @@
       }
 
       function saveCredentials(username, password) {
+        if (typeof authStorageModule.saveCredentials === "function") {
+          authStorageModule.saveCredentials(SAVED_AUTH_KEY, username, password);
+          return;
+        }
         try {
           localStorage.setItem(SAVED_AUTH_KEY, JSON.stringify({
             username: (username || "").toString().slice(0, 20),
@@ -312,6 +318,9 @@
       }
 
       function loadSavedCredentials() {
+        if (typeof authStorageModule.loadCredentials === "function") {
+          return authStorageModule.loadCredentials(SAVED_AUTH_KEY);
+        }
         try {
           const raw = localStorage.getItem(SAVED_AUTH_KEY);
           if (!raw) return { username: "", password: "" };
@@ -548,22 +557,16 @@
       }
 
       function getAuditLevel(action) {
-        const key = String(action || "").toLowerCase();
-        if (!key) return "info";
-        if (key === "permban" || key === "tempban") return "critical";
-        if (key === "kick" || key === "resetinv" || key === "clear_logs" || key === "clearaudit") return "warn";
-        if (key === "unban") return "success";
-        if (key === "setrole" || key === "givex" || key === "giveitem" || key === "tp" || key === "summon" || key === "bring") return "accent";
+        if (typeof adminModule.getAuditLevel === "function") {
+          return adminModule.getAuditLevel(action);
+        }
         return "info";
       }
 
       function getLogLevel(text) {
-        const t = String(text || "").toLowerCase();
-        if (!t) return "info";
-        if (t.includes("error") || t.includes("failed") || t.includes("denied")) return "critical";
-        if (t.includes("banned") || t.includes("kicked") || t.includes("expired")) return "warn";
-        if (t.includes("created") || t.includes("joined") || t.includes("logged in") || t.includes("authenticated")) return "success";
-        if (t.includes("session") || t.includes("world")) return "accent";
+        if (typeof adminModule.getLogLevel === "function") {
+          return adminModule.getLogLevel(text);
+        }
         return "info";
       }
 
@@ -1424,11 +1427,18 @@
         return array.map((b) => b.toString(16).padStart(2, "0")).join("");
       }
 
-      function getAuthDb() {
+      async function getAuthDb() {
         if (!window.firebase) {
           throw new Error("Firebase SDK not loaded.");
         }
         const firebaseConfig = window.FIREBASE_CONFIG;
+        if (firebaseConfig && !firebaseConfig.apiKey && typeof window.getFirebaseApiKey === "function") {
+          try {
+            firebaseConfig.apiKey = await window.getFirebaseApiKey();
+          } catch (error) {
+            throw new Error("Failed to fetch Firebase API key at runtime.");
+          }
+        }
         if (!hasFirebaseConfig(firebaseConfig)) {
           throw new Error("Set firebase-config.js first.");
         }
@@ -1491,7 +1501,8 @@
         setAuthBusy(true);
         setAuthStatus("Creating account...", false);
         try {
-          const db = getAuthDb();
+          const db = await getAuthDb();
+          network.db = db;
           const usernameRef = db.ref(BASE_PATH + "/usernames/" + username);
           const accountId = "acc_" + Math.random().toString(36).slice(2, 12);
           const reserve = await usernameRef.transaction((current) => {
@@ -1530,7 +1541,8 @@
         setAuthBusy(true);
         setAuthStatus("Logging in...", false);
         try {
-          const db = getAuthDb();
+          const db = await getAuthDb();
+          network.db = db;
           const usernameSnap = await db.ref(BASE_PATH + "/usernames/" + username).once("value");
           const accountId = usernameSnap.val();
           if (!accountId) {
@@ -1707,63 +1719,33 @@
           .slice(0, 24);
       }
 
-      function hashWorldSeed(worldId) {
-        if (typeof blocksModule.hashWorldSeed === "function") {
-          return blocksModule.hashWorldSeed(worldId);
-        }
-        let h = 2166136261;
-        for (let i = 0; i < worldId.length; i++) {
-          h ^= worldId.charCodeAt(i);
-          h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
-        }
-        return (h >>> 0) || 1;
-      }
-
-      function chance(seed) {
-        const n = Math.sin(seed * 12.9898) * 43758.5453;
-        return n - Math.floor(n);
-      }
-
       function makeWorld(worldId) {
+        const hashFn = typeof blocksModule.hashWorldSeed === "function"
+          ? blocksModule.hashWorldSeed
+          : (typeof worldModule.hashWorldSeed === "function" ? worldModule.hashWorldSeed.bind(worldModule) : null);
+        if (typeof worldModule.createWorld === "function") {
+          return worldModule.createWorld(
+            worldId,
+            WORLD_W,
+            WORLD_H,
+            hashFn,
+            SPAWN_TILE_X,
+            SPAWN_TILE_Y,
+            SPAWN_DOOR_ID,
+            SPAWN_BASE_ID
+          );
+        }
         const w = Array.from({ length: WORLD_H }, () => Array(WORLD_W).fill(0));
-        const seed = hashWorldSeed(worldId);
-        const baseGround = 17;
-
-        for (let x = 0; x < WORLD_W; x++) {
-          const n1 = Math.sin((x + seed * 0.001) * 0.19) * 2;
-          const n2 = Math.sin((x + seed * 0.003) * 0.06) * 3;
-          const noise = Math.floor(n1 + n2);
-          const groundY = baseGround + noise;
-
-          for (let y = groundY; y < WORLD_H; y++) {
-            if (y === groundY) w[y][x] = 1;
-            else if (y < groundY + 3) w[y][x] = 2;
-            else w[y][x] = 3;
-          }
+        if (typeof worldModule.applySpawnStructureToGrid === "function") {
+          worldModule.applySpawnStructureToGrid(w, WORLD_W, WORLD_H, SPAWN_TILE_X, SPAWN_TILE_Y, SPAWN_DOOR_ID, SPAWN_BASE_ID);
         }
-
-        for (let x = 10; x < WORLD_W - 10; x += 7) {
-          const gy = getTopSolidY(w, x);
-          if (chance((x + seed) * 1.117) > 0.3 && gy > 3) {
-            w[gy - 1][x] = 4;
-          }
-        }
-
-        for (let x = 18; x < WORLD_W - 12; x += 12) {
-          const gy = getTopSolidY(w, x);
-          if (chance((x + seed) * 2.41) > 0.5) {
-            for (let dx = 0; dx < 3; dx++) {
-              w[gy][x + dx] = 5;
-            }
-          }
-        }
-
-        applySpawnStructureToGrid(w);
-
         return w;
       }
 
       function getSpawnStructureTiles() {
+        if (typeof worldModule.getSpawnStructureTiles === "function") {
+          return worldModule.getSpawnStructureTiles(SPAWN_TILE_X, SPAWN_TILE_Y, SPAWN_DOOR_ID, SPAWN_BASE_ID);
+        }
         return {
           door: { tx: SPAWN_TILE_X, ty: SPAWN_TILE_Y, id: SPAWN_DOOR_ID },
           base: { tx: SPAWN_TILE_X, ty: SPAWN_TILE_Y + 1, id: SPAWN_BASE_ID }
@@ -1772,15 +1754,13 @@
 
       function applySpawnStructureToGrid(grid) {
         if (!Array.isArray(grid) || !grid.length) return;
+        if (typeof worldModule.applySpawnStructureToGrid === "function") {
+          worldModule.applySpawnStructureToGrid(grid, WORLD_W, WORLD_H, SPAWN_TILE_X, SPAWN_TILE_Y, SPAWN_DOOR_ID, SPAWN_BASE_ID);
+          return;
+        }
         const tiles = getSpawnStructureTiles();
-        const door = tiles.door;
-        const base = tiles.base;
-        if (door.ty >= 0 && door.ty < WORLD_H && door.tx >= 0 && door.tx < WORLD_W) {
-          grid[door.ty][door.tx] = door.id;
-        }
-        if (base.ty >= 0 && base.ty < WORLD_H && base.tx >= 0 && base.tx < WORLD_W) {
-          grid[base.ty][base.tx] = base.id;
-        }
+        grid[tiles.door.ty][tiles.door.tx] = tiles.door.id;
+        grid[tiles.base.ty][tiles.base.tx] = tiles.base.id;
       }
 
       function enforceSpawnStructureInWorldData() {
@@ -1794,13 +1774,6 @@
         updates[tiles.door.tx + "_" + tiles.door.ty] = tiles.door.id;
         updates[tiles.base.tx + "_" + tiles.base.ty] = tiles.base.id;
         network.blocksRef.update(updates).catch(() => {});
-      }
-
-      function getTopSolidY(grid, x) {
-        for (let y = 0; y < WORLD_H; y++) {
-          if (grid[y][x] !== 0) return y;
-        }
-        return WORLD_H - 1;
       }
 
       function resetForWorldChange() {
@@ -1943,10 +1916,8 @@
       function addClientLog(text, accountIdOverride, usernameOverride, sessionIdOverride) {
         const targetAccountId = accountIdOverride || playerProfileId;
         if (!targetAccountId) return;
-        let db;
-        try {
-          db = network.db || getAuthDb();
-        } catch (error) {
+        const db = network.db;
+        if (!db) {
           return;
         }
         const logRef = db.ref(BASE_PATH + "/account-logs/" + targetAccountId);
@@ -3051,7 +3022,7 @@
         });
       }
 
-      function initFirebaseMultiplayer() {
+      async function initFirebaseMultiplayer() {
         if (!playerProfileId) {
           setNetworkState("Auth required", true);
           return;
@@ -3065,7 +3036,7 @@
         }
 
         try {
-          network.db = getAuthDb();
+          network.db = await getAuthDb();
           network.enabled = true;
           network.connectedRef = network.db.ref(".info/connected");
           network.worldsIndexRef = network.db.ref(BASE_PATH + "/worlds-index");
