@@ -70,6 +70,10 @@
       const AIR_FRICTION = Number(SETTINGS.FRICTION_AIR) || 0.94;
       const PLAYER_W = Number(SETTINGS.PLAYER_WIDTH) || 22;
       const PLAYER_H = Number(SETTINGS.PLAYER_HEIGHT) || 30;
+      const WATER_MOVE_MULT = 0.62;
+      const WATER_GRAVITY_MULT = 0.35;
+      const WATER_FALL_MULT = 0.52;
+      const WATER_FRICTION_MULT = 0.86;
       const BASE_PATH = typeof SETTINGS.BASE_PATH === "string" && SETTINGS.BASE_PATH ? SETTINGS.BASE_PATH : "growtopia-test";
       const LOG_VIEWER_USERNAMES = Array.isArray(SETTINGS.LOG_VIEWER_USERNAMES) ? SETTINGS.LOG_VIEWER_USERNAMES : ["isxt"];
       const ADMIN_USERNAMES = Array.isArray(SETTINGS.ADMIN_USERNAMES) ? SETTINGS.ADMIN_USERNAMES : ["isxt"];
@@ -120,7 +124,9 @@
         6: { name: "Brick", color: "#bb5644", solid: true, icon: "BR", faIcon: "fa-solid fa-border-all" },
         7: { name: "Door", color: "#57c2ff", solid: false, unbreakable: true, icon: "DR", faIcon: "fa-solid fa-door-open" },
         8: { name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true, icon: "BD", faIcon: "fa-solid fa-mountain" },
-        9: { name: "World Lock", color: "#ffd166", solid: true, icon: "WL", faIcon: "fa-solid fa-lock" }
+        9: { name: "World Lock", color: "#ffd166", solid: true, icon: "WL", faIcon: "fa-solid fa-lock" },
+        10: { name: "Door Block", color: "#5fc2ff", solid: false, icon: "DB", faIcon: "fa-solid fa-door-open" },
+        11: { name: "Water", color: "rgba(72, 174, 255, 0.7)", solid: false, liquid: true, icon: "WA", faIcon: "fa-solid fa-water" }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
@@ -128,8 +134,8 @@
       const SPAWN_BASE_ID = 8;
 
       const WORLD_LOCK_ID = 9;
-      const slotOrder = ["fist", 1, 2, 3, 4, 5, 6, 9];
-      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9];
+      const slotOrder = ["fist", 1, 2, 3, 4, 5, 6, 9, 10, 11];
+      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11];
       const COSMETIC_SLOTS = ["clothes", "wings", "swords"];
       const COSMETIC_CATALOG = typeof itemsModule.getCosmeticItemsBySlot === "function"
         ? itemsModule.getCosmeticItemsBySlot()
@@ -152,7 +158,9 @@
         4: 0,
         5: 0,
         6: 0,
-        9: 0
+        9: 0,
+        10: 0,
+        11: 0
       };
 
       let selectedSlot = 0;
@@ -751,7 +759,7 @@
                   <input class="admin-ban-reason" data-account-id="${escapeHtml(accountId)}" type="text" maxlength="80" value="Banned by admin" placeholder="reason" ${(canTempBan || canPermBan) ? "" : "disabled"}>
                 </div>
                 <div class="admin-give-wrap">
-                  <input class="admin-give-block" data-account-id="${escapeHtml(accountId)}" type="number" min="1" max="9" step="1" value="1" placeholder="block">
+                  <input class="admin-give-block" data-account-id="${escapeHtml(accountId)}" type="number" min="1" max="11" step="1" value="1" placeholder="block">
                   <input class="admin-give-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="10" placeholder="amount">
                   <button data-admin-act="give" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give</button>
                 </div>
@@ -1037,7 +1045,7 @@
         const safeAmount = Math.floor(Number(amount));
         const safeBlock = Number(blockId);
         if (!INVENTORY_IDS.includes(safeBlock) || !Number.isInteger(safeAmount) || safeAmount <= 0) {
-          postLocalSystemChat("Usage: blockId 1-6 or 9 and amount >= 1.");
+          postLocalSystemChat("Usage: blockId 1-6, 9, 10 or 11 and amount >= 1.");
           return false;
         }
         network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + safeBlock).transaction((current) => {
@@ -2356,6 +2364,13 @@
         return Boolean(def && def.unbreakable);
       }
 
+      function isLiquidTile(tx, ty) {
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return false;
+        const id = world[ty][tx];
+        const def = blockDefs[id];
+        return Boolean(def && def.liquid);
+      }
+
       function normalizeWorldLock(value) {
         if (!value || typeof value !== "object") return null;
         const ownerAccountId = (value.ownerAccountId || "").toString();
@@ -2409,6 +2424,19 @@
         return false;
       }
 
+      function rectTouchesLiquid(x, y, w, h) {
+        const left = Math.floor(x / TILE);
+        const right = Math.floor((x + w - 1) / TILE);
+        const top = Math.floor(y / TILE);
+        const bottom = Math.floor((y + h - 1) / TILE);
+        for (let ty = top; ty <= bottom; ty++) {
+          for (let tx = left; tx <= right; tx++) {
+            if (isLiquidTile(tx, ty)) return true;
+          }
+        }
+        return false;
+      }
+
       function updatePlayer() {
         const nowMs = performance.now();
         const moveLeft = keys["KeyA"] || keys["ArrowLeft"] || touchControls.left;
@@ -2416,13 +2444,20 @@
         const jump = keys["KeyW"] || keys["Space"] || keys["ArrowUp"] || touchControls.jump;
         const jumpPressedThisFrame = jump && !wasJumpHeld;
         const hasWingDoubleJump = Boolean(equippedCosmetics.wings);
+        const inWater = rectTouchesLiquid(player.x, player.y, PLAYER_W, PLAYER_H);
+        const moveAccel = inWater ? MOVE_ACCEL * WATER_MOVE_MULT : MOVE_ACCEL;
+        const maxMoveSpeed = inWater ? MAX_MOVE_SPEED * WATER_MOVE_MULT : MAX_MOVE_SPEED;
+        const gravityNow = inWater ? GRAVITY * WATER_GRAVITY_MULT : GRAVITY;
+        const maxFallNow = inWater ? MAX_FALL_SPEED * WATER_FALL_MULT : MAX_FALL_SPEED;
+        const frictionNow = inWater ? Math.min(0.96, FRICTION * WATER_FRICTION_MULT) : FRICTION;
+        const airFrictionNow = inWater ? Math.min(0.985, AIR_FRICTION * WATER_FRICTION_MULT) : AIR_FRICTION;
 
         if (moveLeft) {
-          player.vx -= player.grounded ? MOVE_ACCEL : MOVE_ACCEL * AIR_CONTROL;
+          player.vx -= player.grounded ? moveAccel : moveAccel * AIR_CONTROL;
           player.facing = -1;
         }
         if (moveRight) {
-          player.vx += player.grounded ? MOVE_ACCEL : MOVE_ACCEL * AIR_CONTROL;
+          player.vx += player.grounded ? moveAccel : moveAccel * AIR_CONTROL;
           player.facing = 1;
         }
         if (jumpPressedThisFrame && player.grounded && (nowMs - lastJumpAtMs) >= JUMP_COOLDOWN_MS) {
@@ -2442,11 +2477,11 @@
           airJumpsUsed += 1;
         }
 
-        player.vx = Math.max(-MAX_MOVE_SPEED, Math.min(MAX_MOVE_SPEED, player.vx));
-        player.vy += GRAVITY;
-        player.vy = Math.min(player.vy, MAX_FALL_SPEED);
+        player.vx = Math.max(-maxMoveSpeed, Math.min(maxMoveSpeed, player.vx));
+        player.vy += gravityNow;
+        player.vy = Math.min(player.vy, maxFallNow);
 
-        player.vx *= player.grounded ? FRICTION : AIR_FRICTION;
+        player.vx *= player.grounded ? frictionNow : airFrictionNow;
 
         let nextX = player.x + player.vx;
         if (!rectCollides(nextX, player.y, PLAYER_W, PLAYER_H)) {
@@ -2532,13 +2567,23 @@
 
             const x = tx * TILE - cameraX;
             const y = ty * TILE - cameraY;
+            const def = blockDefs[id];
+            if (!def) continue;
 
-            ctx.fillStyle = blockDefs[id].color;
+            ctx.fillStyle = def.color;
             ctx.fillRect(x, y, TILE, TILE);
-            ctx.fillStyle = "rgba(255,255,255,0.08)";
-            ctx.fillRect(x + 2, y + 2, TILE - 4, 6);
-            ctx.fillStyle = "rgba(0,0,0,0.14)";
-            ctx.fillRect(x, y + TILE - 5, TILE, 5);
+            if (def.liquid) {
+              const wave = Math.sin((performance.now() * 0.01) + tx * 0.7 + ty * 0.4) * 1.6;
+              ctx.fillStyle = "rgba(210, 245, 255, 0.3)";
+              ctx.fillRect(x + 1, y + 3 + wave, TILE - 2, 4);
+              ctx.fillStyle = "rgba(18, 84, 170, 0.2)";
+              ctx.fillRect(x, y + TILE - 4, TILE, 4);
+            } else {
+              ctx.fillStyle = "rgba(255,255,255,0.08)";
+              ctx.fillRect(x + 2, y + 2, TILE - 4, 6);
+              ctx.fillStyle = "rgba(0,0,0,0.14)";
+              ctx.fillRect(x, y + TILE - 5, TILE, 5);
+            }
           }
         }
       }
@@ -3974,7 +4019,8 @@
           return;
         }
         if (e.code.startsWith("Digit")) {
-          const idx = Number(e.code.replace("Digit", "")) - 1;
+          const digit = Number(e.code.replace("Digit", ""));
+          const idx = digit === 0 ? 9 : digit - 1;
           if (idx >= 0 && idx < slotOrder.length) {
             selectedSlot = idx;
             refreshToolbar();
