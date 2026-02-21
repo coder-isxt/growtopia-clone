@@ -1305,37 +1305,41 @@ canvas {
 }
 
 .trade-card {
-  width: min(760px, 96vw);
+  width: min(900px, 97vw);
   max-height: 88vh;
+  gap: 12px;
+  padding: 14px;
 }
 
 .trade-body {
-  max-height: min(64vh, 560px);
+  max-height: min(66vh, 600px);
   overflow-y: auto;
   display: grid;
-  gap: 10px;
+  gap: 12px;
+  padding-right: 2px;
 }
 
 .trade-top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
+  gap: 10px;
 }
 
 .trade-offer {
   border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 8px;
-  padding: 8px;
+  border-radius: 10px;
+  padding: 10px;
   background: rgba(255, 255, 255, 0.05);
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .trade-offer-title {
-  font-size: 12px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   opacity: 0.86;
+  font-weight: 700;
 }
 
 .trade-offer-list {
@@ -1389,6 +1393,11 @@ canvas {
   cursor: pointer;
 }
 
+.trade-inventory-item:hover {
+  border-color: rgba(255, 209, 102, 0.62);
+  background: rgba(255, 209, 102, 0.14);
+}
+
 .trade-amount-menu {
   margin-top: 8px;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -1435,6 +1444,7 @@ canvas {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .trade-chip {
@@ -1452,6 +1462,48 @@ canvas {
 .trade-chip.wait {
   border-color: rgba(255, 201, 122, 0.9);
   background: rgba(255, 201, 122, 0.14);
+}
+
+#tradeMenuModal .vending-card {
+  width: min(430px, 92vw);
+  padding: 14px;
+  gap: 12px;
+}
+
+#tradeMenuModal .vending-header strong {
+  font-size: 18px;
+  letter-spacing: 0.01em;
+}
+
+#tradeMenuModal .sign-hint {
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(240, 249, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 10px 11px;
+}
+
+#tradeMenuModal .vending-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+#tradePanelActions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+#tradePanelActions button {
+  min-height: 34px;
+  font-weight: 700;
+}
+
+#tradePanelActions button[data-trade-act="cancel"] {
+  background: rgba(255, 117, 117, 0.28);
 }
 
 .vending-section {
@@ -1865,6 +1917,24 @@ canvas {
 
   .chat-messages {
     font-size: 12px;
+  }
+
+  .trade-card {
+    width: min(98vw, 760px);
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .trade-top {
+    grid-template-columns: 1fr;
+  }
+
+  #tradePanelActions {
+    grid-template-columns: 1fr;
+  }
+
+  #tradeMenuModal .vending-actions {
+    grid-template-columns: 1fr;
   }
 
   .logs-panel {

@@ -23,7 +23,7 @@ window.GTModules.blocks = (function createBlocksModule() {
     { id: 14, key: "stair_block_r1", name: "Stair SE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S2", faIcon: "fa-solid fa-stairs", image: "special/stair_block_r1.png" },
     { id: 15, key: "stair_block_r2", name: "Stair SW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs", image: "special/stair_block_r2.png" },
     { id: 16, key: "stair_block_r3", name: "Stair NW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs", image: "special/stair_block_r3.png" },
-    { id: 17, key: "vending_machine", name: "Vending Machine", color: "#4d6b8b", solid: true, icon: "VM", faIcon: "fa-solid fa-store", image: "special/vending_machine.png" },
+    { id: 17, key: "vending_machine", name: "Vending Machine", color: "#4d6b8b", solid: false, icon: "VM", faIcon: "fa-solid fa-store", image: "special/vending_machine.png" },
     { id: 18, key: "sign_block", name: "Sign", color: "#b98a58", solid: false, icon: "SG", faIcon: "fa-solid fa-signs-post", image: "special/sign_block.png" }
   ];
 

@@ -4691,10 +4691,6 @@
 
       function interactWithWrench(tx, ty) {
         if (!canEditTarget(tx, ty)) return;
-        const tradeCtrl = getTradeController();
-        if (tradeCtrl && typeof tradeCtrl.handleWrenchAt === "function" && tradeCtrl.handleWrenchAt(tx, ty)) {
-          return;
-        }
         const id = world[ty][tx];
         if (id === WORLD_LOCK_ID) {
           openWorldLockModal(tx, ty);
