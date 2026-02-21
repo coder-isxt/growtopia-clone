@@ -46,6 +46,10 @@ window.GT_SETTINGS = {
   ANTI_GRAV_GRAVITY_MULT: 0.2,
   ANTI_GRAV_FALL_MULT: 0.42,
   ANTI_GRAV_AIR_JUMP_COOLDOWN_MS: 140,
+  // Camera zoom settings (mouse wheel / +/- / 0 reset)
+  CAMERA_ZOOM_MIN: 0.7,
+  CAMERA_ZOOM_MAX: 2.2,
+  CAMERA_ZOOM_STEP: 0.12,
   // Weather machine presets.
   // Edit/add URLs here to control selectable weather backgrounds.
   WEATHER_PRESET_IMAGES: [

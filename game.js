@@ -183,6 +183,10 @@
         : [];
       const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
       const FORCE_RELOAD_MARKER_KEY = "growtopia_force_reload_marker_v1";
+      const CAMERA_ZOOM_PREF_KEY = "growtopia_camera_zoom_v1";
+      const CAMERA_ZOOM_MIN = Math.max(0.5, Number(SETTINGS.CAMERA_ZOOM_MIN) || 0.7);
+      const CAMERA_ZOOM_MAX = Math.max(CAMERA_ZOOM_MIN + 0.1, Number(SETTINGS.CAMERA_ZOOM_MAX) || 2.2);
+      const CAMERA_ZOOM_STEP = Math.max(0.05, Number(SETTINGS.CAMERA_ZOOM_STEP) || 0.12);
 
       const blockDefs = typeof blocksModule.getBlockDefs === "function" ? blocksModule.getBlockDefs() : {
         0: { key: "air", name: "Air", color: "transparent", solid: false, icon: "A", faIcon: "fa-regular fa-circle" },
@@ -480,6 +484,7 @@
 
       let cameraX = 0;
       let cameraY = 0;
+      let cameraZoom = loadCameraZoomPref();
       let mouseWorld = { tx: 0, ty: 0 };
       const playerSyncController = typeof syncPlayerModule.createController === "function"
         ? syncPlayerModule.createController({
@@ -674,6 +679,40 @@
         } catch (error) {
           // ignore sessionStorage failures
         }
+      }
+
+      function normalizeCameraZoom(value) {
+        const numeric = Number(value);
+        const safe = Number.isFinite(numeric) ? numeric : 1;
+        return Math.max(CAMERA_ZOOM_MIN, Math.min(CAMERA_ZOOM_MAX, safe));
+      }
+
+      function loadCameraZoomPref() {
+        try {
+          return normalizeCameraZoom(localStorage.getItem(CAMERA_ZOOM_PREF_KEY) || 1);
+        } catch (error) {
+          return 1;
+        }
+      }
+
+      function saveCameraZoomPref(value) {
+        try {
+          localStorage.setItem(CAMERA_ZOOM_PREF_KEY, String(normalizeCameraZoom(value)));
+        } catch (error) {
+          // ignore localStorage failures
+        }
+      }
+
+      function setCameraZoom(nextZoom, persist) {
+        const normalized = normalizeCameraZoom(nextZoom);
+        if (Math.abs(normalized - cameraZoom) < 0.0001) return;
+        cameraZoom = normalized;
+        if (persist) saveCameraZoomPref(cameraZoom);
+        resizeCanvas();
+      }
+
+      function changeCameraZoom(delta) {
+        setCameraZoom(cameraZoom + Number(delta || 0), true);
       }
 
       function canUserViewLogs(username) {
@@ -6921,8 +6960,12 @@
         const minHeight = isCoarsePointer ? 220 : 280;
         const targetWidth = Math.max(minWidth, Math.floor(rect.width));
         const targetHeight = Math.max(minHeight, Math.floor(rect.height));
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
+        const logicalWidth = Math.max(200, Math.floor(targetWidth / cameraZoom));
+        const logicalHeight = Math.max(140, Math.floor(targetHeight / cameraZoom));
+        canvas.width = logicalWidth;
+        canvas.height = logicalHeight;
+        canvas.style.width = targetWidth + "px";
+        canvas.style.height = targetHeight + "px";
         ctx.imageSmoothingEnabled = false;
         ctx.textBaseline = "alphabetic";
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
@@ -7023,6 +7066,23 @@
             refreshToolbar();
           }
         }
+        if (!isTypingContext && inWorld) {
+          if (e.key === "+" || e.key === "=" || e.code === "NumpadAdd") {
+            e.preventDefault();
+            changeCameraZoom(CAMERA_ZOOM_STEP);
+            return;
+          }
+          if (e.key === "-" || e.key === "_" || e.code === "NumpadSubtract") {
+            e.preventDefault();
+            changeCameraZoom(-CAMERA_ZOOM_STEP);
+            return;
+          }
+          if (e.key === "0" || e.code === "Numpad0") {
+            e.preventDefault();
+            setCameraZoom(1, true);
+            return;
+          }
+        }
 
         if (isTypingContext) {
           return;
@@ -7042,6 +7102,13 @@
       canvas.addEventListener("mousemove", (e) => {
         mouseWorld = worldFromPointer(e);
       });
+
+      canvas.addEventListener("wheel", (e) => {
+        if (!inWorld) return;
+        if (e.ctrlKey) return;
+        e.preventDefault();
+        changeCameraZoom(e.deltaY < 0 ? CAMERA_ZOOM_STEP : -CAMERA_ZOOM_STEP);
+      }, { passive: false });
 
       canvas.addEventListener("mousedown", (e) => {
         if (!inWorld) return;
