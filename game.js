@@ -113,6 +113,7 @@
       const syncPlayerModule = modules.syncPlayer || {};
       const syncBlocksModule = modules.syncBlocks || {};
       const syncWorldsModule = modules.syncWorlds || {};
+      const syncHitsModule = modules.syncHits || {};
       const chatModule = modules.chat || {};
       const menuModule = modules.menu || {};
       const vendingModule = modules.vending || {};
@@ -554,6 +555,7 @@
         myActiveTradeRef: null,
         playersRef: null,
         blocksRef: null,
+        hitsRef: null,
         dropsRef: null,
         dropFeedRef: null,
         vendingRef: null,
@@ -597,6 +599,9 @@
           blockAdded: null,
           blockChanged: null,
           blockRemoved: null,
+          hitAdded: null,
+          hitChanged: null,
+          hitRemoved: null,
           dropAdded: null,
           dropChanged: null,
           dropRemoved: null,
@@ -3371,6 +3376,19 @@
         });
       }
 
+      function syncTileDamageToNetwork(tx, ty, hits) {
+        if (!network.enabled || !network.hitsRef || !inWorld) return;
+        const key = getTileKey(tx, ty);
+        const payload = typeof syncHitsModule.buildHitPayload === "function"
+          ? syncHitsModule.buildHitPayload(hits)
+          : { hits: Math.max(0, Math.floor(Number(hits) || 0)), updatedAt: firebase.database.ServerValue.TIMESTAMP };
+        if (!payload || !payload.hits) {
+          network.hitsRef.child(key).remove().catch(() => {});
+          return;
+        }
+        network.hitsRef.child(key).set(payload).catch(() => {});
+      }
+
       function normalizeDoorAccessRecord(value) {
         if (!value) return null;
         let mode = "public";
@@ -5101,9 +5119,6 @@
         const img = getCosmeticImage(item);
         if (img) {
           ctx.imageSmoothingEnabled = false;
-          if (facing === -1) {
-            ctx.scale(-1, 1);
-          }
           ctx.drawImage(img, 0, -bladeH / 2, bladeW, bladeH);
           ctx.restore();
           return;
@@ -5202,9 +5217,15 @@
         const hitT = Math.max(0, Math.min(1, 1 - ((nowMs - lastHitAtMs) / HIT_ANIM_MS)));
         if (hitT > 0) {
           const hitEase = hitT * hitT * (3 - 2 * hitT);
-          pose.armSwing = (Number(pose.armSwing) || 0) + (player.facing === 1 ? 1 : -1) * (2.3 * hitEase);
-          pose.bodyTilt = (Number(pose.bodyTilt) || 0) + (player.facing === 1 ? 1 : -1) * (0.07 * hitEase);
-          pose.swordSwing = (Number(pose.swordSwing) || 0) + (player.facing === 1 ? 1 : -1) * (7.5 * hitEase);
+          const facingSign = player.facing === 1 ? 1 : -1;
+          pose.bodyTilt = (Number(pose.bodyTilt) || 0) + facingSign * (0.07 * hitEase);
+          if (cosmetics.swords) {
+            pose.armSwing = (Number(pose.armSwing) || 0) + facingSign * (1.1 * hitEase);
+            pose.swordSwing = (Number(pose.swordSwing) || 0) + facingSign * (8.2 * hitEase);
+          } else {
+            pose.armSwing = (Number(pose.armSwing) || 0) + facingSign * (3.1 * hitEase);
+            pose.swordSwing = 0;
+          }
         }
         const basePy = py + (pose.bodyBob || 0);
 
@@ -5643,9 +5664,11 @@
         const nextHits = Math.max(1, damage.hits + 1);
         if (nextHits < durability) {
           setTileDamage(tx, ty, nextHits);
+          syncTileDamageToNetwork(tx, ty, nextHits);
           return;
         }
         clearTileDamage(tx, ty);
+        syncTileDamageToNetwork(tx, ty, 0);
 
         if (id === SIGN_ID) {
           saveSignText(tx, ty, "");
@@ -5805,8 +5828,10 @@
 
       function useActionAt(tx, ty) {
         if (isProtectedSpawnTile(tx, ty)) return;
-        lastHitAtMs = performance.now();
         const selectedId = slotOrder[selectedSlot];
+        if (selectedId === TOOL_FIST) {
+          lastHitAtMs = performance.now();
+        }
         if (selectedId === TOOL_WRENCH) {
           interactWithWrench(tx, ty);
           return;
@@ -5820,8 +5845,10 @@
 
       function useSecondaryActionAt(tx, ty) {
         if (isProtectedSpawnTile(tx, ty)) return;
-        lastHitAtMs = performance.now();
         const selectedId = slotOrder[selectedSlot];
+        if (selectedId === TOOL_FIST) {
+          lastHitAtMs = performance.now();
+        }
         if (selectedId === TOOL_WRENCH) {
           interactWithWrench(tx, ty);
           return;
@@ -6230,6 +6257,15 @@
         if (network.dropsRef && network.handlers.dropRemoved) {
           network.dropsRef.off("child_removed", network.handlers.dropRemoved);
         }
+        if (network.hitsRef && network.handlers.hitAdded) {
+          network.hitsRef.off("child_added", network.handlers.hitAdded);
+        }
+        if (network.hitsRef && network.handlers.hitChanged) {
+          network.hitsRef.off("child_changed", network.handlers.hitChanged);
+        }
+        if (network.hitsRef && network.handlers.hitRemoved) {
+          network.hitsRef.off("child_removed", network.handlers.hitRemoved);
+        }
         if (network.vendingRef && network.handlers.vendingAdded) {
           network.vendingRef.off("child_added", network.handlers.vendingAdded);
         }
@@ -6302,6 +6338,7 @@
         network.playerRef = null;
         network.playersRef = null;
         network.blocksRef = null;
+        network.hitsRef = null;
         network.dropsRef = null;
         network.dropFeedRef = null;
         network.vendingRef = null;
@@ -6320,6 +6357,9 @@
         network.handlers.blockAdded = null;
         network.handlers.blockChanged = null;
         network.handlers.blockRemoved = null;
+        network.handlers.hitAdded = null;
+        network.handlers.hitChanged = null;
+        network.handlers.hitRemoved = null;
         network.handlers.dropAdded = null;
         network.handlers.dropChanged = null;
         network.handlers.dropRemoved = null;
@@ -6461,6 +6501,9 @@
           : null;
         network.playersRef = worldRefs && worldRefs.playersRef ? worldRefs.playersRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/players");
         network.blocksRef = worldRefs && worldRefs.blocksRef ? worldRefs.blocksRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/blocks");
+        network.hitsRef = typeof syncHitsModule.createWorldHitsRef === "function"
+          ? syncHitsModule.createWorldHitsRef(network.db, BASE_PATH, worldId)
+          : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/hits");
         network.dropsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/drops");
         network.dropFeedRef = network.dropsRef.limitToLast(DROP_MAX_PER_WORLD);
         network.vendingRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/vending");
@@ -6575,6 +6618,28 @@
         network.handlers.blockAdded = handlers.blockAdded;
         network.handlers.blockChanged = handlers.blockChanged;
         network.handlers.blockRemoved = handlers.blockRemoved;
+        network.handlers.hitAdded = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          const raw = snapshot.val();
+          const normalized = typeof syncHitsModule.normalizeHitRecord === "function"
+            ? syncHitsModule.normalizeHitRecord(raw)
+            : (raw && typeof raw === "object" ? {
+              hits: Math.max(0, Math.floor(Number(raw.hits) || 0)),
+              updatedAt: Number(raw.updatedAt) || 0
+            } : null);
+          if (!normalized || !normalized.hits) {
+            clearTileDamage(tile.tx, tile.ty);
+            return;
+          }
+          setTileDamage(tile.tx, tile.ty, normalized.hits);
+        };
+        network.handlers.hitChanged = network.handlers.hitAdded;
+        network.handlers.hitRemoved = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          clearTileDamage(tile.tx, tile.ty);
+        };
         network.handlers.dropAdded = (snapshot) => {
           addOrUpdateWorldDrop(snapshot.key || "", snapshot.val() || {});
         };
@@ -6680,6 +6745,11 @@
           network.dropsRef.on("child_changed", network.handlers.dropChanged);
           network.dropsRef.on("child_removed", network.handlers.dropRemoved);
         }
+        if (network.hitsRef && network.handlers.hitAdded) {
+          network.hitsRef.on("child_added", network.handlers.hitAdded);
+          network.hitsRef.on("child_changed", network.handlers.hitChanged);
+          network.hitsRef.on("child_removed", network.handlers.hitRemoved);
+        }
         if (network.signsRef && network.handlers.signAdded) {
           network.signsRef.on("child_added", network.handlers.signAdded);
           network.signsRef.on("child_changed", network.handlers.signChanged);
@@ -6770,6 +6840,7 @@
 
       function syncBlock(tx, ty, id) {
         if (!network.enabled || !network.blocksRef) return;
+        syncTileDamageToNetwork(tx, ty, 0);
         if (blockSyncer && typeof blockSyncer.enqueue === "function") {
           blockSyncer.enqueue(tx, ty, id);
           return;
