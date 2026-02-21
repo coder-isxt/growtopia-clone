@@ -210,7 +210,8 @@
         18: { key: "sign_block", name: "Sign", color: "#b98a58", solid: false, icon: "SG", faIcon: "fa-solid fa-signs-post" },
         19: { key: "anti_gravity_generator", name: "Anti Gravity Generator", color: "#6de9ff", solid: true, icon: "AG", faIcon: "fa-solid fa-meteor" },
         20: { key: "camera_block", name: "Camera", color: "#8eb7d6", solid: true, icon: "CM", faIcon: "fa-solid fa-video" },
-        21: { key: "weather_machine", name: "Weather Machine", color: "#7aa8d9", solid: true, icon: "WM", faIcon: "fa-solid fa-cloud-sun-rain" }
+        21: { key: "weather_machine", name: "Weather Machine", color: "#7aa8d9", solid: true, icon: "WM", faIcon: "fa-solid fa-cloud-sun-rain" },
+        22: { key: "display_block", name: "Display Block", color: "#314154", solid: true, icon: "DP", faIcon: "fa-regular fa-square" }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
@@ -228,10 +229,11 @@
       const ANTI_GRAV_ID = 19;
       const CAMERA_ID = 20;
       const WEATHER_MACHINE_ID = 21;
+      const DISPLAY_BLOCK_ID = 22;
       const TOOL_FIST = "fist";
       const TOOL_WRENCH = "wrench";
-      const slotOrder = [TOOL_FIST, TOOL_WRENCH, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21];
-      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21];
+      const slotOrder = [TOOL_FIST, TOOL_WRENCH, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22];
+      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22];
       const COSMETIC_SLOTS = ["clothes", "wings", "swords"];
       const blockMaps = typeof blockKeysModule.buildMaps === "function"
         ? blockKeysModule.buildMaps(blockDefs)
@@ -299,7 +301,8 @@
         18: 0,
         19: 0,
         20: 0,
-        21: 0
+        21: 0,
+        22: 0
       };
 
       let selectedSlot = 0;
@@ -323,6 +326,7 @@
         : new Map();
       const overheadChatByPlayer = new Map();
       const signTexts = new Map();
+      const displayItemsByTile = new Map();
       const doorAccessByTile = new Map();
       const antiGravityByTile = new Map();
       const cameraConfigsByTile = new Map();
@@ -361,7 +365,9 @@
       const adminCommandLastUsedAt = new Map();
       const chatMessages = [];
       const logsMessages = [];
-      const CHAT_BUBBLE_MS = 7000;
+      const CHAT_BUBBLE_FULL_MS = 5000;
+      const CHAT_BUBBLE_FADE_MS = 1500;
+      const CHAT_BUBBLE_MS = CHAT_BUBBLE_FULL_MS + CHAT_BUBBLE_FADE_MS;
       const CHAT_BUBBLE_MAX_WIDTH = 190;
       const CHAT_BUBBLE_LINE_HEIGHT = 13;
       const DROP_PICKUP_RADIUS = 26;
@@ -369,7 +375,22 @@
       const PLAYER_NAME_FONT = "12px 'Trebuchet MS', sans-serif";
       const playerWrenchHitboxes = [];
       const worldDrops = new Map();
+      const tileDamageByKey = new Map();
       let lastDropAtMs = 0;
+      const inventoryDrag = {
+        active: false,
+        pointerId: null,
+        startX: 0,
+        startY: 0,
+        lastX: 0,
+        lastY: 0,
+        moved: false,
+        amount: 1,
+        maxAmount: 1,
+        entry: null,
+        ghostEl: null
+      };
+      let suppressInventoryClickUntilMs = 0;
 
       let currentWorldId = getInitialWorldId();
       let world = makeWorld(currentWorldId);
@@ -535,6 +556,7 @@
         dropFeedRef: null,
         vendingRef: null,
         signsRef: null,
+        displaysRef: null,
         doorsRef: null,
         antiGravRef: null,
         weatherRef: null,
@@ -582,6 +604,9 @@
           signAdded: null,
           signChanged: null,
           signRemoved: null,
+          displayAdded: null,
+          displayChanged: null,
+          displayRemoved: null,
           doorAdded: null,
           doorChanged: null,
           doorRemoved: null,
@@ -2745,9 +2770,11 @@
       function resetForWorldChange() {
         remotePlayers.clear();
         clearWorldDrops();
+        clearAllTileDamage();
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
         signTexts.clear();
+        displayItemsByTile.clear();
         doorAccessByTile.clear();
         antiGravityByTile.clear();
         cameraConfigsByTile.clear();
@@ -2789,6 +2816,7 @@
           hasRenderedMenuWorldList = false;
           setChatOpen(false);
         } else {
+          stopInventoryDrag();
           setChatOpen(false);
           closeVendingModal();
           closeSignModal();
@@ -3269,6 +3297,69 @@
 
       function getTileKey(tx, ty) {
         return String(tx) + "_" + String(ty);
+      }
+
+      function getBlockDurability(id) {
+        const def = blockDefs[id];
+        if (!def) return 1;
+        if (def.unbreakable || id === SPAWN_DOOR_ID || id === SPAWN_BASE_ID) return Infinity;
+        const configured = Math.floor(Number(def.durability) || 0);
+        if (configured > 0) return configured;
+        if (id === WORLD_LOCK_ID) return 8;
+        if (id === VENDING_ID || id === CAMERA_ID || id === WEATHER_MACHINE_ID) return 6;
+        if (id === BEDROCK_ID) return Infinity;
+        if (def.stair || def.oneWay || def.liquid || id === SIGN_ID) return 2;
+        return 3;
+      }
+
+      function clearTileDamage(tx, ty) {
+        tileDamageByKey.delete(getTileKey(tx, ty));
+      }
+
+      function clearAllTileDamage() {
+        tileDamageByKey.clear();
+      }
+
+      function getTileDamage(tx, ty) {
+        const key = getTileKey(tx, ty);
+        const entry = tileDamageByKey.get(key);
+        if (!entry) return { hits: 0, updatedAt: 0 };
+        return {
+          hits: Math.max(0, Math.floor(Number(entry.hits) || 0)),
+          updatedAt: Number(entry.updatedAt) || 0
+        };
+      }
+
+      function setTileDamage(tx, ty, hits) {
+        const nextHits = Math.max(0, Math.floor(Number(hits) || 0));
+        const key = getTileKey(tx, ty);
+        if (nextHits <= 0) {
+          tileDamageByKey.delete(key);
+          return;
+        }
+        tileDamageByKey.set(key, {
+          hits: nextHits,
+          updatedAt: performance.now()
+        });
+      }
+
+      function tickTileDamageDecay() {
+        if (!tileDamageByKey.size) return;
+        const now = performance.now();
+        tileDamageByKey.forEach((entry, key) => {
+          if (!entry) {
+            tileDamageByKey.delete(key);
+            return;
+          }
+          const age = now - (Number(entry.updatedAt) || 0);
+          if (age < 2400) return;
+          const nextHits = Math.max(0, Math.floor(Number(entry.hits) || 0) - 1);
+          if (nextHits <= 0) {
+            tileDamageByKey.delete(key);
+            return;
+          }
+          tileDamageByKey.set(key, { hits: nextHits, updatedAt: now - 1400 });
+        });
       }
 
       function normalizeDoorAccessRecord(value) {
@@ -3795,6 +3886,118 @@
         return entry && entry.text ? entry.text : "";
       }
 
+      function normalizeDisplayItemRecord(value) {
+        if (!value || typeof value !== "object") return null;
+        const typeRaw = String(value.type || "").trim().toLowerCase();
+        const type = typeRaw === "cosmetic" ? "cosmetic" : "block";
+        const blockId = Math.max(0, Math.floor(Number(value.blockId) || 0));
+        const cosmeticId = String(value.cosmeticId || "").trim().slice(0, 64);
+        if (type === "block" && !blockId) return null;
+        if (type === "cosmetic" && !cosmeticId) return null;
+        return {
+          type,
+          blockId,
+          cosmeticId,
+          updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : 0
+        };
+      }
+
+      function setLocalDisplayItem(tx, ty, value) {
+        const key = getTileKey(tx, ty);
+        const normalized = normalizeDisplayItemRecord(value);
+        if (!normalized) {
+          displayItemsByTile.delete(key);
+          return;
+        }
+        displayItemsByTile.set(key, normalized);
+      }
+
+      function getLocalDisplayItem(tx, ty) {
+        return displayItemsByTile.get(getTileKey(tx, ty)) || null;
+      }
+
+      function saveDisplayItem(tx, ty, value) {
+        const normalized = normalizeDisplayItemRecord(value);
+        setLocalDisplayItem(tx, ty, normalized);
+        if (!network.enabled || !network.displaysRef) return;
+        const ref = network.displaysRef.child(getTileKey(tx, ty));
+        if (!normalized) {
+          ref.remove().catch(() => {});
+          return;
+        }
+        ref.set({
+          type: normalized.type,
+          blockId: normalized.type === "block" ? normalized.blockId : 0,
+          cosmeticId: normalized.type === "cosmetic" ? normalized.cosmeticId : "",
+          updatedAt: firebase.database.ServerValue.TIMESTAMP
+        }).catch(() => {});
+      }
+
+      function grantDisplayItemToInventory(item) {
+        const normalized = normalizeDisplayItemRecord(item);
+        if (!normalized) return false;
+        if (normalized.type === "cosmetic") {
+          const cosmeticId = normalized.cosmeticId;
+          if (!cosmeticId) return false;
+          cosmeticInventory[cosmeticId] = Math.max(0, Math.floor((cosmeticInventory[cosmeticId] || 0) + 1));
+          saveInventory();
+          refreshToolbar();
+          syncPlayer(true);
+          return true;
+        }
+        const blockId = normalized.blockId;
+        if (!blockId || !INVENTORY_IDS.includes(blockId)) return false;
+        inventory[blockId] = Math.max(0, Math.floor((inventory[blockId] || 0) + 1));
+        saveInventory();
+        refreshToolbar();
+        return true;
+      }
+
+      function tryPlaceItemIntoDisplay(tx, ty, entry) {
+        if (!inWorld) return false;
+        if (!entry || (entry.type !== "block" && entry.type !== "cosmetic")) return false;
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return false;
+        if (world[ty][tx] !== DISPLAY_BLOCK_ID) return false;
+        if (!canEditTarget(tx, ty)) return false;
+        if (!canEditCurrentWorld()) {
+          notifyWorldLockedDenied();
+          return false;
+        }
+
+        const maxAmount = getMaxDroppableAmount(entry);
+        if (maxAmount <= 0) return false;
+
+        const existing = getLocalDisplayItem(tx, ty);
+        if (existing) {
+          grantDisplayItemToInventory(existing);
+        }
+
+        if (entry.type === "cosmetic") {
+          const cosmeticId = String(entry.cosmeticId || "");
+          if (!cosmeticId || (cosmeticInventory[cosmeticId] || 0) <= 0) return false;
+          cosmeticInventory[cosmeticId] = Math.max(0, Math.floor((cosmeticInventory[cosmeticId] || 0) - 1));
+          if ((cosmeticInventory[cosmeticId] || 0) <= 0) {
+            for (let i = 0; i < COSMETIC_SLOTS.length; i++) {
+              const slot = COSMETIC_SLOTS[i];
+              if (equippedCosmetics[slot] === cosmeticId) equippedCosmetics[slot] = "";
+            }
+          }
+          saveDisplayItem(tx, ty, { type: "cosmetic", cosmeticId, updatedAt: Date.now() });
+          saveInventory();
+          refreshToolbar();
+          syncPlayer(true);
+          return true;
+        }
+
+        const blockId = Math.max(0, Math.floor(Number(entry.blockId) || 0));
+        if (!blockId || !INVENTORY_IDS.includes(blockId) || (inventory[blockId] || 0) <= 0) return false;
+        inventory[blockId] = Math.max(0, Math.floor((inventory[blockId] || 0) - 1));
+        saveDisplayItem(tx, ty, { type: "block", blockId, updatedAt: Date.now() });
+        saveInventory();
+        refreshToolbar();
+        return true;
+      }
+
       function closeSignModal() {
         signEditContext = null;
         if (signModalEl) signModalEl.classList.add("hidden");
@@ -4137,6 +4340,8 @@
             if (!isStairTileId(id)) continue;
             const surfaceY = getStairSurfaceY(id, tx, ty, fx);
             if (bottomY < surfaceY - 6 || bottomY > surfaceY + 8) continue;
+            const testY = surfaceY - PLAYER_H;
+            if (rectCollides(player.x, testY, PLAYER_W, PLAYER_H)) continue;
             targetBottom = Math.min(targetBottom, surfaceY);
             found = true;
           }
@@ -4379,6 +4584,39 @@
         const startY = Math.floor(cameraY / TILE);
         const endY = Math.ceil((cameraY + viewH) / TILE);
 
+        const drawBlockDamageOverlay = (tx, ty, id, x, y) => {
+          if (!id) return;
+          const durability = getBlockDurability(id);
+          if (!Number.isFinite(durability) || durability <= 1) return;
+          const damage = getTileDamage(tx, ty);
+          if (!damage.hits) return;
+          const ratio = Math.max(0, Math.min(1, damage.hits / durability));
+          if (ratio <= 0) return;
+          const stage = Math.max(1, Math.min(4, Math.ceil(ratio * 4)));
+          const alpha = 0.22 + stage * 0.14;
+          const crackColor = "rgba(245, 251, 255, " + alpha.toFixed(3) + ")";
+          const seed = ((tx * 73856093) ^ (ty * 19349663) ^ (id * 83492791)) >>> 0;
+          ctx.save();
+          ctx.strokeStyle = crackColor;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          const lineCount = 2 + stage * 2;
+          for (let i = 0; i < lineCount; i++) {
+            const a = ((seed + i * 137) % 1000) / 1000;
+            const b = ((seed + i * 241 + 71) % 1000) / 1000;
+            const c = ((seed + i * 389 + 19) % 1000) / 1000;
+            const d = ((seed + i * 521 + 43) % 1000) / 1000;
+            const x1 = x + 1 + a * (TILE - 2);
+            const y1 = y + 1 + b * (TILE - 2);
+            const x2 = x + 1 + c * (TILE - 2);
+            const y2 = y + 1 + d * (TILE - 2);
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+          }
+          ctx.stroke();
+          ctx.restore();
+        };
+
         for (let ty = startY; ty <= endY; ty++) {
           if (ty < 0 || ty >= WORLD_H) continue;
           for (let tx = startX; tx <= endX; tx++) {
@@ -4393,17 +4631,20 @@
 
             if (id === PLATFORM_ID) {
               if (drawBlockImage(def, x, y)) {
+                drawBlockDamageOverlay(tx, ty, id, x, y);
                 continue;
               }
               ctx.fillStyle = "#6d4f35";
               ctx.fillRect(x, y + 2, TILE, 6);
               ctx.fillStyle = "rgba(255, 238, 202, 0.25)";
               ctx.fillRect(x + 1, y + 2, TILE - 2, 2);
+              drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
 
             if (STAIR_ROTATION_IDS.includes(id)) {
               if (drawStairImage(id, def, x, y)) {
+                drawBlockDamageOverlay(tx, ty, id, x, y);
                 continue;
               }
               ctx.fillStyle = def.color;
@@ -4429,10 +4670,55 @@
               ctx.fill();
               ctx.fillStyle = "rgba(255,255,255,0.11)";
               ctx.fillRect(x + 2, y + 2, TILE - 4, 4);
+              drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
 
-            if (id === SIGN_ID && drawBlockImage(def, x, y)) continue;
+            if (id === DISPLAY_BLOCK_ID) {
+              ctx.fillStyle = def.color || "#314154";
+              ctx.fillRect(x, y, TILE, TILE);
+              ctx.strokeStyle = "rgba(255,255,255,0.95)";
+              ctx.lineWidth = 1;
+              ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
+              ctx.strokeStyle = "rgba(255,255,255,0.45)";
+              ctx.strokeRect(x + 2.5, y + 2.5, TILE - 5, TILE - 5);
+
+              const displayItem = getLocalDisplayItem(tx, ty);
+              if (displayItem) {
+                if (displayItem.type === "cosmetic") {
+                  let drawnCosmetic = false;
+                  for (let i = 0; i < COSMETIC_ITEMS.length; i++) {
+                    const item = COSMETIC_ITEMS[i];
+                    if (!item || item.id !== displayItem.cosmeticId) continue;
+                    drawnCosmetic = drawCosmeticSprite(item, x + 4, y + 4, TILE - 8, TILE - 8, 1);
+                    if (!drawnCosmetic) {
+                      ctx.fillStyle = item.color || "#9bb4ff";
+                      ctx.fillRect(x + 5, y + 5, TILE - 10, TILE - 10);
+                    }
+                    break;
+                  }
+                } else {
+                  const displayDef = blockDefs[displayItem.blockId];
+                  const displayImg = getBlockImage(displayDef);
+                  if (displayImg) {
+                    ctx.save();
+                    ctx.imageSmoothingEnabled = false;
+                    ctx.drawImage(displayImg, x + 4, y + 4, TILE - 8, TILE - 8);
+                    ctx.restore();
+                  } else {
+                    ctx.fillStyle = (displayDef && displayDef.color) ? displayDef.color : "#cfd8e5";
+                    ctx.fillRect(x + 5, y + 5, TILE - 10, TILE - 10);
+                  }
+                }
+              }
+              drawBlockDamageOverlay(tx, ty, id, x, y);
+              continue;
+            }
+
+            if (id === SIGN_ID && drawBlockImage(def, x, y)) {
+              drawBlockDamageOverlay(tx, ty, id, x, y);
+              continue;
+            }
 
             if (id === VENDING_ID) {
               ctx.fillStyle = "#4d6b8b";
@@ -4443,14 +4729,17 @@
               ctx.fillRect(x + 6, y + 14, TILE - 12, 10);
               ctx.fillStyle = "#ffd166";
               ctx.fillRect(x + TILE - 10, y + 6, 4, 4);
+              drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
 
             if (id === WATER_ID && drawAnimatedWater(def, x, y, tx, ty)) {
+              drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
 
             if (drawBlockImage(def, x, y)) {
+              drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
 
@@ -4468,6 +4757,7 @@
               ctx.fillStyle = "rgba(0,0,0,0.14)";
               ctx.fillRect(x, y + TILE - 5, TILE, 5);
             }
+            drawBlockDamageOverlay(tx, ty, id, x, y);
           }
         }
       }
@@ -4482,7 +4772,17 @@
           const x = drop.x - cameraX;
           const y = drop.y - cameraY + Math.sin((now + drop.id.length * 91) * 0.005) * 1.5;
           if (x < -TILE || y < -TILE || x > viewW + TILE || y > viewH + TILE) return;
-          if (drop.type === "block") {
+          if (drop.type === "tool") {
+            ctx.save();
+            ctx.fillStyle = drop.toolId === TOOL_WRENCH ? "#89a4b4" : "#c59b81";
+            ctx.fillRect(x, y, TILE, TILE);
+            ctx.strokeStyle = "rgba(0,0,0,0.35)";
+            ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
+            ctx.fillStyle = "rgba(12,20,30,0.8)";
+            ctx.font = "bold 11px 'Trebuchet MS', sans-serif";
+            ctx.fillText(drop.toolId === TOOL_WRENCH ? "W" : "F", x + 7, y + 12);
+            ctx.restore();
+          } else if (drop.type === "block") {
             const def = blockDefs[drop.blockId];
             if (def && drawBlockImage(def, x, y)) {
               // draw count badge
@@ -5031,7 +5331,13 @@
           return;
         }
 
-        const alpha = Math.max(0, Math.min(1, remaining / CHAT_BUBBLE_MS));
+        let alpha = 1;
+        const fadeStart = CHAT_BUBBLE_FADE_MS;
+        if (remaining <= fadeStart) {
+          const t = Math.max(0, Math.min(1, remaining / fadeStart));
+          // Smooth fade-out (ease-out cubic) during final 1.5s.
+          alpha = t * t * (3 - 2 * t);
+        }
         const text = entry.text;
         ctx.save();
         ctx.globalAlpha = alpha;
@@ -5179,6 +5485,7 @@
 
         const finalizePlace = () => {
           world[ty][tx] = id;
+          clearTileDamage(tx, ty);
           inventory[id]--;
           syncBlock(tx, ty, id);
           if (id === VENDING_ID) {
@@ -5202,6 +5509,8 @@
             saveAntiGravityState(tx, ty, true);
           } else if (id === CAMERA_ID) {
             saveCameraConfig(tx, ty, buildDefaultCameraConfig());
+          } else if (id === DISPLAY_BLOCK_ID) {
+            saveDisplayItem(tx, ty, null);
           }
           saveInventory();
           refreshToolbar();
@@ -5283,12 +5592,24 @@
           return;
         }
 
+        const durability = getBlockDurability(id);
+        if (!Number.isFinite(durability)) return;
+
         if (id === VENDING_ID) {
           const ctrl = getVendingController();
           if (ctrl && typeof ctrl.onBreakWithFist === "function" && ctrl.onBreakWithFist(tx, ty)) {
             return;
           }
         }
+
+        const damage = getTileDamage(tx, ty);
+        const nextHits = Math.max(1, damage.hits + 1);
+        if (nextHits < durability) {
+          setTileDamage(tx, ty, nextHits);
+          return;
+        }
+        clearTileDamage(tx, ty);
+
         if (id === SIGN_ID) {
           saveSignText(tx, ty, "");
           if (signEditContext && signEditContext.tx === tx && signEditContext.ty === ty) {
@@ -5312,6 +5633,13 @@
           if (network.enabled && network.camerasRef) {
             network.camerasRef.child(getTileKey(tx, ty)).remove().catch(() => {});
           }
+        }
+        if (id === DISPLAY_BLOCK_ID) {
+          const existingDisplay = getLocalDisplayItem(tx, ty);
+          if (existingDisplay) {
+            grantDisplayItemToInventory(existingDisplay);
+          }
+          saveDisplayItem(tx, ty, null);
         }
         if (id === WEATHER_MACHINE_ID) {
           const active = normalizeWeatherRecord(currentWorldWeather);
@@ -5360,6 +5688,7 @@
         const nextId = getRotatedBlockId(id);
         if (!nextId) return;
         world[ty][tx] = nextId;
+        clearTileDamage(tx, ty);
         syncBlock(tx, ty, nextId);
       }
 
@@ -5491,12 +5820,15 @@
       function normalizeDropRecord(id, value) {
         if (!id || !value || typeof value !== "object") return null;
         const typeRaw = String(value.type || "").trim().toLowerCase();
-        const type = typeRaw === "cosmetic" ? "cosmetic" : "block";
+        const type = (typeRaw === "cosmetic" || typeRaw === "tool") ? typeRaw : "block";
         const blockId = Math.max(0, Math.floor(Number(value.blockId) || 0));
         const cosmeticId = String(value.cosmeticId || "").trim().slice(0, 64);
+        const toolIdRaw = String(value.toolId || "").trim().toLowerCase();
+        const toolId = (toolIdRaw === TOOL_FIST || toolIdRaw === TOOL_WRENCH) ? toolIdRaw : "";
         const amount = Math.max(1, Math.floor(Number(value.amount) || 1));
         if (type === "block" && !blockId) return null;
         if (type === "cosmetic" && !cosmeticId) return null;
+        if (type === "tool" && !toolId) return null;
         const x = Number(value.x);
         const y = Number(value.y);
         if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
@@ -5507,6 +5839,7 @@
           type,
           blockId,
           cosmeticId,
+          toolId,
           amount,
           x: clampedX,
           y: clampedY,
@@ -5520,6 +5853,10 @@
 
       function getDropLabel(drop) {
         if (!drop) return "item";
+        if (drop.type === "tool") {
+          if (drop.toolId === TOOL_WRENCH) return "Wrench";
+          return "Fist";
+        }
         if (drop.type === "cosmetic") {
           for (let i = 0; i < COSMETIC_ITEMS.length; i++) {
             const item = COSMETIC_ITEMS[i];
@@ -5551,42 +5888,195 @@
         worldDrops.delete(String(id || ""));
       }
 
-      function dropSelectedInventoryItem() {
-        if (!inWorld) return;
-        const selectedId = slotOrder[selectedSlot];
-        if (typeof selectedId !== "number") return;
-        if (!INVENTORY_IDS.includes(selectedId)) return;
-        if ((inventory[selectedId] || 0) <= 0) return;
+      function getMaxDroppableAmount(entry) {
+        if (!entry || !entry.type) return 0;
+        if (entry.type === "block") {
+          const blockId = Math.max(0, Math.floor(Number(entry.blockId) || 0));
+          if (!blockId || !INVENTORY_IDS.includes(blockId)) return 0;
+          return Math.max(0, Math.floor(Number(inventory[blockId]) || 0));
+        }
+        if (entry.type === "cosmetic") {
+          const cosmeticId = String(entry.cosmeticId || "");
+          return Math.max(0, Math.floor(Number(cosmeticInventory[cosmeticId]) || 0));
+        }
+        if (entry.type === "tool") {
+          return 0;
+        }
+        return 0;
+      }
+
+      function isSameDropKind(drop, entry) {
+        if (!drop || !entry) return false;
+        if (drop.type !== entry.type) return false;
+        if (drop.type === "block") {
+          return Math.floor(Number(drop.blockId) || 0) === Math.floor(Number(entry.blockId) || 0);
+        }
+        if (drop.type === "cosmetic") {
+          return String(drop.cosmeticId || "") === String(entry.cosmeticId || "");
+        }
+        if (drop.type === "tool") {
+          return String(drop.toolId || "") === String(entry.toolId || "");
+        }
+        return false;
+      }
+
+      function findNearbyDropStackCandidate(entry, x, y) {
+        if (!entry || !worldDrops.size) return null;
+        const mergeRadius = TILE * 1.1;
+        const mergeRadiusSq = mergeRadius * mergeRadius;
+        let best = null;
+        let bestDistSq = Infinity;
+        for (const drop of worldDrops.values()) {
+          if (!drop || !drop.id) continue;
+          if (!isSameDropKind(drop, entry)) continue;
+          const dx = Number(drop.x || 0) - x;
+          const dy = Number(drop.y || 0) - y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 > mergeRadiusSq) continue;
+          if (d2 < bestDistSq) {
+            bestDistSq = d2;
+            best = drop;
+          }
+        }
+        return best;
+      }
+
+      function applyStackAmountToLocalDrop(dropId, amountDelta) {
+        const key = String(dropId || "");
+        if (!key || !worldDrops.has(key)) return false;
+        const existing = worldDrops.get(key);
+        if (!existing) return false;
+        const nextAmount = Math.max(
+          1,
+          Math.floor(Number(existing.amount) || 1) + Math.max(1, Math.floor(Number(amountDelta) || 1))
+        );
+        worldDrops.set(key, { ...existing, amount: nextAmount });
+        return true;
+      }
+
+      function dropInventoryEntry(entry, amount, dropX, dropY) {
+        if (!inWorld || !entry) return false;
         const now = performance.now();
-        if (now - lastDropAtMs < 150) return;
-        lastDropAtMs = now;
-        const dropX = Math.max(0, Math.min(player.x + (PLAYER_W / 2) - (TILE / 2), WORLD_W * TILE - TILE));
-        const dropY = Math.max(0, Math.min(player.y + PLAYER_H - TILE, WORLD_H * TILE - TILE));
+        if (now - lastDropAtMs < 120) return false;
+        const maxAmount = getMaxDroppableAmount(entry);
+        if (maxAmount <= 0) return false;
+        const qty = Math.max(1, Math.min(maxAmount, Math.floor(Number(amount) || 1)));
+
+        const defaultDropX = player.x + (PLAYER_W / 2) - (TILE / 2);
+        const defaultDropY = player.y + PLAYER_H - TILE;
+        const worldX = Number.isFinite(dropX) ? dropX : defaultDropX;
+        const worldY = Number.isFinite(dropY) ? dropY : defaultDropY;
+        const clampedX = Math.max(0, Math.min(worldX, WORLD_W * TILE - TILE));
+        const clampedY = Math.max(0, Math.min(worldY, WORLD_H * TILE - TILE));
+
         const payload = {
-          type: "block",
-          blockId: selectedId,
-          amount: 1,
-          x: dropX,
-          y: dropY,
+          type: entry.type,
+          blockId: 0,
+          cosmeticId: "",
+          toolId: "",
+          amount: qty,
+          x: clampedX,
+          y: clampedY,
           ownerAccountId: playerProfileId || "",
           ownerSessionId: playerSessionId || "",
           ownerName: (playerName || "").toString().slice(0, 20),
           createdAt: Date.now()
         };
 
-        inventory[selectedId] = Math.max(0, Math.floor((inventory[selectedId] || 0) - 1));
-        saveInventory();
-        refreshToolbar();
+        let changedInventory = false;
+        if (entry.type === "block") {
+          const blockId = Math.max(0, Math.floor(Number(entry.blockId) || 0));
+          payload.blockId = blockId;
+          inventory[blockId] = Math.max(0, Math.floor((inventory[blockId] || 0) - qty));
+          changedInventory = true;
+        } else if (entry.type === "cosmetic") {
+          const cosmeticId = String(entry.cosmeticId || "").trim().slice(0, 64);
+          payload.cosmeticId = cosmeticId;
+          cosmeticInventory[cosmeticId] = Math.max(0, Math.floor((cosmeticInventory[cosmeticId] || 0) - qty));
+          if ((cosmeticInventory[cosmeticId] || 0) <= 0) {
+            for (let i = 0; i < COSMETIC_SLOTS.length; i++) {
+              const slot = COSMETIC_SLOTS[i];
+              if (equippedCosmetics[slot] === cosmeticId) {
+                equippedCosmetics[slot] = "";
+              }
+            }
+          }
+          changedInventory = true;
+        } else if (entry.type === "tool") {
+          const toolId = String(entry.toolId || "").trim();
+          payload.toolId = toolId;
+        } else {
+          return false;
+        }
+
+        lastDropAtMs = now;
+        if (changedInventory) {
+          saveInventory();
+          refreshToolbar();
+          if (entry.type === "cosmetic") {
+            syncPlayer(true);
+          }
+        }
+
+        const stackTarget = findNearbyDropStackCandidate(entry, clampedX, clampedY);
+        if (stackTarget) {
+          if (!network.enabled || !network.dropsRef || String(stackTarget.id).startsWith("local_")) {
+            if (applyStackAmountToLocalDrop(stackTarget.id, qty)) {
+              return true;
+            }
+          } else {
+            network.dropsRef.child(stackTarget.id).transaction((current) => {
+              if (!current || typeof current !== "object") return current;
+              const currentType = String(current.type || "").trim().toLowerCase();
+              const safeType = currentType === "cosmetic" || currentType === "tool" ? currentType : "block";
+              if (safeType !== entry.type) return current;
+              if (safeType === "block") {
+                if (Math.floor(Number(current.blockId) || 0) !== Math.floor(Number(entry.blockId) || 0)) return current;
+              } else if (safeType === "cosmetic") {
+                if (String(current.cosmeticId || "") !== String(entry.cosmeticId || "")) return current;
+              } else if (safeType === "tool") {
+                if (String(current.toolId || "") !== String(entry.toolId || "")) return current;
+              }
+              const currentAmount = Math.max(1, Math.floor(Number(current.amount) || 1));
+              return {
+                ...current,
+                amount: currentAmount + qty,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+              };
+            }).then((result) => {
+              if (result && result.committed) return;
+              network.dropsRef.push({
+                ...payload,
+                createdAt: firebase.database.ServerValue.TIMESTAMP
+              }).catch(() => {});
+            }).catch(() => {
+              network.dropsRef.push({
+                ...payload,
+                createdAt: firebase.database.ServerValue.TIMESTAMP
+              }).catch(() => {});
+            });
+            return true;
+          }
+        }
 
         if (!network.enabled || !network.dropsRef) {
           const localId = "local_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
           addOrUpdateWorldDrop(localId, payload);
-          return;
+          return true;
         }
         network.dropsRef.push({
           ...payload,
           createdAt: firebase.database.ServerValue.TIMESTAMP
         }).catch(() => {});
+        return true;
+      }
+
+      function dropSelectedInventoryItem() {
+        if (!inWorld) return;
+        const selectedId = slotOrder[selectedSlot];
+        if (selectedId === TOOL_FIST || selectedId === TOOL_WRENCH) return;
+        if (typeof selectedId !== "number") return;
+        dropInventoryEntry({ type: "block", blockId: selectedId }, 1);
       }
 
       function tryPickupWorldDrop(drop) {
@@ -5601,11 +6091,13 @@
         const applyPickup = () => {
           if (drop.type === "cosmetic") {
             cosmeticInventory[drop.cosmeticId] = Math.max(0, Math.floor((cosmeticInventory[drop.cosmeticId] || 0) + drop.amount));
-          } else {
+          } else if (drop.type === "block") {
             inventory[drop.blockId] = Math.max(0, Math.floor((inventory[drop.blockId] || 0) + drop.amount));
           }
-          saveInventory();
-          refreshToolbar();
+          if (drop.type !== "tool") {
+            saveInventory();
+            refreshToolbar();
+          }
           postLocalSystemChat("Picked up " + drop.amount + "x " + getDropLabel(drop) + ".");
         };
 
@@ -5717,6 +6209,15 @@
         if (network.signsRef && network.handlers.signRemoved) {
           network.signsRef.off("child_removed", network.handlers.signRemoved);
         }
+        if (network.displaysRef && network.handlers.displayAdded) {
+          network.displaysRef.off("child_added", network.handlers.displayAdded);
+        }
+        if (network.displaysRef && network.handlers.displayChanged) {
+          network.displaysRef.off("child_changed", network.handlers.displayChanged);
+        }
+        if (network.displaysRef && network.handlers.displayRemoved) {
+          network.displaysRef.off("child_removed", network.handlers.displayRemoved);
+        }
         if (network.doorsRef && network.handlers.doorAdded) {
           network.doorsRef.off("child_added", network.handlers.doorAdded);
         }
@@ -5766,6 +6267,7 @@
         network.dropFeedRef = null;
         network.vendingRef = null;
         network.signsRef = null;
+        network.displaysRef = null;
         network.doorsRef = null;
         network.antiGravRef = null;
         network.weatherRef = null;
@@ -5788,6 +6290,9 @@
         network.handlers.signAdded = null;
         network.handlers.signChanged = null;
         network.handlers.signRemoved = null;
+        network.handlers.displayAdded = null;
+        network.handlers.displayChanged = null;
+        network.handlers.displayRemoved = null;
         network.handlers.doorAdded = null;
         network.handlers.doorChanged = null;
         network.handlers.doorRemoved = null;
@@ -5805,6 +6310,7 @@
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
         signTexts.clear();
+        displayItemsByTile.clear();
         doorAccessByTile.clear();
         antiGravityByTile.clear();
         cameraConfigsByTile.clear();
@@ -5920,6 +6426,7 @@
         network.dropFeedRef = network.dropsRef.limitToLast(DROP_MAX_PER_WORLD);
         network.vendingRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/vending");
         network.signsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/signs");
+        network.displaysRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/displays");
         network.doorsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/doors");
         network.antiGravRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/anti-gravity");
         network.weatherRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/weather");
@@ -5949,6 +6456,7 @@
         }
 
         const applyBlockValue = (tx, ty, id) => {
+          clearTileDamage(tx, ty);
           const requiredId = getProtectedTileRequiredId(tx, ty);
           if (requiredId) {
             world[ty][tx] = requiredId;
@@ -5957,6 +6465,7 @@
             }
             setLocalVendingMachine(tx, ty, null);
             setLocalSignText(tx, ty, null);
+            setLocalDisplayItem(tx, ty, null);
             setLocalDoorAccess(tx, ty, null);
             setLocalAntiGravityState(tx, ty, null);
             setLocalCameraConfig(tx, ty, null);
@@ -5969,6 +6478,9 @@
           if (id !== SIGN_ID) {
             setLocalSignText(tx, ty, null);
           }
+          if (id !== DISPLAY_BLOCK_ID) {
+            setLocalDisplayItem(tx, ty, null);
+          }
           if (id !== DOOR_BLOCK_ID) {
             setLocalDoorAccess(tx, ty, null);
           }
@@ -5980,6 +6492,7 @@
           }
         };
         const clearBlockValue = (tx, ty) => {
+          clearTileDamage(tx, ty);
           const requiredId = getProtectedTileRequiredId(tx, ty);
           if (requiredId) {
             world[ty][tx] = requiredId;
@@ -5988,6 +6501,7 @@
             }
             setLocalVendingMachine(tx, ty, null);
             setLocalSignText(tx, ty, null);
+            setLocalDisplayItem(tx, ty, null);
             setLocalDoorAccess(tx, ty, null);
             setLocalAntiGravityState(tx, ty, null);
             setLocalCameraConfig(tx, ty, null);
@@ -5996,6 +6510,7 @@
           world[ty][tx] = 0;
           setLocalVendingMachine(tx, ty, null);
           setLocalSignText(tx, ty, null);
+          setLocalDisplayItem(tx, ty, null);
           setLocalDoorAccess(tx, ty, null);
           setLocalAntiGravityState(tx, ty, null);
           setLocalCameraConfig(tx, ty, null);
@@ -6050,6 +6565,17 @@
           const tile = parseTileKey(snapshot.key || "");
           if (!tile) return;
           setLocalSignText(tile.tx, tile.ty, null);
+        };
+        network.handlers.displayAdded = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalDisplayItem(tile.tx, tile.ty, snapshot.val());
+        };
+        network.handlers.displayChanged = network.handlers.displayAdded;
+        network.handlers.displayRemoved = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalDisplayItem(tile.tx, tile.ty, null);
         };
         network.handlers.doorAdded = (snapshot) => {
           const tile = parseTileKey(snapshot.key || "");
@@ -6119,6 +6645,11 @@
           network.signsRef.on("child_added", network.handlers.signAdded);
           network.signsRef.on("child_changed", network.handlers.signChanged);
           network.signsRef.on("child_removed", network.handlers.signRemoved);
+        }
+        if (network.displaysRef && network.handlers.displayAdded) {
+          network.displaysRef.on("child_added", network.handlers.displayAdded);
+          network.displaysRef.on("child_changed", network.handlers.displayChanged);
+          network.displaysRef.on("child_removed", network.handlers.displayRemoved);
         }
         if (network.doorsRef && network.handlers.doorAdded) {
           network.doorsRef.on("child_added", network.handlers.doorAdded);
@@ -6956,6 +7487,127 @@
         return icon;
       }
 
+      function ensureInventoryDragGhost() {
+        if (inventoryDrag.ghostEl) return inventoryDrag.ghostEl;
+        const ghost = document.createElement("div");
+        ghost.className = "inventory-drag-ghost hidden";
+        ghost.innerHTML = "<div class=\"drag-title\"></div><div class=\"drag-qty\"></div>";
+        document.body.appendChild(ghost);
+        inventoryDrag.ghostEl = ghost;
+        return ghost;
+      }
+
+      function updateInventoryDragGhost() {
+        const ghost = ensureInventoryDragGhost();
+        const entry = inventoryDrag.entry || {};
+        const titleEl = ghost.querySelector(".drag-title");
+        const qtyEl = ghost.querySelector(".drag-qty");
+        const label = String(entry.label || getDropLabel(entry) || "Item");
+        if (titleEl) titleEl.textContent = label;
+        if (qtyEl) qtyEl.textContent = "x" + inventoryDrag.amount + " / " + inventoryDrag.maxAmount;
+      }
+
+      function setInventoryDragGhostPosition(clientX, clientY) {
+        const ghost = ensureInventoryDragGhost();
+        ghost.style.left = Math.round(clientX + 12) + "px";
+        ghost.style.top = Math.round(clientY + 12) + "px";
+      }
+
+      function stopInventoryDrag() {
+        inventoryDrag.active = false;
+        inventoryDrag.pointerId = null;
+        inventoryDrag.entry = null;
+        inventoryDrag.amount = 1;
+        inventoryDrag.maxAmount = 1;
+        inventoryDrag.moved = false;
+        if (inventoryDrag.ghostEl) inventoryDrag.ghostEl.classList.add("hidden");
+      }
+
+      function isPointInsideCanvas(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        return (
+          clientX >= rect.left &&
+          clientX <= rect.right &&
+          clientY >= rect.top &&
+          clientY <= rect.bottom
+        );
+      }
+
+      function startInventoryDrag(entry, event) {
+        if (!inWorld || !entry) return;
+        const maxAmount = getMaxDroppableAmount(entry);
+        if (maxAmount <= 0) return;
+        inventoryDrag.active = true;
+        inventoryDrag.pointerId = event.pointerId;
+        inventoryDrag.startX = Number(event.clientX) || 0;
+        inventoryDrag.startY = Number(event.clientY) || 0;
+        inventoryDrag.lastX = inventoryDrag.startX;
+        inventoryDrag.lastY = inventoryDrag.startY;
+        inventoryDrag.moved = false;
+        inventoryDrag.entry = { ...entry };
+        inventoryDrag.maxAmount = maxAmount;
+        inventoryDrag.amount = Math.max(1, Math.min(maxAmount, Math.floor(Number(entry.defaultAmount) || 1)));
+        updateInventoryDragGhost();
+        setInventoryDragGhostPosition(inventoryDrag.startX, inventoryDrag.startY);
+      }
+
+      function onInventoryDragMove(event) {
+        if (!inventoryDrag.active) return;
+        if (inventoryDrag.pointerId !== null && event.pointerId !== undefined && event.pointerId !== inventoryDrag.pointerId) return;
+        const x = Number(event.clientX);
+        const y = Number(event.clientY);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        inventoryDrag.lastX = x;
+        inventoryDrag.lastY = y;
+        const dx = x - inventoryDrag.startX;
+        const dy = y - inventoryDrag.startY;
+        if (!inventoryDrag.moved && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+          inventoryDrag.moved = true;
+          if (inventoryDrag.ghostEl) inventoryDrag.ghostEl.classList.remove("hidden");
+        }
+        if (inventoryDrag.moved) {
+          setInventoryDragGhostPosition(x, y);
+        }
+      }
+
+      function onInventoryDragWheel(event) {
+        if (!inventoryDrag.active || !inventoryDrag.entry) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (inventoryDrag.maxAmount <= 1) return;
+        const step = event.shiftKey ? 10 : 1;
+        if (event.deltaY < 0) {
+          inventoryDrag.amount = Math.min(inventoryDrag.maxAmount, inventoryDrag.amount + step);
+        } else if (event.deltaY > 0) {
+          inventoryDrag.amount = Math.max(1, inventoryDrag.amount - step);
+        }
+        updateInventoryDragGhost();
+      }
+
+      function onInventoryDragEnd(event) {
+        if (!inventoryDrag.active) return;
+        if (inventoryDrag.pointerId !== null && event.pointerId !== undefined && event.pointerId !== inventoryDrag.pointerId) return;
+        const wasDrag = inventoryDrag.moved;
+        const endX = Number(event.clientX);
+        const endY = Number(event.clientY);
+        if (wasDrag && Number.isFinite(endX) && Number.isFinite(endY) && isPointInsideCanvas(endX, endY) && inWorld) {
+          const pos = worldFromClient(endX, endY);
+          if (pos.tx >= 0 && pos.ty >= 0 && pos.tx < WORLD_W && pos.ty < WORLD_H && world[pos.ty][pos.tx] === DISPLAY_BLOCK_ID) {
+            if (tryPlaceItemIntoDisplay(pos.tx, pos.ty, inventoryDrag.entry)) {
+              suppressInventoryClickUntilMs = performance.now() + 180;
+              stopInventoryDrag();
+              return;
+            }
+          }
+          const dropX = Math.max(0, Math.min(pos.tx * TILE, WORLD_W * TILE - TILE));
+          const dropY = Math.max(0, Math.min(pos.ty * TILE, WORLD_H * TILE - TILE));
+          if (dropInventoryEntry(inventoryDrag.entry, inventoryDrag.amount, dropX, dropY)) {
+            suppressInventoryClickUntilMs = performance.now() + 180;
+          }
+        }
+        stopInventoryDrag();
+      }
+
       function createInventorySlot(opts) {
         const slot = document.createElement("button");
         slot.type = "button";
@@ -6983,8 +7635,20 @@
           badge.textContent = opts.badgeText;
           slot.appendChild(badge);
         }
+        if (typeof opts.getDragEntry === "function") {
+          slot.addEventListener("pointerdown", (event) => {
+            if (typeof event.button === "number" && event.button !== 0) return;
+            startInventoryDrag(opts.getDragEntry(), event);
+          });
+        }
         if (typeof opts.onClick === "function") {
-          slot.addEventListener("click", opts.onClick);
+          slot.addEventListener("click", (event) => {
+            if (performance.now() < suppressInventoryClickUntilMs) {
+              event.preventDefault();
+              return;
+            }
+            opts.onClick(event);
+          });
         }
         return slot;
       }
@@ -7013,6 +7677,7 @@
             iconLabel: isFist ? "F" : (isWrench ? "W" : ((blockDef && blockDef.icon) || title.slice(0, 2).toUpperCase())),
             name: title,
             countText: isTool ? "" : "x" + (inventory[id] || 0),
+            getDragEntry: isTool ? null : () => ({ type: "block", blockId: id, label: title, defaultAmount: 1 }),
             onClick: () => {
               if (!isTool) {
                 const ctrl = getVendingController();
@@ -7057,6 +7722,12 @@
               name: item.name,
               countText: "x" + item.count,
               badgeText: equipped ? "E" : "",
+              getDragEntry: () => ({
+                type: "cosmetic",
+                cosmeticId: item.id,
+                label: item.name,
+                defaultAmount: 1
+              }),
               onClick: () => {
                 const ctrl = getVendingController();
                 if (ctrl && typeof ctrl.handleInventoryPick === "function") {
@@ -7179,6 +7850,17 @@
         }
       }
 
+      function persistDesktopPanelLayout() {
+        try {
+          localStorage.setItem(LAYOUT_PREFS_KEY, JSON.stringify({
+            left: desktopLeftPanelWidth,
+            right: desktopRightPanelWidth
+          }));
+        } catch (error) {
+          // ignore localStorage failures
+        }
+      }
+
       function loadDesktopPanelLayout() {
         let savedLeft = DESKTOP_PANEL_LEFT_DEFAULT;
         let savedRight = DESKTOP_PANEL_RIGHT_DEFAULT;
@@ -7220,6 +7902,7 @@
         if (!layoutResizeSide) return;
         layoutResizeSide = "";
         document.body.classList.remove("layout-resizing");
+        persistDesktopPanelLayout();
       }
 
       function initDesktopLayoutResize() {
@@ -7259,9 +7942,7 @@
         ctx.textBaseline = "alphabetic";
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
         setLayoutResizeHandlesVisible();
-        if (!isCoarsePointer) {
-          applyDesktopPanelLayout(desktopLeftPanelWidth, desktopRightPanelWidth, false);
-        }
+        applyDesktopPanelLayout(desktopLeftPanelWidth, desktopRightPanelWidth, false);
         applyToolbarPosition();
       }
 
@@ -7435,6 +8116,11 @@
         applyMobileEditAction(touch.clientX, touch.clientY);
       }, { passive: false });
 
+      window.addEventListener("pointermove", onInventoryDragMove, { passive: true });
+      window.addEventListener("pointerup", onInventoryDragEnd);
+      window.addEventListener("pointercancel", onInventoryDragEnd);
+      window.addEventListener("wheel", onInventoryDragWheel, { passive: false, capture: true });
+
       canvas.addEventListener("contextmenu", (e) => e.preventDefault());
       mobileControlsEl.addEventListener("touchstart", (e) => e.preventDefault(), { passive: false });
       mobileControlsEl.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
@@ -7453,6 +8139,7 @@
           if (inWorld) {
             updatePlayer();
             updateCamera();
+            tickTileDamageDecay();
             updateWorldDrops();
             syncPlayer(false);
           }

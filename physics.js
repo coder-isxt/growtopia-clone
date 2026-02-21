@@ -93,6 +93,9 @@ window.GTModules.physics = {
         if (!stairIds.includes(id)) continue;
         const surfaceY = this.getStairSurfaceY(id, tx, ty, fx, tileSize);
         if (bottomY < surfaceY - 6 || bottomY > surfaceY + 8) continue;
+        const testY = surfaceY - playerH;
+        // Never snap onto stair if resulting player box would intersect solids.
+        if (this.rectCollides(world, blockDefs, player.x, testY, playerW, playerH, tileSize, worldW, worldH)) continue;
         // Pick the highest surface (smallest y) to avoid embedding in stairs.
         targetBottom = Math.min(targetBottom, surfaceY);
         found = true;
