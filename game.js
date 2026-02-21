@@ -2063,6 +2063,42 @@
         network.blocksRef.update(updates).catch(() => {});
       }
 
+      function findSafeDoorSpawnPosition() {
+        const tiles = getSpawnStructureTiles();
+        const doorTx = tiles.door.tx;
+        const doorTy = tiles.door.ty;
+        const baseX = doorTx * TILE + Math.floor((TILE - PLAYER_W) / 2);
+        const baseY = doorTy * TILE + (TILE - PLAYER_H);
+        const dxOffsets = [0, -1, 1, -2, 2, -3, 3];
+        for (let dy = 0; dy <= 8; dy++) {
+          for (let i = 0; i < dxOffsets.length; i++) {
+            const tx = doorTx + dxOffsets[i];
+            const ty = doorTy - dy;
+            if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) continue;
+            const x = tx * TILE + Math.floor((TILE - PLAYER_W) / 2);
+            const y = ty * TILE + (TILE - PLAYER_H);
+            if (!rectCollides(x, y, PLAYER_W, PLAYER_H)) {
+              return { x, y };
+            }
+          }
+        }
+        return { x: baseX, y: baseY };
+      }
+
+      function ensurePlayerSafeSpawn(forceToDoor) {
+        if (!inWorld && !forceToDoor) return;
+        const force = Boolean(forceToDoor);
+        if (!force && !rectCollides(player.x, player.y, PLAYER_W, PLAYER_H)) {
+          return;
+        }
+        const safe = findSafeDoorSpawnPosition();
+        player.x = clampTeleport(safe.x, 0, WORLD_W * TILE - PLAYER_W - 2);
+        player.y = clampTeleport(safe.y, 0, WORLD_H * TILE - PLAYER_H - 2);
+        player.vx = 0;
+        player.vy = 0;
+        player.grounded = false;
+      }
+
       function resetForWorldChange() {
         remotePlayers.clear();
         const ctrl = getVendingController();
@@ -2078,6 +2114,7 @@
         player.y = TILE * SPAWN_TILE_Y;
         player.vx = 0;
         player.vy = 0;
+        ensurePlayerSafeSpawn(true);
         if (playerSyncController && typeof playerSyncController.reset === "function") {
           playerSyncController.reset();
         }
@@ -2808,6 +2845,9 @@
       }
 
       function updatePlayer() {
+        if (rectCollides(player.x, player.y, PLAYER_W, PLAYER_H)) {
+          ensurePlayerSafeSpawn(true);
+        }
         const nowMs = performance.now();
         const moveLeft = keys["KeyA"] || keys["ArrowLeft"] || touchControls.left;
         const moveRight = keys["KeyD"] || keys["ArrowRight"] || touchControls.right;
@@ -4002,6 +4042,15 @@
           pendingTeleportSelf = null;
           syncPlayer(true);
         }
+        ensurePlayerSafeSpawn(false);
+        setTimeout(() => {
+          if (!inWorld || currentWorldId !== worldId) return;
+          ensurePlayerSafeSpawn(false);
+        }, 350);
+        setTimeout(() => {
+          if (!inWorld || currentWorldId !== worldId) return;
+          ensurePlayerSafeSpawn(false);
+        }, 1200);
       }
 
       function syncBlock(tx, ty, id) {
