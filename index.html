@@ -29,7 +29,6 @@
         <span id="onlineCount">1 world online</span> |
         <span id="totalOnlineCount">1 total online</span> |
         <button id="chatToggleBtn" type="button" class="hidden">Chat</button>
-        <button id="logsToggleBtn" type="button" class="hidden">Logs</button>
         <button id="adminToggleBtn" type="button" class="hidden">Admin</button>
         <button id="exitWorldBtn" type="button" class="hidden">Exit World</button>
         <button id="logoutBtn" type="button">Logout</button>
@@ -47,13 +46,6 @@
     </div>
     <div id="canvasWrap" class="canvas-wrap hidden">
       <canvas id="game" width="960" height="480" aria-label="Growtopia test game canvas"></canvas>
-      <div id="logsPanel" class="logs-panel hidden">
-        <div class="logs-header">
-          <strong>Logs</strong>
-          <button id="clearLogsBtn" type="button">Clear</button>
-        </div>
-        <div id="logsMessages" class="logs-messages"></div>
-      </div>
     </div>
     <div id="chatPanel" class="chat-panel hidden">
       <div id="chatMessages" class="chat-messages"></div>
@@ -92,6 +84,15 @@
       </div>
       <div id="adminAccounts" class="admin-accounts"></div>
     </div>
+    <div id="adminInventoryModal" class="admin-inventory-modal hidden">
+      <div class="admin-inventory-card">
+        <div class="admin-inventory-header">
+          <strong id="adminInventoryTitle">Inventory</strong>
+          <button id="adminInventoryCloseBtn" type="button">Close</button>
+        </div>
+        <div id="adminInventoryBody" class="admin-inventory-body"></div>
+      </div>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
@@ -102,6 +103,8 @@
   <script src="blocks.js"></script>
   <script src="items.js"></script>
   <script src="player.js"></script>
+  <script src="sync_player.js"></script>
+  <script src="sync_worlds.js"></script>
   <script src="chat.js"></script>
   <script src="menu.js"></script>
   <script src="game.js"></script>

@@ -23,7 +23,6 @@
       const worldInputEl = document.getElementById("worldInput");
       const enterWorldBtn = document.getElementById("enterWorldBtn");
       const chatToggleBtn = document.getElementById("chatToggleBtn");
-      const logsToggleBtn = document.getElementById("logsToggleBtn");
       const adminToggleBtn = document.getElementById("adminToggleBtn");
       const adminPanelEl = document.getElementById("adminPanel");
       const adminSearchInput = document.getElementById("adminSearchInput");
@@ -33,14 +32,16 @@
       const adminAuditExportBtn = document.getElementById("adminAuditExportBtn");
       const adminCloseBtn = document.getElementById("adminCloseBtn");
       const adminAccountsEl = document.getElementById("adminAccounts");
+      const adminInventoryModalEl = document.getElementById("adminInventoryModal");
+      const adminInventoryTitleEl = document.getElementById("adminInventoryTitle");
+      const adminInventoryBodyEl = document.getElementById("adminInventoryBody");
+      const adminInventoryCloseBtn = document.getElementById("adminInventoryCloseBtn");
       const chatPanelEl = document.getElementById("chatPanel");
       const chatMessagesEl = document.getElementById("chatMessages");
       const chatInputRowEl = document.getElementById("chatInputRow");
       const chatInputEl = document.getElementById("chatInput");
       const chatSendBtn = document.getElementById("chatSendBtn");
-      const logsPanelEl = document.getElementById("logsPanel");
       const logsMessagesEl = document.getElementById("logsMessages");
-      const clearLogsBtn = document.getElementById("clearLogsBtn");
       const exitWorldBtn = document.getElementById("exitWorldBtn");
       const logoutBtn = document.getElementById("logoutBtn");
 
@@ -49,6 +50,8 @@
       const blocksModule = modules.blocks || {};
       const itemsModule = modules.items || {};
       const playerModule = modules.player || {};
+      const syncPlayerModule = modules.syncPlayer || {};
+      const syncWorldsModule = modules.syncWorlds || {};
       const chatModule = modules.chat || {};
       const menuModule = modules.menu || {};
 
@@ -69,6 +72,8 @@
         ? SETTINGS.ADMIN_ROLE_BY_USERNAME
         : {};
       const JUMP_COOLDOWN_MS = Number(SETTINGS.JUMP_COOLDOWN_MS) || 200;
+      const PLAYER_SYNC_MIN_MS = Math.max(25, Number(SETTINGS.PLAYER_SYNC_MIN_MS) || 90);
+      const GLOBAL_SYNC_MIN_MS = Math.max(PLAYER_SYNC_MIN_MS, Number(SETTINGS.GLOBAL_SYNC_MIN_MS) || 240);
       const MOVE_ACCEL = Number(SETTINGS.MOVE_ACCEL) || 0.46;
       const JUMP_VELOCITY = Number(SETTINGS.JUMP_VELOCITY) || -7.2;
       const MAX_MOVE_SPEED = Number(SETTINGS.MAX_MOVE_SPEED) || 3.7;
@@ -106,8 +111,14 @@
         3: { name: "Stone", color: "#818a93", solid: true },
         4: { name: "Wood", color: "#a87038", solid: true },
         5: { name: "Sand", color: "#dfc883", solid: true },
-        6: { name: "Brick", color: "#bb5644", solid: true }
+        6: { name: "Brick", color: "#bb5644", solid: true },
+        7: { name: "Door", color: "#57c2ff", solid: false },
+        8: { name: "Bedrock", color: "#4e5a68", solid: true, unbreakable: true }
       };
+      const SPAWN_TILE_X = 8;
+      const SPAWN_TILE_Y = 11;
+      const SPAWN_DOOR_ID = 7;
+      const SPAWN_BASE_ID = 8;
 
       const slotOrder = ["fist", 1, 2, 3, 4, 5, 6];
       const INVENTORY_IDS = [1, 2, 3, 4, 5, 6];
@@ -193,10 +204,12 @@
       let cameraX = 0;
       let cameraY = 0;
       let mouseWorld = { tx: 0, ty: 0 };
-      let networkLastSyncAt = 0;
-      let networkLastX = -1;
-      let networkLastY = -1;
-      let networkLastFacing = 0;
+      const playerSyncController = typeof syncPlayerModule.createController === "function"
+        ? syncPlayerModule.createController({
+          playerMinIntervalMs: PLAYER_SYNC_MIN_MS,
+          globalMinIntervalMs: GLOBAL_SYNC_MIN_MS
+        })
+        : null;
       let lastJumpAtMs = -9999;
       let lastAirJumpAtMs = -9999;
       let airJumpsUsed = 0;
@@ -362,8 +375,6 @@
         currentAdminRole = normalizeAdminRole(getAccountRole(playerProfileId, playerName));
         canUseAdminPanel = hasAdminPermission("panel_open");
         canViewAccountLogs = canUserViewLogs(playerName);
-        clearLogsBtn.disabled = !hasAdminPermission("clear_logs");
-        logsToggleBtn.classList.toggle("hidden", !canViewAccountLogs);
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
         if (adminAuditActionFilterEl) adminAuditActionFilterEl.disabled = !hasAdminPermission("view_audit");
         if (adminAuditActorFilterEl) adminAuditActorFilterEl.disabled = !hasAdminPermission("view_audit");
@@ -377,7 +388,6 @@
             clearLogsView();
           }
         }
-        if (!canViewAccountLogs) setLogsOpen(false);
         if (!canUseAdminPanel) setAdminOpen(false);
         if (network.enabled) {
           syncAdminDataListeners();
@@ -509,10 +519,14 @@
         if (!canUseAdminPanel) {
           isAdminOpen = false;
           adminPanelEl.classList.add("hidden");
+          closeAdminInventoryModal();
           return;
         }
         isAdminOpen = Boolean(open);
         adminPanelEl.classList.toggle("hidden", !isAdminOpen);
+        if (!isAdminOpen) {
+          closeAdminInventoryModal();
+        }
       }
 
       function escapeHtml(value) {
@@ -531,6 +545,75 @@
           total += Math.max(0, Number(inv[id]) || 0);
         }
         return total;
+      }
+
+      function getAuditLevel(action) {
+        const key = String(action || "").toLowerCase();
+        if (!key) return "info";
+        if (key === "permban" || key === "tempban") return "critical";
+        if (key === "kick" || key === "resetinv" || key === "clear_logs" || key === "clearaudit") return "warn";
+        if (key === "unban") return "success";
+        if (key === "setrole" || key === "givex" || key === "giveitem" || key === "tp" || key === "summon" || key === "bring") return "accent";
+        return "info";
+      }
+
+      function getLogLevel(text) {
+        const t = String(text || "").toLowerCase();
+        if (!t) return "info";
+        if (t.includes("error") || t.includes("failed") || t.includes("denied")) return "critical";
+        if (t.includes("banned") || t.includes("kicked") || t.includes("expired")) return "warn";
+        if (t.includes("created") || t.includes("joined") || t.includes("logged in") || t.includes("authenticated")) return "success";
+        if (t.includes("session") || t.includes("world")) return "accent";
+        return "info";
+      }
+
+      function scrollElementToBottom(el) {
+        if (!(el instanceof HTMLElement)) return;
+        el.scrollTop = el.scrollHeight;
+        requestAnimationFrame(() => {
+          el.scrollTop = el.scrollHeight;
+        });
+      }
+
+      function closeAdminInventoryModal() {
+        if (adminInventoryModalEl) {
+          adminInventoryModalEl.classList.add("hidden");
+        }
+      }
+
+      function openAdminInventoryModal(accountId) {
+        if (!canUseAdminPanel || !adminInventoryModalEl || !adminInventoryTitleEl || !adminInventoryBodyEl) return;
+        const account = adminState.accounts[accountId] || {};
+        const username = (account.username || accountId || "unknown").toString();
+        const inv = adminState.inventories[accountId] || {};
+        const rows = [];
+        for (const id of INVENTORY_IDS) {
+          const qty = Math.max(0, Math.floor(Number(inv[id]) || 0));
+          if (qty <= 0) continue;
+          const def = blockDefs[id] || {};
+          rows.push({
+            label: def.name ? def.name + " (Block " + id + ")" : "Block " + id,
+            qty
+          });
+        }
+        const itemRecord = inv && inv.cosmeticItems || {};
+        for (const item of COSMETIC_ITEMS) {
+          const qty = Math.max(0, Math.floor(Number(itemRecord[item.id]) || 0));
+          if (qty <= 0) continue;
+          rows.push({
+            label: (item.name || item.id) + " (" + item.slot + ")",
+            qty
+          });
+        }
+        adminInventoryTitleEl.textContent = "@" + username + " Inventory";
+        if (!rows.length) {
+          adminInventoryBodyEl.innerHTML = "<div class='admin-inventory-row'><span class='admin-inventory-item'>No items.</span><span class='admin-inventory-qty'>0</span></div>";
+        } else {
+          adminInventoryBodyEl.innerHTML = rows.map((row) => {
+            return "<div class='admin-inventory-row'><span class='admin-inventory-item'>" + escapeHtml(row.label) + "</span><span class='admin-inventory-qty'>" + row.qty + "</span></div>";
+          }).join("");
+        }
+        adminInventoryModalEl.classList.remove("hidden");
       }
 
       function renderAdminPanel() {
@@ -595,6 +678,7 @@
               </div>
               <div class="admin-actions">
                 <div class="admin-quick-actions">
+                  <button data-admin-act="viewinv" data-account-id="${escapeHtml(accountId)}">View Inv</button>
                   <button data-admin-act="kick" data-account-id="${escapeHtml(accountId)}" ${canKick ? "" : "disabled"}>Kick</button>
                   <button data-admin-act="resetinv" data-account-id="${escapeHtml(accountId)}" ${canReset ? "" : "disabled"}>Reset Inv</button>
                   <button data-admin-act="unban" data-account-id="${escapeHtml(accountId)}" ${canUnban ? "" : "disabled"}>Unban</button>
@@ -641,13 +725,30 @@
           if (normalizedTargetFilter && !target.includes(normalizedTargetFilter)) return false;
           return true;
         });
-        const auditRows = filteredAudit.slice(-60).map((entry) => {
-          return `<div class="admin-audit-row">${escapeHtml(entry.time || "--:--")} | ${escapeHtml(entry.actor || "system")} | ${escapeHtml(entry.action || "-")} ${escapeHtml(entry.target || "")} ${escapeHtml(entry.details || "")}</div>`;
+        const auditRows = filteredAudit.slice(-120).map((entry) => {
+          const level = getAuditLevel(entry.action || "");
+          return `<div class="admin-audit-row level-${escapeHtml(level)}">${escapeHtml(entry.time || "--:--")} | ${escapeHtml(entry.actor || "system")} | ${escapeHtml(entry.action || "-")} ${escapeHtml(entry.target || "")} ${escapeHtml(entry.details || "")}</div>`;
+        }).join("");
+        const logRows = logsMessages.slice(-200).map((entry) => {
+          const level = getLogLevel(entry.text || "");
+          return `<div class="admin-audit-row level-${escapeHtml(level)}">${escapeHtml(formatChatTimestamp(entry.createdAt || 0))} | ${escapeHtml(entry.text || "")}</div>`;
         }).join("");
         const auditMarkup = hasAdminPermission("view_audit")
-          ? `<div class="admin-audit">
-            <div class="admin-audit-title">Audit Trail</div>
+          ? `<div class="admin-audit admin-card">
+            <div class="admin-card-header">
+              <div class="admin-audit-title">Audit Trail</div>
+              <button data-admin-act="clearaudit" ${hasAdminPermission("clear_logs") ? "" : "disabled"}>Clear</button>
+            </div>
             <div class="admin-audit-list">${auditRows || "<div class='admin-audit-row'>No entries yet.</div>"}</div>
+          </div>`
+          : "";
+        const logsMarkup = canViewAccountLogs
+          ? `<div class="admin-audit admin-card">
+            <div class="admin-card-header">
+              <div class="admin-audit-title">Account Logs</div>
+              <button data-admin-act="clearlogs" ${hasAdminPermission("clear_logs") ? "" : "disabled"}>Clear</button>
+            </div>
+            <div class="admin-logs-list">${logRows || "<div class='admin-audit-row'>No logs yet.</div>"}</div>
           </div>`
           : "";
         adminAccountsEl.innerHTML = `
@@ -658,9 +759,16 @@
                 ${rows.join("") || "<div class='admin-row'><div class='admin-meta'><strong>No players match filter.</strong></div></div>"}
               </div>
             </div>
-            ${auditMarkup}
+            <div class="admin-sidepanels">
+              ${auditMarkup}
+              ${logsMarkup}
+            </div>
           </div>
         `;
+        const auditListEl = adminAccountsEl.querySelector(".admin-audit-list");
+        scrollElementToBottom(auditListEl);
+        const logsListEl = adminAccountsEl.querySelector(".admin-logs-list");
+        scrollElementToBottom(logsListEl);
       }
 
       function handleAdminAction(event) {
@@ -668,7 +776,28 @@
         if (!(target instanceof HTMLElement)) return;
         const action = target.dataset.adminAct;
         const accountId = target.dataset.accountId;
-        if (!action || !accountId || !canUseAdminPanel || !network.db) return;
+        if (!action || !canUseAdminPanel) return;
+        if (action === "clearaudit") {
+          if (!network.db || !hasAdminPermission("clear_logs")) return;
+          network.db.ref(BASE_PATH + "/admin-audit").remove().then(() => {
+            adminState.audit = [];
+            renderAdminPanel();
+            postLocalSystemChat("Audit trail cleared.");
+          }).catch(() => {
+            postLocalSystemChat("Failed to clear audit trail.");
+          });
+          return;
+        }
+        if (action === "clearlogs") {
+          clearLogsData();
+          return;
+        }
+        if (!accountId) return;
+        if (action === "viewinv") {
+          openAdminInventoryModal(accountId);
+          return;
+        }
+        if (!network.db) return;
         if (action === "giveitem") {
           const itemSelect = adminAccountsEl.querySelector('.admin-give-item-id[data-account-id="' + accountId + '"]');
           const amountInput = adminAccountsEl.querySelector('.admin-give-item-amount[data-account-id="' + accountId + '"]');
@@ -1629,7 +1758,42 @@
           }
         }
 
+        applySpawnStructureToGrid(w);
+
         return w;
+      }
+
+      function getSpawnStructureTiles() {
+        return {
+          door: { tx: SPAWN_TILE_X, ty: SPAWN_TILE_Y, id: SPAWN_DOOR_ID },
+          base: { tx: SPAWN_TILE_X, ty: SPAWN_TILE_Y + 1, id: SPAWN_BASE_ID }
+        };
+      }
+
+      function applySpawnStructureToGrid(grid) {
+        if (!Array.isArray(grid) || !grid.length) return;
+        const tiles = getSpawnStructureTiles();
+        const door = tiles.door;
+        const base = tiles.base;
+        if (door.ty >= 0 && door.ty < WORLD_H && door.tx >= 0 && door.tx < WORLD_W) {
+          grid[door.ty][door.tx] = door.id;
+        }
+        if (base.ty >= 0 && base.ty < WORLD_H && base.tx >= 0 && base.tx < WORLD_W) {
+          grid[base.ty][base.tx] = base.id;
+        }
+      }
+
+      function enforceSpawnStructureInWorldData() {
+        applySpawnStructureToGrid(world);
+      }
+
+      function enforceSpawnStructureInDatabase() {
+        if (!network.enabled || !network.blocksRef || !network.db) return;
+        const tiles = getSpawnStructureTiles();
+        const updates = {};
+        updates[tiles.door.tx + "_" + tiles.door.ty] = tiles.door.id;
+        updates[tiles.base.tx + "_" + tiles.base.ty] = tiles.base.id;
+        network.blocksRef.update(updates).catch(() => {});
       }
 
       function getTopSolidY(grid, x) {
@@ -1643,13 +1807,13 @@
         remotePlayers.clear();
         updateOnlineCount();
         world = makeWorld(currentWorldId);
-        player.x = TILE * 8;
-        player.y = TILE * 11;
+        player.x = TILE * SPAWN_TILE_X;
+        player.y = TILE * SPAWN_TILE_Y;
         player.vx = 0;
         player.vy = 0;
-        networkLastX = -1;
-        networkLastY = -1;
-        networkLastFacing = 0;
+        if (playerSyncController && typeof playerSyncController.reset === "function") {
+          playerSyncController.reset();
+        }
         airJumpsUsed = 0;
       }
 
@@ -1659,16 +1823,12 @@
         toolbar.classList.toggle("hidden", !inWorld);
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
         chatToggleBtn.classList.toggle("hidden", !inWorld);
-        logsToggleBtn.classList.toggle("hidden", !canViewAccountLogs);
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
         exitWorldBtn.classList.toggle("hidden", !inWorld);
         if (inWorld) {
           setChatOpen(false);
         } else {
           setChatOpen(false);
-        }
-        if (!canViewAccountLogs) {
-          setLogsOpen(false);
         }
         if (!canUseAdminPanel) {
           setAdminOpen(false);
@@ -1714,9 +1874,6 @@
         if (chatInputRowEl) {
           chatInputRowEl.classList.toggle("hidden", !isChatOpen);
         }
-        if (isChatOpen && isLogsOpen) {
-          setLogsOpen(false);
-        }
         if (isChatOpen) {
           keys["KeyA"] = false;
           keys["KeyD"] = false;
@@ -1735,6 +1892,7 @@
       }
 
       function renderLogsMessages() {
+        if (!logsMessagesEl) return;
         logsMessagesEl.innerHTML = "";
         for (const message of logsMessages) {
           const row = document.createElement("div");
@@ -1747,22 +1905,11 @@
       }
 
       function setLogsOpen(open) {
-        if (!canViewAccountLogs) {
-          isLogsOpen = false;
-          logsPanelEl.classList.add("hidden");
-          refreshCanvasWrapVisibility();
-          return;
-        }
-        isLogsOpen = Boolean(open);
-        logsPanelEl.classList.toggle("hidden", !isLogsOpen);
-        if (isLogsOpen && isChatOpen) {
-          setChatOpen(false);
-        }
-        refreshCanvasWrapVisibility();
+        isLogsOpen = Boolean(open) && false;
       }
 
       function refreshCanvasWrapVisibility() {
-        const showWrap = inWorld || isLogsOpen;
+        const showWrap = inWorld;
         canvasWrapEl.classList.toggle("hidden", !showWrap);
         canvas.classList.toggle("hidden", !inWorld);
       }
@@ -2062,7 +2209,13 @@
       function isSolidTile(tx, ty) {
         if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return true;
         const id = world[ty][tx];
-        return blockDefs[id].solid;
+        const def = blockDefs[id];
+        return Boolean(def && def.solid);
+      }
+
+      function isUnbreakableTileId(id) {
+        const def = blockDefs[id];
+        return Boolean(def && def.unbreakable);
       }
 
       function rectCollides(x, y, w, h) {
@@ -2418,7 +2571,6 @@
         drawPlayer();
         drawAllOverheadChats();
         drawCrosshair();
-        drawInfo();
       }
 
       function canEditTarget(tx, ty) {
@@ -2458,9 +2610,12 @@
         if (!canEditTarget(tx, ty)) return;
         const id = world[ty][tx];
         if (id === 0) return;
+        if (isUnbreakableTileId(id)) return;
 
         world[ty][tx] = 0;
-        inventory[id] = (inventory[id] || 0) + 1;
+        if (INVENTORY_IDS.includes(id)) {
+          inventory[id] = (inventory[id] || 0) + 1;
+        }
         syncBlock(tx, ty, 0);
         saveInventory();
         refreshToolbar();
@@ -2650,15 +2805,17 @@
         writeWorldIndexMeta(worldId, createIfMissing);
         worldChatStartedAt = Date.now();
 
-        const worldPath = BASE_PATH + "/worlds/" + worldId;
-        network.playersRef = network.db.ref(worldPath + "/players");
-        network.blocksRef = network.db.ref(worldPath + "/blocks");
-        network.chatRef = network.db.ref(worldPath + "/chat");
-        if (worldChatStartedAt > 0) {
-          network.chatFeedRef = network.chatRef.orderByChild("createdAt").startAt(worldChatStartedAt).limitToLast(100);
-        } else {
-          network.chatFeedRef = network.chatRef.limitToLast(100);
-        }
+        const worldRefs = typeof syncWorldsModule.createWorldRefs === "function"
+          ? syncWorldsModule.createWorldRefs(network.db, BASE_PATH, worldId)
+          : null;
+        network.playersRef = worldRefs && worldRefs.playersRef ? worldRefs.playersRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/players");
+        network.blocksRef = worldRefs && worldRefs.blocksRef ? worldRefs.blocksRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/blocks");
+        network.chatRef = worldRefs && worldRefs.chatRef ? worldRefs.chatRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/chat");
+        network.chatFeedRef = typeof syncWorldsModule.createChatFeed === "function"
+          ? syncWorldsModule.createChatFeed(network.chatRef, worldChatStartedAt, 100)
+          : (worldChatStartedAt > 0
+            ? network.chatRef.orderByChild("createdAt").startAt(worldChatStartedAt).limitToLast(100)
+            : network.chatRef.limitToLast(100));
         network.playerRef = network.playersRef.child(playerId);
 
         network.handlers.players = (snapshot) => {
@@ -2715,6 +2872,8 @@
         network.blocksRef.on("child_changed", network.handlers.blockChanged);
         network.blocksRef.on("child_removed", network.handlers.blockRemoved);
         network.chatFeedRef.on("child_added", network.handlers.chatAdded);
+        enforceSpawnStructureInWorldData();
+        enforceSpawnStructureInDatabase();
         addClientLog("Joined world: " + worldId + ".");
         sendSystemWorldMessage(playerName + " joined the world.");
         network.playersRef.once("value").then((snapshot) => {
@@ -2764,23 +2923,11 @@
         if (!network.enabled || !network.playerRef) return;
 
         const now = performance.now();
-        const rx = Math.round(player.x);
-        const ry = Math.round(player.y);
-        const moved = rx !== networkLastX || ry !== networkLastY || networkLastFacing !== player.facing;
-
-        if (!force && !moved) return;
-        if (!force && now - networkLastSyncAt < 90) return;
-
-        networkLastSyncAt = now;
-        networkLastX = rx;
-        networkLastY = ry;
-        networkLastFacing = player.facing;
-
-        const payload = {
+        const rawPayload = {
           name: playerName,
           accountId: playerProfileId,
-          x: rx,
-          y: ry,
+          x: Math.round(player.x),
+          y: Math.round(player.y),
           facing: player.facing,
           cosmetics: {
             clothes: equippedCosmetics.clothes || "",
@@ -2790,12 +2937,32 @@
           world: currentWorldId,
           updatedAt: firebase.database.ServerValue.TIMESTAMP
         };
+        const payload = typeof syncPlayerModule.buildPayload === "function"
+          ? syncPlayerModule.buildPayload(rawPayload)
+          : rawPayload;
 
-        network.playerRef.update(payload).catch(() => {
-          setNetworkState("Network error", true);
-        });
+        let writePlayer = true;
+        let writeGlobal = Boolean(network.globalPlayerRef);
+        if (playerSyncController && typeof playerSyncController.compute === "function") {
+          const syncDecision = playerSyncController.compute({
+            nowMs: now,
+            force,
+            x: payload.x,
+            y: payload.y,
+            facing: payload.facing,
+            world: payload.world
+          });
+          writePlayer = Boolean(syncDecision.writePlayer);
+          writeGlobal = Boolean(syncDecision.writeGlobal) && Boolean(network.globalPlayerRef);
+        }
+        if (!writePlayer && !writeGlobal) return;
 
-        if (!network.globalPlayerRef) return;
+        if (writePlayer) {
+          network.playerRef.update(payload).catch(() => {
+            setNetworkState("Network error", true);
+          });
+        }
+        if (!writeGlobal || !network.globalPlayerRef) return;
         network.globalPlayerRef.update(payload).catch(() => {
           setNetworkState("Network error", true);
         });
@@ -2813,15 +2980,24 @@
           if (!inWorld) return;
           setChatOpen(true);
         });
-        logsToggleBtn.addEventListener("click", () => {
-          setLogsOpen(!isLogsOpen);
-        });
         adminToggleBtn.addEventListener("click", () => {
           setAdminOpen(!isAdminOpen);
         });
         adminCloseBtn.addEventListener("click", () => {
           setAdminOpen(false);
         });
+        if (adminInventoryCloseBtn) {
+          adminInventoryCloseBtn.addEventListener("click", () => {
+            closeAdminInventoryModal();
+          });
+        }
+        if (adminInventoryModalEl) {
+          adminInventoryModalEl.addEventListener("click", (event) => {
+            if (event.target === adminInventoryModalEl) {
+              closeAdminInventoryModal();
+            }
+          });
+        }
         if (adminSearchInput) {
           adminSearchInput.addEventListener("input", () => {
             adminSearchQuery = (adminSearchInput.value || "").trim().toLowerCase();
@@ -2853,9 +3029,6 @@
         }
         adminAccountsEl.addEventListener("click", handleAdminAction);
         adminAccountsEl.addEventListener("change", handleAdminInputChange);
-        clearLogsBtn.addEventListener("click", () => {
-          clearLogsData();
-        });
         chatSendBtn.addEventListener("click", () => {
           sendChatMessage();
         });
@@ -2975,14 +3148,23 @@
             adminState.globalPlayers = data;
             const count = Object.keys(data).length;
             totalOnlinePlayers = Math.max(inWorld ? 1 : 0, count);
+            const occupancy = typeof syncWorldsModule.computeWorldOccupancy === "function"
+              ? syncWorldsModule.computeWorldOccupancy(data, normalizeWorldId)
+              : null;
             worldOccupancy.clear();
-            Object.keys(data).forEach((id) => {
-              const playerData = data[id];
-              if (!playerData || !playerData.world) return;
-              const wid = normalizeWorldId(playerData.world);
-              if (!wid) return;
-              worldOccupancy.set(wid, (worldOccupancy.get(wid) || 0) + 1);
-            });
+            if (occupancy instanceof Map) {
+              occupancy.forEach((value, key) => {
+                worldOccupancy.set(key, value);
+              });
+            } else {
+              Object.keys(data).forEach((id) => {
+                const playerData = data[id];
+                if (!playerData || !playerData.world) return;
+                const wid = normalizeWorldId(playerData.world);
+                if (!wid) return;
+                worldOccupancy.set(wid, (worldOccupancy.get(wid) || 0) + 1);
+              });
+            }
             refreshWorldButtons();
             updateOnlineCount();
           };
@@ -2991,11 +3173,16 @@
             const byAccount = snapshot.val() || {};
             const flattened = [];
             Object.keys(byAccount).forEach((accountId) => {
+              if (playerProfileId && accountId === playerProfileId) return;
               const accountLogs = byAccount[accountId] || {};
               Object.keys(accountLogs).forEach((logId) => {
                 const value = accountLogs[logId] || {};
                 const sourceSessionId = (value.sessionId || "").toString();
+                const sourcePlayerId = (value.sourcePlayerId || "").toString();
+                const sourceAccountId = (value.accountId || "").toString();
                 if (sourceSessionId && sourceSessionId === playerSessionId) return;
+                if (sourcePlayerId && sourcePlayerId === playerId) return;
+                if (playerProfileId && sourceAccountId && sourceAccountId === playerProfileId) return;
                 const uname = (value.username || (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId).toString();
                 flattened.push({
                   text: "@" + uname + ": " + (value.text || "").toString().slice(0, 180),
@@ -3225,6 +3412,11 @@
       resizeCanvas();
 
       window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && adminInventoryModalEl && !adminInventoryModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeAdminInventoryModal();
+          return;
+        }
         if (e.key === "Escape" && isAdminOpen) {
           e.preventDefault();
           setAdminOpen(false);
