@@ -2837,6 +2837,13 @@
         refreshCanvasWrapVisibility();
         setCurrentWorldUI();
         updateOnlineCount();
+        // Recompute canvas/panel layout after visibility changes.
+        requestAnimationFrame(() => {
+          resizeCanvas();
+          requestAnimationFrame(() => {
+            resizeCanvas();
+          });
+        });
       }
 
       function formatChatTimestamp(timestamp) {
