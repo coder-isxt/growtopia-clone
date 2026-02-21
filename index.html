@@ -47,19 +47,19 @@
     </div>
     <div id="canvasWrap" class="canvas-wrap hidden">
       <canvas id="game" width="960" height="480" aria-label="Growtopia test game canvas"></canvas>
-      <div id="chatPanel" class="chat-panel hidden">
-        <div id="chatMessages" class="chat-messages"></div>
-        <div class="chat-input-row">
-          <input id="chatInput" type="text" maxlength="120" placeholder="Type message...">
-          <button id="chatSendBtn" type="button">Send</button>
-        </div>
-      </div>
       <div id="logsPanel" class="logs-panel hidden">
         <div class="logs-header">
           <strong>Logs</strong>
           <button id="clearLogsBtn" type="button">Clear</button>
         </div>
         <div id="logsMessages" class="logs-messages"></div>
+      </div>
+    </div>
+    <div id="chatPanel" class="chat-panel hidden">
+      <div id="chatMessages" class="chat-messages"></div>
+      <div id="chatInputRow" class="chat-input-row hidden">
+        <input id="chatInput" type="text" maxlength="120" placeholder="Type message...">
+        <button id="chatSendBtn" type="button">Send</button>
       </div>
     </div>
     <div class="toolbar hidden" id="toolbar"></div>

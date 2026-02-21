@@ -352,17 +352,18 @@ canvas {
 }
 
 .chat-panel {
-  position: absolute;
-  left: 14px;
-  top: 14px;
-  width: min(620px, calc(100% - 28px));
-  max-height: 44%;
+  position: fixed;
+  left: 12px;
+  top: 74px;
+  width: 320px;
+  height: calc(100vh - 164px);
   background: rgba(8, 28, 44, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 10px;
   display: grid;
   grid-template-rows: 1fr auto;
   overflow: hidden;
+  z-index: 28;
 }
 
 .chat-messages {
@@ -845,8 +846,8 @@ canvas {
     left: 6px;
     right: 6px;
     width: auto;
-    top: 6px;
-    max-height: 54%;
+    top: 64px;
+    height: 34vh;
   }
 
   .chat-messages {

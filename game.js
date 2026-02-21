@@ -35,6 +35,7 @@
       const adminAccountsEl = document.getElementById("adminAccounts");
       const chatPanelEl = document.getElementById("chatPanel");
       const chatMessagesEl = document.getElementById("chatMessages");
+      const chatInputRowEl = document.getElementById("chatInputRow");
       const chatInputEl = document.getElementById("chatInput");
       const chatSendBtn = document.getElementById("chatSendBtn");
       const logsPanelEl = document.getElementById("logsPanel");
@@ -141,6 +142,8 @@
       let playerProfileId = "";
       let playerSessionRef = null;
       let playerSessionId = "";
+      let playerSessionStartedAt = 0;
+      let worldChatStartedAt = 0;
       let gameBootstrapped = false;
       let pendingTeleportSelf = null;
       let lastHandledTeleportCommandId = "";
@@ -1299,6 +1302,7 @@
       async function reserveAccountSession(db, accountId, username) {
         const sessionRef = db.ref(BASE_PATH + "/account-sessions/" + accountId);
         const sessionId = "s_" + Math.random().toString(36).slice(2, 12);
+        const startedAtLocal = Date.now();
         const result = await sessionRef.transaction((current) => {
           if (current && current.sessionId) {
             return;
@@ -1316,6 +1320,9 @@
         await sessionRef.onDisconnect().remove();
         playerSessionRef = sessionRef;
         playerSessionId = sessionId;
+        playerSessionStartedAt = startedAtLocal;
+        chatMessages.length = 0;
+        renderChatMessages();
         addClientLog("Session created for @" + username + " (" + sessionId + ").", accountId, username, sessionId);
       }
 
@@ -1328,6 +1335,7 @@
         }
         playerSessionRef = null;
         playerSessionId = "";
+        playerSessionStartedAt = 0;
       }
 
       async function createAccountAndLogin() {
@@ -1635,14 +1643,15 @@
       function setInWorldState(nextValue) {
         inWorld = Boolean(nextValue);
         menuScreenEl.classList.toggle("hidden", inWorld);
-        canvasWrapEl.classList.toggle("hidden", !inWorld);
         toolbar.classList.toggle("hidden", !inWorld);
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
         chatToggleBtn.classList.toggle("hidden", !inWorld);
         logsToggleBtn.classList.toggle("hidden", !canViewAccountLogs);
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
         exitWorldBtn.classList.toggle("hidden", !inWorld);
-        if (!inWorld) {
+        if (inWorld) {
+          setChatOpen(false);
+        } else {
           setChatOpen(false);
           chatMessages.length = 0;
           renderChatMessages();
@@ -1653,6 +1662,7 @@
         if (!canUseAdminPanel) {
           setAdminOpen(false);
         }
+        refreshCanvasWrapVisibility();
         setCurrentWorldUI();
         updateOnlineCount();
       }
@@ -1678,7 +1688,9 @@
           row.className = "chat-row";
           const time = formatChatTimestamp(message.createdAt);
           const name = (message.name || "Guest").slice(0, 16);
-          row.textContent = (time ? "[" + time + "] " : "") + name + ": " + (message.text || "");
+          const sessionTag = String(message.sessionId || "").slice(-4);
+          const sessionLabel = sessionTag ? " #" + sessionTag : "";
+          row.textContent = (time ? "[" + time + "] " : "") + name + sessionLabel + ": " + (message.text || "");
           chatMessagesEl.appendChild(row);
         }
         chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
@@ -1686,7 +1698,10 @@
 
       function setChatOpen(open) {
         isChatOpen = Boolean(open) && inWorld;
-        chatPanelEl.classList.toggle("hidden", !isChatOpen);
+        chatPanelEl.classList.toggle("hidden", !inWorld);
+        if (chatInputRowEl) {
+          chatInputRowEl.classList.toggle("hidden", !isChatOpen);
+        }
         if (isChatOpen && isLogsOpen) {
           setLogsOpen(false);
         }
@@ -1723,6 +1738,7 @@
         if (!canViewAccountLogs) {
           isLogsOpen = false;
           logsPanelEl.classList.add("hidden");
+          refreshCanvasWrapVisibility();
           return;
         }
         isLogsOpen = Boolean(open);
@@ -1730,6 +1746,13 @@
         if (isLogsOpen && isChatOpen) {
           setChatOpen(false);
         }
+        refreshCanvasWrapVisibility();
+      }
+
+      function refreshCanvasWrapVisibility() {
+        const showWrap = inWorld || isLogsOpen;
+        canvasWrapEl.classList.toggle("hidden", !showWrap);
+        canvas.classList.toggle("hidden", !inWorld);
       }
 
       function addLogMessage(message) {
@@ -1957,7 +1980,7 @@
       function addChatMessage(message) {
         if (!message || !message.text) return;
         chatMessages.push(message);
-        if (chatMessages.length > 60) {
+        if (chatMessages.length > 100) {
           chatMessages.shift();
         }
         if (message.playerId) {
@@ -1976,6 +1999,7 @@
         if (!trimmed) return;
         if (handleAdminChatCommand(trimmed)) {
           chatInputEl.value = "";
+          setChatOpen(false);
           return;
         }
         const text = trimmed.slice(0, 120);
@@ -1985,9 +2009,11 @@
           addChatMessage({
             name: playerName,
             playerId,
+            sessionId: playerSessionId || "",
             text,
             createdAt: Date.now()
           });
+          setChatOpen(false);
           return;
         }
         try {
@@ -1998,10 +2024,12 @@
           network.chatRef.push({
             name: playerName,
             playerId,
+            sessionId: playerSessionId || "",
             text,
             createdAt: firebase.database.ServerValue.TIMESTAMP
           }).then(() => {
             chatInputEl.value = "";
+            setChatOpen(false);
           }).catch(() => {
             setNetworkState("Chat send error", true);
           });
@@ -2598,12 +2626,17 @@
         setCurrentWorldUI();
         resetForWorldChange();
         writeWorldIndexMeta(worldId, createIfMissing);
+        worldChatStartedAt = Date.now();
 
         const worldPath = BASE_PATH + "/worlds/" + worldId;
         network.playersRef = network.db.ref(worldPath + "/players");
         network.blocksRef = network.db.ref(worldPath + "/blocks");
         network.chatRef = network.db.ref(worldPath + "/chat");
-        network.chatFeedRef = network.chatRef.limitToLast(40);
+        if (worldChatStartedAt > 0) {
+          network.chatFeedRef = network.chatRef.orderByChild("createdAt").startAt(worldChatStartedAt).limitToLast(100);
+        } else {
+          network.chatFeedRef = network.chatRef.limitToLast(100);
+        }
         network.playerRef = network.playersRef.child(playerId);
         chatMessages.length = 0;
         renderChatMessages();
@@ -2651,6 +2684,7 @@
           addChatMessage({
             name: (value.name || "Guest").toString().slice(0, 16),
             playerId: (value.playerId || "").toString(),
+            sessionId: (value.sessionId || "").toString(),
             text: (value.text || "").toString().slice(0, 120),
             createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now()
           });
@@ -2744,7 +2778,8 @@
       function bindWorldControls() {
         enterWorldBtn.addEventListener("click", enterWorldFromInput);
         chatToggleBtn.addEventListener("click", () => {
-          setChatOpen(!isChatOpen);
+          if (!inWorld) return;
+          setChatOpen(true);
         });
         logsToggleBtn.addEventListener("click", () => {
           setLogsOpen(!isLogsOpen);
