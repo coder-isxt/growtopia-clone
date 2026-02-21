@@ -47,6 +47,17 @@
       const signTextInputEl = document.getElementById("signTextInput");
       const signSaveBtn = document.getElementById("signSaveBtn");
       const signCloseBtn = document.getElementById("signCloseBtn");
+      const worldLockModalEl = document.getElementById("worldLockModal");
+      const worldLockTitleEl = document.getElementById("worldLockTitle");
+      const worldLockAdminInputEl = document.getElementById("worldLockAdminInput");
+      const worldLockAdminAddBtn = document.getElementById("worldLockAdminAddBtn");
+      const worldLockAdminsEl = document.getElementById("worldLockAdmins");
+      const worldLockCloseBtn = document.getElementById("worldLockCloseBtn");
+      const doorModalEl = document.getElementById("doorModal");
+      const doorTitleEl = document.getElementById("doorTitle");
+      const doorPublicBtn = document.getElementById("doorPublicBtn");
+      const doorOwnerOnlyBtn = document.getElementById("doorOwnerOnlyBtn");
+      const doorCloseBtn = document.getElementById("doorCloseBtn");
       const updatingOverlayEl = document.getElementById("updatingOverlay");
       const chatPanelEl = document.getElementById("chatPanel");
       const chatMessagesEl = document.getElementById("chatMessages");
@@ -155,6 +166,7 @@
       const SPAWN_BASE_ID = 8;
 
       const WORLD_LOCK_ID = 9;
+      const DOOR_BLOCK_ID = 10;
       const PLATFORM_ID = 12;
       const STAIR_BASE_ID = 13;
       const STAIR_ROTATION_IDS = [13, 14, 15, 16];
@@ -234,9 +246,12 @@
         : new Map();
       const overheadChatByPlayer = new Map();
       const signTexts = new Map();
+      const doorAccessByTile = new Map();
       const worldOccupancy = new Map();
       let vendingController = null;
       let signEditContext = null;
+      let worldLockEditContext = null;
+      let doorEditContext = null;
       let knownWorldIds = [];
       let totalOnlinePlayers = 0;
       let hasRenderedMenuWorldList = false;
@@ -362,6 +377,7 @@
         blocksRef: null,
         vendingRef: null,
         signsRef: null,
+        doorsRef: null,
         lockRef: null,
         chatRef: null,
         chatFeedRef: null,
@@ -396,6 +412,9 @@
           signAdded: null,
           signChanged: null,
           signRemoved: null,
+          doorAdded: null,
+          doorChanged: null,
+          doorRemoved: null,
           worldLock: null,
           chatAdded: null,
           accountLogAdded: null,
@@ -2115,7 +2134,10 @@
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
         signTexts.clear();
+        doorAccessByTile.clear();
         closeSignModal();
+        closeWorldLockModal();
+        closeDoorModal();
         updateOnlineCount();
         world = makeWorld(currentWorldId);
         if (blockSyncer && typeof blockSyncer.reset === "function") {
@@ -2148,6 +2170,8 @@
           setChatOpen(false);
           closeVendingModal();
           closeSignModal();
+          closeWorldLockModal();
+          closeDoorModal();
           if (!hasRenderedMenuWorldList) {
             refreshWorldButtons(null, true);
             hasRenderedMenuWorldList = true;
@@ -2533,6 +2557,12 @@
       function isSolidTile(tx, ty) {
         if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return true;
         const id = world[ty][tx];
+        if (id === DOOR_BLOCK_ID) {
+          if (!isWorldLocked()) return false;
+          const mode = getLocalDoorMode(tx, ty);
+          if (mode === "owner" && !isWorldLockOwner()) return true;
+          return false;
+        }
         const def = blockDefs[id];
         return Boolean(def && def.solid);
       }
@@ -2594,6 +2624,89 @@
 
       function getTileKey(tx, ty) {
         return String(tx) + "_" + String(ty);
+      }
+
+      function normalizeDoorAccessRecord(value) {
+        if (!value) return null;
+        let mode = "public";
+        if (typeof value === "string") {
+          mode = value.toLowerCase() === "owner" ? "owner" : "public";
+        } else if (typeof value === "object") {
+          mode = String(value.mode || "public").toLowerCase() === "owner" ? "owner" : "public";
+        }
+        return {
+          mode,
+          updatedAt: value && typeof value.updatedAt === "number" ? value.updatedAt : 0
+        };
+      }
+
+      function setLocalDoorAccess(tx, ty, value) {
+        const key = getTileKey(tx, ty);
+        const normalized = normalizeDoorAccessRecord(value);
+        if (!normalized) {
+          doorAccessByTile.delete(key);
+          if (doorEditContext && doorEditContext.tx === tx && doorEditContext.ty === ty) {
+            closeDoorModal();
+          }
+          return;
+        }
+        doorAccessByTile.set(key, normalized);
+      }
+
+      function getLocalDoorMode(tx, ty) {
+        const entry = doorAccessByTile.get(getTileKey(tx, ty));
+        return entry && entry.mode === "owner" ? "owner" : "public";
+      }
+
+      function closeDoorModal() {
+        doorEditContext = null;
+        if (doorModalEl) doorModalEl.classList.add("hidden");
+      }
+
+      function saveDoorMode(tx, ty, mode) {
+        const safeMode = mode === "owner" ? "owner" : "public";
+        if (world[ty][tx] !== DOOR_BLOCK_ID) {
+          setLocalDoorAccess(tx, ty, null);
+          return;
+        }
+        if (safeMode === "public") {
+          setLocalDoorAccess(tx, ty, null);
+          if (network.enabled && network.doorsRef) {
+            network.doorsRef.child(getTileKey(tx, ty)).remove().catch(() => {});
+          }
+          return;
+        }
+        const payload = {
+          mode: "owner",
+          updatedAt: Date.now()
+        };
+        setLocalDoorAccess(tx, ty, payload);
+        if (network.enabled && network.doorsRef) {
+          network.doorsRef.child(getTileKey(tx, ty)).set({
+            mode: "owner",
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+          }).catch(() => {});
+        }
+      }
+
+      function openDoorModal(tx, ty) {
+        if (!doorModalEl || !doorTitleEl) return;
+        if (!canEditTarget(tx, ty)) return;
+        if (world[ty][tx] !== DOOR_BLOCK_ID) return;
+        if (!isWorldLocked()) {
+          postLocalSystemChat("Door access options are only available in world-locked worlds.");
+          return;
+        }
+        if (!isWorldLockOwner()) {
+          notifyWorldLockedDenied();
+          return;
+        }
+        doorEditContext = { tx, ty };
+        const mode = getLocalDoorMode(tx, ty);
+        doorTitleEl.textContent = "Door (" + tx + "," + ty + ") - " + (mode === "owner" ? "Owner Only" : "Public");
+        if (doorPublicBtn) doorPublicBtn.classList.toggle("active", mode === "public");
+        if (doorOwnerOnlyBtn) doorOwnerOnlyBtn.classList.toggle("active", mode === "owner");
+        doorModalEl.classList.remove("hidden");
       }
 
       function normalizeSignRecord(value) {
@@ -2723,12 +2836,25 @@
         if (!value || typeof value !== "object") return null;
         const ownerAccountId = (value.ownerAccountId || "").toString();
         if (!ownerAccountId) return null;
+        const adminsRaw = value.admins && typeof value.admins === "object" ? value.admins : {};
+        const admins = {};
+        for (const [accountId, entry] of Object.entries(adminsRaw)) {
+          const safeAccountId = String(accountId || "").trim();
+          if (!safeAccountId || safeAccountId === ownerAccountId) continue;
+          const username = entry && typeof entry === "object"
+            ? normalizeUsername((entry.username || "").toString())
+            : "";
+          admins[safeAccountId] = {
+            username: username || ""
+          };
+        }
         return {
           ownerAccountId,
           ownerName: (value.ownerName || "").toString(),
           tx: Number.isInteger(value.tx) ? value.tx : Number(value.tx) || 0,
           ty: Number.isInteger(value.ty) ? value.ty : Number(value.ty) || 0,
-          createdAt: typeof value.createdAt === "number" ? value.createdAt : 0
+          createdAt: typeof value.createdAt === "number" ? value.createdAt : 0,
+          admins
         };
       }
 
@@ -2740,9 +2866,15 @@
         return Boolean(playerProfileId && currentWorldLock && currentWorldLock.ownerAccountId === playerProfileId);
       }
 
+      function isWorldLockAdmin() {
+        if (!playerProfileId || !currentWorldLock || !currentWorldLock.admins) return false;
+        if (isWorldLockOwner()) return false;
+        return Boolean(currentWorldLock.admins[playerProfileId]);
+      }
+
       function canEditCurrentWorld() {
         if (!isWorldLocked()) return true;
-        return isWorldLockOwner();
+        return isWorldLockOwner() || isWorldLockAdmin();
       }
 
       function notifyWorldLockedDenied() {
@@ -2751,6 +2883,112 @@
         lastLockDeniedNoticeAt = now;
         const owner = currentWorldLock && currentWorldLock.ownerName ? currentWorldLock.ownerName : "owner";
         postLocalSystemChat("World is locked by @" + owner + ".");
+      }
+
+      function notifyOwnerOnlyWorldEdit(partName) {
+        const name = (partName || "this").toString();
+        postLocalSystemChat("Only the world owner can edit " + name + ".");
+      }
+
+      async function resolveAccountIdByUsername(username) {
+        if (!network.enabled || !network.db) return "";
+        const normalized = normalizeUsername(username);
+        if (!normalized) return "";
+        try {
+          const snap = await network.db.ref(BASE_PATH + "/usernames/" + normalized).once("value");
+          const accountId = (snap && snap.val ? snap.val() : "").toString();
+          return accountId || "";
+        } catch (error) {
+          return "";
+        }
+      }
+
+      function closeWorldLockModal() {
+        worldLockEditContext = null;
+        if (worldLockModalEl) worldLockModalEl.classList.add("hidden");
+      }
+
+      function getWorldLockAdminsList() {
+        if (!currentWorldLock || !currentWorldLock.admins) return [];
+        return Object.entries(currentWorldLock.admins)
+          .map(([accountId, data]) => {
+            const username = normalizeUsername(data && data.username ? data.username : "") || accountId;
+            return { accountId, username };
+          })
+          .sort((a, b) => a.username.localeCompare(b.username));
+      }
+
+      function renderWorldLockModal() {
+        if (!worldLockModalEl || !worldLockTitleEl || !worldLockAdminsEl) return;
+        const owner = (currentWorldLock && currentWorldLock.ownerName ? currentWorldLock.ownerName : "owner").toString();
+        worldLockTitleEl.textContent = "World Lock - @" + owner;
+        const rows = getWorldLockAdminsList();
+        if (!rows.length) {
+          worldLockAdminsEl.innerHTML = "<div class='worldlock-admin-empty'>No world admins.</div>";
+          return;
+        }
+        worldLockAdminsEl.innerHTML = rows.map((row) => {
+          return "<div class='worldlock-admin-row'>" +
+            "<span class='worldlock-admin-name'>@" + escapeHtml(row.username) + "</span>" +
+            "<button type='button' data-worldlock-remove='" + escapeHtml(row.accountId) + "'>Remove</button>" +
+            "</div>";
+        }).join("");
+      }
+
+      function openWorldLockModal(tx, ty) {
+        if (!worldLockModalEl) return;
+        if (!isWorldLocked() || !isWorldLockOwner()) {
+          notifyWorldLockedDenied();
+          return;
+        }
+        const lockTx = Number(currentWorldLock && currentWorldLock.tx);
+        const lockTy = Number(currentWorldLock && currentWorldLock.ty);
+        if (!Number.isInteger(lockTx) || !Number.isInteger(lockTy) || tx !== lockTx || ty !== lockTy) return;
+        worldLockEditContext = { tx, ty };
+        if (worldLockAdminInputEl) worldLockAdminInputEl.value = "";
+        renderWorldLockModal();
+        worldLockModalEl.classList.remove("hidden");
+      }
+
+      function removeWorldAdmin(accountId) {
+        if (!network.enabled || !network.lockRef || !isWorldLocked() || !isWorldLockOwner()) return;
+        const safeAccountId = (accountId || "").toString().trim();
+        if (!safeAccountId || safeAccountId === currentWorldLock.ownerAccountId) return;
+        network.lockRef.child("admins").child(safeAccountId).remove()
+          .then(() => {
+            postLocalSystemChat("Removed world admin.");
+          })
+          .catch(() => {
+            postLocalSystemChat("Failed to remove world admin.");
+          });
+      }
+
+      async function addWorldAdminByUsername(rawUsername) {
+        if (!network.enabled || !network.lockRef || !isWorldLocked() || !isWorldLockOwner()) return;
+        const username = normalizeUsername(rawUsername);
+        if (!username) {
+          postLocalSystemChat("Enter a valid username.");
+          return;
+        }
+        const accountId = await resolveAccountIdByUsername(username);
+        if (!accountId) {
+          postLocalSystemChat("User not found.");
+          return;
+        }
+        if (accountId === currentWorldLock.ownerAccountId) {
+          postLocalSystemChat("Owner already has full access.");
+          return;
+        }
+        network.lockRef.child("admins").child(accountId).set({
+          username,
+          addedBy: playerProfileId || "",
+          updatedAt: firebase.database.ServerValue.TIMESTAMP
+        }).then(() => {
+          postLocalSystemChat("Added @" + username + " as world admin.");
+          if (worldLockAdminInputEl) worldLockAdminInputEl.value = "";
+        }).catch(() => {
+          postLocalSystemChat("Failed to add world admin.");
+        });
       }
 
       function isProtectedSpawnTile(tx, ty) {
@@ -3557,6 +3795,16 @@
         if (inventory[id] <= 0) return;
         if (world[ty][tx] !== 0) return;
         if (tileOccupiedByAnyPlayer(tx, ty)) return;
+        if (isWorldLocked() && !isWorldLockOwner()) {
+          if (id === WORLD_LOCK_ID) {
+            notifyOwnerOnlyWorldEdit("the world lock");
+            return;
+          }
+          if (id === VENDING_ID) {
+            notifyOwnerOnlyWorldEdit("vending machines");
+            return;
+          }
+        }
 
         const bx = tx * TILE;
         const by = ty * TILE;
@@ -3661,6 +3909,10 @@
           notifyWorldLockedDenied();
           return;
         }
+        if (id === VENDING_ID && isWorldLocked() && !isWorldLockOwner()) {
+          notifyOwnerOnlyWorldEdit("vending machines");
+          return;
+        }
 
         if (id === VENDING_ID) {
           const ctrl = getVendingController();
@@ -3672,6 +3924,12 @@
           saveSignText(tx, ty, "");
           if (signEditContext && signEditContext.tx === tx && signEditContext.ty === ty) {
             closeSignModal();
+          }
+        }
+        if (id === DOOR_BLOCK_ID) {
+          setLocalDoorAccess(tx, ty, null);
+          if (network.enabled && network.doorsRef) {
+            network.doorsRef.child(getTileKey(tx, ty)).remove().catch(() => {});
           }
         }
 
@@ -3703,6 +3961,10 @@
         }
         if (id === WORLD_LOCK_ID && !isWorldLockOwner()) {
           notifyWorldLockedDenied();
+          return;
+        }
+        if (id === VENDING_ID && isWorldLocked() && !isWorldLockOwner()) {
+          notifyOwnerOnlyWorldEdit("vending machines");
           return;
         }
         const nextId = getRotatedBlockId(id);
@@ -3756,12 +4018,20 @@
       function interactWithWrench(tx, ty) {
         if (!canEditTarget(tx, ty)) return;
         const id = world[ty][tx];
+        if (id === WORLD_LOCK_ID) {
+          openWorldLockModal(tx, ty);
+          return;
+        }
         if (id === VENDING_ID) {
           interactWithVendingMachine(tx, ty);
           return;
         }
         if (id === SIGN_ID) {
           openSignModal(tx, ty);
+          return;
+        }
+        if (id === DOOR_BLOCK_ID) {
+          openDoorModal(tx, ty);
         }
       }
 
@@ -3881,6 +4151,15 @@
         if (network.signsRef && network.handlers.signRemoved) {
           network.signsRef.off("child_removed", network.handlers.signRemoved);
         }
+        if (network.doorsRef && network.handlers.doorAdded) {
+          network.doorsRef.off("child_added", network.handlers.doorAdded);
+        }
+        if (network.doorsRef && network.handlers.doorChanged) {
+          network.doorsRef.off("child_changed", network.handlers.doorChanged);
+        }
+        if (network.doorsRef && network.handlers.doorRemoved) {
+          network.doorsRef.off("child_removed", network.handlers.doorRemoved);
+        }
         if (typeof syncWorldsModule.detachWorldListeners === "function") {
           syncWorldsModule.detachWorldListeners(network, network.handlers, true);
         } else if (network.playerRef) {
@@ -3895,6 +4174,7 @@
         network.blocksRef = null;
         network.vendingRef = null;
         network.signsRef = null;
+        network.doorsRef = null;
         network.lockRef = null;
         network.chatRef = null;
         network.chatFeedRef = null;
@@ -3908,13 +4188,19 @@
         network.handlers.signAdded = null;
         network.handlers.signChanged = null;
         network.handlers.signRemoved = null;
+        network.handlers.doorAdded = null;
+        network.handlers.doorChanged = null;
+        network.handlers.doorRemoved = null;
         network.handlers.worldLock = null;
         network.handlers.chatAdded = null;
         currentWorldLock = null;
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
         signTexts.clear();
+        doorAccessByTile.clear();
         closeSignModal();
+        closeWorldLockModal();
+        closeDoorModal();
       }
 
       function leaveCurrentWorld() {
@@ -4003,6 +4289,7 @@
         network.blocksRef = worldRefs && worldRefs.blocksRef ? worldRefs.blocksRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/blocks");
         network.vendingRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/vending");
         network.signsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/signs");
+        network.doorsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/doors");
         network.lockRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/lock");
         network.chatRef = worldRefs && worldRefs.chatRef ? worldRefs.chatRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/chat");
         network.chatFeedRef = typeof syncWorldsModule.createChatFeed === "function"
@@ -4013,6 +4300,13 @@
         network.playerRef = network.playersRef.child(playerId);
         network.handlers.worldLock = (snapshot) => {
           currentWorldLock = normalizeWorldLock(snapshot.val());
+          if (worldLockModalEl && !worldLockModalEl.classList.contains("hidden")) {
+            if (!isWorldLocked() || !isWorldLockOwner()) {
+              closeWorldLockModal();
+            } else {
+              renderWorldLockModal();
+            }
+          }
         };
         if (network.lockRef && network.handlers.worldLock) {
           network.lockRef.on("value", network.handlers.worldLock);
@@ -4027,6 +4321,7 @@
             }
             setLocalVendingMachine(tx, ty, null);
             setLocalSignText(tx, ty, null);
+            setLocalDoorAccess(tx, ty, null);
             return;
           }
           world[ty][tx] = id;
@@ -4035,6 +4330,9 @@
           }
           if (id !== SIGN_ID) {
             setLocalSignText(tx, ty, null);
+          }
+          if (id !== DOOR_BLOCK_ID) {
+            setLocalDoorAccess(tx, ty, null);
           }
         };
         const clearBlockValue = (tx, ty) => {
@@ -4046,11 +4344,13 @@
             }
             setLocalVendingMachine(tx, ty, null);
             setLocalSignText(tx, ty, null);
+            setLocalDoorAccess(tx, ty, null);
             return;
           }
           world[ty][tx] = 0;
           setLocalVendingMachine(tx, ty, null);
           setLocalSignText(tx, ty, null);
+          setLocalDoorAccess(tx, ty, null);
         };
 
         const handlers = typeof syncWorldsModule.buildWorldHandlers === "function"
@@ -4096,6 +4396,17 @@
           if (!tile) return;
           setLocalSignText(tile.tx, tile.ty, null);
         };
+        network.handlers.doorAdded = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalDoorAccess(tile.tx, tile.ty, snapshot.val());
+        };
+        network.handlers.doorChanged = network.handlers.doorAdded;
+        network.handlers.doorRemoved = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalDoorAccess(tile.tx, tile.ty, null);
+        };
         if (typeof syncWorldsModule.attachWorldListeners === "function") {
           syncWorldsModule.attachWorldListeners(network, network.handlers);
         }
@@ -4108,6 +4419,11 @@
           network.signsRef.on("child_added", network.handlers.signAdded);
           network.signsRef.on("child_changed", network.handlers.signChanged);
           network.signsRef.on("child_removed", network.handlers.signRemoved);
+        }
+        if (network.doorsRef && network.handlers.doorAdded) {
+          network.doorsRef.on("child_added", network.handlers.doorAdded);
+          network.doorsRef.on("child_changed", network.handlers.doorChanged);
+          network.doorsRef.on("child_removed", network.handlers.doorRemoved);
         }
         enforceSpawnStructureInWorldData();
         enforceSpawnStructureInDatabase();
@@ -4282,6 +4598,90 @@
             saveSignText(tx, ty, signTextInputEl.value || "");
             closeSignModal();
             postLocalSystemChat("Sign saved.");
+          });
+        }
+        if (worldLockCloseBtn) {
+          worldLockCloseBtn.addEventListener("click", () => {
+            closeWorldLockModal();
+          });
+        }
+        if (worldLockModalEl) {
+          worldLockModalEl.addEventListener("click", (event) => {
+            if (event.target === worldLockModalEl) {
+              closeWorldLockModal();
+              return;
+            }
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            const removeAccountId = (target.dataset.worldlockRemove || "").trim();
+            if (removeAccountId) {
+              removeWorldAdmin(removeAccountId);
+            }
+          });
+        }
+        if (worldLockAdminAddBtn) {
+          worldLockAdminAddBtn.addEventListener("click", () => {
+            if (!worldLockAdminInputEl) return;
+            addWorldAdminByUsername(worldLockAdminInputEl.value || "");
+          });
+        }
+        if (worldLockAdminInputEl) {
+          worldLockAdminInputEl.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            addWorldAdminByUsername(worldLockAdminInputEl.value || "");
+          });
+        }
+        if (doorCloseBtn) {
+          doorCloseBtn.addEventListener("click", () => {
+            closeDoorModal();
+          });
+        }
+        if (doorModalEl) {
+          doorModalEl.addEventListener("click", (event) => {
+            if (event.target === doorModalEl) {
+              closeDoorModal();
+            }
+          });
+        }
+        if (doorPublicBtn) {
+          doorPublicBtn.addEventListener("click", () => {
+            if (!doorEditContext) return;
+            const tx = Number(doorEditContext.tx);
+            const ty = Number(doorEditContext.ty);
+            if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
+            if (!isWorldLocked() || !isWorldLockOwner()) {
+              notifyWorldLockedDenied();
+              closeDoorModal();
+              return;
+            }
+            if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H || world[ty][tx] !== DOOR_BLOCK_ID) {
+              closeDoorModal();
+              return;
+            }
+            saveDoorMode(tx, ty, "public");
+            openDoorModal(tx, ty);
+            postLocalSystemChat("Door access set to public.");
+          });
+        }
+        if (doorOwnerOnlyBtn) {
+          doorOwnerOnlyBtn.addEventListener("click", () => {
+            if (!doorEditContext) return;
+            const tx = Number(doorEditContext.tx);
+            const ty = Number(doorEditContext.ty);
+            if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
+            if (!isWorldLocked() || !isWorldLockOwner()) {
+              notifyWorldLockedDenied();
+              closeDoorModal();
+              return;
+            }
+            if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H || world[ty][tx] !== DOOR_BLOCK_ID) {
+              closeDoorModal();
+              return;
+            }
+            saveDoorMode(tx, ty, "owner");
+            openDoorModal(tx, ty);
+            postLocalSystemChat("Door access set to owner only.");
           });
         }
         if (adminSearchInput) {
@@ -4528,7 +4928,7 @@
             showUpdatingOverlay();
             setTimeout(() => {
               hardReloadClient(assetVersion);
-            }, 900);
+            }, 2200);
           };
           network.handlers.adminAccounts = (snapshot) => {
             adminState.accounts = snapshot.val() || {};
@@ -4959,6 +5359,16 @@
         if (e.key === "Escape" && signModalEl && !signModalEl.classList.contains("hidden")) {
           e.preventDefault();
           closeSignModal();
+          return;
+        }
+        if (e.key === "Escape" && worldLockModalEl && !worldLockModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeWorldLockModal();
+          return;
+        }
+        if (e.key === "Escape" && doorModalEl && !doorModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeDoorModal();
           return;
         }
         if (e.key === "Escape" && adminInventoryModalEl && !adminInventoryModalEl.classList.contains("hidden")) {

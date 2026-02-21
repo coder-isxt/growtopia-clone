@@ -307,7 +307,7 @@ canvas {
 .item-icon-image {
   width: 96%;
   height: 96%;
-  object-fit: contain;
+  object-fit: fill;
   image-rendering: pixelated;
   pointer-events: none;
   position: absolute;
@@ -1153,6 +1153,74 @@ canvas {
 .sign-hint {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.75);
+}
+
+.door-body {
+  display: grid;
+  gap: 8px;
+}
+
+.worldlock-body {
+  display: grid;
+  gap: 10px;
+}
+
+.worldlock-add-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.worldlock-add-row input {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-radius: 8px;
+  font: inherit;
+  padding: 7px 8px;
+}
+
+.worldlock-admins {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.worldlock-admin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.worldlock-admin-row button {
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  background: rgba(255, 117, 117, 0.24);
+  color: var(--text);
+  border-radius: 8px;
+  font: inherit;
+  min-height: 28px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.worldlock-admin-name {
+  font-size: 13px;
+}
+
+.worldlock-admin-empty {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+}
+
+.vending-actions button.active {
+  background: rgba(123, 224, 153, 0.34);
+  border-color: rgba(123, 224, 153, 0.8);
 }
 
 .vending-stat-grid {

@@ -120,6 +120,37 @@
         </div>
       </div>
     </div>
+    <div id="worldLockModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="worldLockTitle">World Lock</strong>
+          <button id="worldLockCloseBtn" type="button">Close</button>
+        </div>
+        <div class="worldlock-body">
+          <div class="worldlock-add-row">
+            <input id="worldLockAdminInput" type="text" maxlength="16" placeholder="username">
+            <button id="worldLockAdminAddBtn" type="button">Add Admin</button>
+          </div>
+          <div id="worldLockAdmins" class="worldlock-admins"></div>
+          <div class="sign-hint">World admins can edit the world, except world locks and vending machines.</div>
+        </div>
+      </div>
+    </div>
+    <div id="doorModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="doorTitle">Door</strong>
+          <button id="doorCloseBtn" type="button">Close</button>
+        </div>
+        <div class="door-body">
+          <div class="sign-hint">Set who can walk through this door in a world-locked world.</div>
+        </div>
+        <div class="vending-actions">
+          <button id="doorPublicBtn" type="button">Public</button>
+          <button id="doorOwnerOnlyBtn" type="button">Owner Only</button>
+        </div>
+      </div>
+    </div>
     <div id="updatingOverlay" class="updating-overlay hidden" aria-live="polite">
       <div class="updating-card">
         <div class="updating-title">Updating...</div>
