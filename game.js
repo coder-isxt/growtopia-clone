@@ -1552,6 +1552,18 @@
         adminState.inventories[accountId].cosmeticItems[safeItemId] = Math.max(0, Math.floor(Number(nextValue) || 0));
       }
 
+      function setLocalInventoryTitleCount(accountId, titleId, nextValue) {
+        if (!accountId) return;
+        if (!adminState.inventories[accountId] || typeof adminState.inventories[accountId] !== "object") {
+          adminState.inventories[accountId] = {};
+        }
+        if (!adminState.inventories[accountId].titleItems || typeof adminState.inventories[accountId].titleItems !== "object") {
+          adminState.inventories[accountId].titleItems = {};
+        }
+        const safeTitleId = String(titleId || "");
+        adminState.inventories[accountId].titleItems[safeTitleId] = Math.max(0, Math.floor(Number(nextValue) || 0));
+      }
+
       function adjustLocalInventoryBlockCount(accountId, blockId, delta) {
         const safeId = Number(blockId);
         const current = Math.max(0, Math.floor(Number(adminState.inventories[accountId] && adminState.inventories[accountId][safeId]) || 0));
@@ -1568,6 +1580,11 @@
         if (kind === "cosmetic") {
           return COSMETIC_ITEMS.map((item) => {
             return '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name + " (" + item.id + ")") + "</option>";
+          }).join("");
+        }
+        if (kind === "title") {
+          return TITLE_CATALOG.map((title) => {
+            return '<option value="' + escapeHtml(title.id) + '">' + escapeHtml(title.name + " (" + title.id + ")") + "</option>";
           }).join("");
         }
         return INVENTORY_IDS.map((id) => {
@@ -1605,6 +1622,17 @@
             qty
           });
         }
+        const titleRecord = inv && inv.titleItems || {};
+        for (const title of TITLE_CATALOG) {
+          const qty = Math.max(0, Math.floor(Number(titleRecord[title.id]) || 0));
+          if (qty <= 0) continue;
+          rows.push({
+            kind: "title",
+            itemId: title.id,
+            label: title.name + " (title)",
+            qty
+          });
+        }
         adminInventoryTitleEl.textContent = "@" + username + " Inventory";
         adminInventoryModalEl.dataset.accountId = accountId;
         const canEdit = canEditAdminInventoryModal() && canActorGrantTarget(accountId, getAccountRole(accountId, username));
@@ -1618,6 +1646,7 @@
             "<select class='admin-inv-kind' data-account-id='" + escapeHtml(accountId) + "'>" +
             "<option value='block'>Blocks</option>" +
             "<option value='cosmetic'>Cosmetics</option>" +
+            "<option value='title'>Titles</option>" +
             "</select>" +
             "<select class='admin-inv-item' data-account-id='" + escapeHtml(accountId) + "'>" + buildAdminInventoryItemOptions("block") + "</select>" +
             "<input class='admin-inv-amount' data-account-id='" + escapeHtml(accountId) + "' type='number' min='1' step='1' value='1'>" +
@@ -1863,6 +1892,17 @@
                     <button data-admin-act="giveitem" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give Item</button>
                   </div>
                 </div>
+                <div class="admin-action-group">
+                  <div class="admin-action-label">Titles</div>
+                  <div class="admin-give-item-wrap">
+                    <select class="admin-give-title-id" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>
+                      ${TITLE_CATALOG.map((title) => '<option value="' + escapeHtml(title.id) + '">' + escapeHtml(title.name + " (" + title.id + ")") + "</option>").join("")}
+                    </select>
+                    <input class="admin-give-title-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="1" placeholder="amount">
+                    <button data-admin-act="givetitle" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Add Title</button>
+                    <button data-admin-act="removetitle" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Remove Title</button>
+                  </div>
+                </div>
               </div>
             </div>
           `;
@@ -1990,6 +2030,19 @@
           }
           return;
         }
+        if (action === "givetitle" || action === "removetitle") {
+          const titleSelect = adminAccountsEl.querySelector('.admin-give-title-id[data-account-id="' + accountId + '"]');
+          const amountInput = adminAccountsEl.querySelector('.admin-give-title-amount[data-account-id="' + accountId + '"]');
+          if (!(titleSelect instanceof HTMLSelectElement) || !(amountInput instanceof HTMLInputElement)) return;
+          const titleId = titleSelect.value || "";
+          const amount = Number(amountInput.value);
+          const username = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId;
+          const ok = applyTitleGrant(accountId, titleId, amount, "panel", username, action === "removetitle");
+          if (ok) {
+            postLocalSystemChat((action === "removetitle" ? "Removed title " : "Added title ") + titleId + " x" + amount + (action === "removetitle" ? " from @" : " to @") + username + ".");
+          }
+          return;
+        }
         if (action === "tempban" || action === "permban") {
           const durationInput = adminAccountsEl.querySelector('.admin-ban-duration[data-account-id="' + accountId + '"]');
           const reasonInput = adminAccountsEl.querySelector('.admin-ban-reason[data-account-id="' + accountId + '"]');
@@ -2056,7 +2109,8 @@
         if (!accountId) return;
         const itemSelect = adminInventoryBodyEl.querySelector('.admin-inv-item[data-account-id="' + accountId + '"]');
         if (!(itemSelect instanceof HTMLSelectElement)) return;
-        itemSelect.innerHTML = buildAdminInventoryItemOptions(target.value === "cosmetic" ? "cosmetic" : "block");
+        const kind = target.value === "cosmetic" ? "cosmetic" : (target.value === "title" ? "title" : "block");
+        itemSelect.innerHTML = buildAdminInventoryItemOptions(kind);
       }
 
       function handleAdminInventoryModalAction(event) {
@@ -2079,7 +2133,7 @@
         const amountInput = adminInventoryBodyEl.querySelector('.admin-inv-amount[data-account-id="' + accountId + '"]');
         if (!(kindSelect instanceof HTMLSelectElement) || !(itemSelect instanceof HTMLSelectElement) || !(amountInput instanceof HTMLInputElement)) return;
         const removeAllItem = (kind, itemId) => {
-          const cleanKind = kind === "cosmetic" ? "cosmetic" : "block";
+          const cleanKind = kind === "cosmetic" ? "cosmetic" : (kind === "title" ? "title" : "block");
           const cleanItemId = String(itemId || "").trim();
           if (!cleanItemId) return;
           if (cleanKind === "cosmetic") {
@@ -2092,6 +2146,19 @@
               syncAdminPanelAfterInventoryChange(accountId);
             }).catch(() => {
               postLocalSystemChat("Failed to remove cosmetic item.");
+            });
+            return;
+          }
+          if (cleanKind === "title") {
+            const titleDef = TITLE_LOOKUP[cleanItemId];
+            if (!titleDef) return;
+            network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/titleItems/" + cleanItemId).set(0).then(() => {
+              setLocalInventoryTitleCount(accountId, cleanItemId, 0);
+              logAdminAudit("Admin(inventory-modal) removed all title " + cleanItemId + " for @" + username + ".");
+              pushAdminAuditEntry("inventory_remove_all", accountId, "title=" + cleanItemId);
+              syncAdminPanelAfterInventoryChange(accountId);
+            }).catch(() => {
+              postLocalSystemChat("Failed to remove title.");
             });
             return;
           }
@@ -2139,6 +2206,23 @@
             syncAdminPanelAfterInventoryChange(accountId);
           }).catch(() => {
             postLocalSystemChat("Failed to update cosmetic item.");
+          });
+          return;
+        }
+        if (kindSelect.value === "title") {
+          const titleId = String(itemSelect.value || "").trim();
+          if (!titleId || !TITLE_LOOKUP[titleId]) return;
+          network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/titleItems/" + titleId).transaction((current) => {
+            const now = Math.max(0, Math.floor(Number(current) || 0));
+            return Math.max(0, now + delta);
+          }).then((result) => {
+            const next = Math.max(0, Math.floor(Number(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0) || 0));
+            setLocalInventoryTitleCount(accountId, titleId, next);
+            logAdminAudit("Admin(inventory-modal) " + (delta > 0 ? "added " : "removed ") + "title " + titleId + " x" + amount + " for @" + username + ".");
+            pushAdminAuditEntry(delta > 0 ? "inventory_add" : "inventory_remove", accountId, "title=" + titleId + " amount=" + amount);
+            syncAdminPanelAfterInventoryChange(accountId);
+          }).catch(() => {
+            postLocalSystemChat("Failed to update title.");
           });
           return;
         }
@@ -2353,6 +2437,43 @@
           //postLocalSystemChat("Granted item " + itemIdSafe + " x" + amountSafe + " to @" + target + ".");
         }).catch(() => {
           postLocalSystemChat("Failed to give item.");
+        });
+        return true;
+      }
+
+      function applyTitleGrant(accountId, titleId, amount, sourceTag, targetLabel, removeMode) {
+        if (!accountId || !canUseAdminPanel || !network.db) return false;
+        if (!ensureCommandReady(removeMode ? "removetitle" : "givetitle")) return false;
+        if (!hasAdminPermission("givex")) {
+          postLocalSystemChat("Permission denied.");
+          return false;
+        }
+        const targetUsername = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || "";
+        const targetRole = getAccountRole(accountId, targetUsername);
+        if (!canActorGrantTarget(accountId, targetRole)) {
+          postLocalSystemChat("Permission denied on target role.");
+          return false;
+        }
+        const amountSafe = Math.floor(Number(amount));
+        const titleIdSafe = String(titleId || "").trim();
+        const titleDef = TITLE_LOOKUP[titleIdSafe] || null;
+        if (!titleDef || !Number.isInteger(amountSafe) || amountSafe <= 0) {
+          postLocalSystemChat("Usage: " + (removeMode ? "/removetitle" : "/givetitle") + " <user> <title_id> <amount>");
+          return false;
+        }
+        const delta = removeMode ? -amountSafe : amountSafe;
+        network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/titleItems/" + titleIdSafe).transaction((current) => {
+          const next = (Number(current) || 0) + delta;
+          return Math.max(0, next);
+        }).then((result) => {
+          const next = Math.max(0, Math.floor(Number(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0) || 0));
+          setLocalInventoryTitleCount(accountId, titleIdSafe, next);
+          const target = targetLabel || targetUsername || accountId;
+          logAdminAudit("Admin(" + sourceTag + ") " + (removeMode ? "removed title " : "gave title ") + titleIdSafe + " x" + amountSafe + " " + (removeMode ? "from" : "to") + " @" + target + ".");
+          pushAdminAuditEntry(removeMode ? "removetitle" : "givetitle", accountId, "title=" + titleIdSafe + " amount=" + amountSafe);
+          syncAdminPanelAfterInventoryChange(accountId);
+        }).catch(() => {
+          postLocalSystemChat("Failed to update title.");
         });
         return true;
       }
@@ -2747,6 +2868,7 @@
           INVENTORY_IDS,
           applyInventoryGrant,
           applyCosmeticItemGrant,
+          applyTitleGrant,
           parseDurationToMs,
           applyAdminRoleChange,
           normalizeAdminRole,

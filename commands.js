@@ -102,7 +102,7 @@ window.GTModules.commands = {
       if (c.hasAdminPermission("kick")) available.push("/kick");
       if (c.hasAdminPermission("freeze")) available.push("/freeze", "/unfreeze");
       if (c.hasAdminPermission("resetinv")) available.push("/resetinv");
-      if (c.hasAdminPermission("givex")) available.push("/givex", "/giveitem");
+      if (c.hasAdminPermission("givex")) available.push("/givex", "/giveitem", "/givetitle", "/removetitle");
       if (c.hasAdminPermission("tp")) available.push("/tp");
       if (c.hasAdminPermission("tp")) available.push("/reach");
       if (c.hasAdminPermission("bring")) available.push("/bring", "/summon");
@@ -429,6 +429,25 @@ window.GTModules.commands = {
       }
       if (c.applyCosmeticItemGrant(accountId, itemId, amount, "chat", targetRef)) {
         c.postLocalSystemChat("Gave item " + itemId + " x" + amount + " to @" + targetRef + ".");
+      }
+      return true;
+    }
+    if (command === "/givetitle" || command === "/removetitle") {
+      const targetRef = parts[1] || "";
+      const titleId = parts[2] || "";
+      const amount = Number(parts[3]);
+      const accountId = c.findAccountIdByUserRef(targetRef);
+      if (!accountId) {
+        c.postLocalSystemChat("Target account not found: " + targetRef);
+        return true;
+      }
+      if (typeof c.applyTitleGrant !== "function") {
+        c.postLocalSystemChat("Title grant handler is unavailable.");
+        return true;
+      }
+      const removeMode = command === "/removetitle";
+      if (c.applyTitleGrant(accountId, titleId, amount, "chat", targetRef, removeMode)) {
+        c.postLocalSystemChat((removeMode ? "Removed title " : "Added title ") + titleId + " x" + amount + (removeMode ? " from @" : " to @") + targetRef + ".");
       }
       return true;
     }

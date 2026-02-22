@@ -971,6 +971,8 @@ canvas {
 .admin-ban-reason,
 .admin-give-item-id,
 .admin-give-item-amount,
+.admin-give-title-id,
+.admin-give-title-amount,
 .admin-give-block,
 .admin-give-amount {
   border: 1px solid rgba(255, 255, 255, 0.24);
@@ -984,11 +986,13 @@ canvas {
 
 .admin-ban-duration,
 .admin-give-item-amount,
+.admin-give-title-amount,
 .admin-give-amount {
   width: 92px;
 }
 
-.admin-give-item-id {
+.admin-give-item-id,
+.admin-give-title-id {
   width: 220px;
 }
 
@@ -1142,6 +1146,8 @@ canvas {
 .admin-role-select:disabled,
 .admin-give-item-id:disabled,
 .admin-give-item-amount:disabled,
+.admin-give-title-id:disabled,
+.admin-give-title-amount:disabled,
 .admin-give-block:disabled,
 .admin-give-amount:disabled {
   opacity: 0.45;
@@ -2097,6 +2103,8 @@ canvas {
 .admin-ban-reason,
 .admin-give-item-id,
 .admin-give-item-amount,
+.admin-give-title-id,
+.admin-give-title-amount,
 .admin-give-block,
 .admin-give-amount,
 .vending-field input,
@@ -2628,6 +2636,8 @@ button:focus-visible {
 .admin-ban-reason:focus,
 .admin-give-item-id:focus,
 .admin-give-item-amount:focus,
+.admin-give-title-id:focus,
+.admin-give-title-amount:focus,
 .admin-give-block:focus,
 .admin-give-amount:focus,
 .vending-field input:focus,
