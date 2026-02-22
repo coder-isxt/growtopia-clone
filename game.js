@@ -2421,6 +2421,16 @@
       }
 
       async function getAuthDb() {
+        const withTimeout = (promise, timeoutMs, label) => {
+          const ms = Math.max(1000, Number(timeoutMs) || 8000);
+          let timer = null;
+          const timeoutPromise = new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(label + " timed out.")), ms);
+          });
+          return Promise.race([Promise.resolve(promise), timeoutPromise]).finally(() => {
+            if (timer) clearTimeout(timer);
+          });
+        };
         if (!window.firebase) {
           throw new Error("Firebase SDK not loaded.");
         }
@@ -2430,7 +2440,7 @@
         // If apiKey missing, try to fetch it at runtime
         if (firebaseConfig && !firebaseConfig.apiKey && typeof window.getFirebaseApiKey === "function") {
           try {
-            const fetched = await window.getFirebaseApiKey();
+            const fetched = await withTimeout(window.getFirebaseApiKey(), 8000, "API key fetch");
 
             // Support BOTH formats:
             // 1) new API: { ok: true, key: "..." }

@@ -14,6 +14,7 @@ window.FIREBASE_APIKEY_ENDPOINT = "https://growtopia.isxtgg.workers.dev/apikey";
 window.FIREBASE_LOCAL_APIKEY_STORAGE = "growtopia_local_firebase_apikey_v1";
 
 let __firebaseApiKeyPromise = null;
+const FIREBASE_APIKEY_FETCH_TIMEOUT_MS = 8000;
 function isLocalRuntime() {
   const host = (window.location && window.location.hostname || "").toLowerCase();
   const protocol = (window.location && window.location.protocol || "").toLowerCase();
@@ -53,9 +54,24 @@ window.getFirebaseApiKey = async function getFirebaseApiKey() {
 
   if (__firebaseApiKeyPromise) return __firebaseApiKeyPromise;
 
+  const storageKey = window.FIREBASE_LOCAL_APIKEY_STORAGE || "growtopia_local_firebase_apikey_v1";
+  let fetchController = null;
+  let timeoutId = null;
+  if (typeof AbortController !== "undefined") {
+    fetchController = new AbortController();
+    timeoutId = setTimeout(() => {
+      try {
+        fetchController.abort();
+      } catch (error) {
+        // ignore
+      }
+    }, FIREBASE_APIKEY_FETCH_TIMEOUT_MS);
+  }
+
   __firebaseApiKeyPromise = fetch(window.FIREBASE_APIKEY_ENDPOINT, {
     cache: "no-store",
     headers: { "Accept": "application/json, text/plain;q=0.9" },
+    signal: fetchController ? fetchController.signal : undefined
   })
     .then(async (res) => {
       if (!res.ok) throw new Error("Blocked: " + res.status);
@@ -78,11 +94,31 @@ window.getFirebaseApiKey = async function getFirebaseApiKey() {
       const safeKey = (key || "").trim();
       if (!safeKey) throw new Error("Empty API key response.");
       if (window.FIREBASE_CONFIG) window.FIREBASE_CONFIG.apiKey = safeKey;
+      try {
+        localStorage.setItem(storageKey, safeKey);
+      } catch (error) {
+        // ignore localStorage failures
+      }
       return safeKey;
     })
     .catch((err) => {
+      try {
+        const cached = localStorage.getItem(storageKey);
+        if (cached && cached.trim()) {
+          const safe = cached.trim();
+          if (window.FIREBASE_CONFIG) window.FIREBASE_CONFIG.apiKey = safe;
+          return safe;
+        }
+      } catch (error) {
+        // ignore localStorage failures
+      }
       __firebaseApiKeyPromise = null;
       throw err;
+    })
+    .finally(() => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     });
 
   return __firebaseApiKeyPromise;
