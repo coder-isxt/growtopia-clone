@@ -1,95 +1,94 @@
-# 🌱 Growtopia V2
+# PIXELBUILD (Growtopia-style Web Game)
 
-A modern web-based remake inspired by Growtopia, built using HTML, CSS, and JavaScript.  
-This project recreates core sandbox gameplay mechanics with custom systems, improved visuals, and browser-based multiplayer-ready architecture.
+Browser-based 2D sandbox inspired by Growtopia, built with plain HTML/CSS/JavaScript and Firebase Realtime Database.
 
----
+No server-side code is required for gameplay.
 
-## 🎮 Features
+## Project Location
 
-- 🌍 Block-based world system
-- 🧱 Place & break blocks
-- 💰 Item economy support (vending machines, trading ready)
-- ⚡ Fast client-side rendering
-- 📱 Mobile-friendly UI
-- 🔒 Secure API key handling via Cloudflare Workers
-- 🎨 Modern UI design
+Main game files are in:
 
----
+- `growtopia test/`
 
-## 🚀 Live Demo
-👉 https://coder-isxt.github.io/growtopia-clone/
+Entry file:
 
----
+- `growtopia test/index.html`
 
-## 🛠 Tech Stack
+## Features
 
-- **Frontend:** HTML, CSS, JavaScript  
-- **Hosting:** GitHub Pages  
-- **Backend Logic:** Cloudflare Workers (serverless API)  
-- **Version Control:** Git + GitHub  
+- Account login/create (client + Firebase)
+- Multiplayer worlds
+- World lock ownership/admins
+- World menu with occupancy
+- Block place/break/rotate
+- Seeds, trees, growth, harvesting, gems
+- Inventory, dropped items, stacking
+- Cosmetics (shirts/pants/hats/wings/swords)
+- Chat, PMs, trade, friends
+- Vending machines, donation boxes, storage chests
+- Signs, doors, weather machines, cameras
+- Admin panel, roles, commands, audit/logs
+- Owner backup/restore system (including JSON import/export)
 
----
+## Tech
 
-## 📦 Project Structure
+- Vanilla JavaScript modules loaded in `index.html`
+- Firebase Realtime Database
+- Firebase App Check (optional if configured)
+- Font Awesome icons
 
-```
-📁 project
- ┣ 📂 assets        → images, sprites, sounds
- ┣ 📂 scripts       → game logic
- ┣ 📂 styles        → CSS files
- ┣ 📜 index.html    → main game entry
- ┗ 📜 README.md
-```
+## Quick Start
 
----
+1. Open `growtopia test/index.html` in a browser.
+2. Configure Firebase:
+   - Put config in `growtopia test/firebase-config.js`, or
+   - Use runtime API key fetch if you already configured that flow.
+3. Ensure Firebase Realtime Database rules allow your intended environment.
+4. Create an account and start playing.
 
-## 🔐 Security Note
+## Important Config Notes
 
-Sensitive keys are **never stored in frontend code**.  
-Protected endpoints are handled through a Cloudflare Worker proxy.
+- Base DB path is controlled by `SETTINGS.BASE_PATH`.
+- Admin roles/permissions are controlled by:
+  - `growtopia test/admin.js`
+  - `growtopia test/settings.js`
+- Asset version cache-busting uses `window.GT_ASSET_VERSION` in `index.html`.
 
----
+## Owner Backup System
 
-## 🧠 Goals
+Owner-only actions in Admin panel:
 
-- Recreate classic sandbox MMO mechanics
-- Improve performance compared to original browser clones
-- Add new systems not present in the original game
-- Keep everything lightweight and fast
+- `Backup DB`
+- `Restore Backup`
+- `Download JSON`
+- `Upload JSON`
 
----
+Backups are stored under:
 
-## 📌 Roadmap
+- `{BASE_PATH}/backups`
 
-- [ ] Multiplayer syncing
-- [ ] Inventory system
-- [ ] World saving/loading
-- [ ] Player accounts
-- [ ] Trading system
-- [ ] Sound effects
-- [ ] Animations
+Restore keeps the `backups` tree intact.
 
----
+## Controls (Default)
 
-## 🤝 Contributing
+- Move: `A/D` or Arrow keys
+- Jump: `W` or `Space`
+- Chat: `Enter`
+- Drop selected item: `Q`
+- Place/Break: mouse/tap
+- Rotate: right click (with fist)
+- Slot quick select: `1` fist, `2` wrench
 
-Contributions, ideas, and suggestions are welcome!
+## Module Layout (high level)
 
-1. Fork repo
-2. Create branch
-3. Commit changes
-4. Open pull request
+- Core/game loop: `growtopia test/game.js`
+- Database/auth helpers: `growtopia test/db.js`, `growtopia test/auth.js`
+- Admin/commands: `growtopia test/admin.js`, `growtopia test/admins.js`, `growtopia test/commands.js`
+- Sync: `growtopia test/sync_player.js`, `growtopia test/sync_blocks.js`, `growtopia test/sync_worlds.js`, `growtopia test/sync_hits.js`
+- Gameplay systems: `vending.js`, `donation.js`, `chest.js`, `plants.js`, `trade.js`, `friends.js`, `shop.js`, `sign.js`
+- Content definitions: `blocks.js`, `seeds.js`, `items.js`, `titles.js`, `clothes/*`
+- Backups: `growtopia test/backup.js`
 
----
+## Disclaimer
 
-## 📜 License
-
-This project is for **educational and personal use**.  
-Not affiliated with the original Growtopia developers.
-
----
-
-## ⭐ Support
-
-If you like the project, consider starring the repo ⭐
+This is a fan-made project inspired by Growtopia and is not an official Ubisoft/Growtopia product.
