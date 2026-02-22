@@ -533,6 +533,7 @@
       let lastToolbarRefresh = 0;
       let suppressInventoryClickUntilMs = 0;
       let pickupInventoryFlushTimer = 0;
+      let inventorySaveTimer = 0;
       let lastInventoryFullHintAt = 0;
 
       let currentWorldId = getInitialWorldId();
@@ -4710,20 +4711,32 @@
         }
       }
 
-      function saveInventory() {
-        clampLocalInventoryAll();
-        saveInventoryToLocal();
-        if (!network.enabled || !network.inventoryRef) return;
-        network.inventoryRef.set(buildInventoryPayload()).catch(() => {
-          setNetworkState("Inventory save error", true);
-        });
+      function saveInventory(immediate = true) {
+        if (inventorySaveTimer) {
+          clearTimeout(inventorySaveTimer);
+          inventorySaveTimer = 0;
+        }
+        if (immediate) {
+          clampLocalInventoryAll();
+          saveInventoryToLocal();
+          if (network.enabled && network.inventoryRef) {
+            network.inventoryRef.set(buildInventoryPayload()).catch(() => {
+              setNetworkState("Inventory save error", true);
+            });
+          }
+          return;
+        }
+        inventorySaveTimer = setTimeout(() => {
+          inventorySaveTimer = 0;
+          saveInventory(true);
+        }, 1000);
       }
 
       function schedulePickupInventoryFlush() {
         if (pickupInventoryFlushTimer) return;
         pickupInventoryFlushTimer = window.setTimeout(() => {
           pickupInventoryFlushTimer = 0;
-          saveInventory();
+          saveInventory(true);
           refreshToolbar();
         }, 70);
       }
@@ -5396,6 +5409,10 @@
         if (questsSaveTimer) {
           clearTimeout(questsSaveTimer);
           questsSaveTimer = 0;
+        }
+        if (inventorySaveTimer) {
+          clearTimeout(inventorySaveTimer);
+          inventorySaveTimer = 0;
         }
         if (inWorld) {
           sendSystemWorldMessage(playerName + " left the world.");
@@ -8161,16 +8178,16 @@
         ctx.fillText(nameText, cursorX, nameY);
         if (slotOrder[selectedSlot] === TOOL_WRENCH) {
           const textWidth = (cursorX - (Math.round(px + PLAYER_W / 2 - totalWidth / 2))) + ctx.measureText(nameText).width;
-          const iconSize = 12 / cameraZoom;
-          const iconX = Math.round(px + PLAYER_W / 2 - totalWidth / 2) + textWidth + (5 / cameraZoom);
-          const iconY = py - (10 / cameraZoom);
+          const iconSize = 22 / cameraZoom;
+          const iconX = Math.round(px + PLAYER_W / 2 - totalWidth / 2) + textWidth + (6 / cameraZoom);
+          const iconY = nameY - (4 / cameraZoom) - (iconSize / 2);
           drawNameWrenchIcon(iconX, iconY, iconSize);
           localPlayerWrenchHitbox.push({
             x: iconX,
             y: iconY,
             w: iconSize,
             h: iconSize,
-            accountId: playerProfileId || "",
+            accountId: playerProfileId || "local",
             name: nameText
           });
         }
@@ -8248,9 +8265,9 @@
           ctx.fillText(nameText, cursorX, nameY);
           if (wrenchSelected && other.accountId) {
             const textWidth = (cursorX - nameX) + ctx.measureText(nameText).width;
-            const iconSize = 12 / cameraZoom;
-            const iconX = Math.floor(nameX + textWidth + (5 / cameraZoom));
-            const iconY = Math.floor(nameY - (10 / cameraZoom));
+            const iconSize = 22 / cameraZoom;
+            const iconX = Math.round(nameX + textWidth + (6 / cameraZoom));
+            const iconY = nameY - (4 / cameraZoom) - (iconSize / 2);
             drawNameWrenchIcon(iconX, iconY, iconSize);
             playerWrenchHitboxes.push({
               x: iconX,
@@ -8275,16 +8292,17 @@
         ctx.arc(x + r, y + r, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = "rgba(14, 36, 56, 0.9)";
-        ctx.lineWidth = 1;
+        ctx.lineWidth = Math.max(1, size * 0.08);
         ctx.stroke();
         ctx.strokeStyle = "rgba(14, 36, 56, 0.95)";
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = Math.max(1.5, size * 0.12);
+        const pad = size * 0.25;
         ctx.beginPath();
-        ctx.moveTo(x + 3, y + size - 4);
-        ctx.lineTo(x + size - 4, y + 4);
+        ctx.moveTo(x + pad, y + size - pad);
+        ctx.lineTo(x + size - pad, y + pad);
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(x + size - 4, y + 4, 2, 0.4, 2.75);
+        ctx.arc(x + size - pad, y + pad, size * 0.15, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
@@ -8311,9 +8329,11 @@
         const point = canvasPointFromClient(clientX, clientY);
         const hit = hitWrenchNameIcon(point.x / Math.max(0.01, cameraZoom), point.y / Math.max(0.01, cameraZoom));
         if (!hit || !hit.accountId) return false;
+        const targetAccountId = hit.accountId === "local" ? (playerProfileId || "") : hit.accountId;
+        if (!targetAccountId) return false;
         const friendCtrl = getFriendsController();
         if (!friendCtrl || typeof friendCtrl.openProfileByAccount !== "function") return false;
-        return Boolean(friendCtrl.openProfileByAccount(hit.accountId, hit.name));
+        return Boolean(friendCtrl.openProfileByAccount(targetAccountId, hit.name));
       }
 
       function wrapChatText(text, maxTextWidth) {
@@ -8790,7 +8810,7 @@
                 };
             saveTreePlant(tx, ty, seedPlant);
           }
-          saveInventory();
+          saveInventory(false);
           refreshToolbar();
           awardXp(3, "placing blocks");
         };
@@ -8945,7 +8965,7 @@
             inventory[rewardBlockId] = (inventory[rewardBlockId] || 0) + rewardAmount;
           }
           addPlayerGems(gemReward, true);
-          saveInventory();
+          saveInventory(false);
           refreshToolbar();
           awardXp(15, "harvesting");
           applyAchievementEvent("tree_harvest", { count: 1 });
@@ -9087,7 +9107,7 @@
           }
           postLocalSystemChat("World unlocked.");
         }
-        saveInventory();
+        saveInventory(false);
         refreshToolbar();
         awardXp(5, "breaking blocks");
         applyQuestEvent("break_block", { count: 1 });
