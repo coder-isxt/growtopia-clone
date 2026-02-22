@@ -190,7 +190,7 @@ window.GTModules.chest = (function createChestModule() {
         "</div>" +
         "<div class='vending-section'>" +
           "<div class='vending-section-title'>Storage</div>" +
-          "<div class='trade-offer' data-chest-drop='storage'>" +
+          "<div class='trade-offer chest-drop-zone' data-chest-drop='storage'>" +
             (storedRows || "<div class='trade-offer-empty'>Chest is empty.</div>") +
           "</div>" +
         "</div>";
@@ -448,13 +448,15 @@ window.GTModules.chest = (function createChestModule() {
       const body = get("getChestBodyEl", null);
       if (!(body instanceof HTMLElement)) return { handled: false, blockWorldDrop: false };
       const zone = body.querySelector("[data-chest-drop='storage']");
-      if (!(zone instanceof HTMLElement)) return { handled: false, blockWorldDrop: false };
 
       const x = Number(clientX);
       const y = Number(clientY);
       if (!Number.isFinite(x) || !Number.isFinite(y)) return { handled: false, blockWorldDrop: false };
-      const rect = zone.getBoundingClientRect();
-      const inside = x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+      const zoneRect = zone instanceof HTMLElement ? zone.getBoundingClientRect() : null;
+      const bodyRect = body.getBoundingClientRect();
+      const insideZone = Boolean(zoneRect && x >= zoneRect.left && x <= zoneRect.right && y >= zoneRect.top && y <= zoneRect.bottom);
+      const insideBody = x >= bodyRect.left && x <= bodyRect.right && y >= bodyRect.top && y <= bodyRect.bottom;
+      const inside = insideZone || insideBody;
       if (!inside) return { handled: false, blockWorldDrop: false };
       if (!canManageAt(tx, ty)) {
         const post = opts.postLocalSystemChat || (() => {});

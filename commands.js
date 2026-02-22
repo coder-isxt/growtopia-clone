@@ -94,7 +94,7 @@ window.GTModules.commands = {
       available.push("/online");
       if (c.hasAdminPermission("tp")) available.push("/where", "/goto");
       if (c.hasAdminPermission("bring")) available.push("/bringall");
-      available.push("/announce");
+      if (c.hasAdminPermission("announce")) available.push("/announce");
       if (c.hasAdminPermission("announce_user")) available.push("/announcep");
       if (c.hasAdminPermission("tempban")) available.push("/tempban", "/ban");
       if (c.hasAdminPermission("permban")) available.push("/permban");
@@ -102,9 +102,12 @@ window.GTModules.commands = {
       if (c.hasAdminPermission("kick")) available.push("/kick");
       if (c.hasAdminPermission("freeze")) available.push("/freeze", "/unfreeze");
       if (c.hasAdminPermission("resetinv")) available.push("/resetinv");
-      if (c.hasAdminPermission("givex")) available.push("/givex", "/giveitem", "/givetitle", "/removetitle");
+      if (c.hasAdminPermission("give_block")) available.push("/givex");
+      if (c.hasAdminPermission("give_item")) available.push("/giveitem");
+      if (c.hasAdminPermission("give_title")) available.push("/givetitle");
+      if (c.hasAdminPermission("remove_title")) available.push("/removetitle");
       if (c.hasAdminPermission("tp")) available.push("/tp");
-      if (c.hasAdminPermission("tp")) available.push("/reach");
+      if (c.hasAdminPermission("reach")) available.push("/reach");
       if (c.hasAdminPermission("bring")) available.push("/bring", "/summon");
       if (c.hasAdminPermission("setrole") || c.hasAdminPermission("setrole_limited")) available.push("/setrole", "/role");
       c.postLocalSystemChat("Role: " + c.currentAdminRole + " | Commands: " + (available.join(", ") || "none"));
@@ -171,6 +174,10 @@ window.GTModules.commands = {
       return true;
     }
     if (command === "/announce") {
+      if (!c.hasAdminPermission("announce")) {
+        c.postLocalSystemChat("Permission denied.");
+        return true;
+      }
       if (parts.length >= 3 && c.hasAdminPermission("announce_user")) {
         const targetRef = parts[1] || "";
         const accountId = c.findAccountIdByUserRef(targetRef);
@@ -357,7 +364,7 @@ window.GTModules.commands = {
       return true;
     }
     if (command === "/reach") {
-      if (!c.hasAdminPermission("tp")) {
+      if (!c.hasAdminPermission("reach")) {
         c.postLocalSystemChat("Permission denied.");
         return true;
       }
@@ -400,6 +407,10 @@ window.GTModules.commands = {
       return true;
     }
     if (command === "/givex") {
+      if (!c.hasAdminPermission("give_block")) {
+        c.postLocalSystemChat("Permission denied.");
+        return true;
+      }
       const targetRef = parts[1] || "";
       const blockRef = parts[2] || "";
       const blockId = c.parseBlockRef(blockRef);
@@ -419,6 +430,10 @@ window.GTModules.commands = {
       return true;
     }
     if (command === "/giveitem") {
+      if (!c.hasAdminPermission("give_item")) {
+        c.postLocalSystemChat("Permission denied.");
+        return true;
+      }
       const targetRef = parts[1] || "";
       const itemId = parts[2] || "";
       const amount = Number(parts[3]);
@@ -433,6 +448,11 @@ window.GTModules.commands = {
       return true;
     }
     if (command === "/givetitle" || command === "/removetitle") {
+      const removeMode = command === "/removetitle";
+      if (!c.hasAdminPermission(removeMode ? "remove_title" : "give_title")) {
+        c.postLocalSystemChat("Permission denied.");
+        return true;
+      }
       const targetRef = parts[1] || "";
       const titleId = parts[2] || "";
       const amount = Number(parts[3]);
@@ -445,7 +465,6 @@ window.GTModules.commands = {
         c.postLocalSystemChat("Title grant handler is unavailable.");
         return true;
       }
-      const removeMode = command === "/removetitle";
       if (c.applyTitleGrant(accountId, titleId, amount, "chat", targetRef, removeMode)) {
         c.postLocalSystemChat((removeMode ? "Removed title " : "Added title ") + titleId + " x" + amount + (removeMode ? " from @" : " to @") + targetRef + ".");
       }

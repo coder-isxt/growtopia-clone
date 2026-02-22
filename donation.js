@@ -264,16 +264,11 @@ window.GTModules.donation = (function createDonationModule() {
       } else {
         const pending = getPendingForTile(tx, ty);
         const pendingRows = buildPendingRows(pending);
-        const ownRows = buildOwnInventoryRows();
         bodyHtml +=
           "<div class='vending-section'>" +
-            "<div class='vending-section-title'>Your Inventory</div>" +
-            (ownRows || "<div class='vending-empty'>No items to donate.</div>") +
-          "</div>" +
-          "<div class='vending-section'>" +
             "<div class='vending-section-title'>Your Donation</div>" +
-            "<div class='vending-auto-stock-note'>Drag items from your inventory into this box.</div>" +
-            "<div class='trade-offer' data-donation-drop='basket'>" +
+            "<div class='vending-auto-stock-note'>Drag items from the inventory panel into this box.</div>" +
+            "<div class='trade-offer donation-drop-zone' data-donation-drop='basket'>" +
               (pendingRows || "<div class='trade-offer-empty'>Drop items here.</div>") +
             "</div>" +
           "</div>";
@@ -597,12 +592,14 @@ window.GTModules.donation = (function createDonationModule() {
       const body = get("getDonationBodyEl", null);
       if (!(body instanceof HTMLElement)) return { handled: false, blockWorldDrop: false };
       const zone = body.querySelector("[data-donation-drop='basket']");
-      if (!(zone instanceof HTMLElement)) return { handled: false, blockWorldDrop: false };
       const x = Number(clientX);
       const y = Number(clientY);
       if (!Number.isFinite(x) || !Number.isFinite(y)) return { handled: false, blockWorldDrop: false };
-      const rect = zone.getBoundingClientRect();
-      const inside = x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+      const zoneRect = zone instanceof HTMLElement ? zone.getBoundingClientRect() : null;
+      const bodyRect = body.getBoundingClientRect();
+      const insideZone = Boolean(zoneRect && x >= zoneRect.left && x <= zoneRect.right && y >= zoneRect.top && y <= zoneRect.bottom);
+      const insideBody = x >= bodyRect.left && x <= bodyRect.right && y >= bodyRect.top && y <= bodyRect.bottom;
+      const inside = insideZone || insideBody;
       if (!inside) return { handled: false, blockWorldDrop: false };
 
       const added = addPendingDonation(entry, amount);

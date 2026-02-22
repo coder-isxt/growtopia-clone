@@ -184,19 +184,19 @@
         : {
             roleRank: { none: 0, moderator: 1, admin: 2, manager: 3, owner: 4 },
             permissions: {
-              owner: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "setrole", "clear_logs", "view_audit", "force_reload", "freeze", "unfreeze", "announce_user"],
-              manager: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "setrole_limited", "clear_logs", "view_audit", "freeze", "unfreeze", "announce_user"],
-              admin: ["panel_open", "view_logs", "kick", "resetinv", "givex", "tp", "bring", "freeze", "unfreeze", "announce_user"],
-              moderator: ["panel_open", "kick", "tp", "bring", "announce_user"],
+              owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "announce", "announce_user"],
+              manager: ["panel_open", "view_logs", "view_audit", "clear_logs", "setrole_limited", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "announce", "announce_user"],
+              admin: ["panel_open", "view_logs", "view_audit", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "announce", "announce_user"],
+              moderator: ["panel_open", "kick", "tp", "reach", "bring", "summon", "announce", "announce_user"],
               none: []
             },
             commandCooldownsMs: SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS && typeof SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS === "object"
               ? SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS
               : {
                   owner: {},
-                  manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, givex: 600, giveitem: 600, tp: 300, bring: 700, summon: 700, setrole: 2000, freeze: 700, unfreeze: 700, announcep: 500 },
-                  admin: { kick: 900, givex: 900, giveitem: 900, tp: 400, bring: 900, summon: 900, freeze: 900, unfreeze: 900, announcep: 700 },
-                  moderator: { kick: 1200, tp: 600, bring: 1200, summon: 1200, announcep: 900 },
+                  manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, give_block: 600, give_item: 600, givetitle: 600, removetitle: 600, tp: 300, reach: 500, bring: 700, summon: 700, setrole: 2000, freeze: 700, unfreeze: 700, announce: 500, announce_user: 500 },
+                  admin: { kick: 900, give_block: 900, give_item: 900, givetitle: 900, removetitle: 900, tp: 400, reach: 600, bring: 900, summon: 900, freeze: 900, unfreeze: 900, announce: 700, announce_user: 700 },
+                  moderator: { kick: 1200, tp: 600, reach: 900, bring: 1200, summon: 1200, announce: 900, announce_user: 900 },
                   none: {}
                 },
             roleByUsername: SETTINGS.ADMIN_ROLE_BY_USERNAME && typeof SETTINGS.ADMIN_ROLE_BY_USERNAME === "object" ? SETTINGS.ADMIN_ROLE_BY_USERNAME : {},
@@ -1820,7 +1820,9 @@
           const canUnban = hasAdminPermission("unban") && canActorAffectTarget(accountId, role);
           const canKick = hasAdminPermission("kick") && canActorAffectTarget(accountId, role);
           const canReset = hasAdminPermission("resetinv") && canActorAffectTarget(accountId, role);
-          const canGive = hasAdminPermission("givex") && canActorGrantTarget(accountId, role);
+          const canGiveBlock = hasAdminPermission("give_block") && canActorGrantTarget(accountId, role);
+          const canGiveItem = hasAdminPermission("give_item") && canActorGrantTarget(accountId, role);
+          const canGiveTitle = (hasAdminPermission("give_title") || hasAdminPermission("remove_title")) && canActorGrantTarget(accountId, role);
           const banText = banned
             ? (banStatus.type === "permanent" ? "Perm Banned" : "Temp Banned (" + formatRemainingMs(banStatus.remainingMs) + ")")
             : "Active";
@@ -1875,32 +1877,35 @@
                 <div class="admin-action-group">
                   <div class="admin-action-label">Give Blocks</div>
                   <div class="admin-give-wrap">
-                    <select class="admin-give-block" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>
+                    <input class="admin-give-block-filter" data-account-id="${escapeHtml(accountId)}" type="text" placeholder="Find block..." ${canGiveBlock ? "" : "disabled"}>
+                    <select class="admin-give-block" data-account-id="${escapeHtml(accountId)}" ${canGiveBlock ? "" : "disabled"}>
                       ${INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
                     </select>
                     <input class="admin-give-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="10" placeholder="amount">
-                    <button data-admin-act="give" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give</button>
+                    <button data-admin-act="give" data-account-id="${escapeHtml(accountId)}" ${canGiveBlock ? "" : "disabled"}>Give</button>
                   </div>
                 </div>
                 <div class="admin-action-group">
                   <div class="admin-action-label">Give Cosmetics</div>
                   <div class="admin-give-item-wrap">
-                    <select class="admin-give-item-id" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>
+                    <input class="admin-give-item-filter" data-account-id="${escapeHtml(accountId)}" type="text" placeholder="Find cosmetic..." ${canGiveItem ? "" : "disabled"}>
+                    <select class="admin-give-item-id" data-account-id="${escapeHtml(accountId)}" ${canGiveItem ? "" : "disabled"}>
                       ${COSMETIC_ITEMS.map((item) => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name + " (" + item.id + ")") + "</option>").join("")}
                     </select>
                     <input class="admin-give-item-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="1" placeholder="amount">
-                    <button data-admin-act="giveitem" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give Item</button>
+                    <button data-admin-act="giveitem" data-account-id="${escapeHtml(accountId)}" ${canGiveItem ? "" : "disabled"}>Give Item</button>
                   </div>
                 </div>
                 <div class="admin-action-group">
                   <div class="admin-action-label">Titles</div>
                   <div class="admin-give-item-wrap">
-                    <select class="admin-give-title-id" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>
+                    <input class="admin-give-title-filter" data-account-id="${escapeHtml(accountId)}" type="text" placeholder="Find title..." ${canGiveTitle ? "" : "disabled"}>
+                    <select class="admin-give-title-id" data-account-id="${escapeHtml(accountId)}" ${canGiveTitle ? "" : "disabled"}>
                       ${TITLE_CATALOG.map((title) => '<option value="' + escapeHtml(title.id) + '">' + escapeHtml(title.name + " (" + title.id + ")") + "</option>").join("")}
                     </select>
                     <input class="admin-give-title-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="1" placeholder="amount">
-                    <button data-admin-act="givetitle" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Add Title</button>
-                    <button data-admin-act="removetitle" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Remove Title</button>
+                    <button data-admin-act="givetitle" data-account-id="${escapeHtml(accountId)}" ${canGiveTitle ? "" : "disabled"}>Add Title</button>
+                    <button data-admin-act="removetitle" data-account-id="${escapeHtml(accountId)}" ${canGiveTitle ? "" : "disabled"}>Remove Title</button>
                   </div>
                 </div>
               </div>
@@ -2089,14 +2094,54 @@
       function handleAdminInputChange(event) {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        if (!(target instanceof HTMLSelectElement)) return;
-        if (!target.classList.contains("admin-ban-preset")) return;
-        const accountId = target.dataset.accountId;
+        if (target instanceof HTMLSelectElement && target.classList.contains("admin-ban-preset")) {
+          const accountId = target.dataset.accountId;
+          if (!accountId) return;
+          if (target.value === "custom") return;
+          const durationInput = adminAccountsEl.querySelector('.admin-ban-duration[data-account-id="' + accountId + '"]');
+          if (durationInput instanceof HTMLInputElement) {
+            durationInput.value = target.value;
+          }
+          return;
+        }
+        if (!(target instanceof HTMLInputElement)) return;
+        const accountId = String(target.dataset.accountId || "");
         if (!accountId) return;
-        if (target.value === "custom") return;
-        const durationInput = adminAccountsEl.querySelector('.admin-ban-duration[data-account-id="' + accountId + '"]');
-        if (durationInput instanceof HTMLInputElement) {
-          durationInput.value = target.value;
+        const isBlockFilter = target.classList.contains("admin-give-block-filter");
+        const isItemFilter = target.classList.contains("admin-give-item-filter");
+        const isTitleFilter = target.classList.contains("admin-give-title-filter");
+        if (!isBlockFilter && !isItemFilter && !isTitleFilter) return;
+        const query = String(target.value || "").trim().toLowerCase();
+        let select = null;
+        let options = [];
+        if (isBlockFilter) {
+          select = adminAccountsEl.querySelector('.admin-give-block[data-account-id="' + accountId + '"]');
+          options = INVENTORY_IDS.map((id) => {
+            const key = getBlockKeyById(id);
+            const label = (blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + key + ")";
+            return { value: key, label };
+          });
+        } else if (isItemFilter) {
+          select = adminAccountsEl.querySelector('.admin-give-item-id[data-account-id="' + accountId + '"]');
+          options = COSMETIC_ITEMS.map((item) => ({ value: item.id, label: (item.name || item.id) + " (" + item.id + ")" }));
+        } else {
+          select = adminAccountsEl.querySelector('.admin-give-title-id[data-account-id="' + accountId + '"]');
+          options = TITLE_CATALOG.map((title) => ({ value: title.id, label: title.name + " (" + title.id + ")" }));
+        }
+        if (!(select instanceof HTMLSelectElement)) return;
+        const prev = String(select.value || "");
+        const filtered = query
+          ? options.filter((opt) => opt.label.toLowerCase().includes(query) || opt.value.toLowerCase().includes(query))
+          : options;
+        select.innerHTML = filtered.map((opt) => "<option value=\"" + escapeHtml(opt.value) + "\">" + escapeHtml(opt.label) + "</option>").join("");
+        if (filtered.length <= 0) {
+          select.innerHTML = "<option value=\"\">No results</option>";
+          select.disabled = true;
+          return;
+        }
+        select.disabled = false;
+        if (filtered.some((opt) => opt.value === prev)) {
+          select.value = prev;
         }
       }
 
@@ -2370,8 +2415,8 @@
 
       function applyInventoryGrant(accountId, blockId, amount, sourceTag, targetLabel) {
         if (!accountId || !canUseAdminPanel || !network.db) return false;
-        if (!ensureCommandReady("givex")) return false;
-        if (!hasAdminPermission("givex")) {
+        if (!ensureCommandReady("give_block")) return false;
+        if (!hasAdminPermission("give_block")) {
           postLocalSystemChat("Permission denied.");
           return false;
         }
@@ -2406,8 +2451,8 @@
 
       function applyCosmeticItemGrant(accountId, itemId, amount, sourceTag, targetLabel) {
         if (!accountId || !canUseAdminPanel || !network.db) return false;
-        if (!ensureCommandReady("giveitem")) return false;
-        if (!hasAdminPermission("givex")) {
+        if (!ensureCommandReady("give_item")) return false;
+        if (!hasAdminPermission("give_item")) {
           postLocalSystemChat("Permission denied.");
           return false;
         }
@@ -2444,7 +2489,7 @@
       function applyTitleGrant(accountId, titleId, amount, sourceTag, targetLabel, removeMode) {
         if (!accountId || !canUseAdminPanel || !network.db) return false;
         if (!ensureCommandReady(removeMode ? "removetitle" : "givetitle")) return false;
-        if (!hasAdminPermission("givex")) {
+        if (!hasAdminPermission(removeMode ? "remove_title" : "give_title")) {
           postLocalSystemChat("Permission denied.");
           return false;
         }
@@ -6232,6 +6277,21 @@
       }
 
       function drawHumanoid(px, py, facing, bodyColor, skinColor, eyeColor, shirtId, pantsId, hatId, pose, lookX, lookY) {
+        function fillChamferRect(x, y, w, h, color) {
+          const rx = Math.round(x);
+          const ry = Math.round(y);
+          const rw = Math.max(2, Math.round(w));
+          const rh = Math.max(2, Math.round(h));
+          ctx.fillStyle = color;
+          if (rw <= 3 || rh <= 3) {
+            ctx.fillRect(rx, ry, rw, rh);
+            return;
+          }
+          ctx.fillRect(rx + 1, ry, rw - 2, 1);
+          ctx.fillRect(rx, ry + 1, rw, rh - 2);
+          ctx.fillRect(rx + 1, ry + rh - 1, rw - 2, 1);
+        }
+
         const armSwing = Number(pose && pose.armSwing) || 0;
         const legSwing = Number(pose && pose.legSwing) || 0;
         const hitStrength = Math.max(0, Math.min(1, Number(pose && pose.hitStrength) || 0));
@@ -6252,9 +6312,8 @@
         const torsoW = PLAYER_W - 10;
         const torsoH = 8;
 
-        ctx.fillStyle = skinColor;
-        ctx.fillRect(headX, headY, headW, headH);
-        ctx.fillRect(torsoX, torsoY, torsoW, torsoH);
+        fillChamferRect(headX, headY, headW, headH, skinColor);
+        fillChamferRect(torsoX, torsoY, torsoW, torsoH, skinColor);
         let leftArmX = px + 2;
         let rightArmX = px + PLAYER_W - 5;
         if (hitStrength > 0) {
@@ -6265,23 +6324,24 @@
             leftArmX += forward;
           }
         }
-        ctx.fillRect(leftArmX, leftArmY, 3, 8);
-        ctx.fillRect(rightArmX, rightArmY, 3, 8);
+        fillChamferRect(leftArmX, leftArmY, 3, 8, skinColor);
+        fillChamferRect(rightArmX, rightArmY, 3, 8, skinColor);
         if (hitMode === "fist" && hitStrength > 0.05) {
           const fistY = facing === 1 ? rightArmY + 5 : leftArmY + 5;
           const fistX = facing === 1 ? (rightArmX + 2) : (leftArmX - 2);
-          ctx.fillRect(fistX, fistY, 3, 3);
+          fillChamferRect(fistX, fistY, 3, 3, skinColor);
         }
-        ctx.fillRect(px + 6, leftLegY, 4, 7);
-        ctx.fillRect(px + PLAYER_W - 10, rightLegY, 4, 7);
+        fillChamferRect(px + 6, leftLegY, 4, 7, skinColor);
+        fillChamferRect(px + PLAYER_W - 10, rightLegY, 4, 7, skinColor);
 
         drawShirt(px, py, shirtId);
         drawPants(px, py, pantsId);
         drawHat(px, py, hatId, facing);
 
-        ctx.fillStyle = "rgba(0,0,0,0.18)";
-        ctx.fillRect(torsoX, torsoY - 1, torsoW, 1);
-        ctx.fillRect(torsoX, torsoY + torsoH, torsoW, 1);
+        ctx.fillStyle = "rgba(0,0,0,0.14)";
+        ctx.fillRect(headX + 1, headY + 1, headW - 2, 1);
+        ctx.fillRect(torsoX + 1, torsoY - 1, torsoW - 2, 1);
+        ctx.fillRect(torsoX + 1, torsoY + torsoH, torsoW - 2, 1);
 
         // Eyes are offset by facing direction (no mouse-follow wobble).
         const faceOffset = faceTilt > 0 ? 1 : -1;
@@ -6300,7 +6360,8 @@
         const mouthX = px + 8 + faceOffset;
         const mouthY = py + 9;
         ctx.fillStyle = "rgba(85, 52, 43, 0.95)";
-        ctx.fillRect(mouthX, mouthY, 5, 2);
+        ctx.fillRect(mouthX, mouthY, 5, 1);
+        ctx.fillRect(mouthX + 1, mouthY + 1, 3, 1);
 
         const noseX = faceTilt > 0 ? px + 13 : px + 8;
         ctx.fillStyle = "rgba(124, 84, 66, 0.9)";
@@ -6388,14 +6449,17 @@
         ctx.restore();
         const titleDef = getEquippedTitleDef();
         const nameText = String(playerName || "Player").slice(0, 20);
-        let cursorX = px;
         const nameY = basePy - 8;
         ctx.font = PLAYER_NAME_FONT;
+        const titleText = titleDef ? ("[" + titleDef.name + "] ") : "";
+        const titleWidth = titleText ? ctx.measureText(titleText).width : 0;
+        const nameWidth = ctx.measureText(nameText).width;
+        const totalWidth = titleWidth + nameWidth;
+        let cursorX = Math.round(px + PLAYER_W / 2 - totalWidth / 2);
         if (titleDef) {
-          const titleText = "[" + titleDef.name + "] ";
           ctx.fillStyle = titleDef.color || "#8fb4ff";
           ctx.fillText(titleText, cursorX, nameY);
-          cursorX += ctx.measureText(titleText).width;
+          cursorX += titleWidth;
         }
         ctx.fillStyle = "#f3fbff";
         ctx.fillText(nameText, cursorX, nameY);
@@ -6449,15 +6513,18 @@
           const fallbackTitle = getTitleDef(titleRaw.id || "");
           const titleName = String(titleRaw.name || (fallbackTitle && fallbackTitle.name) || "").slice(0, 24);
           const titleColor = String(titleRaw.color || (fallbackTitle && fallbackTitle.color) || "#8fb4ff").slice(0, 24);
-          const nameX = px;
           const nameY = basePy - 8;
-          let cursorX = nameX;
           ctx.font = PLAYER_NAME_FONT;
+          const titleText = titleName ? ("[" + titleName + "] ") : "";
+          const titleWidth = titleText ? ctx.measureText(titleText).width : 0;
+          const nameWidth = ctx.measureText(nameText).width;
+          const totalWidth = titleWidth + nameWidth;
+          const nameX = Math.round(px + PLAYER_W / 2 - totalWidth / 2);
+          let cursorX = nameX;
           if (titleName) {
-            const titleText = "[" + titleName + "] ";
             ctx.fillStyle = titleColor || "#8fb4ff";
             ctx.fillText(titleText, cursorX, nameY);
-            cursorX += ctx.measureText(titleText).width;
+            cursorX += titleWidth;
           }
           ctx.fillStyle = "#f3fbff";
           ctx.fillText(nameText, cursorX, nameY);
@@ -8821,6 +8888,7 @@
         }
         adminAccountsEl.addEventListener("click", handleAdminAction);
         adminAccountsEl.addEventListener("change", handleAdminInputChange);
+        adminAccountsEl.addEventListener("input", handleAdminInputChange);
         chatSendBtn.addEventListener("click", () => {
           sendChatMessage();
         });
