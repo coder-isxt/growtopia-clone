@@ -1030,6 +1030,7 @@
         camerasRef: null,
         cameraLogsRef: null,
         cameraLogsFeedRef: null,
+        spawnMetaRef: null,
         lockRef: null,
         chatRef: null,
         chatFeedRef: null,
@@ -4232,6 +4233,56 @@
         updates[tiles.door.tx + "_" + tiles.door.ty] = tiles.door.id;
         updates[tiles.base.tx + "_" + tiles.base.ty] = tiles.base.id;
         network.blocksRef.update(updates).catch(() => {});
+      }
+
+      function buildSpawnStructureCleanupUpdates(blockMap, keepDoorTx, keepDoorTy) {
+        const safeDoorTx = Math.max(0, Math.min(WORLD_W - 1, Math.floor(Number(keepDoorTx) || 0)));
+        const safeDoorTy = Math.max(0, Math.min(WORLD_H - 2, Math.floor(Number(keepDoorTy) || 0)));
+        const keepDoorKey = safeDoorTx + "_" + safeDoorTy;
+        const keepBaseKey = safeDoorTx + "_" + (safeDoorTy + 1);
+        const updates = {};
+        const data = blockMap && typeof blockMap === "object" ? blockMap : {};
+        Object.keys(data).forEach((key) => {
+          const id = Math.floor(Number(data[key]));
+          if (!Number.isInteger(id)) return;
+          if (id === SPAWN_DOOR_ID) {
+            if (key !== keepDoorKey) {
+              updates[key] = null;
+            }
+            return;
+          }
+          if (id !== SPAWN_BASE_ID || key === keepBaseKey) return;
+          const tile = parseTileKey(key);
+          if (!tile) return;
+          if (tile.ty < WORLD_H - 2) {
+            updates[key] = null;
+          }
+        });
+        updates[keepDoorKey] = SPAWN_DOOR_ID;
+        updates[keepBaseKey] = SPAWN_BASE_ID;
+        return updates;
+      }
+
+      function cleanupSpawnStructureInWorldData() {
+        const tiles = getSpawnStructureTiles();
+        for (let ty = 0; ty < WORLD_H; ty++) {
+          const row = world[ty];
+          if (!Array.isArray(row)) continue;
+          for (let tx = 0; tx < WORLD_W; tx++) {
+            const id = row[tx];
+            if (id === SPAWN_DOOR_ID && (tx !== tiles.door.tx || ty !== tiles.door.ty)) {
+              row[tx] = 0;
+              clearTileDamage(tx, ty);
+              continue;
+            }
+            if (id === SPAWN_BASE_ID && ty < WORLD_H - 2 && (tx !== tiles.base.tx || ty !== tiles.base.ty)) {
+              row[tx] = 0;
+              clearTileDamage(tx, ty);
+            }
+          }
+        }
+        world[tiles.door.ty][tiles.door.tx] = SPAWN_DOOR_ID;
+        world[tiles.base.ty][tiles.base.tx] = SPAWN_BASE_ID;
       }
 
       function findSafeDoorSpawnPosition() {
@@ -7756,41 +7807,30 @@
 
         setSpawnStructureTile(tx, ty);
         const nextTiles = getSpawnStructureTiles();
-        for (let clearY = 0; clearY < WORLD_H; clearY++) {
-          const row = world[clearY];
-          if (!Array.isArray(row)) continue;
-          for (let clearX = 0; clearX < WORLD_W; clearX++) {
-            if (row[clearX] === SPAWN_DOOR_ID && (clearX !== nextTiles.door.tx || clearY !== nextTiles.door.ty)) {
-              row[clearX] = 0;
-              clearTileDamage(clearX, clearY);
-            }
-          }
-        }
+        cleanupSpawnStructureInWorldData();
         world[nextTiles.door.ty][nextTiles.door.tx] = SPAWN_DOOR_ID;
         world[nextTiles.base.ty][nextTiles.base.tx] = SPAWN_BASE_ID;
         clearTileDamage(nextTiles.door.tx, nextTiles.door.ty);
         clearTileDamage(nextTiles.base.tx, nextTiles.base.ty);
         if (network.enabled && network.blocksRef) {
-          const keepDoorKey = nextTiles.door.tx + "_" + nextTiles.door.ty;
-          const keepBaseKey = nextTiles.base.tx + "_" + nextTiles.base.ty;
           const pushCleanup = () => {
             network.blocksRef.once("value").then((snapshot) => {
               const map = snapshot && snapshot.val ? (snapshot.val() || {}) : {};
-              const updates = {};
-              Object.keys(map).forEach((key) => {
-                if (key === keepDoorKey) return;
-                if (Math.floor(Number(map[key])) === SPAWN_DOOR_ID) {
-                  updates[key] = null;
-                }
-              });
-              updates[keepDoorKey] = SPAWN_DOOR_ID;
-              updates[keepBaseKey] = SPAWN_BASE_ID;
+              const updates = buildSpawnStructureCleanupUpdates(map, nextTiles.door.tx, nextTiles.door.ty);
               return network.blocksRef.update(updates);
             }).catch(() => {
               setNetworkState("Network error", true);
             });
           };
           pushCleanup();
+          if (network.spawnMetaRef) {
+            network.spawnMetaRef.set({
+              tx: nextTiles.door.tx,
+              ty: nextTiles.door.ty,
+              by: (playerName || "").toString().slice(0, 20),
+              updatedAt: firebase.database.ServerValue.TIMESTAMP
+            }).catch(() => {});
+          }
           setTimeout(() => {
             if (!inWorld || !network.enabled || !network.blocksRef) return;
             pushCleanup();
@@ -9025,6 +9065,7 @@
         network.camerasRef = null;
         network.cameraLogsRef = null;
         network.cameraLogsFeedRef = null;
+        network.spawnMetaRef = null;
         network.lockRef = null;
         network.chatRef = null;
         network.chatFeedRef = null;
@@ -9271,6 +9312,7 @@
         network.camerasRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/cameras");
         network.cameraLogsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/camera-logs");
         network.cameraLogsFeedRef = network.cameraLogsRef.limitToLast(500);
+        network.spawnMetaRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/meta/spawn");
         network.lockRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/lock");
         network.chatRef = worldRefs && worldRefs.chatRef ? worldRefs.chatRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/chat");
         network.chatFeedRef = typeof syncWorldsModule.createChatFeed === "function"
@@ -9659,24 +9701,50 @@
           network.cameraLogsFeedRef.on("child_added", network.handlers.cameraLogAdded);
         }
         if (network.blocksRef && typeof network.blocksRef.once === "function") {
-          network.blocksRef.once("value").then((snapshot) => {
+          const blocksPromise = network.blocksRef.once("value");
+          const metaPromise = network.spawnMetaRef && typeof network.spawnMetaRef.once === "function"
+            ? network.spawnMetaRef.once("value").catch(() => null)
+            : Promise.resolve(null);
+          Promise.all([blocksPromise, metaPromise]).then(([blocksSnap, metaSnap]) => {
             if (!inWorld || currentWorldId !== worldId) return;
-            const found = applySpawnStructureFromBlockMap(snapshot && snapshot.val ? snapshot.val() : null);
-            if (!found) {
-              refreshSpawnStructureFromWorld();
+            const blockMap = blocksSnap && blocksSnap.val ? (blocksSnap.val() || {}) : {};
+            const meta = metaSnap && metaSnap.val ? (metaSnap.val() || {}) : {};
+            const metaTx = Math.floor(Number(meta.tx));
+            const metaTy = Math.floor(Number(meta.ty));
+            const hasMetaSpawn = Number.isInteger(metaTx) && Number.isInteger(metaTy)
+              && metaTx >= 0 && metaTy >= 0 && metaTx < WORLD_W && metaTy < WORLD_H - 1;
+            if (hasMetaSpawn) {
+              setSpawnStructureTile(metaTx, metaTy);
+            } else {
+              const found = applySpawnStructureFromBlockMap(blockMap);
+              if (!found) {
+                refreshSpawnStructureFromWorld();
+              }
             }
-            enforceSpawnStructureInWorldData();
-            enforceSpawnStructureInDatabase();
+            cleanupSpawnStructureInWorldData();
+            const tiles = getSpawnStructureTiles();
+            const updates = buildSpawnStructureCleanupUpdates(blockMap, tiles.door.tx, tiles.door.ty);
+            network.blocksRef.update(updates).catch(() => {});
+            if (network.spawnMetaRef) {
+              network.spawnMetaRef.set({
+                tx: tiles.door.tx,
+                ty: tiles.door.ty,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+              }).catch(() => {});
+            }
+            ensurePlayerSafeSpawn(true);
           }).catch(() => {
             if (!inWorld || currentWorldId !== worldId) return;
             refreshSpawnStructureFromWorld();
-            enforceSpawnStructureInWorldData();
+            cleanupSpawnStructureInWorldData();
             enforceSpawnStructureInDatabase();
+            ensurePlayerSafeSpawn(true);
           });
         } else {
           refreshSpawnStructureFromWorld();
-          enforceSpawnStructureInWorldData();
+          cleanupSpawnStructureInWorldData();
           enforceSpawnStructureInDatabase();
+          ensurePlayerSafeSpawn(true);
         }
         addClientLog("Joined world: " + worldId + ".");
         sendSystemWorldMessage(playerName + " joined the world.");
