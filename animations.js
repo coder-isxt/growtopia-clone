@@ -44,11 +44,17 @@ window.GTModules.animations = (function createAnimationsModule() {
       vx = (px - prev.x) / dt * 16.6667;
       vy = (py - prev.y) / dt * 16.6667;
     }
-    map.set(key, { x: px, y: py, t });
+    const rawVx = clamp(vx, -8, 8);
+    const rawVy = clamp(vy, -10, 10);
+    const prevVx = prev && Number.isFinite(prev.vxSmooth) ? prev.vxSmooth : rawVx;
+    const prevVy = prev && Number.isFinite(prev.vySmooth) ? prev.vySmooth : rawVy;
+    const vxSmooth = prevVx + (rawVx - prevVx) * 0.32;
+    const vySmooth = prevVy + (rawVy - prevVy) * 0.32;
+    map.set(key, { x: px, y: py, t, vxSmooth, vySmooth });
     return {
-      speed: Math.abs(vx),
-      vy,
-      grounded: Math.abs(vy) < 0.35
+      speed: Math.abs(vxSmooth),
+      vy: vySmooth,
+      grounded: Math.abs(vySmooth) < 0.2
     };
   }
 
@@ -64,10 +70,11 @@ window.GTModules.animations = (function createAnimationsModule() {
     const t = Number(nowMs) || performance.now();
     const m = motion || {};
     const seed = hashSeed(seedInput);
-    const phase = t * 0.011 + seed * 10;
-    const stride = clamp((Number(m.speed) || 0) / 3.7, 0, 1);
+    const stride = clamp((Number(m.speed) || 0) / 2.6, 0, 1);
     const grounded = Boolean(m.grounded);
     const vy = Number(m.vy) || 0;
+    const walkFreq = 0.003 + stride * 0.012;
+    const phase = t * walkFreq + seed * 10;
 
     let bodyBob = 0;
     let bodyTilt = 0;
@@ -78,20 +85,37 @@ window.GTModules.animations = (function createAnimationsModule() {
     let eyeYOffset = 0;
 
     if (grounded) {
-      bodyBob = Math.sin(phase) * (0.3 + stride * 1.3);
-      bodyTilt = Math.sin(phase + 0.7) * (0.005 + stride * 0.025);
-      wingFlap = Math.sin(t * 0.01 + seed * 12) * (0.2 + stride * 0.6);
-      swordSwing = Math.sin(phase + 1.1) * (0.6 + stride * 2.2);
-      armSwing = Math.sin(phase) * (0.2 + stride * 2.2);
-      legSwing = Math.sin(phase + Math.PI) * (0.3 + stride * 2.6);
+      const walkWave = Math.sin(phase);
+      const walkWave2 = Math.sin(phase * 2);
+      bodyBob = walkWave2 * (0.08 + stride * 0.55);
+      bodyTilt = walkWave * (0.004 + stride * 0.018);
+      wingFlap = Math.sin(t * (0.0022 + stride * 0.005) + seed * 8) * (0.06 + stride * 0.22);
+      swordSwing = walkWave * (0.12 + stride * 1.2);
+      armSwing = walkWave * (0.22 + stride * 1.7);
+      legSwing = -walkWave * (0.3 + stride * 2.2);
+      eyeYOffset = 0;
     } else {
-      bodyBob = Math.sin(t * 0.01 + seed * 7) * 0.7;
-      bodyTilt = clamp(vy * 0.02, -0.16, 0.16);
-      wingFlap = Math.sin(t * 0.017 + seed * 12) * 0.9;
-      swordSwing = clamp(vy * 0.2, -2, 2);
-      armSwing = clamp(vy * 0.18, -1.2, 1.2);
-      legSwing = clamp(vy * -0.22, -1.6, 1.6);
-      eyeYOffset = vy < 0 ? -1 : 1;
+      const jumpUp = vy < -0.12;
+      const fallDown = vy > 0.12;
+      const airStrength = clamp(Math.abs(vy) / 4.2, 0, 1);
+      const flapFreq = jumpUp ? 0.007 : 0.009;
+      bodyBob = Math.sin(t * 0.004 + seed * 6) * 0.14 + (jumpUp ? -0.38 : (fallDown ? 0.42 : 0));
+      bodyTilt = clamp(vy * 0.012, -0.11, 0.11);
+      wingFlap = Math.sin(t * flapFreq + seed * 11) * (0.25 + airStrength * 0.45);
+      swordSwing = clamp(vy * 0.1, -1.2, 1.2);
+      if (jumpUp) {
+        armSwing = -0.55 - airStrength * 0.5;
+        legSwing = 0.45 + airStrength * 0.55;
+        eyeYOffset = -1;
+      } else if (fallDown) {
+        armSwing = 0.55 + airStrength * 0.45;
+        legSwing = -0.55 - airStrength * 0.55;
+        eyeYOffset = 1;
+      } else {
+        armSwing = clamp(vy * 0.12, -0.8, 0.8);
+        legSwing = clamp(vy * -0.15, -0.9, 0.9);
+        eyeYOffset = 0;
+      }
     }
 
     const blinkGate = Math.sin(t * 0.0019 + seed * 33);

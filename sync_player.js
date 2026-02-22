@@ -83,7 +83,9 @@ window.GTModules.syncPlayer = (function createSyncPlayerModule() {
       y: toInt(data.y, 0),
       facing: toInt(data.facing, 1),
       cosmetics: {
-        clothes: String(data.cosmetics && data.cosmetics.clothes || ""),
+        shirts: String(data.cosmetics && (data.cosmetics.shirts || data.cosmetics.clothes) || ""),
+        pants: String(data.cosmetics && data.cosmetics.pants || ""),
+        hats: String(data.cosmetics && data.cosmetics.hats || ""),
         wings: String(data.cosmetics && data.cosmetics.wings || ""),
         swords: String(data.cosmetics && data.cosmetics.swords || "")
       },

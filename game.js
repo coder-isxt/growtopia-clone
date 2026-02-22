@@ -295,7 +295,7 @@
       })();
       const slotOrder = [TOOL_FIST, TOOL_WRENCH, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
       const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
-      const COSMETIC_SLOTS = ["clothes", "wings", "swords"];
+      const COSMETIC_SLOTS = ["shirts", "pants", "hats", "wings", "swords"];
       const blockMaps = typeof blockKeysModule.buildMaps === "function"
         ? blockKeysModule.buildMaps(blockDefs)
         : { idToKey: {}, keyToId: {} };
@@ -306,7 +306,7 @@
       const BLOCK_KEY_TO_ID = blockMaps.keyToId || {};
       const COSMETIC_CATALOG = typeof itemsModule.getCosmeticItemsBySlot === "function"
         ? itemsModule.getCosmeticItemsBySlot()
-        : { clothes: [], wings: [], swords: [] };
+        : { shirts: [], pants: [], hats: [], wings: [], swords: [] };
       const COSMETIC_ASSET_BASE = typeof itemsModule.getCosmeticAssetBasePath === "function"
         ? (itemsModule.getCosmeticAssetBasePath() || "./assets/cosmetics")
         : "./assets/cosmetics";
@@ -490,7 +490,9 @@
       };
       const cosmeticInventory = {};
       const equippedCosmetics = {
-        clothes: "",
+        shirts: "",
+        pants: "",
+        hats: "",
         wings: "",
         swords: ""
       };
@@ -2060,7 +2062,7 @@
           const resetPayload = {
             1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0,
             cosmeticItems,
-            equippedCosmetics: { clothes: "", wings: "", swords: "" }
+            equippedCosmetics: { shirts: "", pants: "", hats: "", wings: "", swords: "" }
           };
           network.db.ref(BASE_PATH + "/player-inventories/" + accountId).set(resetPayload).then(() => {
             adminState.inventories[accountId] = JSON.parse(JSON.stringify(resetPayload));
@@ -2754,6 +2756,13 @@
           const id = String(equippedRecord[slot] || "");
           equippedCosmetics[slot] = id && COSMETIC_LOOKUP[slot][id] && (cosmeticInventory[id] || 0) > 0 ? id : "";
         }
+        // Backward compatibility: old "clothes" slot maps to new "shirts".
+        if (!equippedCosmetics.shirts) {
+          const legacyShirtId = String(equippedRecord.clothes || "");
+          if (legacyShirtId && COSMETIC_LOOKUP.shirts && COSMETIC_LOOKUP.shirts[legacyShirtId] && (cosmeticInventory[legacyShirtId] || 0) > 0) {
+            equippedCosmetics.shirts = legacyShirtId;
+          }
+        }
         const gemsCtrl = getGemsController();
         if (gemsCtrl && typeof gemsCtrl.readFromRecord === "function") {
           gemsCtrl.readFromRecord(record || {});
@@ -2762,10 +2771,17 @@
       }
 
       function normalizeRemoteEquippedCosmetics(raw) {
-        const output = { clothes: "", wings: "", swords: "" };
+        const output = { shirts: "", pants: "", hats: "", wings: "", swords: "" };
         for (const slot of COSMETIC_SLOTS) {
           const id = String(raw && raw[slot] || "");
           output[slot] = id && COSMETIC_LOOKUP[slot][id] ? id : "";
+        }
+        // Backward compatibility for remote old payload field.
+        if (!output.shirts) {
+          const legacyShirtId = String(raw && raw.clothes || "");
+          if (legacyShirtId && COSMETIC_LOOKUP.shirts && COSMETIC_LOOKUP.shirts[legacyShirtId]) {
+            output.shirts = legacyShirtId;
+          }
         }
         return output;
       }
@@ -2781,11 +2797,10 @@
           itemPayload[item.id] = clampInventoryCount(cosmeticInventory[item.id]);
         }
         payload.cosmeticItems = itemPayload;
-        payload.equippedCosmetics = {
-          clothes: equippedCosmetics.clothes || "",
-          wings: equippedCosmetics.wings || "",
-          swords: equippedCosmetics.swords || ""
-        };
+        payload.equippedCosmetics = {};
+        for (const slot of COSMETIC_SLOTS) {
+          payload.equippedCosmetics[slot] = equippedCosmetics[slot] || "";
+        }
         const gemsCtrl = getGemsController();
         if (gemsCtrl && typeof gemsCtrl.writeToPayload === "function") {
           gemsCtrl.writeToPayload(payload);
@@ -5329,18 +5344,37 @@
         ctx.restore();
       }
 
-      function drawCosmeticSprite(item, x, y, w, h, facing) {
+      function drawCosmeticSprite(item, x, y, w, h, facing, opts) {
         const img = getCosmeticImage(item);
         if (!img) return false;
+        const options = opts && typeof opts === "object" ? opts : {};
+        const mode = options.mode === "fill" ? "fill" : "contain";
+        const alignX = Math.max(0, Math.min(1, Number(options.alignX)));
+        const alignY = Math.max(0, Math.min(1, Number(options.alignY)));
+        const useAlignX = Number.isFinite(alignX) ? alignX : 0.5;
+        const useAlignY = Number.isFinite(alignY) ? alignY : 0.5;
+        let drawX = x;
+        let drawY = y;
+        let drawW = w;
+        let drawH = h;
+        if (mode === "contain") {
+          const iw = Math.max(1, img.naturalWidth || 1);
+          const ih = Math.max(1, img.naturalHeight || 1);
+          const scale = Math.min(w / iw, h / ih);
+          drawW = Math.max(1, iw * scale);
+          drawH = Math.max(1, ih * scale);
+          drawX = x + (w - drawW) * useAlignX;
+          drawY = y + (h - drawH) * useAlignY;
+        }
         ctx.save();
         ctx.imageSmoothingEnabled = false;
         if (facing === -1) {
-          const pivot = x + w / 2;
+          const pivot = drawX + drawW / 2;
           ctx.translate(pivot, 0);
           ctx.scale(-1, 1);
           ctx.translate(-pivot, 0);
         }
-        ctx.drawImage(img, x, y, w, h);
+        ctx.drawImage(img, drawX, drawY, drawW, drawH);
         ctx.restore();
         return true;
       }
@@ -5401,15 +5435,42 @@
         drawWing(1);
       }
 
-      function drawClothes(px, py, clothesId) {
-        if (!clothesId) return;
-        const item = COSMETIC_LOOKUP.clothes[clothesId];
+      function drawShirt(px, py, shirtId) {
+        if (!shirtId) return;
+        const item = COSMETIC_LOOKUP.shirts && COSMETIC_LOOKUP.shirts[shirtId];
         if (!item) return;
-        if (drawCosmeticSprite(item, px + 3, py + 12, PLAYER_W - 6, 14, 1)) {
+        if (drawCosmeticSprite(item, px + 4, py + 12, PLAYER_W - 8, 12, 1, { mode: "contain", alignX: 0.5, alignY: 0.5 })) {
           return;
         }
         ctx.fillStyle = item.color;
         ctx.fillRect(px + 5, py + 14, PLAYER_W - 10, 10);
+      }
+
+      function drawPants(px, py, pantsId) {
+        if (!pantsId) return;
+        const item = COSMETIC_LOOKUP.pants && COSMETIC_LOOKUP.pants[pantsId];
+        if (!item) return;
+        if (drawCosmeticSprite(item, px + 5, py + 22, PLAYER_W - 10, 8, 1, { mode: "contain", alignX: 0.5, alignY: 0.5 })) {
+          return;
+        }
+        ctx.fillStyle = item.color || "#7e92a3";
+        ctx.fillRect(px + 6, py + 23, 4, 7);
+        ctx.fillRect(px + PLAYER_W - 10, py + 23, 4, 7);
+      }
+
+      function drawHat(px, py, hatId) {
+        if (!hatId) return;
+        const item = COSMETIC_LOOKUP.hats && COSMETIC_LOOKUP.hats[hatId];
+        if (!item) return;
+        const hatBoxX = px + 2;
+        const hatBoxY = py - 8;
+        const hatBoxW = PLAYER_W - 4;
+        const hatBoxH = 10;
+        if (drawCosmeticSprite(item, hatBoxX, hatBoxY, hatBoxW, hatBoxH, 1, { mode: "contain", alignX: 0.5, alignY: 1 })) {
+          return;
+        }
+        ctx.fillStyle = item.color || "#d7c7a3";
+        ctx.fillRect(px + 4, py - 2, PLAYER_W - 8, 2);
       }
 
       function drawSword(px, py, swordId, facing, swordSwing) {
@@ -5445,7 +5506,7 @@
         ctx.restore();
       }
 
-      function drawHumanoid(px, py, facing, bodyColor, skinColor, eyeColor, clothesId, pose, lookX, lookY) {
+      function drawHumanoid(px, py, facing, bodyColor, skinColor, eyeColor, shirtId, pantsId, hatId, pose, lookX, lookY) {
         const armSwing = Number(pose && pose.armSwing) || 0;
         const legSwing = Number(pose && pose.legSwing) || 0;
         const hitStrength = Math.max(0, Math.min(1, Number(pose && pose.hitStrength) || 0));
@@ -5492,7 +5553,9 @@
         ctx.fillRect(px + 6, leftLegY, 4, 7);
         ctx.fillRect(px + PLAYER_W - 10, rightLegY, 4, 7);
 
-        drawClothes(px, py, clothesId);
+        drawShirt(px, py, shirtId);
+        drawPants(px, py, pantsId);
+        drawHat(px, py, hatId);
 
         ctx.fillStyle = "rgba(0,0,0,0.18)";
         ctx.fillRect(torsoX, torsoY - 1, torsoW, 1);
@@ -5583,7 +5646,7 @@
         ctx.translate(-(px + PLAYER_W / 2), -(basePy + PLAYER_H / 2));
 
         const localLook = getLocalLookVector();
-        drawHumanoid(px, basePy, player.facing, "#263238", "#b98a78", "#0d0d0d", cosmetics.clothes, pose, localLook.x, localLook.y);
+        drawHumanoid(px, basePy, player.facing, "#263238", "#b98a78", "#0d0d0d", cosmetics.shirts, cosmetics.pants, cosmetics.hats, pose, localLook.x, localLook.y);
 
         drawSword(px, basePy, cosmetics.swords, player.facing, pose.swordSwing || 0);
         ctx.restore();
@@ -5627,7 +5690,7 @@
           ctx.translate(-(px + PLAYER_W / 2), -(basePy + PLAYER_H / 2));
 
           const remoteLook = getRemoteLookVector(other);
-          drawHumanoid(px, basePy, other.facing || 1, "#2a75bb", "#b98a78", "#102338", cosmetics.clothes || "", pose, remoteLook.x, remoteLook.y);
+          drawHumanoid(px, basePy, other.facing || 1, "#2a75bb", "#b98a78", "#102338", cosmetics.shirts || "", cosmetics.pants || "", cosmetics.hats || "", pose, remoteLook.x, remoteLook.y);
 
           drawSword(px, basePy, cosmetics.swords || "", other.facing || 1, pose.swordSwing || 0);
           ctx.restore();
@@ -7409,7 +7472,9 @@
           y: Math.round(player.y),
           facing: player.facing,
           cosmetics: {
-            clothes: equippedCosmetics.clothes || "",
+            shirts: equippedCosmetics.shirts || "",
+            pants: equippedCosmetics.pants || "",
+            hats: equippedCosmetics.hats || "",
             wings: equippedCosmetics.wings || "",
             swords: equippedCosmetics.swords || ""
           },

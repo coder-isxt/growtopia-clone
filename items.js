@@ -5,12 +5,18 @@ window.GTModules.items = {
   },
   getCosmeticCatalog() {
     return {
-      clothes: [
+      shirts: [
         { id: "cloth_tunic", name: "Cloth Tunic", color: "#f2b880", icon: "TU", faIcon: "fa-solid fa-shirt", rarity: "common", image: "clothes/cloth_tunic.png" },
         { id: "hoodie_blue", name: "Blue Hoodie", color: "#5f8cff", icon: "HD", faIcon: "fa-solid fa-shirt", rarity: "rare", image: "clothes/hoodie_blue.png" },
         { id: "armor_iron", name: "Iron Armor", color: "#a9b5c2", icon: "AR", faIcon: "fa-solid fa-shield-halved", rarity: "epic", image: "clothes/armor_iron.png" },
         { id: "oop_shirt", name: "OOP Shirt", color: "#ffffff", icon: "OOP", faIcon: "fa-solid fa-shield-halved", rarity: "rare", image: "clothes/oop_shirt.png" },
         { id: "oop_shirt_red", name: "Red OOP Shirt", color: "#ffffff", icon: "ROOP", faIcon: "fa-solid fa-shield-halved", rarity: "epic", image: "clothes/oop_shirt_red.png" }
+      ],
+      pants: [
+        { id: "cloth_pants", name: "Cloth Pants", color: "#7e92a3", icon: "PT", faIcon: "fa-solid fa-user", rarity: "common", image: "pants/cloth_pants.png" }
+      ],
+      hats: [
+        { id: "basic_cap", name: "Basic Cap", color: "#d7c7a3", icon: "HT", faIcon: "fa-solid fa-hat-cowboy-side", rarity: "common", image: "hats/basic_cap.png" }
       ],
       wings: [
         { id: "angel_white", name: "Angel Wings", color: "#ecf3ff", icon: "AW", faIcon: "fa-solid fa-dove", rarity: "rare", doubleJump: true, image: "wings/angel_white.png", offsetX: 3, offsetY: 0 },
@@ -33,7 +39,9 @@ window.GTModules.items = {
   getCosmeticItemsBySlot() {
     const catalog = this.getCosmeticCatalog();
     return {
-      clothes: catalog.clothes.slice(),
+      shirts: catalog.shirts.slice(),
+      pants: catalog.pants.slice(),
+      hats: catalog.hats.slice(),
       wings: catalog.wings.slice(),
       swords: catalog.swords.slice()
     };
@@ -41,7 +49,9 @@ window.GTModules.items = {
   getCosmeticItemsFlat() {
     const catalog = this.getCosmeticCatalog();
     return []
-      .concat(catalog.clothes || [])
+      .concat(catalog.shirts || [])
+      .concat(catalog.pants || [])
+      .concat(catalog.hats || [])
       .concat(catalog.wings || [])
       .concat(catalog.swords || []);
   }

@@ -69,6 +69,14 @@ window.GTModules.inventory = (function createInventoryModule() {
         const slotLookup = cosmeticLookup[slot] || {};
         equippedCosmetics[slot] = id && slotLookup[id] && (cosmeticInventory[id] || 0) > 0 ? id : "";
       }
+      // Backward compatibility: old save field "clothes" -> "shirts".
+      if (cosmeticSlots.includes("shirts") && !equippedCosmetics.shirts) {
+        const legacyId = String(equippedRecord.clothes || "");
+        const shirtLookup = cosmeticLookup.shirts || {};
+        if (legacyId && shirtLookup[legacyId] && (cosmeticInventory[legacyId] || 0) > 0) {
+          equippedCosmetics.shirts = legacyId;
+        }
+      }
 
       const onRecordApplied = opts.onRecordApplied;
       if (typeof onRecordApplied === "function") onRecordApplied(payload);
@@ -81,6 +89,7 @@ window.GTModules.inventory = (function createInventoryModule() {
       const cosmeticInventory = get("getCosmeticInventory", {});
       const cosmeticItems = Array.isArray(get("getCosmeticItems", [])) ? get("getCosmeticItems", []) : [];
       const equippedCosmetics = get("getEquippedCosmetics", {}) || {};
+      const cosmeticSlots = Array.isArray(get("getCosmeticSlots", [])) ? get("getCosmeticSlots", []) : [];
       const payload = {};
       for (const id of inventoryIds) payload[id] = clampCount(inventory[id]);
       const itemPayload = {};
@@ -89,11 +98,10 @@ window.GTModules.inventory = (function createInventoryModule() {
         itemPayload[item.id] = clampCount(cosmeticInventory[item.id]);
       }
       payload.cosmeticItems = itemPayload;
-      payload.equippedCosmetics = {
-        clothes: equippedCosmetics.clothes || "",
-        wings: equippedCosmetics.wings || "",
-        swords: equippedCosmetics.swords || ""
-      };
+      payload.equippedCosmetics = {};
+      for (const slot of cosmeticSlots) {
+        payload.equippedCosmetics[slot] = String(equippedCosmetics[slot] || "");
+      }
 
       const writeExtra = opts.writeExtraToPayload;
       if (typeof writeExtra === "function") {
@@ -162,4 +170,3 @@ window.GTModules.inventory = (function createInventoryModule() {
     createController
   };
 })();
-
