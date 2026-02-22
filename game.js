@@ -5880,29 +5880,43 @@
         });
       }
 
+      const damageSyncTimers = {};
+
       function syncTileDamageToNetwork(tx, ty, hits) {
         if (!network.enabled || !inWorld) return;
+        
         if (network.playerRef && typeof syncHitsModule.buildPlayerHitPayload === "function") {
           const playerHit = syncHitsModule.buildPlayerHitPayload(tx, ty, hits);
           if (playerHit) {
             network.playerRef.child("lastHit").set(playerHit).catch(() => {});
           }
         }
+        
         if (!network.hitsRef) return;
         const key = getTileKey(tx, ty);
-        if (typeof syncHitsModule.writeHit === "function") {
-          syncHitsModule.writeHit(network.hitsRef, key, hits, firebase);
-          return;
+        
+        // Clear previous timer to bundle rapid hits into a single network call
+        if (damageSyncTimers[key]) {
+          clearTimeout(damageSyncTimers[key]);
         }
-        const safeHits = Math.max(0, Math.floor(Number(hits) || 0));
-        if (!safeHits) {
-          network.hitsRef.child(key).remove().catch(() => {});
-          return;
-        }
-        network.hitsRef.child(key).set({
-          hits: safeHits,
-          updatedAt: firebase.database.ServerValue.TIMESTAMP
-        }).catch(() => {});
+        
+        damageSyncTimers[key] = setTimeout(() => {
+          delete damageSyncTimers[key];
+          
+          if (typeof syncHitsModule.writeHit === "function") {
+            syncHitsModule.writeHit(network.hitsRef, key, hits, firebase);
+            return;
+          }
+          const safeHits = Math.max(0, Math.floor(Number(hits) || 0));
+          if (!safeHits) {
+            network.hitsRef.child(key).remove().catch(() => {});
+            return;
+          }
+          network.hitsRef.child(key).set({
+            hits: safeHits,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+          }).catch(() => {});
+        }, 100); // Waits 100ms after the LAST hit before telling Firebase
       }
 
       function normalizeDoorAccessRecord(value) {
@@ -11987,10 +12001,11 @@
         slot.title = opts.title || "";
         const icon = createIconChip(opts.color, opts.iconLabel, opts.iconClass, opts.faIconClass, opts.imageSrc);
         slot.appendChild(icon);
-        if (opts.countText) {
+        if (opts.countText !== undefined && opts.countText !== null) { // Modified condition
           const count = document.createElement("span");
           count.className = "slot-count";
           count.textContent = opts.countText;
+          if (opts.countId) count.id = opts.countId; // Add this line to assign an ID
           slot.appendChild(count);
         }
         if (opts.badgeText) {
@@ -12017,8 +12032,42 @@
         return slot;
       }
 
+
+
+
+      let lastInventorySignature = "";
+
+      function getInventorySignature() {
+        // Creates a quick string to check if we have NEW items (which requires a full DOM rebuild)
+        let sig = selectedSlot + ";";
+        for (const id of INVENTORY_IDS) if (inventory[id] > 0) sig += id + ",";
+        for (const item of COSMETIC_ITEMS) if (cosmeticInventory[item.id] > 0) sig += item.id + (equippedCosmetics[item.slot] === item.id ? "E" : "") + ",";
+        sig += equippedTitleId;
+        return sig;
+      }
+
+      function fastUpdateToolbarCounts() {
+        // Directly updates the text of existing DOM elements without causing layout thrashing
+        for (let i = 0; i < slotOrder.length; i++) {
+          const id = slotOrder[i];
+          if (id === TOOL_FIST || id === TOOL_WRENCH) continue;
+          const el = document.getElementById("slot-count-block-" + id);
+          if (el) el.textContent = "x" + (inventory[id] || 0);
+        }
+      }
+
       function renderToolbarNow() {
         lastToolbarRefresh = performance.now();
+        
+        // --- OPTIMIZATION: Check if we only need to update the numbers ---
+        const currentSig = getInventorySignature();
+        if (lastInventorySignature === currentSig && toolbar.innerHTML !== "") {
+          fastUpdateToolbarCounts();
+          return;
+        }
+        lastInventorySignature = currentSig;
+        // ----------------------------------------------------------------
+
         toolbar.innerHTML = "";
         const blockSection = createInventorySection("Blocks & Tools", "Click to select (1: Fist, 2: Wrench)");
         const cosmeticEntries = [];
@@ -12041,6 +12090,7 @@
             iconLabel: isFist ? "F" : (isWrench ? "W" : ((blockDef && blockDef.icon) || title.slice(0, 2).toUpperCase())),
             name: title,
             countText: isTool ? "" : "x" + (inventory[id] || 0),
+            countId: isTool ? "" : "slot-count-block-" + id, // Injecting ID here
             getDragEntry: isTool ? null : () => ({ type: "block", blockId: id, label: title, defaultAmount: 1 }),
             onClick: () => {
               if (!isTool) {
@@ -12052,12 +12102,14 @@
                 }
               }
               selectedSlot = i;
-              refreshToolbar();
+              refreshToolbar(true); // Force a full rebuild to show selected state
             }
           });
           blockSection.grid.appendChild(slotEl);
         }
         toolbar.appendChild(blockSection.section);
+
+
         for (const item of COSMETIC_ITEMS) {
           const count = Math.max(0, Number(cosmeticInventory[item.id]) || 0);
           if (count <= 0) continue;
@@ -12146,25 +12198,25 @@
         }
       }
 
+      let toolbarRenderTimeout = 0;
+      
       function refreshToolbar(immediate) {
         if (immediate) {
-          if (toolbarRenderQueued && toolbarRenderRafId) {
-            cancelAnimationFrame(toolbarRenderRafId);
+          if (toolbarRenderTimeout) {
+            clearTimeout(toolbarRenderTimeout);
+            toolbarRenderTimeout = 0;
           }
-          toolbarRenderQueued = false;
-          toolbarRenderRafId = 0;
           renderToolbarNow();
           return;
         }
-        const now = performance.now();
-        if (now - lastToolbarRefresh < 200) return; // Throttle to 5fps
-        if (toolbarRenderQueued) return;
-        toolbarRenderQueued = true;
-        toolbarRenderRafId = requestAnimationFrame(() => {
-          toolbarRenderQueued = false;
-          toolbarRenderRafId = 0;
-          renderToolbarNow();
-        });
+        
+        // Batch rapidly incoming requests instead of dropping them
+        if (!toolbarRenderTimeout) {
+          toolbarRenderTimeout = setTimeout(() => {
+            toolbarRenderTimeout = 0;
+            renderToolbarNow();
+          }, 150); 
+        }
       }
 
       function canvasPointFromClient(clientX, clientY) {
