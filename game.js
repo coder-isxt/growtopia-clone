@@ -7909,7 +7909,7 @@
           return;
         }
         ctx.fillStyle = item.color;
-        ctx.fillRect(px + 5, py + 11, PLAYER_W - 10, 10);
+        ctx.fillRect(px + 5, py + 12, PLAYER_W - 10, 10);
       }
 
       function drawPants(px, py, pantsId) {
