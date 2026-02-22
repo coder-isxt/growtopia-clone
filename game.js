@@ -7989,7 +7989,7 @@
         if (!shirtId) return;
         const item = COSMETIC_LOOKUP.shirts && COSMETIC_LOOKUP.shirts[shirtId];
         if (!item) return;
-        if (drawCosmeticSprite(item, px + 5, py + 11, PLAYER_W - 9, 12, 1, { mode: "contain", alignX: 0.5, alignY: 0.5 })) {
+        if (drawCosmeticSprite(item, px + 5, py + 11, PLAYER_W - 10, 12, 1, { mode: "contain", alignX: 0.5, alignY: 0.5 })) {
           return;
         }
         ctx.fillStyle = item.color;
