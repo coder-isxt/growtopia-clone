@@ -5,7 +5,8 @@ window.GTModules.textures = (function createTexturesModule() {
     17: "./assets/blocks/special/vending.png",
     20: "./assets/blocks/special/camera.png",
     21: "./assets/blocks/special/weather_machine.png",
-    23: "./assets/blocks/special/plank.png"
+    23: "./assets/blocks/special/plank.png",
+    36: "./assets/blocks/special/chest.png",
   };
 
   function applyDefaultBlockTextures(blockDefs) {
