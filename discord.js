@@ -85,6 +85,8 @@ window.GTModules.discord = (function createDiscordModule() {
     const initial = String(rawUrl || "").trim();
     if (!initial) return "";
     if (looksLikeDiscordWebhookUrl(initial)) return initial;
+    const parsedFromInitial = parseWebhookUrlFromBody(initial);
+    if (parsedFromInitial) return parsedFromInitial;
     try {
       const res = await fetch(initial, { cache: "no-store" });
       if (!res.ok) return "";
@@ -134,17 +136,3 @@ window.GTModules.discord = (function createDiscordModule() {
     send
   };
 })();
-
-
-window.GTModules.discord.send({
-  content: "TEST"
-});
-
-/*
-EXAMPLE:
-
-window.GTModules.discord.send({
-  content: "Your message here"
-});
-
-*/
