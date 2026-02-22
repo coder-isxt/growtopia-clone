@@ -4677,13 +4677,10 @@
           maxFallNow *= ANTI_GRAV_FALL_MULT;
         }
 
-        if (moveLeft) {
-          player.vx -= player.grounded ? moveAccel : moveAccel * AIR_CONTROL;
-          player.facing = -1;
-        }
-        if (moveRight) {
-          player.vx += player.grounded ? moveAccel : moveAccel * AIR_CONTROL;
-          player.facing = 1;
+        const moveDir = (moveRight ? 1 : 0) - (moveLeft ? 1 : 0);
+        if (moveDir !== 0) {
+          player.vx += moveDir * (player.grounded ? moveAccel : moveAccel * AIR_CONTROL);
+          player.facing = moveDir > 0 ? 1 : -1;
         }
         if (jumpPressedThisFrame && player.grounded && (nowMs - lastJumpAtMs) >= JUMP_COOLDOWN_MS) {
           player.vy = JUMP_VELOCITY;
@@ -4715,6 +4712,12 @@
         player.vy = Math.min(player.vy, maxFallNow);
 
         player.vx *= player.grounded ? frictionNow : airFrictionNow;
+        if (!moveLeft && !moveRight && Math.abs(player.vx) < 0.035) {
+          player.vx = 0;
+        }
+        if (player.grounded && Math.abs(player.vx) < 0.02) {
+          player.vx = 0;
+        }
 
         const tryStepUpOnHorizontalMove = (targetX) => {
           if (Math.abs(player.vx) < 0.01) return false;
@@ -5522,11 +5525,11 @@
         const faceTilt = facing === 1 ? 1 : -1;
 
         const headX = px + 3;
-        const headY = py + 1;
+        const headY = py;
         const headW = PLAYER_W - 6;
-        const headH = 11;
+        const headH = 12;
         const torsoX = px + 5;
-        const torsoY = py + 13;
+        const torsoY = py + 12;
         const torsoW = PLAYER_W - 10;
         const torsoH = 9;
 
@@ -5563,7 +5566,7 @@
 
         const leftEyeX = px + 5 + (faceTilt > 0 ? 0 : -1);
         const rightEyeX = px + PLAYER_W - 11 + (faceTilt > 0 ? 1 : 0);
-        const eyeY = py + 4;
+        const eyeY = py + 3;
         ctx.fillStyle = "#f3f6ff";
         ctx.fillRect(leftEyeX, eyeY, 5, 4);
         ctx.fillRect(rightEyeX, eyeY, 5, 4);
@@ -5573,13 +5576,13 @@
         ctx.fillRect(rightEyeX + 1 + pupilDx, eyeY + 1 + pupilDy, 2, 2);
 
         const mouthX = px + 8 + (faceTilt > 0 ? 1 : -1);
-        const mouthY = py + 10 + Math.max(-1, Math.min(1, pupilDy));
+        const mouthY = py + 9 + Math.max(-1, Math.min(1, pupilDy));
         ctx.fillStyle = "rgba(85, 52, 43, 0.95)";
         ctx.fillRect(mouthX, mouthY, 5, 2);
 
         const noseX = faceTilt > 0 ? px + 13 : px + 8;
         ctx.fillStyle = "rgba(124, 84, 66, 0.9)";
-        ctx.fillRect(noseX, py + 8, 2, 2);
+        ctx.fillRect(noseX, py + 7, 2, 2);
 
         return {};
       }
@@ -5600,8 +5603,8 @@
 
       function drawPlayer() {
         const nowMs = performance.now();
-        const px = player.x - cameraX;
-        const py = player.y - cameraY;
+        const px = Math.round(player.x - cameraX);
+        const py = Math.round(player.y - cameraY);
         const cosmetics = equippedCosmetics;
         const localMotion = typeof animationsModule.sampleLocal === "function"
           ? animationsModule.sampleLocal(player)
@@ -5663,8 +5666,8 @@
         remotePlayers.forEach((other) => {
           const otherId = (other.id || "").toString();
           keepIds.push(otherId);
-          const px = other.x - cameraX;
-          const py = other.y - cameraY;
+          const px = Math.round(other.x - cameraX);
+          const py = Math.round(other.y - cameraY);
           if (px < -40 || py < -40 || px > viewW + 40 || py > viewH + 40) return;
           const cosmetics = other.cosmetics || {};
           const remoteMotion = typeof animationsModule.sampleRemote === "function"

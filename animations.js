@@ -23,8 +23,12 @@ window.GTModules.animations = (function createAnimationsModule() {
 
   function sampleLocal(player) {
     const p = player || {};
+    const rawSpeed = Math.abs(Number(p.vx) || 0);
+    const prevSpeed = Number(p._animSpeed) || 0;
+    const smoothSpeed = prevSpeed + (rawSpeed - prevSpeed) * 0.28;
+    p._animSpeed = smoothSpeed;
     return {
-      speed: Math.abs(Number(p.vx) || 0),
+      speed: smoothSpeed,
       vy: Number(p.vy) || 0,
       grounded: Boolean(p.grounded)
     };
