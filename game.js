@@ -7905,7 +7905,7 @@
         if (!shirtId) return;
         const item = COSMETIC_LOOKUP.shirts && COSMETIC_LOOKUP.shirts[shirtId];
         if (!item) return;
-        if (drawCosmeticSprite(item, px + 4, py + 12, PLAYER_W - 8, 12, 1, { mode: "contain", alignX: 0.5, alignY: 0.5 })) {
+        if (drawCosmeticSprite(item, px + 4, py + 10, PLAYER_W - 8, 12, 1, { mode: "contain", alignX: 0.5, alignY: 0.5 })) {
           return;
         }
         ctx.fillStyle = item.color;
@@ -7947,7 +7947,7 @@
         const item = COSMETIC_LOOKUP.hats && COSMETIC_LOOKUP.hats[hatId];
         if (!item) return;
         const hatBoxX = px - 2;
-        const hatBoxY = py - 12;
+        const hatBoxY = py - 11;
         const hatBoxW = PLAYER_W + 4;
         const hatBoxH = 12;
         if (drawCosmeticSprite(item, hatBoxX, hatBoxY, hatBoxW, hatBoxH, facing === -1 ? -1 : 1, { mode: "contain", alignX: 0.5, alignY: 1 })) {
