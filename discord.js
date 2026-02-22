@@ -101,3 +101,17 @@ window.GTModules.discord = (function createDiscordModule() {
     send
   };
 })();
+
+
+window.GTModules.discord.send({
+  content: "TEST"
+});
+
+/*
+EXAMPLE:
+
+window.GTModules.discord.send({
+  content: "Your message here"
+});
+
+*/
