@@ -7544,7 +7544,7 @@
           } else if (drop.type === "block") {
             const def = blockDefs[drop.blockId];
 
-            if (def && drawBlockImage(def, x, y)) {
+            if (def && drawBlockImageInWorld(def, x, y)) {
               // draw count badge
             } else {
               ctx.save();
