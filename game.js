@@ -2421,6 +2421,14 @@
       }
 
       async function getAuthDb() {
+        if (typeof dbModule.getOrInitAuthDb === "function") {
+          return dbModule.getOrInitAuthDb({
+            network,
+            firebaseRef: (typeof firebase !== "undefined" ? firebase : window.firebase || null),
+            firebaseConfig: window.FIREBASE_CONFIG,
+            getFirebaseApiKey: window.getFirebaseApiKey
+          });
+        }
         const withTimeout = (promise, timeoutMs, label) => {
           const ms = Math.max(1000, Number(timeoutMs) || 8000);
           let timer = null;
@@ -2486,6 +2494,27 @@
         return Promise.race([Promise.resolve(promise), timeoutPromise]).finally(() => {
           if (timer) clearTimeout(timer);
         });
+      }
+
+      async function readAuthValueWithRetry(path, label) {
+        const safePath = String(path || "").trim();
+        if (!safePath) throw new Error("Invalid auth read path.");
+        const firstDb = await withAuthTimeout(getAuthDb(), "Auth DB init", 16000);
+        try {
+          return await withAuthTimeout(firstDb.ref(safePath).once("value"), label, 18000);
+        } catch (error) {
+          const message = String((error && error.message) || "");
+          if (!/timed out/i.test(message)) throw error;
+          setAuthStatus((label || "Auth read") + " is slow, retrying...", false);
+          try {
+            if (firstDb && typeof firstDb.goOffline === "function") firstDb.goOffline();
+            if (firstDb && typeof firstDb.goOnline === "function") firstDb.goOnline();
+          } catch (e) {
+            // ignore reconnect hint failures
+          }
+          const secondDb = await withAuthTimeout(getAuthDb(), "Auth DB reconnect", 20000);
+          return withAuthTimeout(secondDb.ref(safePath).once("value"), label + " retry", 28000);
+        }
       }
 
       async function reserveAccountSession(db, accountId, username) {
@@ -2580,19 +2609,19 @@
         try {
           const db = await withAuthTimeout(getAuthDb(), "Auth DB init", 12000);
           network.db = db;
-          const usernameSnap = await withAuthTimeout(db.ref(BASE_PATH + "/usernames/" + username).once("value"), "Lookup username", 12000);
+          const usernameSnap = await readAuthValueWithRetry(BASE_PATH + "/usernames/" + username, "Lookup username");
           const accountId = usernameSnap.val();
           if (!accountId) {
             throw new Error("Account not found.");
           }
-          const accountSnap = await withAuthTimeout(db.ref(BASE_PATH + "/accounts/" + accountId).once("value"), "Load account", 12000);
+          const accountSnap = await readAuthValueWithRetry(BASE_PATH + "/accounts/" + accountId, "Load account");
           const account = accountSnap.val() || {};
           const passwordHash = await withAuthTimeout(sha256Hex(password), "Password hashing", 8000);
           if (account.passwordHash !== passwordHash) {
             addClientLog("Login failed for @" + username + " (invalid password).", accountId, username, "");
             throw new Error("Invalid password.");
           }
-          const banSnap = await withAuthTimeout(db.ref(BASE_PATH + "/bans/" + accountId).once("value"), "Load ban status", 12000);
+          const banSnap = await readAuthValueWithRetry(BASE_PATH + "/bans/" + accountId, "Load ban status");
           if (banSnap.exists()) {
             const banValue = banSnap.val();
             const status = getBanStatus(banValue, Date.now());
