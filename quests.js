@@ -24,6 +24,35 @@ window.GTModules.quests = (function createQuestsModule() {
       rewards: { titleId: "trader", titleAmount: 1, gems: 25 }
     }
   ];
+  const OTHER_QUESTS = [
+    {
+      id: "break_500_blocks_total",
+      label: "Break 500 blocks",
+      target: 500,
+      event: "break_block",
+      category: "other",
+      rewards: { gems: 220 }
+    },
+    {
+      id: "visit_25_worlds_total",
+      label: "Visit 25 worlds",
+      target: 25,
+      event: "visit_world",
+      category: "other",
+      rewards: { titleId: "traveler", titleAmount: 1, gems: 120 }
+    },
+    {
+      id: "trade_10_times_total",
+      label: "Trade 10 times",
+      target: 10,
+      event: "trade_complete",
+      category: "other",
+      rewards: { cosmeticId: "swift_sneakers", cosmeticAmount: 1, gems: 140 }
+    }
+  ];
+  const ALL_QUESTS = DAILY_QUESTS
+    .map((q) => ({ ...q, category: "daily" }))
+    .concat(OTHER_QUESTS.map((q) => ({ ...q, category: "other" })));
 
   function toInt(value, fallback) {
     const n = Math.floor(Number(value));
@@ -41,15 +70,32 @@ window.GTModules.quests = (function createQuestsModule() {
   function buildFresh(dayKey) {
     const key = String(dayKey || dayKeyFromTs(Date.now()));
     const quests = {};
+    const globalQuests = {};
     for (let i = 0; i < DAILY_QUESTS.length; i++) {
       const def = DAILY_QUESTS[i];
       quests[def.id] = { progress: 0, completed: false, rewarded: false };
     }
+    for (let i = 0; i < OTHER_QUESTS.length; i++) {
+      const def = OTHER_QUESTS[i];
+      globalQuests[def.id] = { progress: 0, completed: false, rewarded: false };
+    }
     return {
       dayKey: key,
       quests,
+      globalQuests,
       visitedWorlds: {},
       updatedAt: 0
+    };
+  }
+
+  function normalizeQuestRow(def, row) {
+    const data = row && typeof row === "object" ? row : {};
+    const target = Math.max(1, Number(def && def.target) || 1);
+    const progress = Math.max(0, Math.min(target, toInt(data.progress, 0)));
+    return {
+      progress,
+      completed: Boolean(data.completed) || progress >= target,
+      rewarded: Boolean(data.rewarded)
     };
   }
 
@@ -72,14 +118,13 @@ window.GTModules.quests = (function createQuestsModule() {
       const srcQuests = base.quests && typeof base.quests === "object" ? base.quests : {};
       for (let i = 0; i < DAILY_QUESTS.length; i++) {
         const def = DAILY_QUESTS[i];
-        const row = srcQuests[def.id] || {};
-        const progress = Math.max(0, Math.min(def.target, toInt(row.progress, 0)));
-        out.quests[def.id] = {
-          progress,
-          completed: Boolean(row.completed) || progress >= def.target,
-          rewarded: Boolean(row.rewarded)
-        };
+        out.quests[def.id] = normalizeQuestRow(def, srcQuests[def.id]);
       }
+    }
+    const srcGlobal = src && src.globalQuests && typeof src.globalQuests === "object" ? src.globalQuests : {};
+    for (let i = 0; i < OTHER_QUESTS.length; i++) {
+      const def = OTHER_QUESTS[i];
+      out.globalQuests[def.id] = normalizeQuestRow(def, srcGlobal[def.id]);
     }
     out.updatedAt = toInt(base.updatedAt, 0);
     const visitQuest = out.quests.visit_3_worlds;
@@ -104,9 +149,9 @@ window.GTModules.quests = (function createQuestsModule() {
     const completedNow = [];
     let changed = false;
 
-    for (let i = 0; i < DAILY_QUESTS.length; i++) {
-      const def = DAILY_QUESTS[i];
-      const row = state.quests[def.id];
+    for (let i = 0; i < ALL_QUESTS.length; i++) {
+      const def = ALL_QUESTS[i];
+      const row = def.category === "daily" ? state.quests[def.id] : state.globalQuests[def.id];
       if (!row || row.completed) continue;
       if (def.event !== type) continue;
 
@@ -118,19 +163,32 @@ window.GTModules.quests = (function createQuestsModule() {
           changed = true;
         }
       } else if (type === "visit_world") {
-        const worldId = String(details.worldId || "").trim().toLowerCase();
-        if (worldId && !state.visitedWorlds[worldId]) {
-          state.visitedWorlds[worldId] = true;
-          changed = true;
-        }
-        const count = Math.min(def.target, Object.keys(state.visitedWorlds).length);
-        if (count !== row.progress) {
-          row.progress = count;
-          changed = true;
+        if (def.category === "daily") {
+          const worldId = String(details.worldId || "").trim().toLowerCase();
+          if (worldId && !state.visitedWorlds[worldId]) {
+            state.visitedWorlds[worldId] = true;
+            changed = true;
+          }
+          const count = Math.min(def.target, Object.keys(state.visitedWorlds).length);
+          if (count !== row.progress) {
+            row.progress = count;
+            changed = true;
+          }
+        } else {
+          const delta = Math.max(1, toInt(details.count, 1));
+          const next = Math.min(def.target, row.progress + delta);
+          if (next !== row.progress) {
+            row.progress = next;
+            changed = true;
+          }
         }
       } else if (type === "trade_complete") {
-        row.progress = Math.min(def.target, row.progress + 1);
-        changed = true;
+        const delta = Math.max(1, toInt(details.count, 1));
+        const next = Math.min(def.target, row.progress + delta);
+        if (next !== row.progress) {
+          row.progress = next;
+          changed = true;
+        }
       }
 
       if (row.progress >= def.target && !row.completed) {
@@ -149,23 +207,27 @@ window.GTModules.quests = (function createQuestsModule() {
   function markRewarded(currentState, questId) {
     const state = normalizeState(currentState || {}, Date.now());
     const id = String(questId || "");
-    if (!id || !state.quests[id]) return { state, changed: false };
-    if (state.quests[id].rewarded) return { state, changed: false };
-    state.quests[id].rewarded = true;
+    if (!id) return { state, changed: false };
+    let row = null;
+    if (state.quests[id]) row = state.quests[id];
+    else if (state.globalQuests[id]) row = state.globalQuests[id];
+    if (!row) return { state, changed: false };
+    if (row.rewarded) return { state, changed: false };
+    row.rewarded = true;
     state.updatedAt = Date.now();
     return { state, changed: true };
   }
 
   function getQuestById(id) {
     const qid = String(id || "");
-    for (let i = 0; i < DAILY_QUESTS.length; i++) {
-      if (DAILY_QUESTS[i].id === qid) return DAILY_QUESTS[i];
+    for (let i = 0; i < ALL_QUESTS.length; i++) {
+      if (ALL_QUESTS[i].id === qid) return ALL_QUESTS[i];
     }
     return null;
   }
 
   function getCatalog() {
-    return DAILY_QUESTS.map((q) => ({ ...q, rewards: { ...(q.rewards || {}) } }));
+    return ALL_QUESTS.map((q) => ({ ...q, rewards: { ...(q.rewards || {}) } }));
   }
 
   return {

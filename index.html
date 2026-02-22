@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>PIXELBUILD</title>
+  <link rel="icon" href="assets/logo.ico" type="image/x-icon">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -25,20 +26,21 @@
       <div><strong>PIXELBUILD</strong> | Move: A/D or Arrows, Jump: W/Space</div>
       <div class="hint">
         World: <span id="currentWorldLabel" class="world-tag">menu</span> |
-        Action: Click/Tap (Fist breaks, Wrench interacts, Right-click rotates) | Q: Drop | Enter: Chat |
+        Action: Enter: Chat |
         <span id="gemsCount">0 gems</span> |
         <span id="networkState" class="danger">Offline</span> |
         <span id="onlineCount">1 world online</span> |
         <span id="totalOnlineCount">1 total online</span> |
         <button id="chatToggleBtn" type="button" class="hidden">Chat</button>
         <button id="friendsToggleBtn" type="button">Friends</button>
+        <button id="questsToggleBtn" type="button">Quests</button>
         <button id="achievementsToggleBtn" type="button">Achievements</button>
         <button id="shopToggleBtn" type="button">Shop</button>
         <button id="adminToggleBtn" type="button" class="hidden">Admin</button>
         <button id="respawnBtn" type="button" class="hidden">Respawn</button>
         <button id="exitWorldBtn" type="button" class="hidden">Exit World</button>
         <button id="logoutBtn" type="button">Logout</button>
-        <button id="backToMainBtn" type="button" onclick="window.location.href='https://pixelbuild.gamer.gd'">Back</button>
+        <button id="backToMainBtn" type="button" onclick="window.location.href='https://pixelbuild.gamer.gd'">Home</button>
       </div>
     </div>
     <div id="menuScreen" class="menu-screen">
@@ -317,6 +319,16 @@
         <div id="achievementsActions" class="vending-actions"></div>
       </div>
     </div>
+    <div id="questsModal" class="vending-modal hidden">
+      <div class="vending-card trade-card">
+        <div class="vending-header">
+          <strong id="questsTitle">Quests</strong>
+          <button id="questsCloseBtn" type="button">Close</button>
+        </div>
+        <div id="questsBody" class="vending-body"></div>
+        <div id="questsActions" class="vending-actions"></div>
+      </div>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
@@ -372,6 +384,7 @@
         "achievements.js",
         "gacha.js",
         "items.js",
+        "cosmetics.js",
         "player.js",
         "auth_storage.js",
         "world.js",

@@ -286,7 +286,7 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       const targetX = tx * tileSize + tileSize * 0.5;
       const targetY = ty * tileSize + tileSize * 0.5;
       const distTiles = Math.hypot(targetX - centerX, targetY - centerY) / tileSize;
-      if (distTiles > (reachTiles + 1.75)) {
+      if (distTiles > (reachTiles + 2.5)) {
         report("reach_anomaly", "warn", {
           distTiles: Number(distTiles.toFixed(2)),
           reachTiles: Number(reachTiles.toFixed(2)),

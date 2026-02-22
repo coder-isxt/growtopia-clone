@@ -27,6 +27,7 @@
       const enterWorldBtn = document.getElementById("enterWorldBtn");
       const chatToggleBtn = document.getElementById("chatToggleBtn");
       const friendsToggleBtn = document.getElementById("friendsToggleBtn");
+      const questsToggleBtn = document.getElementById("questsToggleBtn");
       const achievementsToggleBtn = document.getElementById("achievementsToggleBtn");
       const shopToggleBtn = document.getElementById("shopToggleBtn");
       const adminToggleBtn = document.getElementById("adminToggleBtn");
@@ -93,6 +94,11 @@
       const achievementsBodyEl = document.getElementById("achievementsBody");
       const achievementsActionsEl = document.getElementById("achievementsActions");
       const achievementsCloseBtn = document.getElementById("achievementsCloseBtn");
+      const questsModalEl = document.getElementById("questsModal");
+      const questsTitleEl = document.getElementById("questsTitle");
+      const questsBodyEl = document.getElementById("questsBody");
+      const questsActionsEl = document.getElementById("questsActions");
+      const questsCloseBtn = document.getElementById("questsCloseBtn");
       const worldLockModalEl = document.getElementById("worldLockModal");
       const worldLockTitleEl = document.getElementById("worldLockTitle");
       const worldLockAdminInputEl = document.getElementById("worldLockAdminInput");
@@ -147,6 +153,7 @@
       const texturesModule = modules.textures || {};
       const blockKeysModule = modules.blockKeys || {};
       const itemsModule = modules.items || {};
+      const cosmeticsModule = modules.cosmetics || {};
       const playerModule = modules.player || {};
       const authStorageModule = modules.authStorage || {};
       const dbModule = modules.db || {};
@@ -339,7 +346,14 @@
       const SEED_INVENTORY_IDS = INVENTORY_IDS.filter((id) => PLANT_SEED_ID_SET.has(id));
       const BLOCK_ONLY_INVENTORY_IDS = INVENTORY_IDS.filter((id) => !PLANT_SEED_ID_SET.has(id));
       const slotOrder = [TOOL_FIST, TOOL_WRENCH].concat(INVENTORY_IDS);
-      const COSMETIC_SLOTS = ["shirts", "pants", "shoes", "hats", "wings", "swords"];
+      const cosmeticBundle = typeof cosmeticsModule.buildCatalog === "function"
+        ? cosmeticsModule.buildCatalog(itemsModule)
+        : {
+            slots: ["shirts", "pants", "shoes", "hats", "wings", "swords"],
+            lookup: {},
+            items: []
+          };
+      const COSMETIC_SLOTS = Array.isArray(cosmeticBundle.slots) ? cosmeticBundle.slots : ["shirts", "pants", "shoes", "hats", "wings", "swords"];
       const blockMaps = typeof blockKeysModule.buildMaps === "function"
         ? blockKeysModule.buildMaps(blockDefs)
         : { idToKey: {}, keyToId: {} };
@@ -348,14 +362,8 @@
       }
       const BLOCK_ID_TO_KEY = blockMaps.idToKey || {};
       const BLOCK_KEY_TO_ID = blockMaps.keyToId || {};
-      const COSMETIC_CATALOG = typeof itemsModule.getCosmeticItemsBySlot === "function"
-        ? itemsModule.getCosmeticItemsBySlot()
-        : { shirts: [], pants: [], shoes: [], hats: [], wings: [], swords: [] };
-      const COSMETIC_ASSET_BASE = typeof itemsModule.getCosmeticAssetBasePath === "function"
-        ? (itemsModule.getCosmeticAssetBasePath() || "./assets/cosmetics")
-        : "./assets/cosmetics";
-      const COSMETIC_LOOKUP = {};
-      const COSMETIC_ITEMS = [];
+      const COSMETIC_LOOKUP = cosmeticBundle.lookup && typeof cosmeticBundle.lookup === "object" ? cosmeticBundle.lookup : {};
+      const COSMETIC_ITEMS = Array.isArray(cosmeticBundle.items) ? cosmeticBundle.items : [];
       const TITLE_CATALOG = (typeof itemsModule.getTitleCatalog === "function"
         ? itemsModule.getTitleCatalog()
         : [])
@@ -395,22 +403,6 @@
         return out;
       })();
       const WEATHER_PRESET_MAP = new Map(WEATHER_PRESETS.map((preset) => [preset.id, preset]));
-      for (const slot of COSMETIC_SLOTS) {
-        const map = {};
-        const slotItems = Array.isArray(COSMETIC_CATALOG[slot]) ? COSMETIC_CATALOG[slot] : [];
-        for (const item of slotItems) {
-          const imagePath = (item && item.image ? String(item.image) : "").trim();
-          const resolvedImage = imagePath
-            ? (/^(https?:)?\/\//.test(imagePath) || imagePath.startsWith("/") || imagePath.startsWith("./") || imagePath.startsWith("../")
-              ? imagePath
-              : (COSMETIC_ASSET_BASE.replace(/\/+$/, "") + "/" + imagePath.replace(/^\/+/, "")))
-            : "";
-          const normalized = { slot, ...item, imagePath: resolvedImage };
-          map[item.id] = normalized;
-          COSMETIC_ITEMS.push(normalized);
-        }
-        COSMETIC_LOOKUP[slot] = map;
-      }
       const inventory = {};
       for (let i = 0; i < INVENTORY_IDS.length; i++) {
         inventory[INVENTORY_IDS[i]] = 0;
@@ -538,6 +530,8 @@
       let toolbarRenderQueued = false;
       let toolbarRenderRafId = 0;
       let suppressInventoryClickUntilMs = 0;
+      let pickupInventoryFlushTimer = 0;
+      let lastInventoryFullHintAt = 0;
 
       let currentWorldId = getInitialWorldId();
       let world = makeWorld(currentWorldId);
@@ -551,20 +545,13 @@
         grounded: false,
         facing: 1
       };
-      const cosmeticInventory = {};
+      const cosmeticState = typeof cosmeticsModule.createInventoryState === "function"
+        ? cosmeticsModule.createInventoryState(COSMETIC_ITEMS, COSMETIC_SLOTS)
+        : { cosmeticInventory: {}, equippedCosmetics: {} };
+      const cosmeticInventory = cosmeticState.cosmeticInventory || {};
       const titleInventory = {};
-      const equippedCosmetics = {
-        shirts: "",
-        pants: "",
-        shoes: "",
-        hats: "",
-        wings: "",
-        swords: ""
-      };
+      const equippedCosmetics = cosmeticState.equippedCosmetics || { shirts: "", pants: "", shoes: "", hats: "", wings: "", swords: "" };
       let equippedTitleId = "";
-      for (const item of COSMETIC_ITEMS) {
-        cosmeticInventory[item.id] = 0;
-      }
       for (const title of TITLE_CATALOG) {
         titleInventory[title.id] = title.defaultUnlocked ? 1 : 0;
       }
@@ -4310,6 +4297,76 @@
         if (achievementsModalEl) achievementsModalEl.classList.remove("hidden");
       }
 
+      function renderQuestsMenu() {
+        if (!questsBodyEl || !questsActionsEl || !questsTitleEl) return;
+        const state = normalizeQuestsState(questsState || {});
+        questsState = state;
+        const catalog = typeof questsModule.getCatalog === "function" ? questsModule.getCatalog() : [];
+        if (!catalog.length) {
+          questsTitleEl.textContent = "Quests";
+          questsBodyEl.innerHTML = "<div class='vending-empty'>No quests configured.</div>";
+          questsActionsEl.innerHTML = "<button type='button' data-quest-act='close'>Close</button>";
+          return;
+        }
+
+        const daily = [];
+        const other = [];
+        let doneCount = 0;
+        for (let i = 0; i < catalog.length; i++) {
+          const def = catalog[i];
+          const group = String(def.category || "daily") === "other" ? other : daily;
+          group.push(def);
+          const rowSource = String(def.category || "daily") === "other"
+            ? (state.globalQuests && state.globalQuests[def.id])
+            : (state.quests && state.quests[def.id]);
+          if (rowSource && rowSource.completed) doneCount++;
+        }
+        questsTitleEl.textContent = "Quests (" + doneCount + "/" + catalog.length + ")";
+
+        const renderGroup = (title, defs, groupKey) => {
+          if (!defs.length) return "";
+          const rows = [];
+          for (let i = 0; i < defs.length; i++) {
+            const def = defs[i];
+            const rowSource = groupKey === "other"
+              ? (state.globalQuests && state.globalQuests[def.id])
+              : (state.quests && state.quests[def.id]);
+            const row = rowSource || { progress: 0, completed: false, rewarded: false };
+            const target = Math.max(1, Math.floor(Number(def.target) || 1));
+            const progress = Math.max(0, Math.min(target, Math.floor(Number(row.progress) || 0)));
+            const pct = Math.max(0, Math.min(100, (progress / target) * 100));
+            const status = row.rewarded ? "Rewarded" : (row.completed ? "Completed" : "In progress");
+            const rewardText = describeQuestRewards(def.rewards || {});
+            rows.push(
+              "<div class='vending-section'>" +
+                "<div class='vending-stat-grid'>" +
+                  "<div class='vending-stat'><span>Quest</span><strong>" + escapeHtml(def.label || def.id) + "</strong></div>" +
+                  "<div class='vending-stat'><span>Status</span><strong>" + escapeHtml(status) + "</strong></div>" +
+                  "<div class='vending-stat'><span>Progress</span><strong>" + progress + " / " + target + "</strong></div>" +
+                "</div>" +
+                "<div style='margin-top:8px;height:8px;border-radius:999px;background:rgba(18,35,52,0.8);border:1px solid rgba(128,182,232,0.35);overflow:hidden;'>" +
+                  "<div style='height:100%;width:" + pct.toFixed(2) + "%;background:" + (row.completed ? "linear-gradient(90deg,#7cff9b,#5ff1c8)" : "linear-gradient(90deg,#55d6ff,#8fb4ff)") + ";'></div>" +
+                "</div>" +
+                (rewardText ? ("<div class='sign-hint' style='margin-top:8px;'>Reward: " + escapeHtml(rewardText) + "</div>") : "") +
+              "</div>"
+            );
+          }
+          return "<div class='vending-section'><strong>" + escapeHtml(title) + "</strong></div>" + rows.join("");
+        };
+
+        questsBodyEl.innerHTML = renderGroup("Daily Quests", daily, "daily") + renderGroup("Other Quests", other, "other");
+        questsActionsEl.innerHTML = "<button type='button' data-quest-act='close'>Close</button>";
+      }
+
+      function closeQuestsMenu() {
+        if (questsModalEl) questsModalEl.classList.add("hidden");
+      }
+
+      function openQuestsMenu() {
+        renderQuestsMenu();
+        if (questsModalEl) questsModalEl.classList.remove("hidden");
+      }
+
       function getQuestsStorageKey() {
         return "growtopia_quests_" + (playerProfileId || "guest");
       }
@@ -4399,11 +4456,12 @@
           refreshToolbar();
           syncPlayer(true);
         }
+        const categoryLabel = String(def.category || "daily") === "other" ? "Quest" : "Daily quest";
         const rewardText = describeQuestRewards(rewards);
         if (rewardText) {
-          postLocalSystemChat("Daily quest complete: " + (def.label || def.id) + " -> " + rewardText + ".");
+          postLocalSystemChat(categoryLabel + " complete: " + (def.label || def.id) + " -> " + rewardText + ".");
         } else {
-          postLocalSystemChat("Daily quest complete: " + (def.label || def.id) + ".");
+          postLocalSystemChat(categoryLabel + " complete: " + (def.label || def.id) + ".");
         }
         return changed;
       }
@@ -4465,6 +4523,7 @@
         const pending = [];
         for (let i = 0; i < catalog.length; i++) {
           const def = catalog[i];
+          if (String(def.category || "daily") !== "daily") continue;
           const row = state.quests && state.quests[def.id] ? state.quests[def.id] : null;
           if (!row || row.rewarded) continue;
           pending.push((def.label || def.id) + " (" + Math.max(0, Number(row.progress) || 0) + "/" + Math.max(1, Number(def.target) || 1) + ")");
@@ -4486,8 +4545,12 @@
         for (const id of INVENTORY_IDS) {
           inventory[id] = clampInventoryCount(inventory[id]);
         }
-        for (const item of COSMETIC_ITEMS) {
-          cosmeticInventory[item.id] = clampInventoryCount(cosmeticInventory[item.id]);
+        if (typeof cosmeticsModule.clampInventory === "function") {
+          cosmeticsModule.clampInventory(cosmeticInventory, COSMETIC_ITEMS, clampInventoryCount);
+        } else {
+          for (const item of COSMETIC_ITEMS) {
+            cosmeticInventory[item.id] = clampInventoryCount(cosmeticInventory[item.id]);
+          }
         }
         for (const title of TITLE_CATALOG) {
           titleInventory[title.id] = clampInventoryCount(titleInventory[title.id]);
@@ -4531,17 +4594,16 @@
           const value = Number.isFinite(directValue) ? directValue : keyValue;
           inventory[id] = clampInventoryCount(value);
         }
-        const itemRecord = record && record.cosmeticItems || {};
-        const legacyOwned = record && record.owned || {};
-        for (const item of COSMETIC_ITEMS) {
-          const nestedValue = Number(itemRecord[item.id]);
-          const topLevelValue = Number(record && record[item.id]);
-          const legacyHasOwned = Array.isArray(legacyOwned[item.slot]) && legacyOwned[item.slot].includes(item.id);
-          let finalValue = 0;
-          if (Number.isFinite(nestedValue)) finalValue = clampInventoryCount(nestedValue);
-          if (!finalValue && Number.isFinite(topLevelValue)) finalValue = clampInventoryCount(topLevelValue);
-          if (!finalValue && legacyHasOwned) finalValue = 1;
-          cosmeticInventory[item.id] = clampInventoryCount(finalValue);
+        if (typeof cosmeticsModule.applyFromRecord === "function") {
+          cosmeticsModule.applyFromRecord({
+            record,
+            cosmeticInventory,
+            equippedCosmetics,
+            items: COSMETIC_ITEMS,
+            lookup: COSMETIC_LOOKUP,
+            slots: COSMETIC_SLOTS,
+            clampCount: clampInventoryCount
+          });
         }
         const titleRecord = record && record.titleItems || {};
         for (const title of TITLE_CATALOG) {
@@ -4554,18 +4616,6 @@
           titleInventory[title.id] = clampInventoryCount(finalValue);
         }
         ensureDefaultTitleUnlocked();
-        const equippedRecord = record && record.equippedCosmetics || record && record.equipped || {};
-        for (const slot of COSMETIC_SLOTS) {
-          const id = String(equippedRecord[slot] || "");
-          equippedCosmetics[slot] = id && COSMETIC_LOOKUP[slot][id] && (cosmeticInventory[id] || 0) > 0 ? id : "";
-        }
-        // Backward compatibility: old "clothes" slot maps to new "shirts".
-        if (!equippedCosmetics.shirts) {
-          const legacyShirtId = String(equippedRecord.clothes || "");
-          if (legacyShirtId && COSMETIC_LOOKUP.shirts && COSMETIC_LOOKUP.shirts[legacyShirtId] && (cosmeticInventory[legacyShirtId] || 0) > 0) {
-            equippedCosmetics.shirts = legacyShirtId;
-          }
-        }
         const equippedTitleRaw = String(record && record.equippedTitle || "");
         equippedTitleId = equippedTitleRaw && TITLE_LOOKUP[equippedTitleRaw] && (titleInventory[equippedTitleRaw] || 0) > 0
           ? equippedTitleRaw
@@ -4581,19 +4631,10 @@
       }
 
       function normalizeRemoteEquippedCosmetics(raw) {
-        const output = { shirts: "", pants: "", shoes: "", hats: "", wings: "", swords: "" };
-        for (const slot of COSMETIC_SLOTS) {
-          const id = String(raw && raw[slot] || "");
-          output[slot] = id && COSMETIC_LOOKUP[slot][id] ? id : "";
+        if (typeof cosmeticsModule.normalizeRemoteEquipped === "function") {
+          return cosmeticsModule.normalizeRemoteEquipped(raw, COSMETIC_SLOTS, COSMETIC_LOOKUP);
         }
-        // Backward compatibility for remote old payload field.
-        if (!output.shirts) {
-          const legacyShirtId = String(raw && raw.clothes || "");
-          if (legacyShirtId && COSMETIC_LOOKUP.shirts && COSMETIC_LOOKUP.shirts[legacyShirtId]) {
-            output.shirts = legacyShirtId;
-          }
-        }
-        return output;
+        return { shirts: "", pants: "", shoes: "", hats: "", wings: "", swords: "" };
       }
 
       function buildInventoryPayload() {
@@ -4602,21 +4643,25 @@
         for (const id of INVENTORY_IDS) {
           payload[id] = clampInventoryCount(inventory[id]);
         }
-        const itemPayload = {};
-        for (const item of COSMETIC_ITEMS) {
-          itemPayload[item.id] = clampInventoryCount(cosmeticInventory[item.id]);
+        if (typeof cosmeticsModule.writePayload === "function") {
+          cosmeticsModule.writePayload(payload, cosmeticInventory, equippedCosmetics, COSMETIC_ITEMS, COSMETIC_SLOTS, clampInventoryCount);
+        } else {
+          const itemPayload = {};
+          for (const item of COSMETIC_ITEMS) {
+            itemPayload[item.id] = clampInventoryCount(cosmeticInventory[item.id]);
+          }
+          payload.cosmeticItems = itemPayload;
+          payload.equippedCosmetics = {};
+          for (const slot of COSMETIC_SLOTS) {
+            payload.equippedCosmetics[slot] = equippedCosmetics[slot] || "";
+          }
         }
-        payload.cosmeticItems = itemPayload;
         const titlePayload = {};
         for (const title of TITLE_CATALOG) {
           titlePayload[title.id] = clampInventoryCount(titleInventory[title.id]);
         }
         payload.titleItems = titlePayload;
         payload.equippedTitle = getEquippedTitlePayload().id || "";
-        payload.equippedCosmetics = {};
-        for (const slot of COSMETIC_SLOTS) {
-          payload.equippedCosmetics[slot] = equippedCosmetics[slot] || "";
-        }
         const gemsCtrl = getGemsController();
         if (gemsCtrl && typeof gemsCtrl.writeToPayload === "function") {
           gemsCtrl.writeToPayload(payload);
@@ -4667,6 +4712,15 @@
         network.inventoryRef.set(buildInventoryPayload()).catch(() => {
           setNetworkState("Inventory save error", true);
         });
+      }
+
+      function schedulePickupInventoryFlush() {
+        if (pickupInventoryFlushTimer) return;
+        pickupInventoryFlushTimer = window.setTimeout(() => {
+          pickupInventoryFlushTimer = 0;
+          saveInventory();
+          refreshToolbar();
+        }, 70);
       }
 
       function reloadMyInventoryFromServer() {
@@ -5742,11 +5796,12 @@
       }
 
       function getEquippedBreakPower() {
-        const swordId = String(equippedCosmetics.swords || "");
-        if (!swordId || !COSMETIC_LOOKUP.swords || !COSMETIC_LOOKUP.swords[swordId]) {
+        const item = typeof cosmeticsModule.getEquippedItem === "function"
+          ? cosmeticsModule.getEquippedItem("swords", equippedCosmetics, COSMETIC_LOOKUP)
+          : null;
+        if (!item) {
           return { multiplier: 1, instantBreak: false };
         }
-        const item = COSMETIC_LOOKUP.swords[swordId];
         const multiplier = Math.max(1, Number(item && item.breakMultiplier) || 1);
         const instantBreak = Boolean(item && item.instantBreak);
         return { multiplier, instantBreak };
@@ -6958,8 +7013,9 @@
           return;
         }
         const hasWingDoubleJump = Boolean(equippedCosmetics.wings);
-        const equippedShoesId = String(equippedCosmetics.shoes || "");
-        const equippedShoes = equippedShoesId && COSMETIC_LOOKUP.shoes ? COSMETIC_LOOKUP.shoes[equippedShoesId] : null;
+        const equippedShoes = typeof cosmeticsModule.getEquippedItem === "function"
+          ? cosmeticsModule.getEquippedItem("shoes", equippedCosmetics, COSMETIC_LOOKUP)
+          : null;
         const shoeSpeedBoost = Math.max(-0.3, Math.min(1.5, Number(equippedShoes && equippedShoes.speedBoost) || 0));
         const shoeJumpBoost = Math.max(-0.25, Math.min(1.0, Number(equippedShoes && equippedShoes.jumpBoost) || 0));
         const speedMult = Math.max(0.65, 1 + shoeSpeedBoost);
@@ -7843,17 +7899,18 @@
         ctx.fillRect(px + PLAYER_W - 10, py + 23, 4, 7);
       }
 
-      function drawShoes(px, py, shoesId) {
+      function drawShoes(px, py, shoesId, facing) {
         if (!shoesId) return;
         const item = COSMETIC_LOOKUP.shoes && COSMETIC_LOOKUP.shoes[shoesId];
         if (!item) return;
         const leftX = px + 5;
         const rightX = px + PLAYER_W - 9;
-        const shoeY = py + 28;
+        const shoeY = py + 26;
         const shoeW = 6;
         const shoeH = 4;
-        const drewLeft = drawCosmeticSprite(item, leftX, shoeY, shoeW, shoeH, 1, { mode: "contain", alignX: 0.5, alignY: 1 });
-        const drewRight = drawCosmeticSprite(item, rightX, shoeY, shoeW, shoeH, -1, { mode: "contain", alignX: 0.5, alignY: 1 });
+        const facingSign = facing === -1 ? -1 : 1;
+        const drewLeft = drawCosmeticSprite(item, leftX, shoeY, shoeW, shoeH, facingSign, { mode: "contain", alignX: 0.5, alignY: 1 });
+        const drewRight = drawCosmeticSprite(item, rightX, shoeY, shoeW, shoeH, facingSign, { mode: "contain", alignX: 0.5, alignY: 1 });
         if (drewLeft || drewRight) return;
         ctx.fillStyle = item.color || "#5f5f6a";
         ctx.fillRect(leftX + 1, shoeY + 1, shoeW - 1, shoeH - 1);
@@ -7968,7 +8025,7 @@
 
         drawShirt(px, py, shirtId);
         drawPants(px, py, pantsId);
-        drawShoes(px, py, shoesId);
+        drawShoes(px, py, shoesId, facing);
         drawHat(px, py, hatId, facing);
 
         ctx.fillStyle = "rgba(0,0,0,0.14)";
@@ -9306,23 +9363,18 @@
 
       function findNearbyDropStackCandidate(entry, x, y) {
         if (!entry || !worldDrops.size) return null;
-        const mergeRadius = TILE * 1.1;
-        const mergeRadiusSq = mergeRadius * mergeRadius;
-        let best = null;
-        let bestDistSq = Infinity;
+        const tx = Math.floor(x / TILE);
+        const ty = Math.floor(y / TILE);
         for (const drop of worldDrops.values()) {
           if (!drop || !drop.id) continue;
           if (!isSameDropKind(drop, entry)) continue;
-          const dx = Number(drop.x || 0) - x;
-          const dy = Number(drop.y || 0) - y;
-          const d2 = dx * dx + dy * dy;
-          if (d2 > mergeRadiusSq) continue;
-          if (d2 < bestDistSq) {
-            bestDistSq = d2;
-            best = drop;
+          const dtx = Math.floor(Number(drop.x || 0) / TILE);
+          const dty = Math.floor(Number(drop.y || 0) / TILE);
+          if (dtx === tx && dty === ty) {
+            return drop;
           }
         }
-        return best;
+        return null;
       }
 
       function applyStackAmountToLocalDrop(dropId, amountDelta) {
@@ -9554,25 +9606,55 @@
         const dy = (drop.y + TILE / 2) - py;
         if ((dx * dx + dy * dy) > (DROP_PICKUP_RADIUS * DROP_PICKUP_RADIUS)) return;
 
+        if (drop.type === "block") {
+          const current = Math.max(0, Math.floor(Number(inventory[drop.blockId]) || 0));
+          const incoming = Math.max(1, Math.floor(Number(drop.amount) || 1));
+          if (current >= INVENTORY_ITEM_LIMIT || (current + incoming) > INVENTORY_ITEM_LIMIT) {
+            const now = performance.now();
+            drop.noPickupUntil = now + 320;
+            if ((now - lastInventoryFullHintAt) > 900) {
+              lastInventoryFullHintAt = now;
+              postLocalSystemChat("Inventory full for " + getDropLabel(drop) + " (max " + INVENTORY_ITEM_LIMIT + ").");
+            }
+            return;
+          }
+        } else if (drop.type === "cosmetic") {
+          const current = Math.max(0, Math.floor(Number(cosmeticInventory[drop.cosmeticId]) || 0));
+          const incoming = Math.max(1, Math.floor(Number(drop.amount) || 1));
+          if (current >= INVENTORY_ITEM_LIMIT || (current + incoming) > INVENTORY_ITEM_LIMIT) {
+            const now = performance.now();
+            drop.noPickupUntil = now + 320;
+            if ((now - lastInventoryFullHintAt) > 900) {
+              lastInventoryFullHintAt = now;
+              postLocalSystemChat("Inventory full for " + getDropLabel(drop) + " (max " + INVENTORY_ITEM_LIMIT + ").");
+            }
+            return;
+          }
+        }
+
+        const pickupTargetWorld = {
+          x: cameraX + Math.max(24, getCameraViewWidth() - 18),
+          y: cameraY + Math.max(22, Math.min(getCameraViewHeight() - 22, 56))
+        };
+
         const applyPickup = () => {
           if (particleController && typeof particleController.emitPickup === "function") {
             particleController.emitPickup(
               drop.x + TILE * 0.5,
               drop.y + TILE * 0.5,
-              player.x + PLAYER_W * 0.5,
-              player.y + PLAYER_H * 0.5,
+              pickupTargetWorld.x,
+              pickupTargetWorld.y,
               drop.amount,
               drop.type
             );
           }
           if (drop.type === "cosmetic") {
-            cosmeticInventory[drop.cosmeticId] = Math.max(0, Math.floor((cosmeticInventory[drop.cosmeticId] || 0) + drop.amount));
+            cosmeticInventory[drop.cosmeticId] = clampInventoryCount((cosmeticInventory[drop.cosmeticId] || 0) + drop.amount);
           } else if (drop.type === "block") {
-            inventory[drop.blockId] = Math.max(0, Math.floor((inventory[drop.blockId] || 0) + drop.amount));
+            inventory[drop.blockId] = clampInventoryCount((inventory[drop.blockId] || 0) + drop.amount);
           }
           if (drop.type !== "tool") {
-            saveInventory();
-            refreshToolbar();
+            schedulePickupInventoryFlush();
           }
           postLocalSystemChat("Picked up " + drop.amount + "x " + getDropLabel(drop) + ".");
         };

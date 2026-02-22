@@ -38,6 +38,11 @@ window.GTModules.particles = (function createParticlesModule() {
       };
     }
 
+    function easeInOutCubic(t) {
+      const v = Math.max(0, Math.min(1, Number(t) || 0));
+      return v < 0.5 ? (4 * v * v * v) : (1 - Math.pow(-2 * v + 2, 3) / 2);
+    }
+
     function emitBlockBreak(x, y, count) {
       const n = Math.max(6, Math.min(22, Math.floor(Number(count) || 12)));
       const items = [];
@@ -138,28 +143,33 @@ window.GTModules.particles = (function createParticlesModule() {
         : (String(kind || "").toLowerCase() === "tool"
           ? "rgba(255, 244, 210, 0.92)"
           : "rgba(233, 253, 255, 0.92)");
-      const dx = targetX - fromX;
-      const dy = targetY - fromY;
-      const len = Math.max(1, Math.sqrt(dx * dx + dy * dy));
-      const ux = dx / len;
-      const uy = dy / len;
       const items = [];
       for (let i = 0; i < n; i++) {
-        const speed = rand(1.7, 3.1);
-        const side = rand(-0.55, 0.55);
-        const vx = ux * speed + (-uy * side);
-        const vy = uy * speed + (ux * side);
-        items.push(makeParticle(
-          fromX + rand(-4, 4),
-          fromY + rand(-4, 4),
-          vx,
-          vy,
-          rand(0.18, 0.42),
-          rand(1.0, 2.4),
+        const startX = fromX + rand(-4.5, 4.5);
+        const startY = fromY + rand(-4.5, 4.5);
+        const wobbleX = rand(-9, 9);
+        const wobbleY = rand(-7, 7);
+        const life = rand(0.34, 0.62);
+        const particle = makeParticle(
+          startX,
+          startY,
+          0,
+          0,
+          life,
+          rand(1.0, 2.3),
           i % 2 ? baseColor : accentColor,
-          0.02,
-          0.986
-        ));
+          0,
+          1
+        );
+        particle.pickupTween = {
+          sx: startX,
+          sy: startY,
+          tx: targetX + rand(-2.5, 2.5),
+          ty: targetY + rand(-2.5, 2.5),
+          cx: (startX + targetX) * 0.5 + wobbleX,
+          cy: (startY + targetY) * 0.5 + wobbleY
+        };
+        items.push(particle);
       }
       pushMany(items);
     }
@@ -172,6 +182,17 @@ window.GTModules.particles = (function createParticlesModule() {
         const p = list[i];
         p.age += dt;
         if (p.age >= p.life) continue;
+        if (p.pickupTween) {
+          const tw = p.pickupTween;
+          const t = Math.max(0, Math.min(1, p.age / p.life));
+          const e = easeInOutCubic(t);
+          // Quadratic bezier tween to pull particles toward the inventory target.
+          const inv = 1 - e;
+          p.x = (inv * inv * tw.sx) + (2 * inv * e * tw.cx) + (e * e * tw.tx);
+          p.y = (inv * inv * tw.sy) + (2 * inv * e * tw.cy) + (e * e * tw.ty);
+          list[w++] = p;
+          continue;
+        }
         p.vx *= Math.pow(p.drag, dt * 60);
         p.vy *= Math.pow(p.drag, dt * 60);
         p.vy += p.gravity * dt * 60;
