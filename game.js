@@ -8004,8 +8004,8 @@
           return;
         }
         ctx.fillStyle = item.color || "#7e92a3";
-        ctx.fillRect(px + 6, py + 20, 4, 7);
-        ctx.fillRect(px + PLAYER_W - 10, py + 20, 4, 7);
+        ctx.fillRect(px + 6, py + 22, 4, 7);
+        ctx.fillRect(px + PLAYER_W - 10, py + 22, 4, 7);
       }
 
       function drawShoes(px, py, shoesId, facing) {
