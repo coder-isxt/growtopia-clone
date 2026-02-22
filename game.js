@@ -5798,14 +5798,30 @@
       }
 
       function drawCrosshair() {
-        const x = mouseWorld.tx * TILE - cameraX;
-        const y = mouseWorld.ty * TILE - cameraY;
-        if (mouseWorld.tx < 0 || mouseWorld.ty < 0 || mouseWorld.tx >= WORLD_W || mouseWorld.ty >= WORLD_H) return;
-        if (!canEditTarget(mouseWorld.tx, mouseWorld.ty)) return;
+        const selectedId = slotOrder[selectedSlot];
+        if (selectedId === TOOL_FIST || selectedId === TOOL_WRENCH) return;
+        if (typeof selectedId !== "number") return;
 
-        ctx.strokeStyle = "rgba(255, 209, 102, 0.85)";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x + 1, y + 1, TILE - 2, TILE - 2);
+        const reachTiles = Math.max(1, getEditReachTiles());
+        const centerTx = Math.floor((player.x + PLAYER_W / 2) / TILE);
+        const centerTy = Math.floor((player.y + PLAYER_H / 2) / TILE);
+        const minTx = Math.max(0, centerTx - Math.ceil(reachTiles));
+        const maxTx = Math.min(WORLD_W - 1, centerTx + Math.ceil(reachTiles));
+        const minTy = Math.max(0, centerTy - Math.ceil(reachTiles));
+        const maxTy = Math.min(WORLD_H - 1, centerTy + Math.ceil(reachTiles));
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 209, 102, 0.26)";
+        ctx.lineWidth = 1;
+        for (let ty = minTy; ty <= maxTy; ty++) {
+          for (let tx = minTx; tx <= maxTx; tx++) {
+            if (!canEditTarget(tx, ty)) continue;
+            const x = tx * TILE - cameraX;
+            const y = ty * TILE - cameraY;
+            ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
+          }
+        }
+        ctx.restore();
       }
 
       function drawInfo() {
