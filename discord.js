@@ -5,6 +5,7 @@ window.DISCORD_LOCAL_WEBHOOK_STORAGE = window.DISCORD_LOCAL_WEBHOOK_STORAGE || "
 
 window.GTModules.discord = (function createDiscordModule() {
   let webhookUrlPromise = null;
+  const DISCORD_WEBHOOK_RE = /^https?:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-Za-z0-9._-]+/i;
 
   function isLocalRuntime() {
     const host = (window.location && window.location.hostname || "").toLowerCase();
@@ -49,6 +50,48 @@ window.GTModules.discord = (function createDiscordModule() {
     return webhookUrlPromise;
   }
 
+  function looksLikeDiscordWebhookUrl(value) {
+    return DISCORD_WEBHOOK_RE.test(String(value || "").trim());
+  }
+
+  function parseWebhookUrlFromBody(text) {
+    const raw = String(text || "").trim();
+    if (!raw) return "";
+    if (looksLikeDiscordWebhookUrl(raw)) return raw;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        const candidates = [
+          parsed.webhookUrl,
+          parsed.url,
+          parsed.webhook,
+          parsed.data && parsed.data.webhookUrl
+        ];
+        for (let i = 0; i < candidates.length; i++) {
+          const value = String(candidates[i] || "").trim();
+          if (looksLikeDiscordWebhookUrl(value)) return value;
+        }
+      }
+    } catch (error) {
+      // body is plain text, ignore parse error
+    }
+    return "";
+  }
+
+  async function resolveDiscordWebhookUrl(rawUrl) {
+    const initial = String(rawUrl || "").trim();
+    if (!initial) return "";
+    if (looksLikeDiscordWebhookUrl(initial)) return initial;
+    try {
+      const res = await fetch(initial, { cache: "no-store" });
+      if (!res.ok) return "";
+      const body = await res.text();
+      return parseWebhookUrlFromBody(body);
+    } catch (error) {
+      return "";
+    }
+  }
+
   function toContent(payload) {
     if (payload && typeof payload === "object" && typeof payload.content === "string") {
       return payload.content;
@@ -63,7 +106,8 @@ window.GTModules.discord = (function createDiscordModule() {
     if (!content) return false;
 
     const explicitWebhookUrl = String(opts.webhookUrl || "").trim();
-    const url = explicitWebhookUrl || (await getWebhookUrl(Boolean(opts.forceRefresh)));
+    const unresolved = explicitWebhookUrl || (await getWebhookUrl(Boolean(opts.forceRefresh)));
+    const url = await resolveDiscordWebhookUrl(unresolved);
     if (!url) return false;
 
     const body = { content };
@@ -78,21 +122,7 @@ window.GTModules.discord = (function createDiscordModule() {
       // try proxy fallback below
     }
 
-    try {
-      const endpoint = String(window.DISCORD_WEBHOOK_ENDPOINT || window.ANTICHEAT_WEBHOOK_ENDPOINT || "").trim();
-      if (!endpoint || endpoint === url) return false;
-      const proxyRes = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: body.content,
-          webhookUrl: url
-        })
-      });
-      return Boolean(proxyRes && proxyRes.ok);
-    } catch (error) {
-      return false;
-    }
+    return false;
   }
 
   return {
