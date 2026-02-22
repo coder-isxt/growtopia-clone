@@ -8162,7 +8162,7 @@
         ctx.fillRect(mouthX, mouthY, 5, 1);
         ctx.fillRect(mouthX + 1, mouthY + 1, 3, 1);
 
-        const noseX = faceTilt > 0 ? px + 13 : px + 8;
+        const noseX = faceTilt > 0 ? px + 13 : px + 6;
         ctx.fillStyle = "rgba(124, 84, 66, 0.9)";
         ctx.fillRect(noseX, py + 7, 2, 2);
 
