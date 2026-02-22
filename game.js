@@ -7905,11 +7905,11 @@
         if (!shirtId) return;
         const item = COSMETIC_LOOKUP.shirts && COSMETIC_LOOKUP.shirts[shirtId];
         if (!item) return;
-        if (drawCosmeticSprite(item, px + 4, py + 5, PLAYER_W - 8, 12, 1, { mode: "contain", alignX: 0.5, alignY: 0.5 })) {
+        if (drawCosmeticSprite(item, px + 4, py + 13, PLAYER_W - 8, 12, 1, { mode: "contain", alignX: 0.5, alignY: 0.5 })) {
           return;
         }
         ctx.fillStyle = item.color;
-        ctx.fillRect(px + 5, py + 15, PLAYER_W - 10, 10);
+        ctx.fillRect(px + 5, py + 16, PLAYER_W - 10, 10);
       }
 
       function drawPants(px, py, pantsId) {
