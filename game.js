@@ -511,6 +511,7 @@
       const DROP_MAX_PER_WORLD = 220;
       const PLAYER_NAME_FONT = "12px 'Trebuchet MS', sans-serif";
       const playerWrenchHitboxes = [];
+      const localPlayerWrenchHitbox = [];
       const worldDrops = new Map();
       const tileDamageByKey = new Map();
       let lastDropAtMs = 0;
@@ -8083,6 +8084,7 @@
       }
 
       function drawPlayer() {
+        localPlayerWrenchHitbox.length = 0;
         const nowMs = performance.now();
         const px = Math.round(player.x - cameraX);
         const py = Math.round(player.y - cameraY);
@@ -8153,6 +8155,21 @@
         }
         ctx.fillStyle = "#f3fbff";
         ctx.fillText(nameText, cursorX, nameY);
+        if (slotOrder[selectedSlot] === TOOL_WRENCH) {
+          const textWidth = (cursorX - (Math.round(px + PLAYER_W / 2 - totalWidth / 2))) + ctx.measureText(nameText).width;
+          const iconSize = 12;
+          const iconX = Math.floor(Math.round(px + PLAYER_W / 2 - totalWidth / 2) + textWidth + 5);
+          const iconY = Math.floor(nameY - 10);
+          drawNameWrenchIcon(iconX, iconY, iconSize);
+          localPlayerWrenchHitbox.push({
+            x: iconX,
+            y: iconY,
+            w: iconSize,
+            h: iconSize,
+            accountId: playerProfileId || "",
+            name: nameText
+          });
+        }
       }
 
       function drawRemotePlayers() {
@@ -8263,6 +8280,12 @@
 
       function hitWrenchNameIcon(canvasX, canvasY) {
         if (!inWorld) return null;
+        for (let i = localPlayerWrenchHitbox.length - 1; i >= 0; i--) {
+          const hit = localPlayerWrenchHitbox[i];
+          if (canvasX >= hit.x && canvasX <= hit.x + hit.w && canvasY >= hit.y && canvasY <= hit.y + hit.h) {
+            return hit;
+          }
+        }
         for (let i = playerWrenchHitboxes.length - 1; i >= 0; i--) {
           const hit = playerWrenchHitboxes[i];
           if (canvasX >= hit.x && canvasX <= hit.x + hit.w && canvasY >= hit.y && canvasY <= hit.y + hit.h) {
@@ -10764,6 +10787,11 @@
             openAchievementsMenu();
           });
         }
+        if (questsToggleBtn) {
+          questsToggleBtn.addEventListener("click", () => {
+            openQuestsMenu();
+          });
+        }
         if (achievementsCloseBtn) {
           achievementsCloseBtn.addEventListener("click", () => {
             closeAchievementsMenu();
@@ -10782,6 +10810,22 @@
             if (!(target instanceof HTMLElement)) return;
             if (String(target.dataset.achAct || "") === "close") {
               closeAchievementsMenu();
+            }
+          });
+        }
+        if (questsModalEl) {
+          questsModalEl.addEventListener("click", (event) => {
+            if (event.target === questsModalEl) {
+              closeQuestsMenu();
+            }
+          });
+        }
+        if (questsActionsEl) {
+          questsActionsEl.addEventListener("click", (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            if (String(target.dataset.questAct || "") === "close") {
+              closeQuestsMenu();
             }
           });
         }
