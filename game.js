@@ -1319,9 +1319,9 @@
           const prevRank = getRoleRank(previousRole);
           const nextRank = getRoleRank(nextRole);
           let headline = "Your role was updated.";
-          if (nextRank > prevRank) headline = "You were promoted.";
-          if (nextRank < prevRank) headline = "You were demoted.";
-          const details = formatRoleLabel(previousRole) + " -> " + formatRoleLabel(nextRole);
+          if (nextRank > prevRank) headline = "You were promoted to";
+          if (nextRank < prevRank) headline = "You were demoted to";
+          const details = formatRoleLabel(nextRole);
           showAnnouncementPopup(headline + " " + details, 5600);
           postLocalSystemChat("[System] Role change: " + details + ".");
         }
