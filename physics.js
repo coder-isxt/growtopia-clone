@@ -102,6 +102,10 @@ window.GTModules.physics = {
       }
     }
     if (!found) return false;
+    // If we are already grounded on something higher (smaller y) than the stair surface,
+    // do not snap down. This prevents being pulled through platforms when walking off stairs.
+    if (player.grounded && targetBottom > bottomY + 0.01) return false;
+
     player.y = targetBottom - playerH;
     player.grounded = true;
     if (player.vy > 0) player.vy = 0;
