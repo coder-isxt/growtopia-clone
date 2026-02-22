@@ -7730,17 +7730,29 @@
         }
         const targetDoorId = world[ty][tx];
         const targetBaseId = world[ty + 1][tx];
-        const canUseDoorTile = targetDoorId === 0;
+        const canUseDoorTile = targetDoorId === 0 || targetDoorId === SPAWN_DOOR_ID;
         const canUseBaseTile = targetBaseId === 0 || targetBaseId === SPAWN_BASE_ID;
         if (!canUseDoorTile || !canUseBaseTile) {
           postLocalSystemChat("Target door tile must be empty (base can be empty/bedrock).");
           return false;
         }
-        const oldTiles = getSpawnStructureTiles();
-        world[oldTiles.door.ty][oldTiles.door.tx] = 0;
-        world[oldTiles.base.ty][oldTiles.base.tx] = 0;
-        clearTileDamage(oldTiles.door.tx, oldTiles.door.ty);
-        clearTileDamage(oldTiles.base.tx, oldTiles.base.ty);
+
+        // Remove every existing spawn door except the new target tile.
+        const staleDoorTiles = [];
+        for (let scanY = 0; scanY < WORLD_H; scanY++) {
+          const row = world[scanY];
+          if (!Array.isArray(row)) continue;
+          for (let scanX = 0; scanX < WORLD_W; scanX++) {
+            if (row[scanX] !== SPAWN_DOOR_ID) continue;
+            if (scanX === tx && scanY === ty) continue;
+            staleDoorTiles.push({ tx: scanX, ty: scanY });
+          }
+        }
+        for (let i = 0; i < staleDoorTiles.length; i++) {
+          const tile = staleDoorTiles[i];
+          world[tile.ty][tile.tx] = 0;
+          clearTileDamage(tile.tx, tile.ty);
+        }
 
         setSpawnStructureTile(tx, ty);
         const nextTiles = getSpawnStructureTiles();
@@ -7750,16 +7762,20 @@
         clearTileDamage(nextTiles.base.tx, nextTiles.base.ty);
         if (network.enabled && network.blocksRef) {
           const updates = {};
-          updates[oldTiles.door.tx + "_" + oldTiles.door.ty] = null;
-          updates[oldTiles.base.tx + "_" + oldTiles.base.ty] = null;
+          for (let i = 0; i < staleDoorTiles.length; i++) {
+            const tile = staleDoorTiles[i];
+            updates[tile.tx + "_" + tile.ty] = null;
+          }
           updates[nextTiles.door.tx + "_" + nextTiles.door.ty] = SPAWN_DOOR_ID;
           updates[nextTiles.base.tx + "_" + nextTiles.base.ty] = SPAWN_BASE_ID;
           network.blocksRef.update(updates).catch(() => {
             setNetworkState("Network error", true);
           });
         } else {
-          syncBlock(oldTiles.door.tx, oldTiles.door.ty, 0);
-          syncBlock(oldTiles.base.tx, oldTiles.base.ty, 0);
+          for (let i = 0; i < staleDoorTiles.length; i++) {
+            const tile = staleDoorTiles[i];
+            syncBlock(tile.tx, tile.ty, 0);
+          }
           syncBlock(nextTiles.door.tx, nextTiles.door.ty, SPAWN_DOOR_ID);
           syncBlock(nextTiles.base.tx, nextTiles.base.ty, SPAWN_BASE_ID);
         }
