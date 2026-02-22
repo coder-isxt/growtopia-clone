@@ -8000,7 +8000,7 @@
         if (!pantsId) return;
         const item = COSMETIC_LOOKUP.pants && COSMETIC_LOOKUP.pants[pantsId];
         if (!item) return;
-        if (drawCosmeticSprite(item, px + 5, py + 22, PLAYER_W - 10, 8, 1, { mode: "contain", alignX: 0.5, alignY: 0.5 })) {
+        if (drawCosmeticSprite(item, px + 5, py + 21, PLAYER_W - 10, 8, 1, { mode: "contain", alignX: 0.5, alignY: 0.5 })) {
           return;
         }
         ctx.fillStyle = item.color || "#7e92a3";
