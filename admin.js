@@ -8,7 +8,7 @@ window.GTModules.admin = {
     owner: 4
   },
   DEFAULT_PERMISSIONS: {
-    owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+    owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "db_backup", "db_restore", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
     manager: ["panel_open", "view_logs", "view_audit", "clear_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
     admin: ["panel_open", "view_logs", "view_audit", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
     moderator: ["panel_open", "kick", "tp", "reach", "bring", "summon", "announce", "announce_user"],
@@ -108,7 +108,7 @@ window.GTModules.admin = {
     if (key === "permban" || key === "tempban") return "critical";
     if (key === "kick" || key === "resetinv" || key === "clear_logs" || key === "clearaudit" || key === "freeze") return "warn";
     if (key === "unban") return "success";
-    if (key === "setrole" || key === "givex" || key === "giveitem" || key === "givetitle" || key === "removetitle" || key === "tp" || key === "reach" || key === "summon" || key === "bring" || key === "unfreeze" || key === "godmode" || key === "clearworld" || key === "announce_user" || key === "announce") return "accent";
+    if (key === "setrole" || key === "givex" || key === "giveitem" || key === "givetitle" || key === "removetitle" || key === "tp" || key === "reach" || key === "summon" || key === "bring" || key === "unfreeze" || key === "godmode" || key === "clearworld" || key === "announce_user" || key === "announce" || key === "db_backup" || key === "db_restore" || key === "db_export_json" || key === "db_import_json") return "accent";
     return "info";
   },
   getLogLevel(text) {

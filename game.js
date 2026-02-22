@@ -36,6 +36,9 @@
       const adminAuditActorFilterEl = document.getElementById("adminAuditActorFilter");
       const adminAuditTargetFilterEl = document.getElementById("adminAuditTargetFilter");
       const adminForceReloadBtn = document.getElementById("adminForceReloadBtn");
+      const adminBackupDownloadBtn = document.getElementById("adminBackupDownloadBtn");
+      const adminBackupUploadBtn = document.getElementById("adminBackupUploadBtn");
+      const adminBackupUploadInput = document.getElementById("adminBackupUploadInput");
       const adminAuditExportBtn = document.getElementById("adminAuditExportBtn");
       const adminCloseBtn = document.getElementById("adminCloseBtn");
       const adminAccountsEl = document.getElementById("adminAccounts");
@@ -155,6 +158,7 @@
       const menuModule = modules.menu || {};
       const messagesModule = modules.messages || {};
       const anticheatModule = modules.anticheat || {};
+      const backupModule = modules.backup || {};
       const vendingModule = modules.vending || {};
       const donationModule = modules.donation || {};
       const chestModule = modules.chest || {};
@@ -188,7 +192,7 @@
         : {
             roleRank: { none: 0, moderator: 1, admin: 2, manager: 3, owner: 4 },
             permissions: {
-              owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+              owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "db_backup", "db_restore", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
               manager: ["panel_open", "view_logs", "view_audit", "clear_logs", "setrole_limited", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
               admin: ["panel_open", "view_logs", "view_audit", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
               moderator: ["panel_open", "kick", "tp", "reach", "bring", "summon", "announce", "announce_user"],
@@ -320,6 +324,8 @@
         .map((id) => Math.floor(Number(id)))
         .filter((id) => Number.isInteger(id) && id > 0)
         .sort((a, b) => a - b);
+      const SEED_INVENTORY_IDS = INVENTORY_IDS.filter((id) => PLANT_SEED_ID_SET.has(id));
+      const BLOCK_ONLY_INVENTORY_IDS = INVENTORY_IDS.filter((id) => !PLANT_SEED_ID_SET.has(id));
       const slotOrder = [TOOL_FIST, TOOL_WRENCH].concat(INVENTORY_IDS);
       const COSMETIC_SLOTS = ["shirts", "pants", "hats", "wings", "swords"];
       const blockMaps = typeof blockKeysModule.buildMaps === "function"
@@ -474,6 +480,9 @@
       let adminAuditActionFilter = "";
       let adminAuditActorFilter = "";
       let adminAuditTargetFilter = "";
+      let adminBackupList = [];
+      let adminBackupSelectedId = "";
+      let adminBackupLoading = false;
       let isAdminOpen = false;
       let hasSeenAdminRoleSnapshot = false;
       const adminCommandLastUsedAt = new Map();
@@ -1323,10 +1332,28 @@
           adminForceReloadBtn.classList.toggle("hidden", !canForceReload);
           adminForceReloadBtn.disabled = !canForceReload;
         }
+        if (adminBackupDownloadBtn) {
+          const canDownloadBackupJson = hasAdminPermission("db_restore");
+          adminBackupDownloadBtn.classList.toggle("hidden", !canDownloadBackupJson);
+          adminBackupDownloadBtn.disabled = !canDownloadBackupJson;
+        }
+        if (adminBackupUploadBtn) {
+          const canUploadBackupJson = hasAdminPermission("db_backup");
+          adminBackupUploadBtn.classList.toggle("hidden", !canUploadBackupJson);
+          adminBackupUploadBtn.disabled = !canUploadBackupJson;
+        }
+        if (adminBackupUploadInput) {
+          adminBackupUploadInput.disabled = !hasAdminPermission("db_backup");
+        }
         if (adminAuditActionFilterEl) adminAuditActionFilterEl.disabled = !hasAdminPermission("view_audit");
         if (adminAuditActorFilterEl) adminAuditActorFilterEl.disabled = !hasAdminPermission("view_audit");
         if (adminAuditTargetFilterEl) adminAuditTargetFilterEl.disabled = !hasAdminPermission("view_audit");
         if (adminAuditExportBtn) adminAuditExportBtn.disabled = !hasAdminPermission("view_audit");
+        if (!hasAdminPermission("db_restore")) {
+          adminBackupList = [];
+          adminBackupSelectedId = "";
+          adminBackupLoading = false;
+        }
         if (network.accountLogsRootRef && network.handlers.accountLogAdded) {
           network.accountLogsRootRef.off("value", network.handlers.accountLogAdded);
           if (canViewAccountLogs) {
@@ -1486,6 +1513,9 @@
         adminPanelEl.classList.toggle("hidden", !isAdminOpen);
         if (isAdminOpen) {
           refreshAuditActionFilterOptions();
+          if (hasAdminPermission("db_restore")) {
+            refreshAdminBackups(true);
+          }
           renderAdminPanel();
         }
         if (!isAdminOpen) {
@@ -1795,6 +1825,225 @@
         }
       }
 
+      function getAdminBackupOptionsMarkup() {
+        if (!adminBackupList.length) {
+          return "<option value=''>No backups found</option>";
+        }
+        return adminBackupList.map((row) => {
+          const createdAt = Number(row.createdAt) || 0;
+          const when = createdAt > 0 ? formatChatTimestamp(createdAt) : "--:--";
+          const by = String(row.createdByUsername || "").trim() || "unknown";
+          const label = row.id + " | " + when + " | @" + by;
+          const selected = row.id === adminBackupSelectedId ? " selected" : "";
+          return "<option value='" + escapeHtml(row.id) + "'" + selected + ">" + escapeHtml(label) + "</option>";
+        }).join("");
+      }
+
+      function refreshAdminBackups(force) {
+        if (!hasAdminPermission("db_restore")) return Promise.resolve([]);
+        if (!network.db) return Promise.resolve([]);
+        if (adminBackupLoading && !force) return Promise.resolve(adminBackupList.slice());
+        adminBackupLoading = true;
+        const listFn = typeof backupModule.listBackups === "function"
+          ? backupModule.listBackups({
+            db: network.db,
+            basePath: BASE_PATH,
+            limit: 80
+          })
+          : network.db.ref(BASE_PATH + "/backups").limitToLast(80).once("value").then((snapshot) => {
+            const data = snapshot && snapshot.val ? (snapshot.val() || {}) : {};
+            return Object.keys(data).map((id) => {
+              const value = data[id] || {};
+              return {
+                id: String(id || ""),
+                createdAt: Number(value.createdAt) || 0,
+                createdByUsername: (value.createdByUsername || "").toString()
+              };
+            }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          });
+        return Promise.resolve(listFn).then((rows) => {
+          adminBackupList = Array.isArray(rows) ? rows.filter((row) => row && row.id) : [];
+          if (!adminBackupList.some((row) => row.id === adminBackupSelectedId)) {
+            adminBackupSelectedId = adminBackupList.length ? adminBackupList[0].id : "";
+          }
+          if (isAdminOpen) {
+            renderAdminPanel();
+          }
+          return adminBackupList.slice();
+        }).catch(() => {
+          if (isAdminOpen) {
+            postLocalSystemChat("Failed to load backups.");
+          }
+          return [];
+        }).finally(() => {
+          adminBackupLoading = false;
+        });
+      }
+
+      function runDatabaseBackup(sourceTag) {
+        if (!network.db || !hasAdminPermission("db_backup")) {
+          postLocalSystemChat("Permission denied.");
+          return;
+        }
+        postLocalSystemChat("Creating database backup...");
+        const createFn = typeof backupModule.createBackup === "function"
+          ? backupModule.createBackup({
+            db: network.db,
+            firebase,
+            basePath: BASE_PATH,
+            createdByAccountId: playerProfileId || "",
+            createdByUsername: playerName || ""
+          })
+          : Promise.reject(new Error("backup module unavailable"));
+        Promise.resolve(createFn).then((result) => {
+          const backupId = (result && result.id ? result.id : "").toString();
+          if (backupId) {
+            adminBackupSelectedId = backupId;
+          }
+          logAdminAudit("Admin(" + (sourceTag || "panel") + ") created database backup " + backupId + ".");
+          pushAdminAuditEntry("db_backup", "", "backupId=" + backupId);
+          postLocalSystemChat("Backup created: " + backupId + ".");
+          refreshAdminBackups(true);
+        }).catch((error) => {
+          const msg = error && error.message ? error.message : "unknown error";
+          postLocalSystemChat("Backup failed: " + msg + ".");
+        });
+      }
+
+      function runDatabaseRestore(backupId, sourceTag) {
+        const safeBackupId = String(backupId || "").trim();
+        if (!network.db || !hasAdminPermission("db_restore")) {
+          postLocalSystemChat("Permission denied.");
+          return;
+        }
+        if (!safeBackupId) {
+          postLocalSystemChat("Select a backup to restore.");
+          return;
+        }
+        const accepted = window.confirm("Restore backup " + safeBackupId + "? This replaces current game data but keeps backups.");
+        if (!accepted) return;
+        postLocalSystemChat("Restoring backup " + safeBackupId + "...");
+        const restoreFn = typeof backupModule.restoreBackup === "function"
+          ? backupModule.restoreBackup({
+            db: network.db,
+            firebase,
+            basePath: BASE_PATH,
+            backupId: safeBackupId
+          })
+          : Promise.reject(new Error("backup module unavailable"));
+        Promise.resolve(restoreFn).then(() => {
+          adminBackupSelectedId = safeBackupId;
+          logAdminAudit("Admin(" + (sourceTag || "panel") + ") restored database backup " + safeBackupId + ".");
+          pushAdminAuditEntry("db_restore", "", "backupId=" + safeBackupId);
+          postLocalSystemChat("Backup restored: " + safeBackupId + ".");
+          refreshAdminBackups(true);
+          if (inWorld && currentWorldId) {
+            setTimeout(() => {
+              if (!inWorld || !currentWorldId) return;
+              switchWorld(currentWorldId, true);
+            }, 220);
+          }
+        }).catch((error) => {
+          const msg = error && error.message ? error.message : "unknown error";
+          postLocalSystemChat("Restore failed: " + msg + ".");
+        });
+      }
+
+      function getSelectedBackupId() {
+        const backupEl = adminAccountsEl.querySelector(".admin-console-backup");
+        const fromUi = backupEl instanceof HTMLSelectElement ? String(backupEl.value || "").trim() : "";
+        if (fromUi) {
+          adminBackupSelectedId = fromUi;
+          return fromUi;
+        }
+        return String(adminBackupSelectedId || "").trim();
+      }
+
+      function downloadSelectedBackupJson() {
+        if (!network.db || !hasAdminPermission("db_restore")) {
+          postLocalSystemChat("Permission denied.");
+          return;
+        }
+        const backupId = getSelectedBackupId();
+        if (!backupId) {
+          postLocalSystemChat("Select a backup first.");
+          return;
+        }
+        postLocalSystemChat("Preparing backup JSON...");
+        const exportFn = typeof backupModule.exportBackupJson === "function"
+          ? backupModule.exportBackupJson({
+            db: network.db,
+            basePath: BASE_PATH,
+            backupId
+          })
+          : Promise.reject(new Error("backup module unavailable"));
+        Promise.resolve(exportFn).then((payload) => {
+          const json = JSON.stringify(payload || {}, null, 2);
+          const blob = new Blob([json], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "gt-backup-" + backupId + ".json";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          logAdminAudit("Admin(panel) downloaded backup JSON " + backupId + ".");
+          pushAdminAuditEntry("db_export_json", "", "backupId=" + backupId);
+          postLocalSystemChat("Downloaded backup JSON: " + backupId + ".");
+        }).catch((error) => {
+          const msg = error && error.message ? error.message : "unknown error";
+          postLocalSystemChat("Download failed: " + msg + ".");
+        });
+      }
+
+      function importBackupJsonFile(file) {
+        if (!file) return;
+        if (!network.db || !hasAdminPermission("db_backup")) {
+          postLocalSystemChat("Permission denied.");
+          return;
+        }
+        file.text().then((text) => {
+          let parsed = null;
+          try {
+            parsed = JSON.parse(String(text || "{}"));
+          } catch (error) {
+            postLocalSystemChat("Invalid JSON file.");
+            return;
+          }
+          postLocalSystemChat("Importing backup JSON...");
+          const importFn = typeof backupModule.importBackupJson === "function"
+            ? backupModule.importBackupJson({
+              db: network.db,
+              firebase,
+              basePath: BASE_PATH,
+              createdByAccountId: playerProfileId || "",
+              createdByUsername: playerName || "",
+              json: parsed
+            })
+            : Promise.reject(new Error("backup module unavailable"));
+          Promise.resolve(importFn).then((result) => {
+            const backupId = (result && result.id ? result.id : "").toString();
+            if (backupId) {
+              adminBackupSelectedId = backupId;
+            }
+            logAdminAudit("Admin(panel) imported backup JSON as " + backupId + ".");
+            pushAdminAuditEntry("db_import_json", "", "backupId=" + backupId);
+            postLocalSystemChat("Imported backup JSON as " + backupId + ".");
+            refreshAdminBackups(true);
+          }).catch((error) => {
+            const msg = error && error.message ? error.message : "unknown error";
+            postLocalSystemChat("Import failed: " + msg + ".");
+          });
+        }).catch(() => {
+          postLocalSystemChat("Failed to read JSON file.");
+        }).finally(() => {
+          if (adminBackupUploadInput) {
+            adminBackupUploadInput.value = "";
+          }
+        });
+      }
+
       function closeFriendModals() {
         const ctrl = getFriendsController();
         if (ctrl && typeof ctrl.closeAll === "function") {
@@ -1850,15 +2099,19 @@
           { id: "godmode", label: "Godmode", perm: "godmode" },
           { id: "setrole", label: "Set Role", perm: hasAdminPermission("setrole") ? "setrole" : "setrole_limited" },
           { id: "give_block", label: "Give Block", perm: "give_block" },
+          { id: "give_seed", label: "Give Seed", perm: "give_block" },
           { id: "give_item", label: "Give Cosmetic", perm: "give_item" },
           { id: "give_title", label: "Add Title", perm: "give_title" },
           { id: "remove_title", label: "Remove Title", perm: "remove_title" },
           { id: "reach", label: "Set Reach", perm: "reach" },
-          { id: "announce_user", label: "Private Announcement", perm: "announce_user" }
+          { id: "announce_user", label: "Private Announcement", perm: "announce_user" },
+          { id: "db_backup", label: "Backup DB", perm: "db_backup" },
+          { id: "db_restore", label: "Restore Backup", perm: "db_restore" }
         ].filter((row) => hasAdminPermission(row.perm));
         const actionOptionsMarkup = adminActionOptions.map((row) => {
           return '<option value="' + escapeHtml(row.id) + '">' + escapeHtml(row.label) + "</option>";
         }).join("");
+        const backupOptionsMarkup = getAdminBackupOptionsMarkup();
         const adminConsoleMarkup = `
           <div class="admin-console admin-card">
             <div class="admin-card-header">
@@ -1881,7 +2134,12 @@
               </div>
               <div class="admin-console-opt admin-console-opt-block hidden">
                 <select class="admin-console-block">
-                  ${INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
+                  ${BLOCK_ONLY_INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
+                </select>
+              </div>
+              <div class="admin-console-opt admin-console-opt-seed hidden">
+                <select class="admin-console-seed">
+                  ${SEED_INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Seed " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
                 </select>
               </div>
               <div class="admin-console-opt admin-console-opt-item hidden">
@@ -1896,6 +2154,9 @@
               </div>
               <div class="admin-console-opt admin-console-opt-amount hidden">
                 <input class="admin-console-amount" type="number" min="1" step="1" value="1" placeholder="Amount">
+              </div>
+              <div class="admin-console-opt admin-console-opt-backup hidden">
+                <select class="admin-console-backup">${backupOptionsMarkup}</select>
               </div>
               <div class="admin-console-opt admin-console-opt-reach hidden">
                 <input class="admin-console-reach" type="number" min="1" max="16" step="0.1" value="4.5" placeholder="Reach tiles">
@@ -2037,9 +2298,11 @@
           reason: adminAccountsEl.querySelector(".admin-console-opt-reason"),
           role: adminAccountsEl.querySelector(".admin-console-opt-role"),
           block: adminAccountsEl.querySelector(".admin-console-opt-block"),
+          seed: adminAccountsEl.querySelector(".admin-console-opt-seed"),
           item: adminAccountsEl.querySelector(".admin-console-opt-item"),
           title: adminAccountsEl.querySelector(".admin-console-opt-title"),
           amount: adminAccountsEl.querySelector(".admin-console-opt-amount"),
+          backup: adminAccountsEl.querySelector(".admin-console-opt-backup"),
           reach: adminAccountsEl.querySelector(".admin-console-opt-reach"),
           godmode: adminAccountsEl.querySelector(".admin-console-opt-godmode"),
           message: adminAccountsEl.querySelector(".admin-console-opt-message")
@@ -2057,6 +2320,9 @@
         } else if (action === "give_block") {
           if (map.block instanceof HTMLElement) map.block.classList.remove("hidden");
           if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
+        } else if (action === "give_seed") {
+          if (map.seed instanceof HTMLElement) map.seed.classList.remove("hidden");
+          if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
         } else if (action === "give_item") {
           if (map.item instanceof HTMLElement) map.item.classList.remove("hidden");
           if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
@@ -2069,6 +2335,8 @@
           if (map.godmode instanceof HTMLElement) map.godmode.classList.remove("hidden");
         } else if (action === "announce_user") {
           if (map.message instanceof HTMLElement) map.message.classList.remove("hidden");
+        } else if (action === "db_restore") {
+          if (map.backup instanceof HTMLElement) map.backup.classList.remove("hidden");
         }
       }
 
@@ -2109,10 +2377,24 @@
           const playerSelectEl = adminAccountsEl.querySelector(".admin-console-player");
           const actionSelectEl = adminAccountsEl.querySelector(".admin-console-action");
           if (!(playerSelectEl instanceof HTMLSelectElement) || !(actionSelectEl instanceof HTMLSelectElement)) return;
-          const targetAccountId = String(playerSelectEl.value || "").trim();
           const selectedAction = String(actionSelectEl.value || "").trim();
-          if (!targetAccountId || !selectedAction) {
-            postLocalSystemChat("Select player and action first.");
+          if (!selectedAction) {
+            postLocalSystemChat("Select action first.");
+            return;
+          }
+          if (selectedAction === "db_backup") {
+            runDatabaseBackup("panel");
+            return;
+          }
+          if (selectedAction === "db_restore") {
+            const backupEl = adminAccountsEl.querySelector(".admin-console-backup");
+            const backupId = backupEl instanceof HTMLSelectElement ? (backupEl.value || "") : "";
+            runDatabaseRestore(backupId, "panel");
+            return;
+          }
+          const targetAccountId = String(playerSelectEl.value || "").trim();
+          if (!targetAccountId) {
+            postLocalSystemChat("Select player first.");
             return;
           }
           const targetUsername = (adminState.accounts[targetAccountId] && adminState.accounts[targetAccountId].username) || targetAccountId;
@@ -2158,6 +2440,18 @@
             const ok = applyInventoryGrant(targetAccountId, blockRef, amount, "panel", targetUsername);
             if (ok) {
               postLocalSystemChat("Added " + amount + " of block " + blockRef + " to @" + targetUsername + ".");
+            }
+            return;
+          }
+          if (selectedAction === "give_seed") {
+            const seedEl = adminAccountsEl.querySelector(".admin-console-seed");
+            const amountEl = adminAccountsEl.querySelector(".admin-console-amount");
+            if (!(seedEl instanceof HTMLSelectElement) || !(amountEl instanceof HTMLInputElement)) return;
+            const seedRef = seedEl.value || "";
+            const amount = Number(amountEl.value);
+            const ok = applyInventoryGrant(targetAccountId, seedRef, amount, "panel", targetUsername);
+            if (ok) {
+              postLocalSystemChat("Added " + amount + " of seed " + seedRef + " to @" + targetUsername + ".");
             }
             return;
           }
@@ -2338,6 +2632,13 @@
         if (!(target instanceof HTMLElement)) return;
         if (target instanceof HTMLSelectElement && target.classList.contains("admin-console-action")) {
           updateAdminConsoleOptionVisibility();
+          if (String(target.value || "") === "db_restore" && !adminBackupList.length) {
+            refreshAdminBackups(false);
+          }
+          return;
+        }
+        if (target instanceof HTMLSelectElement && target.classList.contains("admin-console-backup")) {
+          adminBackupSelectedId = String(target.value || "").trim();
           return;
         }
         if (target instanceof HTMLInputElement && target.classList.contains("admin-console-player-filter")) {
@@ -3570,6 +3871,9 @@
         adminAuditActionFilter = "";
         adminAuditActorFilter = "";
         adminAuditTargetFilter = "";
+        adminBackupList = [];
+        adminBackupSelectedId = "";
+        adminBackupLoading = false;
         if (adminSearchInput) adminSearchInput.value = "";
         if (adminAuditActionFilterEl) adminAuditActionFilterEl.value = "";
         if (adminAuditActorFilterEl) adminAuditActorFilterEl.value = "";
@@ -3854,8 +4158,12 @@
       }
 
       function setSpawnStructureTile(tx, ty) {
-        const safeTx = Math.max(0, Math.min(WORLD_W - 1, Math.floor(Number(tx) || SPAWN_TILE_X)));
-        const safeTy = Math.max(0, Math.min(WORLD_H - 2, Math.floor(Number(ty) || SPAWN_TILE_Y)));
+        const rawTx = Number(tx);
+        const rawTy = Number(ty);
+        const nextTx = Number.isFinite(rawTx) ? Math.floor(rawTx) : SPAWN_TILE_X;
+        const nextTy = Number.isFinite(rawTy) ? Math.floor(rawTy) : SPAWN_TILE_Y;
+        const safeTx = Math.max(0, Math.min(WORLD_W - 1, nextTx));
+        const safeTy = Math.max(0, Math.min(WORLD_H - 2, nextTy));
         spawnTileX = safeTx;
         spawnTileY = safeTy;
       }
@@ -6200,26 +6508,18 @@
                 continue;
               }
               ctx.fillStyle = def.color || "#8d9aae";
+              const spikeIdx = SPIKE_ROTATION_IDS.indexOf(id);
+              const spikeAngle = spikeIdx >= 0 ? (spikeIdx * Math.PI / 2) : 0;
+              ctx.save();
+              ctx.translate(x + TILE * 0.5, y + TILE * 0.5);
+              if (spikeAngle !== 0) ctx.rotate(spikeAngle);
               ctx.beginPath();
-              if (id === 33) {
-                ctx.moveTo(x, y + TILE);
-                ctx.lineTo(x, y);
-                ctx.lineTo(x + TILE, y + TILE);
-              } else if (id === 37) {
-                ctx.moveTo(x, y + TILE);
-                ctx.lineTo(x + TILE, y);
-                ctx.lineTo(x + TILE, y + TILE);
-              } else if (id === 38) {
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + TILE, y);
-                ctx.lineTo(x + TILE, y + TILE);
-              } else {
-                ctx.moveTo(x, y);
-                ctx.lineTo(x, y + TILE);
-                ctx.lineTo(x + TILE, y);
-              }
+              ctx.moveTo(-TILE * 0.5, TILE * 0.5);
+              ctx.lineTo(-TILE * 0.5, -TILE * 0.5);
+              ctx.lineTo(TILE * 0.5, TILE * 0.5);
               ctx.closePath();
               ctx.fill();
+              ctx.restore();
               drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
@@ -6591,16 +6891,12 @@
         const baseDef = blockDefs[SPIKE_BASE_ID] || def;
         const img = getBlockImage(baseDef) || getBlockImage(def);
         if (!img) return false;
+        const idx = SPIKE_ROTATION_IDS.indexOf(id);
+        const angle = idx >= 0 ? (idx * Math.PI / 2) : 0;
         ctx.save();
         ctx.imageSmoothingEnabled = false;
         ctx.translate(x + TILE * 0.5, y + TILE * 0.5);
-        if (id === 37) {
-          ctx.scale(-1, 1);
-        } else if (id === 38) {
-          ctx.scale(-1, -1);
-        } else if (id === 39) {
-          ctx.scale(1, -1);
-        }
+        if (angle !== 0) ctx.rotate(angle);
         ctx.drawImage(img, -TILE * 0.5, -TILE * 0.5, TILE, TILE);
         ctx.restore();
         return true;
@@ -7445,8 +7741,6 @@
         world[oldTiles.base.ty][oldTiles.base.tx] = 0;
         clearTileDamage(oldTiles.door.tx, oldTiles.door.ty);
         clearTileDamage(oldTiles.base.tx, oldTiles.base.ty);
-        syncBlock(oldTiles.door.tx, oldTiles.door.ty, 0);
-        syncBlock(oldTiles.base.tx, oldTiles.base.ty, 0);
 
         setSpawnStructureTile(tx, ty);
         const nextTiles = getSpawnStructureTiles();
@@ -7454,8 +7748,21 @@
         world[nextTiles.base.ty][nextTiles.base.tx] = SPAWN_BASE_ID;
         clearTileDamage(nextTiles.door.tx, nextTiles.door.ty);
         clearTileDamage(nextTiles.base.tx, nextTiles.base.ty);
-        syncBlock(nextTiles.door.tx, nextTiles.door.ty, SPAWN_DOOR_ID);
-        syncBlock(nextTiles.base.tx, nextTiles.base.ty, SPAWN_BASE_ID);
+        if (network.enabled && network.blocksRef) {
+          const updates = {};
+          updates[oldTiles.door.tx + "_" + oldTiles.door.ty] = null;
+          updates[oldTiles.base.tx + "_" + oldTiles.base.ty] = null;
+          updates[nextTiles.door.tx + "_" + nextTiles.door.ty] = SPAWN_DOOR_ID;
+          updates[nextTiles.base.tx + "_" + nextTiles.base.ty] = SPAWN_BASE_ID;
+          network.blocksRef.update(updates).catch(() => {
+            setNetworkState("Network error", true);
+          });
+        } else {
+          syncBlock(oldTiles.door.tx, oldTiles.door.ty, 0);
+          syncBlock(oldTiles.base.tx, oldTiles.base.ty, 0);
+          syncBlock(nextTiles.door.tx, nextTiles.door.ty, SPAWN_DOOR_ID);
+          syncBlock(nextTiles.base.tx, nextTiles.base.ty, SPAWN_BASE_ID);
+        }
 
         inventory[SPAWN_MOVER_ID] = Math.max(0, Math.floor((inventory[SPAWN_MOVER_ID] || 0) - 1));
         saveInventory();
@@ -9786,6 +10093,27 @@
         if (adminAuditExportBtn) {
           adminAuditExportBtn.addEventListener("click", () => {
             exportAuditTrail();
+          });
+        }
+        if (adminBackupDownloadBtn) {
+          adminBackupDownloadBtn.addEventListener("click", () => {
+            downloadSelectedBackupJson();
+          });
+        }
+        if (adminBackupUploadBtn) {
+          adminBackupUploadBtn.addEventListener("click", () => {
+            if (!hasAdminPermission("db_backup")) return;
+            if (adminBackupUploadInput) {
+              adminBackupUploadInput.click();
+            }
+          });
+        }
+        if (adminBackupUploadInput) {
+          adminBackupUploadInput.addEventListener("change", () => {
+            const files = adminBackupUploadInput.files;
+            const file = files && files[0] ? files[0] : null;
+            if (!file) return;
+            importBackupJsonFile(file);
           });
         }
         if (adminForceReloadBtn) {

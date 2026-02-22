@@ -26,17 +26,17 @@ window.GTModules.blocks = (function createBlocksModule() {
     { id: 17, key: "vending_machine", name: "Vending Machine", color: "#4d6b8b", solid: false, icon: "VM", faIcon: "fa-solid fa-store", image: "special/vending.png" },
     { id: 18, key: "sign_block", name: "Sign", color: "#b98a58", solid: false, icon: "SG", faIcon: "fa-solid fa-signs-post", image: "special/sign_block.png" },
     { id: 19, key: "anti_gravity_generator", name: "Anti Gravity Generator", color: "#6de9ff", solid: false, icon: "AG", faIcon: "fa-solid fa-meteor" },
-    { id: 20, key: "camera_block", name: "Camera", color: "#8eb7d6", solid: false, icon: "CM", faIcon: "fa-solid fa-video", image: "special/camera.png" },
+    { id: 20, key: "camera_block", name: "Camera", color: "#8eb7d6", solid: true, icon: "CM", faIcon: "fa-solid fa-video", image: "special/camera.png" },
     { id: 21, key: "weather_machine", name: "Weather Machine", color: "#7aa8d9", solid: false, icon: "WM", faIcon: "fa-solid fa-cloud-sun-rain", image: "special/weather_machine.png" },
     { id: 22, key: "display_block", name: "Display Block", color: "#314154", solid: true, icon: "DP", faIcon: "fa-regular fa-square" },
     { id: 23, key: "wood_plank", name: "Wooden Plank", color: "#b4bcc5", solid: true, icon: "WP", faIcon: "fa-regular fa-square", image: "special/plank.png" },
     
     
     
-    { id: 33, key: "spike_block", name: "Spikes NW", color: "#8d9aae", solid: false, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation", image: "special/spike.png" },
-    { id: 37, key: "spike_block_r1", name: "Spikes NE", color: "#8d9aae", solid: false, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation", image: "special/spike.png" },
-    { id: 38, key: "spike_block_r2", name: "Spikes SE", color: "#8d9aae", solid: false, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation", image: "special/spike.png" },
-    { id: 39, key: "spike_block_r3", name: "Spikes SW", color: "#8d9aae", solid: false, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation", image: "special/spike.png" },
+    { id: 33, key: "spike_block", name: "Spikes NW", color: "#8d9aae", solid: true, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation", image: "special/spike.png" },
+    { id: 37, key: "spike_block_r1", name: "Spikes NE", color: "#8d9aae", solid: true, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation", image: "special/spike.png" },
+    { id: 38, key: "spike_block_r2", name: "Spikes SE", color: "#8d9aae", solid: true, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation", image: "special/spike.png" },
+    { id: 39, key: "spike_block_r3", name: "Spikes SW", color: "#8d9aae", solid: true, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation", image: "special/spike.png" },
     { id: 40, key: "spawn_mover", name: "Spawn Mover", color: "#79c6ff", solid: false, seedable: false, icon: "SM", faIcon: "fa-solid fa-location-crosshairs", image: "special/spawn_mover.png" },
     { id: 34, key: "donation_box", name: "Donation Box", color: "#8f6d4f", solid: true, donationBox: true, icon: "DN", faIcon: "fa-solid fa-box-open", image: "special/donation_box.png" },
     { id: 36, key: "storage_chest", name: "Storage Chest", color: "#7f5f3e", solid: true, chestStorage: true, icon: "CH", faIcon: "fa-solid fa-box-archive" },
