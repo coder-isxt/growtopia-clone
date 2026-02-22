@@ -21,7 +21,7 @@ window.GTModules.trade = (function () {
       return v === undefined ? d : v;
     };
     const post = (t) => { if (typeof opts.postLocalSystemChat === "function") opts.postLocalSystemChat(t); };
-    const popup = (t) => { if (typeof opts.showAnnouncementPopup === "function") opts.showAnnouncementPopup(t); };
+    const popup = (t, ms) => { if (typeof opts.showAnnouncementPopup === "function") opts.showAnnouncementPopup(t, ms); };
     const id = (p) => (p || "id") + "_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
     const me = () => String(g("getPlayerProfileId", "") || "");
     const meName = () => String(g("getPlayerName", "player") || "player").slice(0, 20);
@@ -127,9 +127,10 @@ window.GTModules.trade = (function () {
       if (!db() || !me()) return;
       if (!menuCtx.accountId || menuCtx.accountId === me()) { post("Invalid trade target."); return; }
       if (tradeId) { post("Finish current trade first."); return; }
+      const targetName = String(menuCtx.name || "Player").slice(0, 20);
       db().ref(path("account-commands/" + menuCtx.accountId + "/tradeRequest")).set({
         id: id("tr"), fromAccountId: me(), fromName: meName(), fromWorld: String(g("getCurrentWorldId", "") || ""), createdAt: Date.now()
-      }).then(() => post("Trade request sent to @" + menuCtx.name + ".")).catch(() => post("Failed to send trade request."));
+      }).then(() => post("Trade request sent to @" + targetName + ".")).catch(() => post("Failed to send trade request."));
       closeQuick();
     }
 
@@ -175,7 +176,7 @@ window.GTModules.trade = (function () {
       lastRespId = rid;
       const by = String(r.byName || "player").slice(0, 20), ok = !!r.accepted;
       post("@" + by + (ok ? " accepted your trade request." : " declined your trade request."));
-      popup("Trade: @" + by + (ok ? " accepted" : " declined") + " your request.");
+      popup("Trade: @" + by + (ok ? " accepted" : " declined") + " your request.", 2200);
       const n = g("getNetwork", null); if (n && n.myTradeResponseRef) n.myTradeResponseRef.remove().catch(() => {});
     }
 
@@ -278,7 +279,7 @@ window.GTModules.trade = (function () {
           u[path("active-trades/" + a)] = null;
           u[path("active-trades/" + b)] = null;
           db().ref().update(u).then(() => {
-            if (!errs.length) { post("Trade completed."); popup("Trade completed successfully."); }
+            if (!errs.length) { post("Trade completed."); popup("Trade completed successfully.", 2400); }
           }).catch(() => {});
         }).catch(() => {});
       }).catch(() => {});
@@ -377,7 +378,7 @@ window.GTModules.trade = (function () {
         tradeData = normTrade(s.val());
         if (!tradeData || !isMember(tradeData)) { closePanel(); return; }
         const st = String(tradeData.status || "").toLowerCase();
-        if (st === "cancelled") { post("Trade cancelled."); popup("Trade cancelled."); closePanel(); return; }
+        if (st === "cancelled") { post("Trade cancelled."); popup("Trade cancelled.", 2000); closePanel(); return; }
         if (st === "completed") { post("Trade completed."); closePanel(); return; }
         if (st === "failed") { post("Trade failed: " + (tradeData.reason || "unknown")); closePanel(); return; }
         renderPanel();

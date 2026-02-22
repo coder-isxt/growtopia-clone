@@ -127,6 +127,8 @@
       const commandsModule = modules.commands || {};
       const chatModule = modules.chat || {};
       const menuModule = modules.menu || {};
+      const messagesModule = modules.messages || {};
+      const anticheatModule = modules.anticheat || {};
       const vendingModule = modules.vending || {};
       const tradeModule = modules.trade || {};
       const shopModule = modules.shop || {};
@@ -293,8 +295,11 @@
         }
         return out;
       })();
-      const slotOrder = [TOOL_FIST, TOOL_WRENCH, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
-      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+      const INVENTORY_IDS = Object.keys(blockDefs)
+        .map((id) => Math.floor(Number(id)))
+        .filter((id) => Number.isInteger(id) && id > 0)
+        .sort((a, b) => a - b);
+      const slotOrder = [TOOL_FIST, TOOL_WRENCH].concat(INVENTORY_IDS);
       const COSMETIC_SLOTS = ["shirts", "pants", "hats", "wings", "swords"];
       const blockMaps = typeof blockKeysModule.buildMaps === "function"
         ? blockKeysModule.buildMaps(blockDefs)
@@ -349,35 +354,10 @@
         }
         COSMETIC_LOOKUP[slot] = map;
       }
-      const inventory = {
-        1: 0,
-        2: 0,
-        3: 0,
-        4: 0,
-        5: 0,
-        6: 0,
-        9: 0,
-        10: 0,
-        11: 0,
-        12: 0,
-        13: 0,
-        17: 0,
-        18: 0,
-        19: 0,
-        20: 0,
-        21: 0,
-        22: 0,
-        23: 0,
-        24: 0,
-        25: 0,
-        26: 0,
-        27: 0,
-        28: 0,
-        29: 0,
-        30: 0,
-        31: 0,
-        32: 0
-      };
+      const inventory = {};
+      for (let i = 0; i < INVENTORY_IDS.length; i++) {
+        inventory[INVENTORY_IDS[i]] = 0;
+      }
       let selectedSlot = 0;
       const keys = {};
       const playerId = "p_" + Math.random().toString(36).slice(2, 10);
@@ -412,6 +392,7 @@
       const worldOccupancy = new Map();
       let vendingController = null;
       let tradeController = null;
+      let messagesController = null;
       let shopController = null;
       let signController = null;
       let plantsController = null;
@@ -449,6 +430,7 @@
       const adminCommandLastUsedAt = new Map();
       const chatMessages = [];
       const logsMessages = [];
+      const antiCheatMessages = [];
       const CHAT_BUBBLE_FULL_MS = 5000;
       const CHAT_BUBBLE_FADE_MS = 1500;
       const CHAT_BUBBLE_MS = CHAT_BUBBLE_FULL_MS + CHAT_BUBBLE_FADE_MS;
@@ -642,6 +624,23 @@
         return shopController;
       }
 
+      function getMessagesController() {
+        if (messagesController) return messagesController;
+        if (typeof messagesModule.createController !== "function") return null;
+        messagesController = messagesModule.createController({
+          getNetwork: () => network,
+          getFirebase: () => (typeof firebase !== "undefined" ? firebase : null),
+          getBasePath: () => BASE_PATH,
+          getPlayerProfileId: () => playerProfileId,
+          getPlayerName: () => playerName,
+          getPlayerSessionStartedAt: () => playerSessionStartedAt,
+          resolveAccountIdByUsernameFast,
+          findAccountIdByUserRef,
+          postLocalSystemChat
+        });
+        return messagesController;
+      }
+
       function getSignController() {
         if (signController) return signController;
         if (typeof signModule.createController !== "function") return null;
@@ -688,10 +687,47 @@
         return rewardsController;
       }
 
+      function logAntiCheatEvent(rule, severity, details) {
+        if (!network.db) return;
+        const safeRule = String(rule || "unknown").trim().slice(0, 48);
+        if (!safeRule) return;
+        const safeSeverity = String(severity || "warn").trim().toLowerCase().slice(0, 16) || "warn";
+        const detailText = typeof details === "string"
+          ? details
+          : JSON.stringify(details || {}).slice(0, 800);
+        network.db.ref(BASE_PATH + "/anti-cheat-logs").push({
+          rule: safeRule,
+          severity: safeSeverity,
+          details: detailText,
+          accountId: playerProfileId || "",
+          username: (playerName || "").toString().slice(0, 20),
+          sessionId: playerSessionId || "",
+          world: inWorld ? (currentWorldId || "") : "menu",
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        }).catch(() => {});
+      }
+
       let cameraX = 0;
       let cameraY = 0;
       let cameraZoom = loadCameraZoomPref();
       let mouseWorld = { tx: 0, ty: 0 };
+      const antiCheatController = typeof anticheatModule.createController === "function"
+        ? anticheatModule.createController({
+          getPlayerName: () => playerName,
+          getPlayerProfileId: () => playerProfileId,
+          getPlayerSessionId: () => playerSessionId,
+          getCurrentWorldId: () => currentWorldId,
+          getInWorld: () => inWorld,
+          getPlayer: () => player,
+          getPlayerRect: () => ({ w: PLAYER_W, h: PLAYER_H }),
+          getTileSize: () => TILE,
+          getEditReachTiles: () => editReachTiles,
+          appendLogEntry: (entry) => {
+            if (!entry || !entry.rule) return;
+            logAntiCheatEvent(entry.rule, entry.severity, entry.details);
+          }
+        })
+        : null;
       const playerSyncController = typeof syncPlayerModule.createController === "function"
         ? syncPlayerModule.createController({
           playerMinIntervalMs: PLAYER_SYNC_MIN_MS,
@@ -708,6 +744,8 @@
       let lastJumpAtMs = -9999;
       let lastAirJumpAtMs = -9999;
       let airJumpsUsed = 0;
+      let wingFlapPulseEndsAtMs = 0;
+      let wingFlapPulseStrength = 0;
       let wasJumpHeld = false;
       let lastHitAtMs = -9999;
       let lastBlockHitAtMs = -9999;
@@ -725,6 +763,19 @@
       const HIT_ANIM_MS = 200;
       const BLOCK_HIT_COOLDOWN_MS = Math.max(60, Number(SETTINGS.BLOCK_HIT_COOLDOWN_MS) || 120);
       const DANCE_DURATION_MS = Math.max(1200, Number(SETTINGS.DANCE_DURATION_MS) || 5000);
+
+      function triggerWingFlapPulse(strength) {
+        const now = performance.now();
+        wingFlapPulseEndsAtMs = now + 260;
+        wingFlapPulseStrength = Math.max(0.35, Number(strength) || 1);
+      }
+
+      function getWingFlapPulse(nowMs) {
+        if (nowMs >= wingFlapPulseEndsAtMs) return 0;
+        const durationMs = 260;
+        const progress = Math.max(0, Math.min(1, 1 - ((wingFlapPulseEndsAtMs - nowMs) / durationMs)));
+        return Math.sin(progress * Math.PI) * wingFlapPulseStrength;
+      }
 
       const network = {
         enabled: false,
@@ -767,6 +818,7 @@
         accountLogsRef: null,
         accountLogsFeedRef: null,
         accountLogsRootRef: null,
+        antiCheatLogsRef: null,
         forceReloadRef: null,
         announcementRef: null,
         myBanRef: null,
@@ -831,6 +883,7 @@
           worldLock: null,
           chatAdded: null,
           accountLogAdded: null,
+          antiCheatLogAdded: null,
           forceReload: null,
           announcement: null,
           myBan: null,
@@ -973,6 +1026,10 @@
         return hasAdminPermission("view_logs");
       }
 
+      function canViewAntiCheatLogs() {
+        return getRoleRank(currentAdminRole) >= getRoleRank("manager");
+      }
+
       function normalizeAdminRole(role) {
         if (typeof adminModule.normalizeAdminRole === "function") {
           return adminModule.normalizeAdminRole(role, adminRoleConfig);
@@ -1039,6 +1096,14 @@
             network.accountLogsRootRef.on("value", network.handlers.accountLogAdded);
           } else {
             clearLogsView();
+          }
+        }
+        if (network.antiCheatLogsRef && network.handlers.antiCheatLogAdded) {
+          network.antiCheatLogsRef.off("value", network.handlers.antiCheatLogAdded);
+          if (canViewAntiCheatLogs()) {
+            network.antiCheatLogsRef.on("value", network.handlers.antiCheatLogAdded);
+          } else {
+            antiCheatMessages.length = 0;
           }
         }
         if (!canUseAdminPanel) setAdminOpen(false);
@@ -1529,6 +1594,19 @@
             <div class="admin-logs-list">${logRows || "<div class='admin-audit-row'>No logs yet.</div>"}</div>
           </div>`
           : "";
+        const antiCheatRows = antiCheatMessages.slice(-220).map((entry) => {
+          const sev = (entry.severity || "warn").toString().toLowerCase();
+          const level = sev === "critical" ? "danger" : (sev === "warn" ? "warn" : "info");
+          return `<div class="admin-audit-row level-${escapeHtml(level)}">${escapeHtml(formatChatTimestamp(entry.createdAt || 0))} | [${escapeHtml(sev.toUpperCase())}] ${escapeHtml(entry.text || "")}</div>`;
+        }).join("");
+        const antiCheatMarkup = canViewAntiCheatLogs()
+          ? `<div class="admin-audit admin-card">
+            <div class="admin-card-header">
+              <div class="admin-audit-title">Anti-Cheat</div>
+            </div>
+            <div class="admin-anticheat-list">${antiCheatRows || "<div class='admin-audit-row'>No anti-cheat logs yet.</div>"}</div>
+          </div>`
+          : "";
         adminAccountsEl.innerHTML = `
           <div class="admin-layout">
             <div class="admin-main">
@@ -1549,6 +1627,7 @@
             <div class="admin-sidepanels">
               ${auditMarkup}
               ${logsMarkup}
+              ${antiCheatMarkup}
             </div>
           </div>
         `;
@@ -1556,6 +1635,8 @@
         scrollElementToBottom(auditListEl);
         const logsListEl = adminAccountsEl.querySelector(".admin-logs-list");
         scrollElementToBottom(logsListEl);
+        const antiCheatListEl = adminAccountsEl.querySelector(".admin-anticheat-list");
+        scrollElementToBottom(antiCheatListEl);
       }
 
       function handleAdminAction(event) {
@@ -1848,10 +1929,11 @@
         announcementPopupEl.classList.add("hidden");
       }
 
-      function showAnnouncementPopup(message) {
+      function showAnnouncementPopup(message, durationMs) {
         if (!announcementPopupEl || !announcementTextEl) return;
         const text = (message || "").toString().trim().slice(0, 180);
         if (!text) return;
+        const safeDuration = Math.max(1200, Math.min(8000, Math.floor(Number(durationMs) || 5000)));
         announcementTextEl.textContent = text;
         announcementPopupEl.classList.remove("hidden");
         if (announcementHideTimer) {
@@ -1860,7 +1942,7 @@
         announcementHideTimer = setTimeout(() => {
           hideAnnouncementPopup();
           announcementHideTimer = 0;
-        }, 5000);
+        }, safeDuration);
       }
 
       function triggerForceReloadAll(sourceTag) {
@@ -2351,6 +2433,11 @@
           parseDurationToMs,
           applyAdminRoleChange,
           normalizeAdminRole,
+          handlePrivateMessageCommand: (command, parts) => {
+            const ctrl = getMessagesController();
+            if (!ctrl || typeof ctrl.handleCommand !== "function") return false;
+            return ctrl.handleCommand(command, parts);
+          },
           resolveAccountIdByUsernameFast,
           issuePrivateMessage,
           getLastPrivateMessageFrom: () => lastPrivateMessageFrom
@@ -2698,6 +2785,9 @@
         if (adminAuditTargetFilterEl) adminAuditTargetFilterEl.value = "";
         currentAdminRole = normalizeAdminRole(getConfiguredRoleForUsername(username));
         refreshAdminCapabilities();
+        if (antiCheatController && typeof antiCheatController.onSessionStart === "function") {
+          antiCheatController.onSessionStart();
+        }
         addClientLog("Authenticated as @" + username + ".");
         authScreenEl.classList.add("hidden");
         gameShellEl.classList.remove("hidden");
@@ -2736,7 +2826,10 @@
 
       function applyInventoryFromRecord(record) {
         for (const id of INVENTORY_IDS) {
-          const value = Number(record && record[id]);
+          const keyName = getBlockKeyById(id);
+          const directValue = Number(record && record[id]);
+          const keyValue = keyName ? Number(record && record[keyName]) : NaN;
+          const value = Number.isFinite(directValue) ? directValue : keyValue;
           inventory[id] = clampInventoryCount(value);
         }
         const itemRecord = record && record.cosmeticItems || {};
@@ -3223,6 +3316,9 @@
         if (network.accountLogsRootRef && network.handlers.accountLogAdded) {
           network.accountLogsRootRef.off("value", network.handlers.accountLogAdded);
         }
+        if (network.antiCheatLogsRef && network.handlers.antiCheatLogAdded) {
+          network.antiCheatLogsRef.off("value", network.handlers.antiCheatLogAdded);
+        }
         if (network.forceReloadRef && network.handlers.forceReload) {
           network.forceReloadRef.off("value", network.handlers.forceReload);
         }
@@ -3271,6 +3367,17 @@
             adminState.audit = [];
             refreshAuditActionFilterOptions();
           }
+          if (canViewAntiCheatLogs()) {
+            if (network.antiCheatLogsRef && network.handlers.antiCheatLogAdded) {
+              network.antiCheatLogsRef.off("value", network.handlers.antiCheatLogAdded);
+              network.antiCheatLogsRef.on("value", network.handlers.antiCheatLogAdded);
+            }
+          } else {
+            if (network.antiCheatLogsRef && network.handlers.antiCheatLogAdded) {
+              network.antiCheatLogsRef.off("value", network.handlers.antiCheatLogAdded);
+            }
+            antiCheatMessages.length = 0;
+          }
           return;
         }
         if (canUseAdminPanel && !adminDataListening) {
@@ -3291,6 +3398,9 @@
           }
           if (hasAdminPermission("view_audit") && network.adminAuditRef && network.handlers.adminAudit) {
             network.adminAuditRef.on("value", network.handlers.adminAudit);
+          }
+          if (canViewAntiCheatLogs() && network.antiCheatLogsRef && network.handlers.antiCheatLogAdded) {
+            network.antiCheatLogsRef.on("value", network.handlers.antiCheatLogAdded);
           }
           adminDataListening = true;
           return;
@@ -3314,6 +3424,9 @@
           if (network.adminAuditRef && network.handlers.adminAudit) {
             network.adminAuditRef.off("value", network.handlers.adminAudit);
           }
+          if (network.antiCheatLogsRef && network.handlers.antiCheatLogAdded) {
+            network.antiCheatLogsRef.off("value", network.handlers.antiCheatLogAdded);
+          }
           adminState.accounts = {};
           adminState.usernames = {};
           adminState.roles = {};
@@ -3322,6 +3435,7 @@
           adminState.bans = {};
           adminState.sessions = {};
           adminState.inventories = {};
+          antiCheatMessages.length = 0;
           renderAdminPanel();
           adminDataListening = false;
         }
@@ -3349,6 +3463,10 @@
         setAdminOpen(false);
         pendingTeleportSelf = null;
         lastPrivateMessageFrom = null;
+        const msgCtrl = getMessagesController();
+        if (msgCtrl && typeof msgCtrl.resetSession === "function") {
+          msgCtrl.resetSession();
+        }
         lastHandledTeleportCommandId = "";
         lastHandledReachCommandId = "";
         lastHandledFreezeCommandId = "";
@@ -3436,6 +3554,9 @@
         }
         const text = trimmed.slice(0, 120);
         if (!text) return;
+        if (antiCheatController && typeof antiCheatController.onChatSend === "function") {
+          antiCheatController.onChatSend(text);
+        }
         if (!network.enabled || !network.chatRef) {
           chatInputEl.value = "";
           addChatMessage({
@@ -4649,6 +4770,14 @@
       }
 
       function updatePlayer() {
+        const moveTowards = (value, target, step) => {
+          const v = Number(value) || 0;
+          const t = Number(target) || 0;
+          const s = Math.max(0, Number(step) || 0);
+          if (v < t) return Math.min(t, v + s);
+          if (v > t) return Math.max(t, v - s);
+          return t;
+        };
         if (rectCollides(player.x, player.y, PLAYER_W, PLAYER_H)) {
           ensurePlayerSafeSpawn(true);
         }
@@ -4670,7 +4799,6 @@
         const maxMoveSpeed = inWater ? MAX_MOVE_SPEED * WATER_MOVE_MULT : MAX_MOVE_SPEED;
         let gravityNow = inWater ? GRAVITY * WATER_GRAVITY_MULT : GRAVITY;
         let maxFallNow = inWater ? MAX_FALL_SPEED * WATER_FALL_MULT : MAX_FALL_SPEED;
-        const frictionNow = inWater ? Math.min(0.96, FRICTION * WATER_FRICTION_MULT) : FRICTION;
         const airFrictionNow = inWater ? Math.min(0.985, AIR_FRICTION * WATER_FRICTION_MULT) : AIR_FRICTION;
         if (inAntiGravity) {
           gravityNow *= ANTI_GRAV_GRAVITY_MULT;
@@ -4679,14 +4807,19 @@
 
         const moveDir = (moveRight ? 1 : 0) - (moveLeft ? 1 : 0);
         if (moveDir !== 0) {
-          player.vx += moveDir * (player.grounded ? moveAccel : moveAccel * AIR_CONTROL);
+          const accelStep = player.grounded ? moveAccel : (moveAccel * AIR_CONTROL);
+          player.vx = moveTowards(player.vx, moveDir * maxMoveSpeed, accelStep);
           player.facing = moveDir > 0 ? 1 : -1;
+        } else if (player.grounded) {
+          const stopStep = Math.max(0.08, maxMoveSpeed * 0.14);
+          player.vx = moveTowards(player.vx, 0, stopStep);
         }
         if (jumpPressedThisFrame && player.grounded && (nowMs - lastJumpAtMs) >= JUMP_COOLDOWN_MS) {
           player.vy = JUMP_VELOCITY;
           player.grounded = false;
           lastJumpAtMs = nowMs;
           airJumpsUsed = 0;
+          triggerWingFlapPulse(0.9);
         } else if (
           jumpPressedThisFrame &&
           !player.grounded &&
@@ -4695,6 +4828,7 @@
         ) {
           player.vy = JUMP_VELOCITY;
           lastAirJumpAtMs = nowMs;
+          triggerWingFlapPulse(1.1);
         } else if (
           jumpPressedThisFrame &&
           !player.grounded &&
@@ -4705,17 +4839,16 @@
           player.vy = JUMP_VELOCITY;
           lastAirJumpAtMs = nowMs;
           airJumpsUsed += 1;
+          triggerWingFlapPulse(1.25);
         }
 
         player.vx = Math.max(-maxMoveSpeed, Math.min(maxMoveSpeed, player.vx));
         player.vy += gravityNow;
         player.vy = Math.min(player.vy, maxFallNow);
 
-        player.vx *= player.grounded ? frictionNow : airFrictionNow;
-        if (!moveLeft && !moveRight && Math.abs(player.vx) < 0.035) {
-          player.vx = 0;
-        }
-        if (player.grounded && Math.abs(player.vx) < 0.02) {
+        if (!player.grounded) {
+          player.vx *= airFrictionNow;
+        } else if (Math.abs(player.vx) < 0.08) {
           player.vx = 0;
         }
 
@@ -5382,17 +5515,18 @@
         return true;
       }
 
-      function drawWings(px, py, wingsId, facing, wingFlap) {
+      function drawWings(px, py, wingsId, facing, wingFlap, wingOpen) {
         if (!wingsId) return;
         const item = COSMETIC_LOOKUP.wings[wingsId];
         if (!item) return;
         const flap = Number(wingFlap) || 0;
+        const open = Math.max(0, Math.min(1, Number(wingOpen) || 0));
         const wingImg = getCosmeticImage(item);
         if (wingImg) {
           const centerX = px + PLAYER_W / 2;
           const centerY = py + 14;
-          const baseAngle = 0.42;
-          const flapAngle = flap * 0.42;
+          const baseAngle = 0.24 + open * 0.42;
+          const flapAngle = flap * 0.38;
           const wingH = 20;
           const wingW = Math.max(10, Math.round(wingH * (wingImg.naturalWidth / Math.max(1, wingImg.naturalHeight))));
           const offsetX = Number(item && item.offsetX);
@@ -5419,7 +5553,7 @@
         const forwardSign = facing === 1 ? 1 : -1;
         const drawWing = (sideSign) => {
           const dir = sideSign * forwardSign;
-          const base = 0.5 * sideSign;
+          const base = (0.28 + open * 0.42) * sideSign;
           const angle = base + flap * sideSign;
           ctx.save();
           ctx.translate(centerX, centerY);
@@ -5461,19 +5595,19 @@
         ctx.fillRect(px + PLAYER_W - 10, py + 23, 4, 7);
       }
 
-      function drawHat(px, py, hatId) {
+      function drawHat(px, py, hatId, facing) {
         if (!hatId) return;
         const item = COSMETIC_LOOKUP.hats && COSMETIC_LOOKUP.hats[hatId];
         if (!item) return;
-        const hatBoxX = px + 2;
-        const hatBoxY = py - 8;
-        const hatBoxW = PLAYER_W - 4;
-        const hatBoxH = 10;
-        if (drawCosmeticSprite(item, hatBoxX, hatBoxY, hatBoxW, hatBoxH, 1, { mode: "contain", alignX: 0.5, alignY: 1 })) {
+        const hatBoxX = px - 1;
+        const hatBoxY = py - 9;
+        const hatBoxW = PLAYER_W + 2;
+        const hatBoxH = 11;
+        if (drawCosmeticSprite(item, hatBoxX, hatBoxY, hatBoxW, hatBoxH, facing === -1 ? -1 : 1, { mode: "contain", alignX: 0.5, alignY: 1 })) {
           return;
         }
         ctx.fillStyle = item.color || "#d7c7a3";
-        ctx.fillRect(px + 4, py - 2, PLAYER_W - 8, 2);
+        ctx.fillRect(px + 3, py - 2, PLAYER_W - 6, 2);
       }
 
       function drawSword(px, py, swordId, facing, swordSwing) {
@@ -5514,24 +5648,21 @@
         const legSwing = Number(pose && pose.legSwing) || 0;
         const hitStrength = Math.max(0, Math.min(1, Number(pose && pose.hitStrength) || 0));
         const hitMode = String(pose && pose.hitMode || "");
-        const leftArmY = py + 13 + Math.round(-armSwing * 0.7);
-        const rightArmY = py + 13 + Math.round(armSwing * 0.7);
-        const leftLegY = py + 23 + Math.round(-legSwing * 0.8);
-        const rightLegY = py + 23 + Math.round(legSwing * 0.8);
-        const lookDx = Math.max(-1, Math.min(1, Number(lookX) || 0));
-        const lookDy = Math.max(-1, Math.min(1, Number(lookY) || 0));
-        const pupilDx = Math.round(lookDx * 1.7);
-        const pupilDy = Math.round(lookDy * 1.2);
+        const leftArmY = py + 13 + Math.round(-armSwing * 0.6);
+        const rightArmY = py + 13 + Math.round(armSwing * 0.6);
+        const leftLegY = py + 23 + Math.round(-legSwing * 0.75);
+        const rightLegY = py + 23 + Math.round(legSwing * 0.75);
         const faceTilt = facing === 1 ? 1 : -1;
 
-        const headX = px + 3;
+        // Growtopia-like blocky proportions.
+        const headX = px + 2;
         const headY = py;
-        const headW = PLAYER_W - 6;
+        const headW = PLAYER_W - 4;
         const headH = 12;
         const torsoX = px + 5;
         const torsoY = py + 12;
         const torsoW = PLAYER_W - 10;
-        const torsoH = 9;
+        const torsoH = 8;
 
         ctx.fillStyle = skinColor;
         ctx.fillRect(headX, headY, headW, headH);
@@ -5558,31 +5689,42 @@
 
         drawShirt(px, py, shirtId);
         drawPants(px, py, pantsId);
-        drawHat(px, py, hatId);
+        drawHat(px, py, hatId, facing);
 
         ctx.fillStyle = "rgba(0,0,0,0.18)";
         ctx.fillRect(torsoX, torsoY - 1, torsoW, 1);
         ctx.fillRect(torsoX, torsoY + torsoH, torsoW, 1);
 
-        const leftEyeX = px + 5 + (faceTilt > 0 ? 0 : -1);
-        const rightEyeX = px + PLAYER_W - 11 + (faceTilt > 0 ? 1 : 0);
+        // Eyes are offset by facing direction (no mouse-follow wobble).
+        const faceOffset = faceTilt > 0 ? 1 : -1;
+        const leftEyeX = px + 5 + faceOffset;
+        const rightEyeX = px + PLAYER_W - 11 + faceOffset;
         const eyeY = py + 3;
         ctx.fillStyle = "#f3f6ff";
         ctx.fillRect(leftEyeX, eyeY, 5, 4);
         ctx.fillRect(rightEyeX, eyeY, 5, 4);
 
         ctx.fillStyle = eyeColor;
-        ctx.fillRect(leftEyeX + 2 + pupilDx, eyeY + 1 + pupilDy, 2, 2);
-        ctx.fillRect(rightEyeX + 1 + pupilDx, eyeY + 1 + pupilDy, 2, 2);
+        const pupilOffset = faceTilt > 0 ? 1 : 0;
+        ctx.fillRect(leftEyeX + 1 + pupilOffset, eyeY + 1, 2, 2);
+        ctx.fillRect(rightEyeX + 1 + pupilOffset, eyeY + 1, 2, 2);
 
-        const mouthX = px + 8 + (faceTilt > 0 ? 1 : -1);
-        const mouthY = py + 9 + Math.max(-1, Math.min(1, pupilDy));
+        const mouthX = px + 8 + faceOffset;
+        const mouthY = py + 9;
         ctx.fillStyle = "rgba(85, 52, 43, 0.95)";
         ctx.fillRect(mouthX, mouthY, 5, 2);
 
         const noseX = faceTilt > 0 ? px + 13 : px + 8;
         ctx.fillStyle = "rgba(124, 84, 66, 0.9)";
         ctx.fillRect(noseX, py + 7, 2, 2);
+
+        // Small head shading for pixel depth similar to GT style.
+        ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+        if (faceTilt > 0) {
+          ctx.fillRect(headX + headW - 1, headY + 1, 1, headH - 2);
+        } else {
+          ctx.fillRect(headX, headY + 1, 1, headH - 2);
+        }
 
         return {};
       }
@@ -5611,7 +5753,7 @@
           : { speed: Math.abs(player.vx), vy: player.vy, grounded: player.grounded };
         const pose = typeof animationsModule.buildPose === "function"
           ? animationsModule.buildPose(localMotion, nowMs, playerId)
-          : { bodyBob: 0, bodyTilt: 0, wingFlap: 0, swordSwing: 0, eyeYOffset: 0, eyeHeight: 3 };
+          : { bodyBob: 0, bodyTilt: 0, wingFlap: 0, wingOpen: 0.24, swordSwing: 0, eyeYOffset: 0, eyeHeight: 3 };
         if (danceUntilMs > Date.now()) {
           const danceT = nowMs * 0.015;
           pose.bodyBob = (Number(pose.bodyBob) || 0) + Math.sin(danceT * 1.6) * 1.6;
@@ -5640,8 +5782,10 @@
           pose.hitStrength = 0;
         }
         const basePy = py + (pose.bodyBob || 0);
+        const localWingFlap = (pose.wingFlap || 0) + getWingFlapPulse(nowMs);
+        const localWingOpen = Math.max(0, Math.min(1, Number(pose.wingOpen) || 0.24));
 
-        drawWings(px, basePy, cosmetics.wings, player.facing, pose.wingFlap || 0);
+        drawWings(px, basePy, cosmetics.wings, player.facing, localWingFlap, localWingOpen);
 
         ctx.save();
         ctx.translate(px + PLAYER_W / 2, basePy + PLAYER_H / 2);
@@ -5675,7 +5819,7 @@
             : { speed: 0, vy: 0, grounded: true };
           const pose = typeof animationsModule.buildPose === "function"
             ? animationsModule.buildPose(remoteMotion, nowMs, otherId)
-            : { bodyBob: 0, bodyTilt: 0, wingFlap: 0, swordSwing: 0, eyeYOffset: 0, eyeHeight: 3 };
+            : { bodyBob: 0, bodyTilt: 0, wingFlap: 0, wingOpen: 0.24, swordSwing: 0, eyeYOffset: 0, eyeHeight: 3 };
           if ((Number(other.danceUntil) || 0) > nowEpoch) {
             const danceT = nowMs * 0.015;
             pose.bodyBob = (Number(pose.bodyBob) || 0) + Math.sin(danceT * 1.6) * 1.6;
@@ -5685,7 +5829,7 @@
           }
           const basePy = py + (pose.bodyBob || 0);
 
-          drawWings(px, basePy, cosmetics.wings || "", other.facing || 1, pose.wingFlap || 0);
+          drawWings(px, basePy, cosmetics.wings || "", other.facing || 1, pose.wingFlap || 0, pose.wingOpen || 0.24);
 
           ctx.save();
           ctx.translate(px + PLAYER_W / 2, basePy + PLAYER_H / 2);
@@ -6357,7 +6501,18 @@
         if (shouldBlockActionForFreeze()) return;
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
+        if (antiCheatController && typeof antiCheatController.onActionAttempt === "function") {
+          antiCheatController.onActionAttempt({
+            action: selectedId === TOOL_WRENCH ? "wrench" : (selectedId === TOOL_FIST ? "break" : "place"),
+            tx,
+            ty
+          });
+        }
         if (selectedId === TOOL_FIST) {
+          const playerCenterTileX = (player.x + PLAYER_W * 0.5) / TILE;
+          if (Number.isFinite(playerCenterTileX) && tx !== Math.floor(playerCenterTileX)) {
+            player.facing = tx >= playerCenterTileX ? 1 : -1;
+          }
           lastHitAtMs = performance.now();
         }
         if (selectedId === TOOL_WRENCH) {
@@ -6375,6 +6530,13 @@
         if (shouldBlockActionForFreeze()) return;
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
+        if (antiCheatController && typeof antiCheatController.onActionAttempt === "function") {
+          antiCheatController.onActionAttempt({
+            action: selectedId === TOOL_WRENCH ? "wrench_secondary" : (selectedId === TOOL_FIST ? "rotate" : "secondary"),
+            tx,
+            ty
+          });
+        }
         if (selectedId === TOOL_FIST) {
           lastHitAtMs = performance.now();
         }
@@ -6971,11 +7133,14 @@
         touchControls.left = false;
         touchControls.right = false;
         touchControls.jump = false;
-        if (network.globalPlayerRef) {
-          network.globalPlayerRef.remove().catch(() => {});
-        }
         resetEditReachTiles();
         setInWorldState(false);
+        if (antiCheatController && typeof antiCheatController.onWorldSwitch === "function") {
+          antiCheatController.onWorldSwitch("menu");
+        }
+        if (network.enabled && network.globalPlayerRef) {
+          syncPlayer(true);
+        }
         refreshWorldButtons();
       }
 
@@ -7024,6 +7189,9 @@
         if (!worldId) return;
         const wasInWorld = inWorld;
         const previousWorldId = currentWorldId;
+        if (antiCheatController && typeof antiCheatController.onWorldSwitch === "function") {
+          antiCheatController.onWorldSwitch(worldId);
+        }
 
         if (!network.enabled) {
           setInWorldState(true);
@@ -7464,8 +7632,8 @@
       }
 
       function syncPlayer(force) {
-        if (!inWorld) return;
-        if (!network.enabled || !network.playerRef) return;
+        if (!network.enabled) return;
+        if (!network.playerRef && !network.globalPlayerRef) return;
 
         const now = performance.now();
         const rawPayload = {
@@ -7482,14 +7650,14 @@
             swords: equippedCosmetics.swords || ""
           },
           danceUntil: Math.max(0, Math.floor(danceUntilMs)),
-          world: currentWorldId,
+          world: inWorld ? currentWorldId : "menu",
           updatedAt: firebase.database.ServerValue.TIMESTAMP
         };
         const payload = typeof syncPlayerModule.buildPayload === "function"
           ? syncPlayerModule.buildPayload(rawPayload)
           : rawPayload;
 
-        let writePlayer = true;
+        let writePlayer = inWorld && Boolean(network.playerRef);
         let writeGlobal = Boolean(network.globalPlayerRef);
         if (playerSyncController && typeof playerSyncController.compute === "function") {
           const syncDecision = playerSyncController.compute({
@@ -7505,7 +7673,7 @@
         }
         if (!writePlayer && !writeGlobal) return;
 
-        if (writePlayer) {
+        if (writePlayer && network.playerRef) {
           network.playerRef.update(payload).catch(() => {
             setNetworkState("Network error", true);
           });
@@ -7884,6 +8052,7 @@
           network.myActiveTradeRef = network.db.ref(BASE_PATH + "/active-trades/" + playerProfileId);
           network.inventoryRef = network.db.ref(BASE_PATH + "/player-inventories/" + playerProfileId);
           network.accountLogsRootRef = network.db.ref(BASE_PATH + "/account-logs");
+          network.antiCheatLogsRef = network.db.ref(BASE_PATH + "/anti-cheat-logs").limitToLast(320);
           network.forceReloadRef = network.db.ref(BASE_PATH + "/system/force-reload");
           network.announcementRef = network.db.ref(BASE_PATH + "/system/announcement");
           network.myBanRef = network.db.ref(BASE_PATH + "/bans/" + playerProfileId);
@@ -7919,8 +8088,8 @@
               }
               if (network.playerRef) {
                 network.playerRef.onDisconnect().remove();
-                syncPlayer(true);
               }
+              syncPlayer(true);
               setNetworkState("Online", false);
             } else {
               setNetworkState("Reconnecting...", true);
@@ -7975,6 +8144,15 @@
             showAnnouncementPopup("[Private] @" + actor + ": " + text);
           };
           network.handlers.myPmAdded = (snapshot) => {
+            const msgCtrl = getMessagesController();
+            if (msgCtrl && typeof msgCtrl.handleIncomingPm === "function") {
+              msgCtrl.handleIncomingPm(snapshot);
+              const lastFrom = typeof msgCtrl.getLastPrivateMessageFrom === "function"
+                ? msgCtrl.getLastPrivateMessageFrom()
+                : null;
+              lastPrivateMessageFrom = lastFrom && typeof lastFrom === "object" ? lastFrom : null;
+              return;
+            }
             const value = snapshot.val() || {};
             const text = (value.text || "").toString().trim().slice(0, 160);
             if (!text) return;
@@ -8018,7 +8196,7 @@
             const data = snapshot.val() || {};
             adminState.globalPlayers = data;
             const count = Object.keys(data).length;
-            totalOnlinePlayers = Math.max(inWorld ? 1 : 0, count);
+            totalOnlinePlayers = count;
             const occupancy = typeof syncWorldsModule.computeWorldOccupancy === "function"
               ? syncWorldsModule.computeWorldOccupancy(data, normalizeWorldId)
               : null;
@@ -8068,6 +8246,29 @@
             logsMessages.length = 0;
             flattened.slice(-200).forEach((item) => logsMessages.push(item));
             renderLogsMessages();
+          };
+          network.handlers.antiCheatLogAdded = (snapshot) => {
+            if (!canViewAntiCheatLogs()) return;
+            const rows = snapshot.val() || {};
+            const flattened = [];
+            Object.keys(rows).forEach((id) => {
+              const value = rows[id] || {};
+              const rule = (value.rule || "unknown").toString().slice(0, 48);
+              const sev = (value.severity || "warn").toString().toLowerCase().slice(0, 16);
+              const uname = (value.username || value.accountId || "unknown").toString().slice(0, 24);
+              const worldId = (value.world || "").toString().slice(0, 24);
+              const detail = (value.details || "").toString().slice(0, 120);
+              const text = "@" + uname + " | " + rule + (worldId ? (" | " + worldId) : "") + (detail ? (" | " + detail) : "");
+              flattened.push({
+                text,
+                severity: sev || "warn",
+                createdAt: typeof value.createdAt === "number" ? value.createdAt : 0
+              });
+            });
+            flattened.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+            antiCheatMessages.length = 0;
+            flattened.slice(-220).forEach((item) => antiCheatMessages.push(item));
+            renderAdminPanelFromLiveUpdate();
           };
           network.handlers.myBan = (snapshot) => {
             if (!snapshot.exists()) return;
@@ -8192,6 +8393,9 @@
           network.adminRolesRef.on("value", network.handlers.adminRoles);
           if (canViewAccountLogs) {
             network.accountLogsRootRef.on("value", network.handlers.accountLogAdded);
+          }
+          if (canViewAntiCheatLogs()) {
+            network.antiCheatLogsRef.on("value", network.handlers.antiCheatLogAdded);
           }
           syncAdminDataListeners();
 
@@ -8961,6 +9165,9 @@
         initFirebaseMultiplayer();
 
         function tick() {
+          if (antiCheatController && typeof antiCheatController.onFrame === "function") {
+            antiCheatController.onFrame();
+          }
           if (inWorld) {
             updatePlayer();
             updateCamera();

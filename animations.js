@@ -83,6 +83,7 @@ window.GTModules.animations = (function createAnimationsModule() {
     let bodyBob = 0;
     let bodyTilt = 0;
     let wingFlap = 0;
+    let wingOpen = 0.24;
     let swordSwing = 0;
     let armSwing = 0;
     let legSwing = 0;
@@ -94,6 +95,7 @@ window.GTModules.animations = (function createAnimationsModule() {
       bodyBob = walkWave2 * (0.08 + stride * 0.55);
       bodyTilt = walkWave * (0.004 + stride * 0.018);
       wingFlap = Math.sin(t * (0.0022 + stride * 0.005) + seed * 8) * (0.06 + stride * 0.22);
+      wingOpen = 0.2 + stride * 0.16;
       swordSwing = walkWave * (0.12 + stride * 1.2);
       armSwing = walkWave * (0.22 + stride * 1.7);
       legSwing = -walkWave * (0.3 + stride * 2.2);
@@ -106,6 +108,7 @@ window.GTModules.animations = (function createAnimationsModule() {
       bodyBob = Math.sin(t * 0.004 + seed * 6) * 0.14 + (jumpUp ? -0.38 : (fallDown ? 0.42 : 0));
       bodyTilt = clamp(vy * 0.012, -0.11, 0.11);
       wingFlap = Math.sin(t * flapFreq + seed * 11) * (0.25 + airStrength * 0.45);
+      wingOpen = jumpUp ? 0.34 : (fallDown ? (0.72 + airStrength * 0.2) : 0.5);
       swordSwing = clamp(vy * 0.1, -1.2, 1.2);
       if (jumpUp) {
         armSwing = -0.55 - airStrength * 0.5;
@@ -129,6 +132,7 @@ window.GTModules.animations = (function createAnimationsModule() {
       bodyBob,
       bodyTilt,
       wingFlap,
+      wingOpen,
       swordSwing,
       armSwing,
       legSwing,

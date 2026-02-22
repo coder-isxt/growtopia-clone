@@ -126,6 +126,14 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
 
     function report(rule, severity, details) {
       if (!shouldReport(rule)) return;
+      const appendLogEntry = opts.appendLogEntry;
+      if (typeof appendLogEntry === "function") {
+        appendLogEntry({
+          rule: String(rule || "unknown").slice(0, 48),
+          severity: String(severity || "warn").toLowerCase().slice(0, 16),
+          details: details || {}
+        });
+      }
       sendWebhook(rule, severity || "warn", details || {}).catch(() => {});
     }
 
