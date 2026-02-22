@@ -7751,9 +7751,7 @@
         if (!img) return false;
         ctx.save();
         ctx.imageSmoothingEnabled = false;
-        const size = TILE * 0.65;
-        const offset = (TILE - size) / 2;
-        ctx.drawImage(img, x + offset, y + offset, size, size);
+        ctx.drawImage(img, x, y, TILE, TILE);
         ctx.restore();
         return true;
       }
@@ -7857,8 +7855,7 @@
           ctx.scale(-1, 1);
           ctx.translate(-pivot, 0);
         }
-        const size = TILE * 0.65;
-        ctx.drawImage(img, drawX, drawY, size, size);
+        ctx.drawImage(img, drawX, drawY, drawW, drawH);
         ctx.restore();
         return true;
       }
