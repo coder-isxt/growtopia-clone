@@ -830,6 +830,7 @@
           getTradePanelActionsEl: () => document.getElementById("tradePanelActions"),
           getTradePanelCloseBtnEl: () => document.getElementById("tradePanelCloseBtn"),
           getToolbarEl: () => toolbar,
+          getFriendsController: () => getFriendsController(),
           startInventoryDragFromTrade: (entry, event) => {
             startInventoryDrag(entry, event);
           },
@@ -8157,9 +8158,9 @@
         ctx.fillText(nameText, cursorX, nameY);
         if (slotOrder[selectedSlot] === TOOL_WRENCH) {
           const textWidth = (cursorX - (Math.round(px + PLAYER_W / 2 - totalWidth / 2))) + ctx.measureText(nameText).width;
-          const iconSize = 12;
-          const iconX = Math.floor(Math.round(px + PLAYER_W / 2 - totalWidth / 2) + textWidth + 5);
-          const iconY = Math.floor(nameY - 10);
+          const iconSize = 12 / cameraZoom;
+          const iconX = Math.round(px + PLAYER_W / 2 - totalWidth / 2) + textWidth + (5 / cameraZoom);
+          const iconY = py - (10 / cameraZoom);
           drawNameWrenchIcon(iconX, iconY, iconSize);
           localPlayerWrenchHitbox.push({
             x: iconX,
@@ -8237,9 +8238,9 @@
           ctx.fillText(nameText, cursorX, nameY);
           if (wrenchSelected && other.accountId) {
             const textWidth = (cursorX - nameX) + ctx.measureText(nameText).width;
-            const iconSize = 12;
-            const iconX = Math.floor(nameX + textWidth + 5);
-            const iconY = Math.floor(nameY - 10);
+            const iconSize = 12 / cameraZoom;
+            const iconX = Math.floor(nameX + textWidth + (5 / cameraZoom));
+            const iconY = Math.floor(nameY - (10 / cameraZoom));
             drawNameWrenchIcon(iconX, iconY, iconSize);
             playerWrenchHitboxes.push({
               x: iconX,
@@ -8278,17 +8279,17 @@
         ctx.restore();
       }
 
-      function hitWrenchNameIcon(canvasX, canvasY) {
+      function hitWrenchNameIcon(worldX, worldY) {
         if (!inWorld) return null;
         for (let i = localPlayerWrenchHitbox.length - 1; i >= 0; i--) {
           const hit = localPlayerWrenchHitbox[i];
-          if (canvasX >= hit.x && canvasX <= hit.x + hit.w && canvasY >= hit.y && canvasY <= hit.y + hit.h) {
+          if (worldX >= hit.x && worldX <= hit.x + hit.w && worldY >= hit.y && worldY <= hit.y + hit.h) {
             return hit;
           }
         }
         for (let i = playerWrenchHitboxes.length - 1; i >= 0; i--) {
           const hit = playerWrenchHitboxes[i];
-          if (canvasX >= hit.x && canvasX <= hit.x + hit.w && canvasY >= hit.y && canvasY <= hit.y + hit.h) {
+          if (worldX >= hit.x && worldX <= hit.x + hit.w && worldY >= hit.y && worldY <= hit.y + hit.h) {
             return hit;
           }
         }
@@ -10795,6 +10796,11 @@
         if (achievementsCloseBtn) {
           achievementsCloseBtn.addEventListener("click", () => {
             closeAchievementsMenu();
+          });
+        }
+        if (questsCloseBtn) {
+          questsCloseBtn.addEventListener("click", () => {
+            closeQuestsMenu();
           });
         }
         if (achievementsModalEl) {

@@ -1,5 +1,7 @@
 # 🌍 PIXELBUILD
 
+[![Join Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/xnaG8dSeRJ)
+
 **PIXELBUILD** is a browser-based 2D sandbox MMO inspired by Growtopia, built entirely with **HTML, CSS, JavaScript, and Firebase Realtime Database**.
 
 > No traditional backend server is required for gameplay.
