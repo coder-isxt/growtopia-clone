@@ -4381,7 +4381,7 @@
 
       function snapPlayerToStairSurface() {
         if (typeof physicsModule.snapPlayerToStairSurface === "function") {
-          return physicsModule.snapPlayerToStairSurface(player, world, STAIR_ROTATION_IDS, TILE, PLAYER_W, PLAYER_H, WORLD_W, WORLD_H);
+          return physicsModule.snapPlayerToStairSurface(player, world, blockDefs, STAIR_ROTATION_IDS, TILE, PLAYER_W, PLAYER_H, WORLD_W, WORLD_H);
         }
         const footLeftX = player.x + 3;
         const footRightX = player.x + PLAYER_W - 3;

@@ -74,7 +74,7 @@ window.GTModules.physics = {
     return ty * tileSize + localY * tileSize;
   },
 
-  snapPlayerToStairSurface(player, world, stairIds, tileSize, playerW, playerH, worldW, worldH) {
+  snapPlayerToStairSurface(player, world, blockDefs, stairIds, tileSize, playerW, playerH, worldW, worldH) {
     const footLeftX = player.x + 3;
     const footRightX = player.x + playerW - 3;
     const footCenterX = player.x + playerW * 0.5;
