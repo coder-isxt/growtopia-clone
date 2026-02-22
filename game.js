@@ -7856,7 +7856,7 @@
           const centerX = px + PLAYER_W / 2;
           const centerY = py + 14.5;
           const baseAngle = 0.2 + open * 0.34;
-          const wingH = 20;
+          const wingH = 19;
           const wingW = Math.max(10, Math.round(wingH * (wingImg.naturalWidth / Math.max(1, wingImg.naturalHeight))));
           const offsetX = Number(item && item.offsetX);
           const offsetY = Number(item && item.offsetY);
@@ -7920,8 +7920,8 @@
           return;
         }
         ctx.fillStyle = item.color || "#7e92a3";
-        ctx.fillRect(px + 6, py + 23, 4, 7);
-        ctx.fillRect(px + PLAYER_W - 10, py + 23, 4, 7);
+        ctx.fillRect(px + 6, py + 21, 4, 7);
+        ctx.fillRect(px + PLAYER_W - 10, py + 21, 4, 7);
       }
 
       function drawShoes(px, py, shoesId, facing) {
