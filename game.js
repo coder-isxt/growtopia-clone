@@ -130,6 +130,7 @@
       const vendingModule = modules.vending || {};
       const tradeModule = modules.trade || {};
       const shopModule = modules.shop || {};
+      const signModule = modules.sign || {};
 
       const SETTINGS = window.GT_SETTINGS || {};
       const TILE = Number(SETTINGS.TILE_SIZE) || 32;
@@ -402,7 +403,6 @@
         ? syncHitsModule.createRemoteHitTracker()
         : new Map();
       const overheadChatByPlayer = new Map();
-      const signTexts = new Map();
       const displayItemsByTile = new Map();
       const doorAccessByTile = new Map();
       const antiGravityByTile = new Map();
@@ -413,11 +413,11 @@
       let vendingController = null;
       let tradeController = null;
       let shopController = null;
+      let signController = null;
       let plantsController = null;
       let gemsController = null;
       let rewardsController = null;
       let editReachTiles = DEFAULT_EDIT_REACH_TILES;
-      let signEditContext = null;
       let worldLockEditContext = null;
       let doorEditContext = null;
       let cameraEditContext = null;
@@ -638,6 +638,35 @@
           showAnnouncementPopup
         });
         return shopController;
+      }
+
+      function getSignController() {
+        if (signController) return signController;
+        if (typeof signModule.createController !== "function") return null;
+        signController = signModule.createController({
+          getTileKey,
+          getWorld: () => world,
+          getWorldSize: () => ({ w: WORLD_W, h: WORLD_H }),
+          getSignId: () => SIGN_ID,
+          canEditTarget,
+          canEditCurrentWorld,
+          notifyWorldLockedDenied,
+          getNetwork: () => network,
+          getFirebase: () => (typeof firebase !== "undefined" ? firebase : null),
+          wrapChatText,
+          getPlayer: () => player,
+          getPlayerRect: () => ({ w: PLAYER_W, h: PLAYER_H }),
+          getTileSize: () => TILE,
+          getCamera: () => ({ x: cameraX, y: cameraY }),
+          getCameraZoom: () => cameraZoom,
+          getCanvas: () => canvas,
+          getSignModalElements: () => ({
+            modal: signModalEl,
+            title: signTitleEl,
+            input: signTextInputEl
+          })
+        });
+        return signController;
       }
 
       function getGemsController() {
@@ -2940,7 +2969,8 @@
         clearAllTileDamage();
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
-        signTexts.clear();
+        const signCtrl = getSignController();
+        if (signCtrl && typeof signCtrl.clearAll === "function") signCtrl.clearAll();
         displayItemsByTile.clear();
         doorAccessByTile.clear();
         antiGravityByTile.clear();
@@ -4125,38 +4155,16 @@
         doorModalEl.classList.remove("hidden");
       }
 
-      function normalizeSignRecord(value) {
-        if (!value) return null;
-        let text = "";
-        if (typeof value === "string") {
-          text = value;
-        } else if (typeof value === "object") {
-          text = (value.text || "").toString();
-        }
-        text = text.replace(/\s+/g, " ").trim().slice(0, 120);
-        if (!text) return null;
-        return {
-          text,
-          updatedAt: value && typeof value.updatedAt === "number" ? value.updatedAt : 0
-        };
-      }
-
       function setLocalSignText(tx, ty, value) {
-        const key = getTileKey(tx, ty);
-        const normalized = normalizeSignRecord(value);
-        if (!normalized) {
-          signTexts.delete(key);
-          if (signEditContext && signEditContext.tx === tx && signEditContext.ty === ty) {
-            closeSignModal();
-          }
-          return;
-        }
-        signTexts.set(key, normalized);
+        const ctrl = getSignController();
+        if (!ctrl || typeof ctrl.setLocalText !== "function") return;
+        ctrl.setLocalText(tx, ty, value);
       }
 
       function getLocalSignText(tx, ty) {
-        const entry = signTexts.get(getTileKey(tx, ty));
-        return entry && entry.text ? entry.text : "";
+        const ctrl = getSignController();
+        if (!ctrl || typeof ctrl.getLocalText !== "function") return "";
+        return ctrl.getLocalText(tx, ty);
       }
 
       function normalizeDisplayItemRecord(value) {
@@ -4272,45 +4280,21 @@
       }
 
       function closeSignModal() {
-        signEditContext = null;
-        if (signModalEl) signModalEl.classList.add("hidden");
+        const ctrl = getSignController();
+        if (!ctrl || typeof ctrl.closeModal !== "function") return;
+        ctrl.closeModal();
       }
 
       function saveSignText(tx, ty, rawText) {
-        const text = (rawText || "").toString().replace(/\s+/g, " ").trim().slice(0, 120);
-        if (!text) {
-          setLocalSignText(tx, ty, null);
-          if (network.enabled && network.signsRef) {
-            network.signsRef.child(getTileKey(tx, ty)).remove().catch(() => {});
-          }
-          return;
-        }
-        const payload = {
-          text,
-          updatedAt: Date.now()
-        };
-        setLocalSignText(tx, ty, payload);
-        if (network.enabled && network.signsRef) {
-          network.signsRef.child(getTileKey(tx, ty)).set({
-            text,
-            updatedAt: firebase.database.ServerValue.TIMESTAMP
-          }).catch(() => {});
-        }
+        const ctrl = getSignController();
+        if (!ctrl || typeof ctrl.saveText !== "function") return;
+        ctrl.saveText(tx, ty, rawText);
       }
 
       function openSignModal(tx, ty) {
-        if (!signModalEl || !signTextInputEl || !signTitleEl) return;
-        if (!canEditTarget(tx, ty)) return;
-        if (world[ty][tx] !== SIGN_ID) return;
-        if (!canEditCurrentWorld()) {
-          notifyWorldLockedDenied();
-          return;
-        }
-        signEditContext = { tx, ty };
-        signTitleEl.textContent = "Sign (" + tx + "," + ty + ")";
-        signTextInputEl.value = getLocalSignText(tx, ty);
-        signModalEl.classList.remove("hidden");
-        signTextInputEl.focus();
+        const ctrl = getSignController();
+        if (!ctrl || typeof ctrl.openModal !== "function") return;
+        ctrl.openModal(tx, ty);
       }
 
       function normalizeVendingRecord(value) {
@@ -5116,35 +5100,9 @@
       }
 
       function drawSignTopText() {
-        const tx = Math.floor((player.x + PLAYER_W / 2) / TILE);
-        const ty = Math.floor((player.y + PLAYER_H / 2) / TILE);
-        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
-        if (world[ty][tx] !== SIGN_ID) return;
-        const text = getLocalSignText(tx, ty);
-        if (!text) return;
-        ctx.save();
-        ctx.font = "13px 'Trebuchet MS', sans-serif";
-        const padX = 8;
-        const padY = 6;
-        const maxW = Math.min(420, canvas.width - 24);
-        const lines = wrapChatText(text, maxW - padX * 2).slice(0, 4);
-        let widest = 0;
-        for (let i = 0; i < lines.length; i++) {
-          widest = Math.max(widest, ctx.measureText(lines[i]).width);
-        }
-        const bubbleW = Math.min(maxW, Math.max(70, widest + padX * 2));
-        const bubbleH = lines.length * 15 + padY * 2;
-        const x = (canvas.width - bubbleW) / 2;
-        const y = 18;
-        ctx.fillStyle = "rgba(12, 24, 35, 0.9)";
-        ctx.fillRect(x, y, bubbleW, bubbleH);
-        ctx.strokeStyle = "rgba(255,255,255,0.28)";
-        ctx.strokeRect(x, y, bubbleW, bubbleH);
-        ctx.fillStyle = "#f4f9ff";
-        for (let i = 0; i < lines.length; i++) {
-          ctx.fillText(lines[i], x + padX, y + padY + 11 + i * 15);
-        }
-        ctx.restore();
+        const ctrl = getSignController();
+        if (!ctrl || typeof ctrl.drawTopText !== "function") return;
+        ctrl.drawTopText(ctx);
       }
 
       function getCosmeticImage(item) {
@@ -6148,7 +6106,8 @@
 
         if (id === SIGN_ID) {
           saveSignText(tx, ty, "");
-          if (signEditContext && signEditContext.tx === tx && signEditContext.ty === ty) {
+          const signCtrl = getSignController();
+          if (signCtrl && typeof signCtrl.isEditingTile === "function" && signCtrl.isEditingTile(tx, ty)) {
             closeSignModal();
           }
         }
@@ -6897,7 +6856,8 @@
         currentWorldLock = null;
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
-        signTexts.clear();
+        const signCtrl = getSignController();
+        if (signCtrl && typeof signCtrl.clearAll === "function") signCtrl.clearAll();
         displayItemsByTile.clear();
         doorAccessByTile.clear();
         antiGravityByTile.clear();
@@ -7531,9 +7491,12 @@
         }
         if (signSaveBtn) {
           signSaveBtn.addEventListener("click", () => {
-            if (!signEditContext || !signTextInputEl) return;
-            const tx = Number(signEditContext.tx);
-            const ty = Number(signEditContext.ty);
+            const signCtrl = getSignController();
+            if (!signCtrl || typeof signCtrl.getEditContext !== "function" || !signTextInputEl) return;
+            const editCtx = signCtrl.getEditContext();
+            if (!editCtx) return;
+            const tx = Number(editCtx.tx);
+            const ty = Number(editCtx.ty);
             if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
             if (!canEditCurrentWorld()) {
               notifyWorldLockedDenied();
