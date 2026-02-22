@@ -2475,11 +2475,24 @@
         return network.authDb;
       }
 
+      function withAuthTimeout(promise, label, timeoutMs) {
+        const ms = Math.max(1000, Number(timeoutMs) || 12000);
+        let timer = null;
+        const timeoutPromise = new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            reject(new Error((label || "Auth operation") + " timed out."));
+          }, ms);
+        });
+        return Promise.race([Promise.resolve(promise), timeoutPromise]).finally(() => {
+          if (timer) clearTimeout(timer);
+        });
+      }
+
       async function reserveAccountSession(db, accountId, username) {
         const sessionRef = db.ref(BASE_PATH + "/account-sessions/" + accountId);
         const sessionId = "s_" + Math.random().toString(36).slice(2, 12);
         const startedAtLocal = Date.now();
-        const result = await sessionRef.transaction((current) => {
+        const result = await withAuthTimeout(sessionRef.transaction((current) => {
           if (current && current.sessionId) {
             return;
           }
@@ -2488,12 +2501,12 @@
             username,
             startedAt: firebase.database.ServerValue.TIMESTAMP
           };
-        });
+        }), "Session reservation", 12000);
         if (!result.committed) {
           addClientLog("Session denied for @" + username + " (already active).");
           throw new Error("This account is already active in another client.");
         }
-        await sessionRef.onDisconnect().remove();
+        await withAuthTimeout(sessionRef.onDisconnect().remove(), "Session onDisconnect", 6000);
         playerSessionRef = sessionRef;
         playerSessionId = sessionId;
         playerSessionStartedAt = startedAtLocal;
@@ -2525,25 +2538,25 @@
         setAuthBusy(true);
         setAuthStatus("Creating account...", false);
         try {
-          const db = await getAuthDb();
+          const db = await withAuthTimeout(getAuthDb(), "Auth DB init", 12000);
           network.db = db;
           const usernameRef = db.ref(BASE_PATH + "/usernames/" + username);
           const accountId = "acc_" + Math.random().toString(36).slice(2, 12);
-          const reserve = await usernameRef.transaction((current) => {
+          const reserve = await withAuthTimeout(usernameRef.transaction((current) => {
             if (current) return;
             return accountId;
-          });
+          }), "Username reservation", 12000);
           if (!reserve.committed) {
             throw new Error("Username already exists.");
           }
-          const passwordHash = await sha256Hex(password);
-          await db.ref(BASE_PATH + "/accounts/" + accountId).set({
+          const passwordHash = await withAuthTimeout(sha256Hex(password), "Password hashing", 8000);
+          await withAuthTimeout(db.ref(BASE_PATH + "/accounts/" + accountId).set({
             username,
             passwordHash,
             createdAt: firebase.database.ServerValue.TIMESTAMP
-          });
+          }), "Account create write", 12000);
           addClientLog("Account created: @" + username + " (" + accountId + ").", accountId, username, "");
-          await reserveAccountSession(db, accountId, username);
+          await withAuthTimeout(reserveAccountSession(db, accountId, username), "Session create", 12000);
           saveCredentials(username, password);
           onAuthSuccess(accountId, username);
           setAuthStatus("Account created.", false);
@@ -2565,26 +2578,26 @@
         setAuthBusy(true);
         setAuthStatus("Logging in...", false);
         try {
-          const db = await getAuthDb();
+          const db = await withAuthTimeout(getAuthDb(), "Auth DB init", 12000);
           network.db = db;
-          const usernameSnap = await db.ref(BASE_PATH + "/usernames/" + username).once("value");
+          const usernameSnap = await withAuthTimeout(db.ref(BASE_PATH + "/usernames/" + username).once("value"), "Lookup username", 12000);
           const accountId = usernameSnap.val();
           if (!accountId) {
             throw new Error("Account not found.");
           }
-          const accountSnap = await db.ref(BASE_PATH + "/accounts/" + accountId).once("value");
+          const accountSnap = await withAuthTimeout(db.ref(BASE_PATH + "/accounts/" + accountId).once("value"), "Load account", 12000);
           const account = accountSnap.val() || {};
-          const passwordHash = await sha256Hex(password);
+          const passwordHash = await withAuthTimeout(sha256Hex(password), "Password hashing", 8000);
           if (account.passwordHash !== passwordHash) {
             addClientLog("Login failed for @" + username + " (invalid password).", accountId, username, "");
             throw new Error("Invalid password.");
           }
-          const banSnap = await db.ref(BASE_PATH + "/bans/" + accountId).once("value");
+          const banSnap = await withAuthTimeout(db.ref(BASE_PATH + "/bans/" + accountId).once("value"), "Load ban status", 12000);
           if (banSnap.exists()) {
             const banValue = banSnap.val();
             const status = getBanStatus(banValue, Date.now());
             if (status.expired) {
-              await db.ref(BASE_PATH + "/bans/" + accountId).remove();
+              await withAuthTimeout(db.ref(BASE_PATH + "/bans/" + accountId).remove(), "Clear expired ban", 12000);
             } else if (status.active) {
               addClientLog("Login blocked for @" + username + " (banned).", accountId, username, "");
               const reasonText = status.reason ? " Reason: " + status.reason + "." : "";
@@ -2594,7 +2607,7 @@
               throw new Error("This account is temporarily banned for " + formatRemainingMs(status.remainingMs) + "." + reasonText);
             }
           }
-          await reserveAccountSession(db, accountId, username);
+          await withAuthTimeout(reserveAccountSession(db, accountId, username), "Session create", 12000);
           saveCredentials(username, password);
           onAuthSuccess(accountId, username);
           addClientLog("Login success: @" + username + ".");
@@ -8896,6 +8909,21 @@
         if (event.key === "Enter") {
           authPasswordEl.focus();
         }
+      });
+      window.addEventListener("unhandledrejection", (event) => {
+        if (!event || !event.reason) return;
+        const message = (event.reason && event.reason.message) ? event.reason.message : String(event.reason);
+        if (!gameShellEl.classList.contains("hidden")) return;
+        setAuthBusy(false);
+        setAuthStatus(message || "Unexpected error.", true);
+      });
+      window.addEventListener("error", (event) => {
+        if (!event) return;
+        const message = event.message || (event.error && event.error.message) || "";
+        if (!message) return;
+        if (!gameShellEl.classList.contains("hidden")) return;
+        setAuthBusy(false);
+        setAuthStatus(message, true);
       });
       window.addEventListener("beforeunload", () => {
         releaseAccountSession();
