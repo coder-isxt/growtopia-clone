@@ -8,16 +8,16 @@ window.GTModules.admin = {
     owner: 4
   },
   DEFAULT_PERMISSIONS: {
-    owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "announce", "announce_user"],
-    manager: ["panel_open", "view_logs", "view_audit", "clear_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "announce", "announce_user"],
-    admin: ["panel_open", "view_logs", "view_audit", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "announce", "announce_user"],
+    owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+    manager: ["panel_open", "view_logs", "view_audit", "clear_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+    admin: ["panel_open", "view_logs", "view_audit", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
     moderator: ["panel_open", "kick", "tp", "reach", "bring", "summon", "announce", "announce_user"],
     none: []
   },
   DEFAULT_COMMAND_COOLDOWNS_MS: {
     owner: {},
-    manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, give_block: 600, give_item: 600, givetitle: 600, removetitle: 600, tp: 300, reach: 500, bring: 700, summon: 700, setrole: 2000, freeze: 700, unfreeze: 700, announce: 500, announce_user: 500 },
-    admin: { kick: 900, give_block: 900, give_item: 900, givetitle: 900, removetitle: 900, tp: 400, reach: 600, bring: 900, summon: 900, freeze: 900, unfreeze: 900, announce: 700, announce_user: 700 },
+    manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, give_block: 600, give_item: 600, givetitle: 600, removetitle: 600, tp: 300, reach: 500, bring: 700, summon: 700, setrole: 2000, freeze: 700, unfreeze: 700, godmode: 700, clearworld: 2500, announce: 500, announce_user: 500 },
+    admin: { kick: 900, give_block: 900, give_item: 900, givetitle: 900, removetitle: 900, tp: 400, reach: 600, bring: 900, summon: 900, freeze: 900, unfreeze: 900, godmode: 900, clearworld: 3000, announce: 700, announce_user: 700 },
     moderator: { kick: 1200, tp: 600, reach: 900, bring: 1200, summon: 1200, announce: 900, announce_user: 900 },
     none: {}
   },
@@ -108,7 +108,7 @@ window.GTModules.admin = {
     if (key === "permban" || key === "tempban") return "critical";
     if (key === "kick" || key === "resetinv" || key === "clear_logs" || key === "clearaudit" || key === "freeze") return "warn";
     if (key === "unban") return "success";
-    if (key === "setrole" || key === "givex" || key === "giveitem" || key === "givetitle" || key === "removetitle" || key === "tp" || key === "reach" || key === "summon" || key === "bring" || key === "unfreeze" || key === "announce_user" || key === "announce") return "accent";
+    if (key === "setrole" || key === "givex" || key === "giveitem" || key === "givetitle" || key === "removetitle" || key === "tp" || key === "reach" || key === "summon" || key === "bring" || key === "unfreeze" || key === "godmode" || key === "clearworld" || key === "announce_user" || key === "announce") return "accent";
     return "info";
   },
   getLogLevel(text) {

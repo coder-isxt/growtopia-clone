@@ -161,7 +161,10 @@ window.GTModules.donation = (function createDonationModule() {
     function closeModal() {
       editCtx = null;
       const els = getModalEls();
-      if (els.modal) els.modal.classList.add("hidden");
+      if (els.modal) {
+        els.modal.classList.add("hidden");
+        els.modal.classList.remove("inventory-passive");
+      }
     }
 
     function buildStoredRows(items) {
@@ -280,6 +283,7 @@ window.GTModules.donation = (function createDonationModule() {
 
       els.title.textContent = "Donation Box (" + tx + "," + ty + ")";
       els.body.innerHTML = bodyHtml;
+      els.modal.classList.add("inventory-passive");
       els.modal.classList.remove("hidden");
     }
 

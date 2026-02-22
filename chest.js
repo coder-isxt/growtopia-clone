@@ -149,7 +149,10 @@ window.GTModules.chest = (function createChestModule() {
     function closeModal() {
       editCtx = null;
       const els = getModalEls();
-      if (els.modal) els.modal.classList.add("hidden");
+      if (els.modal) {
+        els.modal.classList.add("hidden");
+        els.modal.classList.remove("inventory-passive");
+      }
     }
 
     function buildStoredRows(items) {
@@ -207,6 +210,7 @@ window.GTModules.chest = (function createChestModule() {
 
       els.title.textContent = "Storage Chest (" + tx + "," + ty + ")";
       els.body.innerHTML = bodyHtml;
+      els.modal.classList.add("inventory-passive");
       els.modal.classList.remove("hidden");
     }
 

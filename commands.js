@@ -101,6 +101,8 @@ window.GTModules.commands = {
       if (c.hasAdminPermission("unban")) available.push("/unban");
       if (c.hasAdminPermission("kick")) available.push("/kick");
       if (c.hasAdminPermission("freeze")) available.push("/freeze", "/unfreeze");
+      if (c.hasAdminPermission("godmode")) available.push("/godmode");
+      if (c.hasAdminPermission("clearworld")) available.push("/clearworld");
       if (c.hasAdminPermission("resetinv")) available.push("/resetinv");
       if (c.hasAdminPermission("give_block")) available.push("/givex");
       if (c.hasAdminPermission("give_item")) available.push("/giveitem");
@@ -337,6 +339,59 @@ window.GTModules.commands = {
       const ok = c.applyAdminAction(command === "/freeze" ? "freeze" : "unfreeze", accountId, "chat");
       if (ok) {
         c.postLocalSystemChat((command === "/freeze" ? "Froze @" : "Unfroze @") + targetRef + ".");
+      }
+      return true;
+    }
+    if (command === "/godmode" || command === "/god") {
+      if (!c.hasAdminPermission("godmode")) {
+        c.postLocalSystemChat("Permission denied.");
+        return true;
+      }
+      if (!c.ensureCommandReady("godmode")) return true;
+      const truthy = new Set(["on", "1", "true", "enable", "enabled"]);
+      const falsy = new Set(["off", "0", "false", "disable", "disabled"]);
+      const targetRef = (parts[1] || "").trim();
+      if (!targetRef) {
+        const current = typeof c.isGodModeEnabled === "function" ? Boolean(c.isGodModeEnabled()) : false;
+        const okSelf = c.applyAdminAction("godmode", c.playerProfileId, "chat", { enabled: !current });
+        if (okSelf) {
+          c.postLocalSystemChat("Godmode " + (!current ? "enabled" : "disabled") + ".");
+        }
+        return true;
+      }
+      const accountId = c.findAccountIdByUserRef(targetRef);
+      if (!accountId) {
+        c.postLocalSystemChat("Target account not found: " + targetRef);
+        return true;
+      }
+      const modeRaw = String(parts[2] || "toggle").trim().toLowerCase();
+      let enabled = null;
+      if (truthy.has(modeRaw)) enabled = true;
+      else if (falsy.has(modeRaw)) enabled = false;
+      if (enabled === null) {
+        c.postLocalSystemChat("Usage: /godmode [user] <on|off>");
+        return true;
+      }
+      const ok = c.applyAdminAction("godmode", accountId, "chat", { enabled });
+      if (ok) {
+        c.postLocalSystemChat("Set godmode " + (enabled ? "ON" : "OFF") + " for @" + targetRef + ".");
+      }
+      return true;
+    }
+    if (command === "/clearworld" || command === "/wipeworld") {
+      if (!c.hasAdminPermission("clearworld")) {
+        c.postLocalSystemChat("Permission denied.");
+        return true;
+      }
+      if (!c.inWorld) {
+        c.postLocalSystemChat("Enter a world first.");
+        return true;
+      }
+      if (!c.ensureCommandReady("clearworld")) return true;
+      if (typeof c.clearCurrentWorldToBedrock === "function") {
+        c.clearCurrentWorldToBedrock("chat");
+      } else {
+        c.postLocalSystemChat("Clear world handler is unavailable.");
       }
       return true;
     }

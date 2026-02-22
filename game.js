@@ -89,6 +89,10 @@
       const worldLockAdminInputEl = document.getElementById("worldLockAdminInput");
       const worldLockAdminAddBtn = document.getElementById("worldLockAdminAddBtn");
       const worldLockAdminsEl = document.getElementById("worldLockAdmins");
+      const worldLockBanInputEl = document.getElementById("worldLockBanInput");
+      const worldLockBan1hBtn = document.getElementById("worldLockBan1hBtn");
+      const worldLockBanPermBtn = document.getElementById("worldLockBanPermBtn");
+      const worldLockBansEl = document.getElementById("worldLockBans");
       const worldLockCloseBtn = document.getElementById("worldLockCloseBtn");
       const doorModalEl = document.getElementById("doorModal");
       const doorTitleEl = document.getElementById("doorTitle");
@@ -184,9 +188,9 @@
         : {
             roleRank: { none: 0, moderator: 1, admin: 2, manager: 3, owner: 4 },
             permissions: {
-              owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "announce", "announce_user"],
-              manager: ["panel_open", "view_logs", "view_audit", "clear_logs", "setrole_limited", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "announce", "announce_user"],
-              admin: ["panel_open", "view_logs", "view_audit", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "announce", "announce_user"],
+              owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+              manager: ["panel_open", "view_logs", "view_audit", "clear_logs", "setrole_limited", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+              admin: ["panel_open", "view_logs", "view_audit", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
               moderator: ["panel_open", "kick", "tp", "reach", "bring", "summon", "announce", "announce_user"],
               none: []
             },
@@ -194,8 +198,8 @@
               ? SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS
               : {
                   owner: {},
-                  manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, give_block: 600, give_item: 600, givetitle: 600, removetitle: 600, tp: 300, reach: 500, bring: 700, summon: 700, setrole: 2000, freeze: 700, unfreeze: 700, announce: 500, announce_user: 500 },
-                  admin: { kick: 900, give_block: 900, give_item: 900, givetitle: 900, removetitle: 900, tp: 400, reach: 600, bring: 900, summon: 900, freeze: 900, unfreeze: 900, announce: 700, announce_user: 700 },
+                  manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, give_block: 600, give_item: 600, givetitle: 600, removetitle: 600, tp: 300, reach: 500, bring: 700, summon: 700, setrole: 2000, freeze: 700, unfreeze: 700, godmode: 700, clearworld: 2500, announce: 500, announce_user: 500 },
+                  admin: { kick: 900, give_block: 900, give_item: 900, givetitle: 900, removetitle: 900, tp: 400, reach: 600, bring: 900, summon: 900, freeze: 900, unfreeze: 900, godmode: 900, clearworld: 3000, announce: 700, announce_user: 700 },
                   moderator: { kick: 1200, tp: 600, reach: 900, bring: 1200, summon: 1200, announce: 900, announce_user: 900 },
                   none: {}
                 },
@@ -249,14 +253,19 @@
         21: { key: "weather_machine", name: "Weather Machine", color: "#7aa8d9", solid: true, icon: "WM", faIcon: "fa-solid fa-cloud-sun-rain" },
         22: { key: "display_block", name: "Display Block", color: "#314154", solid: true, icon: "DP", faIcon: "fa-regular fa-square" },
         23: { key: "wood_plank", name: "Wooden Plank", color: "#b4bcc5", solid: true, icon: "WP", faIcon: "fa-regular fa-square" },
-        33: { key: "spike_block", name: "Spikes", color: "#8d9aae", solid: false, lethal: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation" },
+        33: { key: "spike_block", name: "Spikes NW", color: "#8d9aae", solid: false, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation" },
         34: { key: "donation_box", name: "Donation Box", color: "#8f6d4f", solid: true, donationBox: true, icon: "DN", faIcon: "fa-solid fa-box-open" },
-        36: { key: "storage_chest", name: "Storage Chest", color: "#7f5f3e", solid: true, chestStorage: true, icon: "CH", faIcon: "fa-solid fa-box-archive" }
+        36: { key: "storage_chest", name: "Storage Chest", color: "#7f5f3e", solid: true, chestStorage: true, icon: "CH", faIcon: "fa-solid fa-box-archive" },
+        37: { key: "spike_block_r1", name: "Spikes NE", color: "#8d9aae", solid: false, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation" },
+        38: { key: "spike_block_r2", name: "Spikes SE", color: "#8d9aae", solid: false, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation" },
+        39: { key: "spike_block_r3", name: "Spikes SW", color: "#8d9aae", solid: false, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation" },
+        40: { key: "spawn_mover", name: "Spawn Mover", color: "#79c6ff", solid: false, seedable: false, icon: "SM", faIcon: "fa-solid fa-location-crosshairs" }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
       const SPAWN_DOOR_ID = 7;
       const SPAWN_BASE_ID = 8;
+      const SPAWN_MOVER_ID = 40;
 
       const WORLD_LOCK_ID = 9;
       const DOOR_BLOCK_ID = 10;
@@ -264,6 +273,8 @@
       const PLATFORM_ID = 12;
       const STAIR_BASE_ID = 13;
       const STAIR_ROTATION_IDS = [13, 14, 15, 16];
+      const SPIKE_BASE_ID = 33;
+      const SPIKE_ROTATION_IDS = [33, 37, 38, 39];
       const VENDING_ID = 17;
       const SIGN_ID = 18;
       const ANTI_GRAV_ID = 19;
@@ -280,6 +291,8 @@
       const TREE_GEM_MAX = Math.max(TREE_GEM_MIN, Math.floor(Number(SETTINGS.TREE_GEM_MAX) || 4));
       const SEED_DROP_CHANCE = 1 / 8;
       const INVENTORY_ITEM_LIMIT = 300;
+      let spawnTileX = SPAWN_TILE_X;
+      let spawnTileY = SPAWN_TILE_Y;
       const DEFAULT_EDIT_REACH_TILES = 4.5;
       const MIN_EDIT_REACH_TILES = 1;
       const MAX_EDIT_REACH_TILES = 16;
@@ -401,6 +414,7 @@
       let lastHandledTeleportCommandId = "";
       let lastHandledReachCommandId = "";
       let lastPrivateMessageFrom = null;
+      let worldJoinRequestToken = 0;
       const remotePlayers = new Map();
       const remoteAnimationTracker = typeof animationsModule.createTracker === "function"
         ? animationsModule.createTracker()
@@ -416,6 +430,10 @@
       const cameraLogsByTile = new Map();
       const localWeatherByWorld = new Map();
       const worldOccupancy = new Map();
+      const worldLockOwnerCache = new Map();
+      let worldIndexMetaById = {};
+      let ownedWorldScanInFlight = false;
+      let ownedWorldScanToken = 0;
       let vendingController = null;
       let donationController = null;
       let chestController = null;
@@ -441,6 +459,7 @@
       let lastHandledForceReloadEventId = loadForceReloadMarker();
       let lastHandledAnnouncementEventId = "";
       let lastHandledFreezeCommandId = "";
+      let lastHandledGodModeCommandId = "";
       let lastHandledPrivateAnnouncementId = "";
       let announcementHideTimer = 0;
       let isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
@@ -486,6 +505,8 @@
         entry: null,
         ghostEl: null
       };
+      let toolbarRenderQueued = false;
+      let toolbarRenderRafId = 0;
       let suppressInventoryClickUntilMs = 0;
 
       let currentWorldId = getInitialWorldId();
@@ -927,6 +948,7 @@
       let lastSpikeKillAtMs = -9999;
       let danceUntilMs = 0;
       let isFrozenByAdmin = false;
+      let isGodModeByAdmin = false;
       let frozenByAdminBy = "";
       let lastFrozenHintAtMs = -9999;
       let suppressSpawnSafetyUntilMs = 0;
@@ -940,6 +962,9 @@
       const BLOCK_HIT_COOLDOWN_MS = Math.max(60, Number(SETTINGS.BLOCK_HIT_COOLDOWN_MS) || 120);
       const SPIKE_KILL_COOLDOWN_MS = Math.max(350, Number(SETTINGS.SPIKE_KILL_COOLDOWN_MS) || 700);
       const DANCE_DURATION_MS = Math.max(1200, Number(SETTINGS.DANCE_DURATION_MS) || 5000);
+      const FIXED_FPS = 60;
+      const FIXED_FRAME_MS = 1000 / FIXED_FPS;
+      const MAX_TICK_CATCHUP = 4;
 
       function triggerWingFlapPulse(strength) {
         const now = performance.now();
@@ -970,6 +995,7 @@
         myCommandRef: null,
         myReachRef: null,
         myFreezeRef: null,
+        myGodModeRef: null,
         myPrivateAnnouncementRef: null,
         myPmRef: null,
         myPmFeedRef: null,
@@ -1023,6 +1049,7 @@
           myCommand: null,
           myReach: null,
           myFreeze: null,
+          myGodMode: null,
           myPrivateAnnouncement: null,
           myPmAdded: null,
           myTradeRequest: null,
@@ -1802,6 +1829,89 @@
         const onlineCount = accountIds.filter((accountId) => Boolean(adminState.sessions[accountId] && adminState.sessions[accountId].sessionId)).length;
         const bannedCount = accountIds.filter((accountId) => getBanStatus(adminState.bans[accountId], nowMs).active).length;
         const assignable = getAssignableRoles();
+        const playerOptions = accountIds.map((accountId) => {
+          const account = adminState.accounts[accountId] || {};
+          const username = (account.username || accountId).toString();
+          const role = getAccountRole(accountId, username);
+          const online = Boolean(adminState.sessions[accountId] && adminState.sessions[accountId].sessionId);
+          const label = "@" + username + " [" + role + (online ? ", online" : ", offline") + "]";
+          return '<option value="' + escapeHtml(accountId) + '">' + escapeHtml(label) + "</option>";
+        }).join("");
+        const adminActionOptions = [
+          { id: "viewinv", label: "View Inventory", perm: "panel_open" },
+          { id: "kick", label: "Kick", perm: "kick" },
+          { id: "resetinv", label: "Reset Inventory", perm: "resetinv" },
+          { id: "unban", label: "Unban", perm: "unban" },
+          { id: "tempban", label: "Temp Ban", perm: "tempban" },
+          { id: "permban", label: "Perm Ban", perm: "permban" },
+          { id: "freeze", label: "Freeze", perm: "freeze" },
+          { id: "unfreeze", label: "Unfreeze", perm: "unfreeze" },
+          { id: "godmode", label: "Godmode", perm: "godmode" },
+          { id: "setrole", label: "Set Role", perm: hasAdminPermission("setrole") ? "setrole" : "setrole_limited" },
+          { id: "give_block", label: "Give Block", perm: "give_block" },
+          { id: "give_item", label: "Give Cosmetic", perm: "give_item" },
+          { id: "give_title", label: "Add Title", perm: "give_title" },
+          { id: "remove_title", label: "Remove Title", perm: "remove_title" },
+          { id: "reach", label: "Set Reach", perm: "reach" },
+          { id: "announce_user", label: "Private Announcement", perm: "announce_user" }
+        ].filter((row) => hasAdminPermission(row.perm));
+        const actionOptionsMarkup = adminActionOptions.map((row) => {
+          return '<option value="' + escapeHtml(row.id) + '">' + escapeHtml(row.label) + "</option>";
+        }).join("");
+        const adminConsoleMarkup = `
+          <div class="admin-console admin-card">
+            <div class="admin-card-header">
+              <div class="admin-audit-title">Action Console</div>
+            </div>
+            <div class="admin-console-grid">
+              <input class="admin-console-player-filter" type="text" placeholder="Filter players...">
+              <select class="admin-console-player">${playerOptions}</select>
+              <select class="admin-console-action">${actionOptionsMarkup}</select>
+              <div class="admin-console-opt admin-console-opt-duration hidden">
+                <input class="admin-console-duration" type="text" value="15m" placeholder="60m / 12h / 7d">
+              </div>
+              <div class="admin-console-opt admin-console-opt-reason hidden">
+                <input class="admin-console-reason" type="text" maxlength="80" value="Banned by admin" placeholder="Reason">
+              </div>
+              <div class="admin-console-opt admin-console-opt-role hidden">
+                <select class="admin-console-role">
+                  ${assignable.map((r) => '<option value="' + escapeHtml(r) + '">' + escapeHtml(r) + "</option>").join("")}
+                </select>
+              </div>
+              <div class="admin-console-opt admin-console-opt-block hidden">
+                <select class="admin-console-block">
+                  ${INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
+                </select>
+              </div>
+              <div class="admin-console-opt admin-console-opt-item hidden">
+                <select class="admin-console-item">
+                  ${COSMETIC_ITEMS.map((item) => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name + " (" + item.id + ")") + "</option>").join("")}
+                </select>
+              </div>
+              <div class="admin-console-opt admin-console-opt-title hidden">
+                <select class="admin-console-title">
+                  ${TITLE_CATALOG.map((title) => '<option value="' + escapeHtml(title.id) + '">' + escapeHtml(title.name + " (" + title.id + ")") + "</option>").join("")}
+                </select>
+              </div>
+              <div class="admin-console-opt admin-console-opt-amount hidden">
+                <input class="admin-console-amount" type="number" min="1" step="1" value="1" placeholder="Amount">
+              </div>
+              <div class="admin-console-opt admin-console-opt-reach hidden">
+                <input class="admin-console-reach" type="number" min="1" max="16" step="0.1" value="4.5" placeholder="Reach tiles">
+              </div>
+              <div class="admin-console-opt admin-console-opt-godmode hidden">
+                <select class="admin-console-godmode">
+                  <option value="on">Godmode ON</option>
+                  <option value="off">Godmode OFF</option>
+                </select>
+              </div>
+              <div class="admin-console-opt admin-console-opt-message hidden">
+                <input class="admin-console-message" type="text" maxlength="140" placeholder="Message">
+              </div>
+              <button data-admin-act="runconsole">Execute</button>
+            </div>
+          </div>
+        `;
         const rows = filteredIds.map((accountId) => {
           const account = adminState.accounts[accountId] || {};
           const username = account.username || accountId;
@@ -1810,33 +1920,11 @@
           const online = Boolean(adminState.sessions[accountId] && adminState.sessions[accountId].sessionId);
           const invTotal = totalInventoryCount(adminState.inventories[accountId]);
           const role = getAccountRole(accountId, username);
-          const roleOptions = assignable.map((r) => {
-            const selected = r === role ? " selected" : "";
-            return `<option value="${escapeHtml(r)}"${selected}>${escapeHtml(r)}</option>`;
-          }).join("");
-          const canSetRole = assignable.length > 0 && canSetRoleTo(accountId, role);
-          const canTempBan = hasAdminPermission("tempban") && canActorAffectTarget(accountId, role);
-          const canPermBan = hasAdminPermission("permban") && canActorAffectTarget(accountId, role);
-          const canUnban = hasAdminPermission("unban") && canActorAffectTarget(accountId, role);
-          const canKick = hasAdminPermission("kick") && canActorAffectTarget(accountId, role);
-          const canReset = hasAdminPermission("resetinv") && canActorAffectTarget(accountId, role);
-          const canGiveBlock = hasAdminPermission("give_block") && canActorGrantTarget(accountId, role);
-          const canGiveItem = hasAdminPermission("give_item") && canActorGrantTarget(accountId, role);
-          const canGiveTitle = (hasAdminPermission("give_title") || hasAdminPermission("remove_title")) && canActorGrantTarget(accountId, role);
           const banText = banned
             ? (banStatus.type === "permanent" ? "Perm Banned" : "Temp Banned (" + formatRemainingMs(banStatus.remainingMs) + ")")
             : "Active";
           const onlineStatusClass = online ? "online" : "offline";
           const banStatusClass = banned ? "banned" : "active";
-          const roleControlMarkup = assignable.length > 0
-            ? `<div class="admin-action-group">
-                <div class="admin-action-label">Role</div>
-                <div class="admin-role-wrap">
-                <select class="admin-role-select" data-account-id="${escapeHtml(accountId)}" ${canSetRole ? "" : "disabled"}>${roleOptions}</select>
-                <button data-admin-act="setrole" data-account-id="${escapeHtml(accountId)}" ${canSetRole ? "" : "disabled"}>Set Role</button>
-                </div>
-              </div>`
-            : "";
           return `
             <div class="admin-row" data-account-id="${escapeHtml(accountId)}">
               <div class="admin-meta">
@@ -1846,68 +1934,10 @@
                   <span class="admin-status ${banStatusClass}">${escapeHtml(banText)}</span>
                   <span class="admin-status neutral">Blocks ${invTotal}</span>
                 </div>
+                <div class="admin-sub">${escapeHtml(accountId)}</div>
               </div>
-              <div class="admin-actions">
-                <div class="admin-action-group">
-                  <div class="admin-action-label">Moderation</div>
-                  <div class="admin-quick-actions">
-                    <button data-admin-act="viewinv" data-account-id="${escapeHtml(accountId)}">View Inv</button>
-                    <button data-admin-act="kick" data-account-id="${escapeHtml(accountId)}" ${canKick ? "" : "disabled"}>Kick</button>
-                    <button data-admin-act="resetinv" data-account-id="${escapeHtml(accountId)}" ${canReset ? "" : "disabled"}>Reset Inv</button>
-                    <button data-admin-act="unban" data-account-id="${escapeHtml(accountId)}" ${canUnban ? "" : "disabled"}>Unban</button>
-                    <button data-admin-act="tempban" data-account-id="${escapeHtml(accountId)}" ${canTempBan ? "" : "disabled"}>Temp Ban</button>
-                    <button data-admin-act="permban" data-account-id="${escapeHtml(accountId)}" ${canPermBan ? "" : "disabled"}>Perm Ban</button>
-                  </div>
-                </div>
-                ${roleControlMarkup}
-                <div class="admin-action-group">
-                  <div class="admin-action-label">Ban Settings</div>
-                  <div class="admin-ban-wrap">
-                    <select class="admin-ban-preset" data-account-id="${escapeHtml(accountId)}" ${canTempBan ? "" : "disabled"}>
-                      <option value="15m">15m</option>
-                      <option value="1h">1h</option>
-                      <option value="24h">24h</option>
-                      <option value="7d">7d</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                    <input class="admin-ban-duration" data-account-id="${escapeHtml(accountId)}" type="text" value="15m" placeholder="60m/12h/7d" ${canTempBan ? "" : "disabled"}>
-                    <input class="admin-ban-reason" data-account-id="${escapeHtml(accountId)}" type="text" maxlength="80" value="Banned by admin" placeholder="reason" ${(canTempBan || canPermBan) ? "" : "disabled"}>
-                  </div>
-                </div>
-                <div class="admin-action-group">
-                  <div class="admin-action-label">Give Blocks</div>
-                  <div class="admin-give-wrap">
-                    <input class="admin-give-block-filter" data-account-id="${escapeHtml(accountId)}" type="text" placeholder="Find block..." ${canGiveBlock ? "" : "disabled"}>
-                    <select class="admin-give-block" data-account-id="${escapeHtml(accountId)}" ${canGiveBlock ? "" : "disabled"}>
-                      ${INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
-                    </select>
-                    <input class="admin-give-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="10" placeholder="amount">
-                    <button data-admin-act="give" data-account-id="${escapeHtml(accountId)}" ${canGiveBlock ? "" : "disabled"}>Give</button>
-                  </div>
-                </div>
-                <div class="admin-action-group">
-                  <div class="admin-action-label">Give Cosmetics</div>
-                  <div class="admin-give-item-wrap">
-                    <input class="admin-give-item-filter" data-account-id="${escapeHtml(accountId)}" type="text" placeholder="Find cosmetic..." ${canGiveItem ? "" : "disabled"}>
-                    <select class="admin-give-item-id" data-account-id="${escapeHtml(accountId)}" ${canGiveItem ? "" : "disabled"}>
-                      ${COSMETIC_ITEMS.map((item) => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name + " (" + item.id + ")") + "</option>").join("")}
-                    </select>
-                    <input class="admin-give-item-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="1" placeholder="amount">
-                    <button data-admin-act="giveitem" data-account-id="${escapeHtml(accountId)}" ${canGiveItem ? "" : "disabled"}>Give Item</button>
-                  </div>
-                </div>
-                <div class="admin-action-group">
-                  <div class="admin-action-label">Titles</div>
-                  <div class="admin-give-item-wrap">
-                    <input class="admin-give-title-filter" data-account-id="${escapeHtml(accountId)}" type="text" placeholder="Find title..." ${canGiveTitle ? "" : "disabled"}>
-                    <select class="admin-give-title-id" data-account-id="${escapeHtml(accountId)}" ${canGiveTitle ? "" : "disabled"}>
-                      ${TITLE_CATALOG.map((title) => '<option value="' + escapeHtml(title.id) + '">' + escapeHtml(title.name + " (" + title.id + ")") + "</option>").join("")}
-                    </select>
-                    <input class="admin-give-title-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="1" placeholder="amount">
-                    <button data-admin-act="givetitle" data-account-id="${escapeHtml(accountId)}" ${canGiveTitle ? "" : "disabled"}>Add Title</button>
-                    <button data-admin-act="removetitle" data-account-id="${escapeHtml(accountId)}" ${canGiveTitle ? "" : "disabled"}>Remove Title</button>
-                  </div>
-                </div>
+              <div class="admin-actions-row">
+                <button data-admin-act="viewinv" data-account-id="${escapeHtml(accountId)}">View Inv</button>
               </div>
             </div>
           `;
@@ -1968,6 +1998,7 @@
             <div class="admin-main">
               <div class="admin-summary">
                 <div class="admin-summary-main">Signed in as <strong>${escapeHtml(playerName || "guest")}</strong> (${escapeHtml(currentAdminRole)}).</div>
+                ${adminConsoleMarkup}
                 <div class="admin-summary-stats">
                   <span class="admin-stat-chip">Showing ${filteredIds.length}/${accountIds.length}</span>
                   <span class="admin-stat-chip">Online ${onlineCount}</span>
@@ -1993,6 +2024,51 @@
         scrollElementToBottom(logsListEl);
         const antiCheatListEl = adminAccountsEl.querySelector(".admin-anticheat-list");
         scrollElementToBottom(antiCheatListEl);
+        updateAdminConsoleOptionVisibility();
+      }
+
+      function updateAdminConsoleOptionVisibility() {
+        const actionEl = adminAccountsEl.querySelector(".admin-console-action");
+        if (!(actionEl instanceof HTMLSelectElement)) return;
+        const action = String(actionEl.value || "");
+        const map = {
+          duration: adminAccountsEl.querySelector(".admin-console-opt-duration"),
+          reason: adminAccountsEl.querySelector(".admin-console-opt-reason"),
+          role: adminAccountsEl.querySelector(".admin-console-opt-role"),
+          block: adminAccountsEl.querySelector(".admin-console-opt-block"),
+          item: adminAccountsEl.querySelector(".admin-console-opt-item"),
+          title: adminAccountsEl.querySelector(".admin-console-opt-title"),
+          amount: adminAccountsEl.querySelector(".admin-console-opt-amount"),
+          reach: adminAccountsEl.querySelector(".admin-console-opt-reach"),
+          godmode: adminAccountsEl.querySelector(".admin-console-opt-godmode"),
+          message: adminAccountsEl.querySelector(".admin-console-opt-message")
+        };
+        Object.values(map).forEach((el) => {
+          if (el instanceof HTMLElement) el.classList.add("hidden");
+        });
+        if (action === "tempban") {
+          if (map.duration instanceof HTMLElement) map.duration.classList.remove("hidden");
+          if (map.reason instanceof HTMLElement) map.reason.classList.remove("hidden");
+        } else if (action === "permban") {
+          if (map.reason instanceof HTMLElement) map.reason.classList.remove("hidden");
+        } else if (action === "setrole") {
+          if (map.role instanceof HTMLElement) map.role.classList.remove("hidden");
+        } else if (action === "give_block") {
+          if (map.block instanceof HTMLElement) map.block.classList.remove("hidden");
+          if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
+        } else if (action === "give_item") {
+          if (map.item instanceof HTMLElement) map.item.classList.remove("hidden");
+          if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
+        } else if (action === "give_title" || action === "remove_title") {
+          if (map.title instanceof HTMLElement) map.title.classList.remove("hidden");
+          if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
+        } else if (action === "reach") {
+          if (map.reach instanceof HTMLElement) map.reach.classList.remove("hidden");
+        } else if (action === "godmode") {
+          if (map.godmode instanceof HTMLElement) map.godmode.classList.remove("hidden");
+        } else if (action === "announce_user") {
+          if (map.message instanceof HTMLElement) map.message.classList.remove("hidden");
+        }
       }
 
       function handleAdminAction(event) {
@@ -2000,6 +2076,17 @@
         if (!(target instanceof HTMLElement)) return;
         const action = target.dataset.adminAct;
         const accountId = target.dataset.accountId;
+        if (!action) {
+          const row = target.closest(".admin-row");
+          if (row instanceof HTMLElement) {
+            const rowAccountId = String(row.dataset.accountId || "").trim();
+            const playerSelectEl = adminAccountsEl.querySelector(".admin-console-player");
+            if (rowAccountId && playerSelectEl instanceof HTMLSelectElement) {
+              playerSelectEl.value = rowAccountId;
+            }
+          }
+          return;
+        }
         if (!action || !canUseAdminPanel) return;
         if (action === "clearaudit") {
           if (!network.db || !hasAdminPermission("clear_logs")) return;
@@ -2014,6 +2101,160 @@
         }
         if (action === "clearlogs") {
           clearLogsData();
+          return;
+        }
+        if (action === "runconsole") {
+          if (!network.db) return;
+          const playerSelectEl = adminAccountsEl.querySelector(".admin-console-player");
+          const actionSelectEl = adminAccountsEl.querySelector(".admin-console-action");
+          if (!(playerSelectEl instanceof HTMLSelectElement) || !(actionSelectEl instanceof HTMLSelectElement)) return;
+          const targetAccountId = String(playerSelectEl.value || "").trim();
+          const selectedAction = String(actionSelectEl.value || "").trim();
+          if (!targetAccountId || !selectedAction) {
+            postLocalSystemChat("Select player and action first.");
+            return;
+          }
+          const targetUsername = (adminState.accounts[targetAccountId] && adminState.accounts[targetAccountId].username) || targetAccountId;
+          if (selectedAction === "viewinv") {
+            openAdminInventoryModal(targetAccountId);
+            return;
+          }
+          if (selectedAction === "setrole") {
+            const roleSelectEl = adminAccountsEl.querySelector(".admin-console-role");
+            if (!(roleSelectEl instanceof HTMLSelectElement)) return;
+            const nextRole = normalizeAdminRole(roleSelectEl.value || "none");
+            const ok = applyAdminRoleChange(targetAccountId, nextRole, "panel");
+            if (ok) {
+              postLocalSystemChat("Role updated for @" + targetUsername + ".");
+            }
+            return;
+          }
+          if (selectedAction === "tempban") {
+            const durationEl = adminAccountsEl.querySelector(".admin-console-duration");
+            const reasonEl = adminAccountsEl.querySelector(".admin-console-reason");
+            const durationText = durationEl instanceof HTMLInputElement ? durationEl.value : "15m";
+            const reasonText = reasonEl instanceof HTMLInputElement ? reasonEl.value : "Banned by admin";
+            const durationMs = parseDurationToMs(durationText);
+            if (!durationMs) {
+              postLocalSystemChat("Invalid temp ban duration. Use 60m / 12h / 7d.");
+              return;
+            }
+            applyAdminAction("tempban", targetAccountId, "panel", { durationMs, reason: reasonText, rawDuration: durationText });
+            return;
+          }
+          if (selectedAction === "permban") {
+            const reasonEl = adminAccountsEl.querySelector(".admin-console-reason");
+            const reasonText = reasonEl instanceof HTMLInputElement ? reasonEl.value : "Banned by admin";
+            applyAdminAction("permban", targetAccountId, "panel", { reason: reasonText });
+            return;
+          }
+          if (selectedAction === "give_block") {
+            const blockEl = adminAccountsEl.querySelector(".admin-console-block");
+            const amountEl = adminAccountsEl.querySelector(".admin-console-amount");
+            if (!(blockEl instanceof HTMLSelectElement) || !(amountEl instanceof HTMLInputElement)) return;
+            const blockRef = blockEl.value || "";
+            const amount = Number(amountEl.value);
+            const ok = applyInventoryGrant(targetAccountId, blockRef, amount, "panel", targetUsername);
+            if (ok) {
+              postLocalSystemChat("Added " + amount + " of block " + blockRef + " to @" + targetUsername + ".");
+            }
+            return;
+          }
+          if (selectedAction === "give_item") {
+            const itemEl = adminAccountsEl.querySelector(".admin-console-item");
+            const amountEl = adminAccountsEl.querySelector(".admin-console-amount");
+            if (!(itemEl instanceof HTMLSelectElement) || !(amountEl instanceof HTMLInputElement)) return;
+            const itemId = itemEl.value || "";
+            const amount = Number(amountEl.value);
+            const ok = applyCosmeticItemGrant(targetAccountId, itemId, amount, "panel", targetUsername);
+            if (ok) {
+              postLocalSystemChat("Added item " + itemId + " x" + amount + " to @" + targetUsername + ".");
+            }
+            return;
+          }
+          if (selectedAction === "give_title" || selectedAction === "remove_title") {
+            const titleEl = adminAccountsEl.querySelector(".admin-console-title");
+            const amountEl = adminAccountsEl.querySelector(".admin-console-amount");
+            if (!(titleEl instanceof HTMLSelectElement) || !(amountEl instanceof HTMLInputElement)) return;
+            const titleId = titleEl.value || "";
+            const amount = Number(amountEl.value);
+            const removeMode = selectedAction === "remove_title";
+            const ok = applyTitleGrant(targetAccountId, titleId, amount, "panel", targetUsername, removeMode);
+            if (ok) {
+              postLocalSystemChat((removeMode ? "Removed title " : "Added title ") + titleId + " x" + amount + (removeMode ? " from @" : " to @") + targetUsername + ".");
+            }
+            return;
+          }
+          if (selectedAction === "reach") {
+            if (!hasAdminPermission("reach")) {
+              postLocalSystemChat("Permission denied.");
+              return;
+            }
+            if (!ensureCommandReady("reach")) return;
+            const reachEl = adminAccountsEl.querySelector(".admin-console-reach");
+            const amountRaw = reachEl instanceof HTMLInputElement ? Number(reachEl.value) : NaN;
+            if (!Number.isFinite(amountRaw)) {
+              postLocalSystemChat("Invalid reach amount.");
+              return;
+            }
+            const targetRole = getAccountRole(targetAccountId, targetUsername);
+            if (targetAccountId !== playerProfileId && !canActorAffectTarget(targetAccountId, targetRole)) {
+              postLocalSystemChat("Permission denied on target role.");
+              return;
+            }
+            const amount = Math.max(1, Math.min(16, Math.round(amountRaw * 10) / 10));
+            issueReachCommand(targetAccountId, amount).then((ok) => {
+              if (!ok) {
+                postLocalSystemChat("Failed to set reach for @" + targetUsername + ".");
+                return;
+              }
+              postLocalSystemChat("Set @" + targetUsername + " reach to " + amount.toFixed(1) + " tiles.");
+              logAdminAudit("Admin(panel) set reach for @" + targetUsername + " to " + amount.toFixed(1) + ".");
+              pushAdminAuditEntry("reach", targetAccountId, "amount=" + amount.toFixed(1));
+            }).catch(() => {
+              postLocalSystemChat("Failed to set reach for @" + targetUsername + ".");
+            });
+            return;
+          }
+          if (selectedAction === "announce_user") {
+            if (!hasAdminPermission("announce_user")) {
+              postLocalSystemChat("Permission denied.");
+              return;
+            }
+            if (!ensureCommandReady("announcep")) return;
+            const msgEl = adminAccountsEl.querySelector(".admin-console-message");
+            const msg = msgEl instanceof HTMLInputElement ? String(msgEl.value || "").trim() : "";
+            if (!msg) {
+              postLocalSystemChat("Message is required.");
+              return;
+            }
+            const targetRole = getAccountRole(targetAccountId, targetUsername);
+            if (!canActorAffectTarget(targetAccountId, targetRole)) {
+              postLocalSystemChat("Permission denied on target role.");
+              return;
+            }
+            issuePrivateAnnouncement(targetAccountId, msg).then((ok) => {
+              if (!ok) {
+                postLocalSystemChat("Failed to send private announcement.");
+                return;
+              }
+              postLocalSystemChat("Private announcement sent to @" + targetUsername + ".");
+              logAdminAudit("Admin(panel) private announced to @" + targetUsername + ".");
+              pushAdminAuditEntry("announce_user", targetAccountId, msg.slice(0, 80));
+            });
+            return;
+          }
+          if (selectedAction === "godmode") {
+            const modeEl = adminAccountsEl.querySelector(".admin-console-godmode");
+            const mode = modeEl instanceof HTMLSelectElement ? String(modeEl.value || "on") : "on";
+            const enabled = mode !== "off";
+            const ok = applyAdminAction("godmode", targetAccountId, "panel", { enabled });
+            if (ok) {
+              postLocalSystemChat("Set godmode " + (enabled ? "ON" : "OFF") + " for @" + targetUsername + ".");
+            }
+            return;
+          }
+          applyAdminAction(selectedAction, targetAccountId, "panel");
           return;
         }
         if (!accountId) return;
@@ -2094,6 +2335,28 @@
       function handleAdminInputChange(event) {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
+        if (target instanceof HTMLSelectElement && target.classList.contains("admin-console-action")) {
+          updateAdminConsoleOptionVisibility();
+          return;
+        }
+        if (target instanceof HTMLInputElement && target.classList.contains("admin-console-player-filter")) {
+          const select = adminAccountsEl.querySelector(".admin-console-player");
+          if (!(select instanceof HTMLSelectElement)) return;
+          const query = String(target.value || "").trim().toLowerCase();
+          let firstVisible = "";
+          for (let i = 0; i < select.options.length; i++) {
+            const option = select.options[i];
+            const label = String(option.text || "").toLowerCase();
+            const value = String(option.value || "").toLowerCase();
+            const visible = !query || label.includes(query) || value.includes(query);
+            option.hidden = !visible;
+            if (visible && !firstVisible) firstVisible = option.value;
+          }
+          if (firstVisible && (select.selectedOptions.length === 0 || select.selectedOptions[0].hidden)) {
+            select.value = firstVisible;
+          }
+          return;
+        }
         if (target instanceof HTMLSelectElement && target.classList.contains("admin-ban-preset")) {
           const accountId = target.dataset.accountId;
           if (!accountId) return;
@@ -2613,6 +2876,15 @@
           }).catch(() => {});
           return true;
         }
+        if (action === "godmode") {
+          const enabled = Boolean(options.enabled);
+          issueGodModeCommand(accountId, enabled).then((ok) => {
+            if (!ok) return;
+            logAdminAudit("Admin(" + sourceTag + ") set godmode " + (enabled ? "ON" : "OFF") + " for account " + accountId + ".");
+            pushAdminAuditEntry("godmode", accountId, "enabled=" + (enabled ? "1" : "0"));
+          }).catch(() => {});
+          return true;
+        }
         if (action === "resetinv") {
           const cosmeticItems = {};
           for (const item of COSMETIC_ITEMS) {
@@ -2760,6 +3032,20 @@
           .catch(() => false);
       }
 
+      function issueGodModeCommand(targetAccountId, enabled) {
+        if (!network.db || !targetAccountId) return Promise.resolve(false);
+        const commandId = "god_" + Math.random().toString(36).slice(2, 12);
+        const payload = {
+          id: commandId,
+          enabled: Boolean(enabled),
+          by: (playerName || "admin").toString().slice(0, 20),
+          issuedAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        return network.db.ref(BASE_PATH + "/account-commands/" + targetAccountId + "/godmode").set(payload)
+          .then(() => true)
+          .catch(() => false);
+      }
+
       function issuePrivateAnnouncement(targetAccountId, messageText) {
         if (!network.db || !targetAccountId) return Promise.resolve(false);
         const commandId = "pa_" + Math.random().toString(36).slice(2, 12);
@@ -2834,6 +3120,19 @@
         }
       }
 
+      function setGodModeState(nextEnabled, byName) {
+        const enabled = Boolean(nextEnabled);
+        isGodModeByAdmin = enabled;
+        const actor = (byName || "").toString().slice(0, 20);
+        if (enabled) {
+          const suffix = actor ? " by @" + actor : "";
+          postLocalSystemChat("Godmode enabled" + suffix + ".");
+          return;
+        }
+        const suffix = actor ? " by @" + actor : "";
+        postLocalSystemChat("Godmode disabled" + suffix + ".");
+      }
+
       function shouldBlockActionForFreeze() {
         if (!isFrozenByAdmin) return false;
         const now = performance.now();
@@ -2906,9 +3205,11 @@
           refreshAuditActionFilterOptions,
           renderAdminPanel,
           playerProfileId,
+          isGodModeEnabled: () => isGodModeByAdmin,
           issueTeleportCommand,
           player,
           applyAdminAction,
+          clearCurrentWorldToBedrock,
           parseBlockRef,
           INVENTORY_IDS,
           applyInventoryGrant,
@@ -3538,22 +3839,62 @@
       }
 
       function getSpawnStructureTiles() {
-        if (typeof worldModule.getSpawnStructureTiles === "function") {
-          return worldModule.getSpawnStructureTiles(SPAWN_TILE_X, SPAWN_TILE_Y, SPAWN_DOOR_ID, SPAWN_BASE_ID);
-        }
+        const safeTx = Math.max(0, Math.min(WORLD_W - 1, Math.floor(Number(spawnTileX))));
+        const safeTy = Math.max(0, Math.min(WORLD_H - 2, Math.floor(Number(spawnTileY))));
         return {
-          door: { tx: SPAWN_TILE_X, ty: SPAWN_TILE_Y, id: SPAWN_DOOR_ID },
-          base: { tx: SPAWN_TILE_X, ty: SPAWN_TILE_Y + 1, id: SPAWN_BASE_ID }
+          door: { tx: safeTx, ty: safeTy, id: SPAWN_DOOR_ID },
+          base: { tx: safeTx, ty: safeTy + 1, id: SPAWN_BASE_ID }
         };
+      }
+
+      function setSpawnStructureTile(tx, ty) {
+        const safeTx = Math.max(0, Math.min(WORLD_W - 1, Math.floor(Number(tx) || SPAWN_TILE_X)));
+        const safeTy = Math.max(0, Math.min(WORLD_H - 2, Math.floor(Number(ty) || SPAWN_TILE_Y)));
+        spawnTileX = safeTx;
+        spawnTileY = safeTy;
+      }
+
+      function resetSpawnStructureTile() {
+        setSpawnStructureTile(SPAWN_TILE_X, SPAWN_TILE_Y);
+      }
+
+      function refreshSpawnStructureFromWorld() {
+        for (let ty = 0; ty < WORLD_H; ty++) {
+          const row = world[ty];
+          if (!Array.isArray(row)) continue;
+          for (let tx = 0; tx < WORLD_W; tx++) {
+            if (row[tx] === SPAWN_DOOR_ID) {
+              setSpawnStructureTile(tx, ty);
+              return;
+            }
+          }
+        }
+        resetSpawnStructureTile();
+      }
+
+      function applySpawnStructureFromBlockMap(blockMap) {
+        const data = blockMap && typeof blockMap === "object" ? blockMap : {};
+        for (const [key, rawId] of Object.entries(data)) {
+          if (Math.floor(Number(rawId)) !== SPAWN_DOOR_ID) continue;
+          const parts = String(key).split("_");
+          if (parts.length !== 2) continue;
+          const tx = Math.floor(Number(parts[0]));
+          const ty = Math.floor(Number(parts[1]));
+          if (!Number.isInteger(tx) || !Number.isInteger(ty)) continue;
+          if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) continue;
+          setSpawnStructureTile(tx, ty);
+          return true;
+        }
+        return false;
       }
 
       function applySpawnStructureToGrid(grid) {
         if (!Array.isArray(grid) || !grid.length) return;
+        const tiles = getSpawnStructureTiles();
         if (typeof worldModule.applySpawnStructureToGrid === "function") {
-          worldModule.applySpawnStructureToGrid(grid, WORLD_W, WORLD_H, SPAWN_TILE_X, SPAWN_TILE_Y, SPAWN_DOOR_ID, SPAWN_BASE_ID);
+          worldModule.applySpawnStructureToGrid(grid, WORLD_W, WORLD_H, tiles.door.tx, tiles.door.ty, SPAWN_DOOR_ID, SPAWN_BASE_ID);
           return;
         }
-        const tiles = getSpawnStructureTiles();
         grid[tiles.door.ty][tiles.door.tx] = tiles.door.id;
         grid[tiles.base.ty][tiles.base.tx] = tiles.base.id;
       }
@@ -3650,8 +3991,9 @@
         if (blockSyncer && typeof blockSyncer.reset === "function") {
           blockSyncer.reset();
         }
-        player.x = TILE * SPAWN_TILE_X;
-        player.y = TILE * SPAWN_TILE_Y;
+        const spawn = getSpawnStructureTiles().door;
+        player.x = TILE * spawn.tx;
+        player.y = TILE * spawn.ty;
         player.vx = 0;
         player.vy = 0;
         ensurePlayerSafeSpawn(true);
@@ -3866,6 +4208,9 @@
         if (network.myFreezeRef && network.handlers.myFreeze) {
           network.myFreezeRef.off("value", network.handlers.myFreeze);
         }
+        if (network.myGodModeRef && network.handlers.myGodMode) {
+          network.myGodModeRef.off("value", network.handlers.myGodMode);
+        }
         if (network.myPrivateAnnouncementRef && network.handlers.myPrivateAnnouncement) {
           network.myPrivateAnnouncementRef.off("value", network.handlers.myPrivateAnnouncement);
         }
@@ -4050,9 +4395,14 @@
         lastHandledTeleportCommandId = "";
         lastHandledReachCommandId = "";
         lastHandledFreezeCommandId = "";
+        lastHandledGodModeCommandId = "";
         lastHandledPrivateAnnouncementId = "";
         isFrozenByAdmin = false;
+        isGodModeByAdmin = false;
         frozenByAdminBy = "";
+        worldIndexMetaById = {};
+        worldLockOwnerCache.clear();
+        ownedWorldScanInFlight = false;
         danceUntilMs = 0;
         currentAdminRole = "none";
         hasSeenAdminRoleSnapshot = false;
@@ -4276,12 +4626,16 @@
 
       function getRotatedBlockId(id) {
         const idx = STAIR_ROTATION_IDS.indexOf(id);
-        if (idx < 0) return 0;
-        return STAIR_ROTATION_IDS[(idx + 1) % STAIR_ROTATION_IDS.length];
+        if (idx >= 0) return STAIR_ROTATION_IDS[(idx + 1) % STAIR_ROTATION_IDS.length];
+        const spikeIdx = SPIKE_ROTATION_IDS.indexOf(id);
+        if (spikeIdx >= 0) return SPIKE_ROTATION_IDS[(spikeIdx + 1) % SPIKE_ROTATION_IDS.length];
+        return 0;
       }
 
       function getInventoryDropId(id) {
-        return STAIR_ROTATION_IDS.includes(id) ? STAIR_BASE_ID : id;
+        if (STAIR_ROTATION_IDS.includes(id)) return STAIR_BASE_ID;
+        if (SPIKE_ROTATION_IDS.includes(id)) return SPIKE_BASE_ID;
+        return id;
       }
 
       function isPlantSeedBlockId(id) {
@@ -5114,14 +5468,60 @@
             username: username || ""
           };
         }
+        const bansRaw = value.bans && typeof value.bans === "object" ? value.bans : {};
+        const bans = {};
+        for (const [accountId, entry] of Object.entries(bansRaw)) {
+          const safeAccountId = String(accountId || "").trim();
+          if (!safeAccountId || safeAccountId === ownerAccountId) continue;
+          const row = entry && typeof entry === "object" ? entry : {};
+          const username = normalizeUsername((row.username || "").toString()) || "";
+          const byUsername = normalizeUsername((row.byUsername || "").toString()) || "";
+          const expiresAtRaw = Number(row.expiresAt);
+          const expiresAt = Number.isFinite(expiresAtRaw) ? Math.max(0, Math.floor(expiresAtRaw)) : 0;
+          bans[safeAccountId] = {
+            username,
+            byAccountId: String(row.byAccountId || "").trim(),
+            byUsername,
+            createdAt: typeof row.createdAt === "number" ? row.createdAt : 0,
+            expiresAt
+          };
+        }
         return {
           ownerAccountId,
           ownerName: (value.ownerName || "").toString(),
           tx: Number.isInteger(value.tx) ? value.tx : Number(value.tx) || 0,
           ty: Number.isInteger(value.ty) ? value.ty : Number(value.ty) || 0,
           createdAt: typeof value.createdAt === "number" ? value.createdAt : 0,
-          admins
+          admins,
+          bans
         };
+      }
+
+      function getWorldBanStatusForAccount(lock, accountId, nowMs) {
+        const now = Number(nowMs) || Date.now();
+        const safeAccountId = String(accountId || "").trim();
+        if (!lock || !safeAccountId || !lock.bans || !lock.bans[safeAccountId]) return { active: false, permanent: false, remainingMs: 0 };
+        const row = lock.bans[safeAccountId] || {};
+        const expiresAt = Math.floor(Number(row.expiresAt) || 0);
+        if (expiresAt > 0 && expiresAt <= now) return { active: false, permanent: false, remainingMs: 0 };
+        if (expiresAt <= 0) return { active: true, permanent: true, remainingMs: Infinity };
+        return { active: true, permanent: false, remainingMs: Math.max(0, expiresAt - now) };
+      }
+
+      function getCurrentWorldBanStatus() {
+        return getWorldBanStatusForAccount(currentWorldLock, playerProfileId, Date.now());
+      }
+
+      function ensureNotWorldBanned(lock, worldId) {
+        const ban = getWorldBanStatusForAccount(lock, playerProfileId, Date.now());
+        if (!ban.active) return true;
+        const worldLabel = (worldId || currentWorldId || "this world").toString();
+        if (ban.permanent) {
+          postLocalSystemChat("You are banned from " + worldLabel + " until the owner unbans you.");
+        } else {
+          postLocalSystemChat("You are banned from " + worldLabel + " for " + formatRemainingMs(ban.remainingMs) + ".");
+        }
+        return false;
       }
 
       function isWorldLocked() {
@@ -5184,21 +5584,46 @@
           .sort((a, b) => a.username.localeCompare(b.username));
       }
 
+      function getWorldLockBansList() {
+        if (!currentWorldLock || !currentWorldLock.bans) return [];
+        const now = Date.now();
+        return Object.entries(currentWorldLock.bans)
+          .map(([accountId, data]) => {
+            const username = normalizeUsername(data && data.username ? data.username : "") || accountId;
+            const status = getWorldBanStatusForAccount(currentWorldLock, accountId, now);
+            return { accountId, username, status, expiresAt: Math.floor(Number(data && data.expiresAt) || 0) };
+          })
+          .filter((row) => row.status.active)
+          .sort((a, b) => a.username.localeCompare(b.username));
+      }
+
       function renderWorldLockModal() {
-        if (!worldLockModalEl || !worldLockTitleEl || !worldLockAdminsEl) return;
+        if (!worldLockModalEl || !worldLockTitleEl || !worldLockAdminsEl || !worldLockBansEl) return;
         const owner = (currentWorldLock && currentWorldLock.ownerName ? currentWorldLock.ownerName : "owner").toString();
         worldLockTitleEl.textContent = "World Lock - @" + owner;
         const rows = getWorldLockAdminsList();
         if (!rows.length) {
           worldLockAdminsEl.innerHTML = "<div class='worldlock-admin-empty'>No world admins.</div>";
-          return;
+        } else {
+          worldLockAdminsEl.innerHTML = rows.map((row) => {
+            return "<div class='worldlock-admin-row'>" +
+              "<span class='worldlock-admin-name'>@" + escapeHtml(row.username) + "</span>" +
+              "<button type='button' data-worldlock-remove='" + escapeHtml(row.accountId) + "'>Remove</button>" +
+              "</div>";
+          }).join("");
         }
-        worldLockAdminsEl.innerHTML = rows.map((row) => {
-          return "<div class='worldlock-admin-row'>" +
-            "<span class='worldlock-admin-name'>@" + escapeHtml(row.username) + "</span>" +
-            "<button type='button' data-worldlock-remove='" + escapeHtml(row.accountId) + "'>Remove</button>" +
-            "</div>";
-        }).join("");
+        const bans = getWorldLockBansList();
+        if (!bans.length) {
+          worldLockBansEl.innerHTML = "<div class='worldlock-admin-empty'>No world bans.</div>";
+        } else {
+          worldLockBansEl.innerHTML = bans.map((row) => {
+            const statusText = row.status.permanent ? "Perm" : ("1h (" + formatRemainingMs(row.status.remainingMs) + ")");
+            return "<div class='worldlock-admin-row'>" +
+              "<span class='worldlock-admin-name'>@" + escapeHtml(row.username) + " - " + escapeHtml(statusText) + "</span>" +
+              "<button type='button' data-worldlock-unban='" + escapeHtml(row.accountId) + "'>Unban</button>" +
+              "</div>";
+          }).join("");
+        }
       }
 
       function openWorldLockModal(tx, ty) {
@@ -5212,6 +5637,7 @@
         if (!Number.isInteger(lockTx) || !Number.isInteger(lockTy) || tx !== lockTx || ty !== lockTy) return;
         worldLockEditContext = { tx, ty };
         if (worldLockAdminInputEl) worldLockAdminInputEl.value = "";
+        if (worldLockBanInputEl) worldLockBanInputEl.value = "";
         renderWorldLockModal();
         worldLockModalEl.classList.remove("hidden");
       }
@@ -5279,6 +5705,49 @@
         }).catch(() => {
           postLocalSystemChat("Failed to add world admin.");
         });
+      }
+
+      async function setWorldBanByUsername(rawUsername, durationMs) {
+        if (!network.enabled || !network.lockRef || !isWorldLocked() || !isWorldLockOwner()) return;
+        const username = normalizeUsername(rawUsername);
+        if (!username) {
+          postLocalSystemChat("Enter a valid username.");
+          return;
+        }
+        const accountId = await resolveAccountIdByUsername(username);
+        if (!accountId) {
+          postLocalSystemChat("User not found.");
+          return;
+        }
+        if (accountId === currentWorldLock.ownerAccountId) {
+          postLocalSystemChat("You cannot ban the world owner.");
+          return;
+        }
+        const expiresAt = Number(durationMs) > 0 ? (Date.now() + Math.floor(Number(durationMs))) : 0;
+        network.lockRef.child("bans").child(accountId).set({
+          username,
+          byAccountId: playerProfileId || "",
+          byUsername: normalizeUsername(playerName || "") || "",
+          createdAt: firebase.database.ServerValue.TIMESTAMP,
+          expiresAt
+        }).then(() => {
+          postLocalSystemChat("Banned @" + username + (expiresAt > 0 ? " for 1 hour." : " until unban."));
+        }).catch(() => {
+          postLocalSystemChat("Failed to ban user.");
+        });
+      }
+
+      function unbanWorldPlayer(accountId) {
+        if (!network.enabled || !network.lockRef || !isWorldLocked() || !isWorldLockOwner()) return;
+        const safeAccountId = (accountId || "").toString().trim();
+        if (!safeAccountId) return;
+        network.lockRef.child("bans").child(safeAccountId).remove()
+          .then(() => {
+            postLocalSystemChat("Player unbanned from world.");
+          })
+          .catch(() => {
+            postLocalSystemChat("Failed to unban player.");
+          });
       }
 
       function isProtectedSpawnTile(tx, ty) {
@@ -5541,7 +6010,7 @@
           snapPlayerToStairSurface();
         }
 
-        if (rectTouchesLethal(player.x, player.y, PLAYER_W, PLAYER_H)) {
+        if (!isGodModeByAdmin && rectTouchesLethal(player.x, player.y, PLAYER_W, PLAYER_H)) {
           if ((nowMs - lastSpikeKillAtMs) >= SPIKE_KILL_COOLDOWN_MS) {
             lastSpikeKillAtMs = nowMs;
             respawnPlayerAtDoor();
@@ -5715,6 +6184,36 @@
               ctx.fill();
               ctx.fillStyle = "rgba(255,255,255,0.11)";
               ctx.fillRect(x + 2, y + 2, TILE - 4, 4);
+              drawBlockDamageOverlay(tx, ty, id, x, y);
+              continue;
+            }
+
+            if (SPIKE_ROTATION_IDS.includes(id)) {
+              if (drawSpikeImage(id, def, x, y)) {
+                drawBlockDamageOverlay(tx, ty, id, x, y);
+                continue;
+              }
+              ctx.fillStyle = def.color || "#8d9aae";
+              ctx.beginPath();
+              if (id === 33) {
+                ctx.moveTo(x, y + TILE);
+                ctx.lineTo(x, y);
+                ctx.lineTo(x + TILE, y + TILE);
+              } else if (id === 37) {
+                ctx.moveTo(x, y + TILE);
+                ctx.lineTo(x + TILE, y);
+                ctx.lineTo(x + TILE, y + TILE);
+              } else if (id === 38) {
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + TILE, y);
+                ctx.lineTo(x + TILE, y + TILE);
+              } else {
+                ctx.moveTo(x, y);
+                ctx.lineTo(x, y + TILE);
+                ctx.lineTo(x + TILE, y);
+              }
+              ctx.closePath();
+              ctx.fill();
               drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
@@ -6082,6 +6581,25 @@
         return true;
       }
 
+      function drawSpikeImage(id, def, x, y) {
+        const baseDef = blockDefs[SPIKE_BASE_ID] || def;
+        const img = getBlockImage(baseDef) || getBlockImage(def);
+        if (!img) return false;
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.translate(x + TILE * 0.5, y + TILE * 0.5);
+        if (id === 37) {
+          ctx.scale(-1, 1);
+        } else if (id === 38) {
+          ctx.scale(-1, -1);
+        } else if (id === 39) {
+          ctx.scale(1, -1);
+        }
+        ctx.drawImage(img, -TILE * 0.5, -TILE * 0.5, TILE, TILE);
+        ctx.restore();
+        return true;
+      }
+
       function drawTreePlant(tx, ty, x, y) {
         const ctrl = getPlantsController();
         if (!ctrl || typeof ctrl.drawTree !== "function") return;
@@ -6090,23 +6608,29 @@
         if (!plant || typeof ctrl.getGrowthState !== "function") return;
         const growth = ctrl.getGrowthState(plant);
         if (!growth || growth.mature) return;
+        const playerTx = Math.floor((player.x + PLAYER_W / 2) / TILE);
+        const playerTy = Math.floor((player.y + PLAYER_H / 2) / TILE);
+        if (playerTx !== tx || playerTy !== ty) return;
         const growMs = Math.max(1, Math.floor(Number(plant.growMs) || TREE_GROW_MS));
         const plantedAt = Math.max(0, Math.floor(Number(plant.plantedAt) || 0));
         const remainingMs = Math.max(0, (plantedAt + growMs) - Date.now());
-        const remainingSec = Math.max(1, Math.ceil(remainingMs / 1000));
-        const label = remainingSec + "s";
+        const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
+        const label = "Grow: " + remainingSec + "s";
         ctx.save();
-        ctx.font = "10px 'Trebuchet MS', sans-serif";
-        const w = Math.ceil(ctx.measureText(label).width) + 6;
-        const h = 12;
-        const bx = x + Math.floor((TILE - w) / 2);
-        const by = y + 2;
-        ctx.fillStyle = "rgba(8, 22, 34, 0.82)";
+        ctx.font = "11px 'Trebuchet MS', sans-serif";
+        const w = Math.ceil(ctx.measureText(label).width) + 10;
+        const h = 15;
+        let bx = x + Math.floor((TILE - w) / 2);
+        const by = y - h - 4;
+        const viewW = getCameraViewWidth();
+        if (bx < 4) bx = 4;
+        if (bx + w > viewW - 4) bx = viewW - 4 - w;
+        ctx.fillStyle = "rgba(8, 22, 34, 0.88)";
         ctx.fillRect(bx, by, w, h);
         ctx.strokeStyle = "rgba(255,255,255,0.28)";
         ctx.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
         ctx.fillStyle = "#f7fbff";
-        ctx.fillText(label, bx + 3, by + 9);
+        ctx.fillText(label, bx + 5, by + 11);
         ctx.restore();
       }
 
@@ -6799,9 +7323,148 @@
         return null;
       }
 
+      function clearWorldRuntimePlacementData() {
+        const vendingCtrl = getVendingController();
+        if (vendingCtrl && typeof vendingCtrl.clearAll === "function") vendingCtrl.clearAll();
+        const donationCtrl = getDonationController();
+        if (donationCtrl && typeof donationCtrl.clearAll === "function") donationCtrl.clearAll();
+        const chestCtrl = getChestController();
+        if (chestCtrl && typeof chestCtrl.clearAll === "function") chestCtrl.clearAll();
+        const signCtrl = getSignController();
+        if (signCtrl && typeof signCtrl.clearAll === "function") signCtrl.clearAll();
+        displayItemsByTile.clear();
+        doorAccessByTile.clear();
+        antiGravityByTile.clear();
+        cameraConfigsByTile.clear();
+        cameraLogsByTile.clear();
+        currentWorldWeather = null;
+      }
+
+      function clearCurrentWorldToBedrock(sourceTag) {
+        if (!inWorld) {
+          postLocalSystemChat("Enter a world first.");
+          return false;
+        }
+        const preserveLockTx = Number(currentWorldLock && currentWorldLock.tx);
+        const preserveLockTy = Number(currentWorldLock && currentWorldLock.ty);
+        const preserveLock = Number.isInteger(preserveLockTx) && Number.isInteger(preserveLockTy);
+        const spawnTiles = getSpawnStructureTiles();
+        const updates = {};
+        let changed = 0;
+        for (let ty = 0; ty < WORLD_H; ty++) {
+          for (let tx = 0; tx < WORLD_W; tx++) {
+            let nextId = 0;
+            if (ty >= WORLD_H - 2) {
+              nextId = SPAWN_BASE_ID;
+            } else if (tx === spawnTiles.door.tx && ty === spawnTiles.door.ty) {
+              nextId = SPAWN_DOOR_ID;
+            } else if (tx === spawnTiles.base.tx && ty === spawnTiles.base.ty) {
+              nextId = SPAWN_BASE_ID;
+            } else if (preserveLock && tx === preserveLockTx && ty === preserveLockTy) {
+              nextId = WORLD_LOCK_ID;
+            }
+            if (world[ty][tx] === nextId) continue;
+            world[ty][tx] = nextId;
+            clearTileDamage(tx, ty);
+            updates[tx + "_" + ty] = nextId;
+            changed++;
+          }
+        }
+        clearWorldRuntimePlacementData();
+        clearWorldDrops();
+        closeVendingModal();
+        closeDonationModal();
+        closeChestModal();
+        closeSignModal();
+        closeDoorModal();
+        closeCameraModal();
+        closeWeatherModal();
+        if (network.enabled) {
+          const dbOps = [];
+          if (network.blocksRef && Object.keys(updates).length) {
+            dbOps.push(network.blocksRef.update(updates));
+          }
+          if (network.hitsRef) dbOps.push(network.hitsRef.remove());
+          if (network.dropsRef) dbOps.push(network.dropsRef.remove());
+          if (network.vendingRef) dbOps.push(network.vendingRef.remove());
+          if (network.donationRef) dbOps.push(network.donationRef.remove());
+          if (network.chestsRef) dbOps.push(network.chestsRef.remove());
+          if (network.signsRef) dbOps.push(network.signsRef.remove());
+          if (network.displaysRef) dbOps.push(network.displaysRef.remove());
+          if (network.doorsRef) dbOps.push(network.doorsRef.remove());
+          if (network.antiGravRef) dbOps.push(network.antiGravRef.remove());
+          if (network.plantsRef) dbOps.push(network.plantsRef.remove());
+          if (network.weatherRef) dbOps.push(network.weatherRef.remove());
+          if (network.camerasRef) dbOps.push(network.camerasRef.remove());
+          if (network.cameraLogsRef) dbOps.push(network.cameraLogsRef.remove());
+          Promise.allSettled(dbOps).finally(() => {
+            if (network.enabled) syncPlayer(true);
+          });
+        }
+        enforceSpawnStructureInWorldData();
+        ensurePlayerSafeSpawn(true);
+        logAdminAudit("Admin(" + (sourceTag || "panel") + ") cleared world " + currentWorldId + " to bedrock.");
+        pushAdminAuditEntry("clearworld", "", "world=" + currentWorldId + " changed=" + changed);
+        postLocalSystemChat("World cleared to bedrock (" + changed + " tiles updated).");
+        return true;
+      }
+
+      function tryUseSpawnMover(tx, ty) {
+        if (!inWorld) return false;
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return false;
+        if (!canEditTarget(tx, ty)) return false;
+        if (!canEditCurrentWorld()) {
+          notifyWorldLockedDenied();
+          return false;
+        }
+        if (ty >= WORLD_H - 2) {
+          postLocalSystemChat("Spawn door must be above the bedrock floor.");
+          return false;
+        }
+        if (inventory[SPAWN_MOVER_ID] <= 0) return false;
+        if (tileOccupiedByAnyPlayer(tx, ty) || tileOccupiedByAnyPlayer(tx, ty + 1)) {
+          postLocalSystemChat("Cannot move spawn onto a player.");
+          return false;
+        }
+        const targetDoorId = world[ty][tx];
+        const targetBaseId = world[ty + 1][tx];
+        const canUseDoorTile = targetDoorId === 0;
+        const canUseBaseTile = targetBaseId === 0 || targetBaseId === SPAWN_BASE_ID;
+        if (!canUseDoorTile || !canUseBaseTile) {
+          postLocalSystemChat("Target door tile must be empty (base can be empty/bedrock).");
+          return false;
+        }
+        const oldTiles = getSpawnStructureTiles();
+        world[oldTiles.door.ty][oldTiles.door.tx] = 0;
+        world[oldTiles.base.ty][oldTiles.base.tx] = 0;
+        clearTileDamage(oldTiles.door.tx, oldTiles.door.ty);
+        clearTileDamage(oldTiles.base.tx, oldTiles.base.ty);
+        syncBlock(oldTiles.door.tx, oldTiles.door.ty, 0);
+        syncBlock(oldTiles.base.tx, oldTiles.base.ty, 0);
+
+        setSpawnStructureTile(tx, ty);
+        const nextTiles = getSpawnStructureTiles();
+        world[nextTiles.door.ty][nextTiles.door.tx] = SPAWN_DOOR_ID;
+        world[nextTiles.base.ty][nextTiles.base.tx] = SPAWN_BASE_ID;
+        clearTileDamage(nextTiles.door.tx, nextTiles.door.ty);
+        clearTileDamage(nextTiles.base.tx, nextTiles.base.ty);
+        syncBlock(nextTiles.door.tx, nextTiles.door.ty, SPAWN_DOOR_ID);
+        syncBlock(nextTiles.base.tx, nextTiles.base.ty, SPAWN_BASE_ID);
+
+        inventory[SPAWN_MOVER_ID] = Math.max(0, Math.floor((inventory[SPAWN_MOVER_ID] || 0) - 1));
+        saveInventory();
+        refreshToolbar();
+        postLocalSystemChat("Spawn moved to " + tx + "," + ty + ".");
+        return true;
+      }
+
       function tryPlace(tx, ty) {
         const id = slotOrder[selectedSlot];
         if (typeof id !== "number") return;
+        if (id === SPAWN_MOVER_ID) {
+          tryUseSpawnMover(tx, ty);
+          return;
+        }
         if (!canEditTarget(tx, ty)) return;
         if (isProtectedSpawnTile(tx, ty)) return;
         if (!canEditCurrentWorld()) {
@@ -7137,7 +7800,19 @@
         world[ty][tx] = 0;
         const dropId = getInventoryDropId(id);
         if (INVENTORY_IDS.includes(dropId)) {
-          inventory[dropId] = (inventory[dropId] || 0) + 1;
+          const currentCount = Math.max(0, Math.floor(Number(inventory[dropId]) || 0));
+          if (currentCount >= INVENTORY_ITEM_LIMIT) {
+            if (Math.random() < (1 / 3)) {
+              spawnWorldDropEntry(
+                { type: "block", blockId: dropId },
+                1,
+                tx * TILE,
+                ty * TILE
+              );
+            }
+          } else {
+            inventory[dropId] = currentCount + 1;
+          }
         }
         const seedDropId = SEED_DROP_BY_BLOCK_ID[id] || 0;
         if (seedDropId && Math.random() < SEED_DROP_CHANCE) {
@@ -7494,6 +8169,88 @@
         return true;
       }
 
+      function spawnWorldDropEntry(entry, amount, dropX, dropY) {
+        if (!inWorld || !entry) return false;
+        const qty = Math.max(1, Math.floor(Number(amount) || 1));
+        const worldX = Number.isFinite(dropX) ? dropX : (player.x + (PLAYER_W / 2) - (TILE / 2));
+        const worldY = Number.isFinite(dropY) ? dropY : (player.y + PLAYER_H - TILE);
+        const clampedX = Math.max(0, Math.min(worldX, WORLD_W * TILE - TILE));
+        const clampedY = Math.max(0, Math.min(worldY, WORLD_H * TILE - TILE));
+
+        const payload = {
+          type: entry.type,
+          blockId: 0,
+          cosmeticId: "",
+          toolId: "",
+          amount: qty,
+          x: clampedX,
+          y: clampedY,
+          ownerAccountId: playerProfileId || "",
+          ownerSessionId: playerSessionId || "",
+          ownerName: (playerName || "").toString().slice(0, 20),
+          createdAt: Date.now()
+        };
+
+        if (entry.type === "block") {
+          payload.blockId = Math.max(0, Math.floor(Number(entry.blockId) || 0));
+        } else if (entry.type === "cosmetic") {
+          payload.cosmeticId = String(entry.cosmeticId || "").trim().slice(0, 64);
+        } else if (entry.type === "tool") {
+          payload.toolId = String(entry.toolId || "").trim();
+        } else {
+          return false;
+        }
+
+        const stackTarget = findNearbyDropStackCandidate(entry, clampedX, clampedY);
+        if (stackTarget) {
+          if (!network.enabled || !network.dropsRef || String(stackTarget.id).startsWith("local_")) {
+            return applyStackAmountToLocalDrop(stackTarget.id, qty);
+          }
+          network.dropsRef.child(stackTarget.id).transaction((current) => {
+            if (!current || typeof current !== "object") return current;
+            const currentType = String(current.type || "").trim().toLowerCase();
+            const safeType = currentType === "cosmetic" || currentType === "tool" ? currentType : "block";
+            if (safeType !== entry.type) return current;
+            if (safeType === "block") {
+              if (Math.floor(Number(current.blockId) || 0) !== Math.floor(Number(entry.blockId) || 0)) return current;
+            } else if (safeType === "cosmetic") {
+              if (String(current.cosmeticId || "") !== String(entry.cosmeticId || "")) return current;
+            } else if (safeType === "tool") {
+              if (String(current.toolId || "") !== String(entry.toolId || "")) return current;
+            }
+            const currentAmount = Math.max(1, Math.floor(Number(current.amount) || 1));
+            return {
+              ...current,
+              amount: currentAmount + qty,
+              updatedAt: firebase.database.ServerValue.TIMESTAMP
+            };
+          }).then((result) => {
+            if (result && result.committed) return;
+            network.dropsRef.push({
+              ...payload,
+              createdAt: firebase.database.ServerValue.TIMESTAMP
+            }).catch(() => {});
+          }).catch(() => {
+            network.dropsRef.push({
+              ...payload,
+              createdAt: firebase.database.ServerValue.TIMESTAMP
+            }).catch(() => {});
+          });
+          return true;
+        }
+
+        if (!network.enabled || !network.dropsRef) {
+          const localId = "local_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+          addOrUpdateWorldDrop(localId, payload);
+          return true;
+        }
+        network.dropsRef.push({
+          ...payload,
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        }).catch(() => {});
+        return true;
+      }
+
       function dropInventoryEntry(entry, amount, dropX, dropY) {
         if (!inWorld || !entry) return false;
         const now = performance.now();
@@ -7689,6 +8446,45 @@
         return pool.slice(0, count);
       }
 
+      function getWorldLockOwnerAccountId(worldId) {
+        const id = normalizeWorldId(worldId);
+        if (!id) return "";
+        const meta = worldIndexMetaById && worldIndexMetaById[id];
+        const byIndex = (meta && meta.lockOwnerAccountId ? String(meta.lockOwnerAccountId) : "").trim();
+        if (byIndex) return byIndex;
+        const byCache = (worldLockOwnerCache.get(id) || "").toString().trim();
+        return byCache;
+      }
+
+      function refreshOwnedWorldCacheByScan(worldIds) {
+        if (inWorld || !network.enabled || !network.db || !playerProfileId) return;
+        if (ownedWorldScanInFlight) return;
+        const ids = Array.isArray(worldIds) ? worldIds.filter(Boolean) : [];
+        if (!ids.length) return;
+        const missing = ids.filter((id) => !getWorldLockOwnerAccountId(id));
+        if (!missing.length) return;
+        ownedWorldScanInFlight = true;
+        const scanToken = ++ownedWorldScanToken;
+        const batch = missing.slice(0, 120);
+        Promise.all(batch.map((wid) => {
+          return network.db.ref(BASE_PATH + "/worlds/" + wid + "/lock/ownerAccountId").once("value")
+            .then((snap) => {
+              const ownerId = snap && snap.val ? String(snap.val() || "").trim() : "";
+              worldLockOwnerCache.set(wid, ownerId);
+            })
+            .catch(() => {
+              worldLockOwnerCache.set(wid, "");
+            });
+        })).finally(() => {
+          if (scanToken === ownedWorldScanToken) {
+            ownedWorldScanInFlight = false;
+            if (!inWorld && hasRenderedMenuWorldList) {
+              refreshWorldButtons(null, true);
+            }
+          }
+        });
+      }
+
       function refreshWorldButtons(worldIds, force) {
         if (Array.isArray(worldIds)) {
           knownWorldIds = Array.from(new Set(worldIds.filter(Boolean)));
@@ -7699,20 +8495,42 @@
         const occupancyWorlds = Array.from(worldOccupancy.keys());
         const fallback = currentWorldId ? [currentWorldId] : [];
         const unique = Array.from(new Set(knownWorldIds.concat(occupancyWorlds, fallback)));
-        const randomWorlds = pickRandomWorlds(unique, 8);
+        const ownedWorlds = unique
+          .filter((id) => {
+            const ownerId = getWorldLockOwnerAccountId(id);
+            return ownerId && playerProfileId && ownerId === playerProfileId;
+          })
+          .sort((a, b) => {
+            const ao = worldOccupancy.get(a) || 0;
+            const bo = worldOccupancy.get(b) || 0;
+            if (bo !== ao) return bo - ao;
+            return a.localeCompare(b);
+          });
+        const othersPool = unique.filter((id) => !ownedWorlds.includes(id));
+        const randomWorlds = pickRandomWorlds(othersPool, 8);
 
         worldButtonsEl.innerHTML = "";
-        for (const id of randomWorlds) {
-          const count = worldOccupancy.get(id) || 0;
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "world-chip";
-          button.textContent = count > 0 ? id + " [" + count + "]" : id;
-          button.addEventListener("click", () => {
-            switchWorld(id, true);
-          });
-          worldButtonsEl.appendChild(button);
-        }
+        const renderWorldGroup = (title, ids, owned) => {
+          if (!ids.length) return;
+          const header = document.createElement("div");
+          header.className = "world-group-title" + (owned ? " owned" : "");
+          header.textContent = title;
+          worldButtonsEl.appendChild(header);
+          for (const id of ids) {
+            const count = worldOccupancy.get(id) || 0;
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "world-chip" + (owned ? " owned" : "");
+            button.textContent = count > 0 ? id + " [" + count + "]" : id;
+            button.addEventListener("click", () => {
+              switchWorld(id, true);
+            });
+            worldButtonsEl.appendChild(button);
+          }
+        };
+        renderWorldGroup("Your Worlds", ownedWorlds, true);
+        renderWorldGroup("Other Worlds", randomWorlds, false);
+        refreshOwnedWorldCacheByScan(unique);
       }
 
       function detachCurrentWorldListeners() {
@@ -7995,9 +8813,43 @@
         indexRef.child("updatedAt").set(firebase.database.ServerValue.TIMESTAMP).catch(() => {});
       }
 
-      function switchWorld(nextWorldId, createIfMissing) {
+      function syncWorldIndexLockOwner(worldId, lockData) {
+        if (!network.worldsIndexRef || !worldId) return;
+        const lock = lockData && typeof lockData === "object" ? lockData : null;
+        const ownerAccountId = lock && lock.ownerAccountId ? String(lock.ownerAccountId).trim() : "";
+        const ownerName = lock && lock.ownerName ? String(lock.ownerName).slice(0, 20) : "";
+        const indexRef = network.worldsIndexRef.child(worldId);
+        if (ownerAccountId) {
+          worldLockOwnerCache.set(worldId, ownerAccountId);
+          indexRef.update({
+            lockOwnerAccountId: ownerAccountId,
+            lockOwnerName: ownerName || "",
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+          }).catch(() => {});
+          return;
+        }
+        worldLockOwnerCache.set(worldId, "");
+        indexRef.child("lockOwnerAccountId").remove().catch(() => {});
+        indexRef.child("lockOwnerName").remove().catch(() => {});
+      }
+
+      function switchWorld(nextWorldId, createIfMissing, skipWorldBanCheck) {
         const worldId = normalizeWorldId(nextWorldId);
         if (!worldId) return;
+        const requestToken = skipWorldBanCheck ? worldJoinRequestToken : (++worldJoinRequestToken);
+        if (network.enabled && !skipWorldBanCheck && playerProfileId) {
+          const lockRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/lock");
+          lockRef.once("value").then((snapshot) => {
+            if (requestToken !== worldJoinRequestToken) return;
+            const lock = normalizeWorldLock(snapshot && snapshot.val ? snapshot.val() : null);
+            if (!ensureNotWorldBanned(lock, worldId)) return;
+            switchWorld(worldId, createIfMissing, true);
+          }).catch(() => {
+            if (requestToken !== worldJoinRequestToken) return;
+            switchWorld(worldId, createIfMissing, true);
+          });
+          return;
+        }
         const wasInWorld = inWorld;
         const previousWorldId = currentWorldId;
         if (antiCheatController && typeof antiCheatController.onWorldSwitch === "function") {
@@ -8007,6 +8859,7 @@
         if (!network.enabled) {
           setInWorldState(true);
           currentWorldId = worldId;
+          resetSpawnStructureTile();
           localStorage.setItem("growtopia_current_world", worldId);
           setCurrentWorldUI();
           resetForWorldChange();
@@ -8036,6 +8889,7 @@
         setInWorldState(true);
         detachCurrentWorldListeners();
         currentWorldId = worldId;
+        resetSpawnStructureTile();
         localStorage.setItem("growtopia_current_world", worldId);
         setCurrentWorldUI();
         resetForWorldChange();
@@ -8074,6 +8928,11 @@
         network.playerRef = network.playersRef.child(playerId);
         network.handlers.worldLock = (snapshot) => {
           currentWorldLock = normalizeWorldLock(snapshot.val());
+          syncWorldIndexLockOwner(currentWorldId, currentWorldLock);
+          if (!isWorldLockOwner() && !ensureNotWorldBanned(currentWorldLock, currentWorldId)) {
+            leaveCurrentWorld();
+            return;
+          }
           if (worldLockModalEl && !worldLockModalEl.classList.contains("hidden")) {
             if (!isWorldLocked() || !isWorldLockOwner()) {
               closeWorldLockModal();
@@ -8110,6 +8969,9 @@
             return;
           }
           world[ty][tx] = id;
+          if (id === SPAWN_DOOR_ID) {
+            setSpawnStructureTile(tx, ty);
+          }
           if (id !== VENDING_ID) {
             setLocalVendingMachine(tx, ty, null);
           }
@@ -8443,8 +9305,26 @@
         if (network.cameraLogsFeedRef && network.handlers.cameraLogAdded) {
           network.cameraLogsFeedRef.on("child_added", network.handlers.cameraLogAdded);
         }
-        enforceSpawnStructureInWorldData();
-        enforceSpawnStructureInDatabase();
+        if (network.blocksRef && typeof network.blocksRef.once === "function") {
+          network.blocksRef.once("value").then((snapshot) => {
+            if (!inWorld || currentWorldId !== worldId) return;
+            const found = applySpawnStructureFromBlockMap(snapshot && snapshot.val ? snapshot.val() : null);
+            if (!found) {
+              refreshSpawnStructureFromWorld();
+            }
+            enforceSpawnStructureInWorldData();
+            enforceSpawnStructureInDatabase();
+          }).catch(() => {
+            if (!inWorld || currentWorldId !== worldId) return;
+            refreshSpawnStructureFromWorld();
+            enforceSpawnStructureInWorldData();
+            enforceSpawnStructureInDatabase();
+          });
+        } else {
+          refreshSpawnStructureFromWorld();
+          enforceSpawnStructureInWorldData();
+          enforceSpawnStructureInDatabase();
+        }
         addClientLog("Joined world: " + worldId + ".");
         sendSystemWorldMessage(playerName + " joined the world.");
         setTimeout(() => {
@@ -8670,6 +9550,11 @@
             const removeAccountId = (target.dataset.worldlockRemove || "").trim();
             if (removeAccountId) {
               removeWorldAdmin(removeAccountId);
+              return;
+            }
+            const unbanAccountId = (target.dataset.worldlockUnban || "").trim();
+            if (unbanAccountId) {
+              unbanWorldPlayer(unbanAccountId);
             }
           });
         }
@@ -8684,6 +9569,25 @@
             if (event.key !== "Enter") return;
             event.preventDefault();
             addWorldAdminByUsername(worldLockAdminInputEl.value || "");
+          });
+        }
+        if (worldLockBan1hBtn) {
+          worldLockBan1hBtn.addEventListener("click", () => {
+            if (!worldLockBanInputEl) return;
+            setWorldBanByUsername(worldLockBanInputEl.value || "", 60 * 60 * 1000);
+          });
+        }
+        if (worldLockBanPermBtn) {
+          worldLockBanPermBtn.addEventListener("click", () => {
+            if (!worldLockBanInputEl) return;
+            setWorldBanByUsername(worldLockBanInputEl.value || "", 0);
+          });
+        }
+        if (worldLockBanInputEl) {
+          worldLockBanInputEl.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            setWorldBanByUsername(worldLockBanInputEl.value || "", 60 * 60 * 1000);
           });
         }
         if (doorCloseBtn) {
@@ -8940,6 +9844,7 @@
           network.myCommandRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/teleport");
           network.myReachRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/reach");
           network.myFreezeRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/freeze");
+          network.myGodModeRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/godmode");
           network.myPrivateAnnouncementRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/announce");
           network.myPmRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/pm");
           network.myPmFeedRef = network.myPmRef.limitToLast(80);
@@ -9029,6 +9934,15 @@
             const byName = (value.by || "admin").toString().slice(0, 20);
             setFrozenState(frozen, byName);
           };
+          network.handlers.myGodMode = (snapshot) => {
+            const value = snapshot.val();
+            if (!value || !value.id) return;
+            if (value.id === lastHandledGodModeCommandId) return;
+            lastHandledGodModeCommandId = value.id;
+            const enabled = Boolean(value.enabled);
+            const byName = (value.by || "admin").toString().slice(0, 20);
+            setGodModeState(enabled, byName);
+          };
           network.handlers.myPrivateAnnouncement = (snapshot) => {
             const value = snapshot.val() || {};
             const eventId = (value.id || "").toString();
@@ -9092,6 +10006,7 @@
 
           network.handlers.worldsIndex = (snapshot) => {
             const data = snapshot.val() || {};
+            worldIndexMetaById = data;
             const worldIds = Object.keys(data).sort((a, b) => {
               const av = data[a] && data[a].updatedAt ? data[a].updatedAt : 0;
               const bv = data[b] && data[b].updatedAt ? data[b].updatedAt : 0;
@@ -9293,6 +10208,7 @@
           network.myCommandRef.on("value", network.handlers.myCommand);
           network.myReachRef.on("value", network.handlers.myReach);
           network.myFreezeRef.on("value", network.handlers.myFreeze);
+          network.myGodModeRef.on("value", network.handlers.myGodMode);
           network.myPrivateAnnouncementRef.on("value", network.handlers.myPrivateAnnouncement);
           network.myPmFeedRef.on("child_added", network.handlers.myPmAdded);
           network.myTradeRequestRef.on("value", network.handlers.myTradeRequest);
@@ -9631,7 +10547,7 @@
         return slot;
       }
 
-      function refreshToolbar() {
+      function renderToolbarNow() {
         toolbar.innerHTML = "";
         const blockSection = createInventorySection("Blocks & Tools", "Click to select (1: Fist, 2: Wrench)");
         const cosmeticEntries = [];
@@ -9757,6 +10673,25 @@
         if (chestCtrl && typeof chestCtrl.isOpen === "function" && chestCtrl.isOpen()) {
           if (typeof chestCtrl.renderOpen === "function") chestCtrl.renderOpen();
         }
+      }
+
+      function refreshToolbar(immediate) {
+        if (immediate) {
+          if (toolbarRenderQueued && toolbarRenderRafId) {
+            cancelAnimationFrame(toolbarRenderRafId);
+          }
+          toolbarRenderQueued = false;
+          toolbarRenderRafId = 0;
+          renderToolbarNow();
+          return;
+        }
+        if (toolbarRenderQueued) return;
+        toolbarRenderQueued = true;
+        toolbarRenderRafId = requestAnimationFrame(() => {
+          toolbarRenderQueued = false;
+          toolbarRenderRafId = 0;
+          renderToolbarNow();
+        });
       }
 
       function canvasPointFromClient(clientX, clientY) {
@@ -10192,21 +11127,41 @@
         bindWorldControls();
         initFirebaseMultiplayer();
 
-        function tick() {
-          if (antiCheatController && typeof antiCheatController.onFrame === "function") {
-            antiCheatController.onFrame();
+        let lastTickTs = performance.now();
+        let tickAccumulatorMs = 0;
+        function tick(nowTs) {
+          const now = Number(nowTs);
+          if (!Number.isFinite(now)) {
+            requestAnimationFrame(tick);
+            return;
           }
-          if (inWorld) {
-            updatePlayer();
-            updateCamera();
-            tickTileDamageDecay();
-            updateWorldDrops();
-            syncPlayer(false);
+          let deltaMs = now - lastTickTs;
+          lastTickTs = now;
+          if (!Number.isFinite(deltaMs) || deltaMs < 0) deltaMs = FIXED_FRAME_MS;
+          if (deltaMs > 250) deltaMs = FIXED_FRAME_MS;
+          tickAccumulatorMs += deltaMs;
+
+          let ticksRun = 0;
+          while (tickAccumulatorMs >= FIXED_FRAME_MS && ticksRun < MAX_TICK_CATCHUP) {
+            if (antiCheatController && typeof antiCheatController.onFrame === "function") {
+              antiCheatController.onFrame();
+            }
+            if (inWorld) {
+              updatePlayer();
+              updateCamera();
+              tickTileDamageDecay();
+              updateWorldDrops();
+              syncPlayer(false);
+            }
+            tickAccumulatorMs -= FIXED_FRAME_MS;
+            ticksRun++;
           }
-          render();
+          if (ticksRun > 0) {
+            render();
+          }
           requestAnimationFrame(tick);
         }
-        tick();
+        requestAnimationFrame(tick);
       }
 
       authCreateBtn.addEventListener("click", () => {
