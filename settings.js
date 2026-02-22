@@ -62,3 +62,6 @@ window.GT_SETTINGS = {
   PLAYER_SYNC_MIN_MS: 70,
   GLOBAL_SYNC_MIN_MS: 220
 };
+
+// Cloudflare Worker endpoint that returns the Discord webhook URL for anti-cheat alerts.
+window.ANTICHEAT_WEBHOOK_ENDPOINT = "https://growtopia.isxtgg.workers.dev/discord-webhook";

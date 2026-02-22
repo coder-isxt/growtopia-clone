@@ -26,6 +26,7 @@
       const worldInputEl = document.getElementById("worldInput");
       const enterWorldBtn = document.getElementById("enterWorldBtn");
       const chatToggleBtn = document.getElementById("chatToggleBtn");
+      const shopToggleBtn = document.getElementById("shopToggleBtn");
       const adminToggleBtn = document.getElementById("adminToggleBtn");
       const respawnBtn = document.getElementById("respawnBtn");
       const adminPanelEl = document.getElementById("adminPanel");
@@ -113,6 +114,11 @@
       const itemsModule = modules.items || {};
       const playerModule = modules.player || {};
       const authStorageModule = modules.authStorage || {};
+      const authModule = modules.auth || {};
+      const dbModule = modules.db || {};
+      const adminsModule = modules.admins || {};
+      const stringUtilsModule = modules.stringUtils || {};
+      const inventoryModule = modules.inventory || {};
       const worldModule = modules.world || {};
       const physicsModule = modules.physics || {};
       const animationsModule = modules.animations || {};
@@ -127,6 +133,8 @@
       const menuModule = modules.menu || {};
       const vendingModule = modules.vending || {};
       const tradeModule = modules.trade || {};
+      const shopModule = modules.shop || {};
+      const antiCheatModule = modules.anticheat || {};
 
       const SETTINGS = window.GT_SETTINGS || {};
       const TILE = Number(SETTINGS.TILE_SIZE) || 32;
@@ -409,6 +417,10 @@
       const worldOccupancy = new Map();
       let vendingController = null;
       let tradeController = null;
+      let shopController = null;
+      let authController = null;
+      let inventoryController = null;
+      let antiCheatController = null;
       let plantsController = null;
       let gemsController = null;
       let rewardsController = null;
@@ -603,6 +615,119 @@
         return plantsController;
       }
 
+      function getShopController() {
+        if (shopController) return shopController;
+        if (typeof shopModule.createController !== "function") return null;
+        shopController = shopModule.createController({
+          getPlayerGems: () => {
+            const ctrl = getGemsController();
+            if (!ctrl || typeof ctrl.get !== "function") return 0;
+            return Math.max(0, Math.floor(Number(ctrl.get()) || 0));
+          },
+          spendPlayerGems: (amount) => {
+            const cost = Math.max(0, Math.floor(Number(amount) || 0));
+            if (cost <= 0) return true;
+            const ctrl = getGemsController();
+            if (!ctrl || typeof ctrl.get !== "function" || typeof ctrl.add !== "function") return false;
+            const current = Math.max(0, Math.floor(Number(ctrl.get()) || 0));
+            if (current < cost) return false;
+            ctrl.add(-cost);
+            updateGemsLabel();
+            return true;
+          },
+          getInventory: () => inventory,
+          getCosmeticInventory: () => cosmeticInventory,
+          getInventoryItemLimit: () => INVENTORY_ITEM_LIMIT,
+          getBlockDefs: () => blockDefs,
+          getCosmeticItems: () => COSMETIC_ITEMS,
+          saveInventory,
+          refreshToolbar,
+          postLocalSystemChat,
+          showAnnouncementPopup
+        });
+        return shopController;
+      }
+
+      function getAuthController() {
+        if (authController) return authController;
+        if (typeof authModule.createController !== "function") return null;
+        authController = authModule.createController({
+          getNetwork: () => network,
+          getFirebase: () => (typeof firebase !== "undefined" ? firebase : window.firebase || null),
+          getBasePath: () => BASE_PATH,
+          getPlayerName: () => playerName,
+          setSession: (ref, id, startedAt) => {
+            playerSessionRef = ref || null;
+            playerSessionId = String(id || "");
+            playerSessionStartedAt = Number(startedAt) || 0;
+          },
+          getSession: () => ({
+            ref: playerSessionRef,
+            id: playerSessionId,
+            startedAt: playerSessionStartedAt
+          }),
+          onChatSessionReset: () => {
+            chatMessages.length = 0;
+            renderChatMessages();
+          },
+          getCredentialsInput: () => ({
+            username: authUsernameEl ? authUsernameEl.value : "",
+            password: authPasswordEl ? authPasswordEl.value : ""
+          }),
+          normalizeUsername,
+          setAuthBusy,
+          setAuthStatus,
+          onDbReady: (db) => {
+            network.db = db || null;
+          },
+          onAuthSuccess,
+          saveCredentials,
+          addClientLog,
+          getBanStatus,
+          formatRemainingMs
+        });
+        return authController;
+      }
+
+      function getInventoryController() {
+        if (inventoryController) return inventoryController;
+        if (typeof inventoryModule.createController !== "function") return null;
+        inventoryController = inventoryModule.createController({
+          getNetwork: () => network,
+          getPlayerProfileId: () => playerProfileId,
+          getInventoryItemLimit: () => INVENTORY_ITEM_LIMIT,
+          getInventory: () => inventory,
+          getInventoryIds: () => INVENTORY_IDS,
+          getCosmeticInventory: () => cosmeticInventory,
+          getCosmeticItems: () => COSMETIC_ITEMS,
+          getCosmeticLookup: () => COSMETIC_LOOKUP,
+          getCosmeticSlots: () => COSMETIC_SLOTS,
+          getEquippedCosmetics: () => equippedCosmetics,
+          writeExtraToPayload: (payload) => {
+            const gemsCtrl = getGemsController();
+            if (gemsCtrl && typeof gemsCtrl.writeToPayload === "function") {
+              gemsCtrl.writeToPayload(payload);
+            } else {
+              payload.gems = 0;
+            }
+          },
+          onRecordApplied: (record) => {
+            const gemsCtrl = getGemsController();
+            if (gemsCtrl && typeof gemsCtrl.readFromRecord === "function") {
+              gemsCtrl.readFromRecord(record || {});
+            }
+            updateGemsLabel();
+          },
+          onSaveError: () => {
+            setNetworkState("Inventory save error", true);
+          },
+          onReloadFromServer: () => {
+            refreshToolbar();
+          }
+        });
+        return inventoryController;
+      }
+
       function getGemsController() {
         if (gemsController) return gemsController;
         if (typeof gemsModule.createController !== "function") return null;
@@ -618,6 +743,24 @@
           getTreeGemMax: () => TREE_GEM_MAX
         });
         return rewardsController;
+      }
+
+      function getAntiCheatController() {
+        if (antiCheatController) return antiCheatController;
+        if (typeof antiCheatModule.createController !== "function") return null;
+        antiCheatController = antiCheatModule.createController({
+          getPlayerName: () => playerName,
+          getPlayerProfileId: () => playerProfileId,
+          getPlayerSessionId: () => playerSessionId,
+          getCurrentWorldId: () => currentWorldId,
+          getInWorld: () => inWorld,
+          getPlayer: () => player,
+          getPlayerRect: () => ({ w: PLAYER_W, h: PLAYER_H }),
+          getTileSize: () => TILE,
+          getEditReachTiles: () => getEditReachTiles(),
+          postLocalSystemChat
+        });
+        return antiCheatController;
       }
 
       let cameraX = 0;
@@ -800,6 +943,9 @@
       }
 
       function normalizeUsername(value) {
+        if (typeof stringUtilsModule.normalizeUsername === "function") {
+          return stringUtilsModule.normalizeUsername(value);
+        }
         return (value || "").trim().toLowerCase();
       }
 
@@ -1020,6 +1166,9 @@
       }
 
       function parseDurationToMs(input) {
+        if (typeof adminsModule.parseDurationToMs === "function") {
+          return adminsModule.parseDurationToMs(input);
+        }
         if (typeof adminModule.parseDurationToMs === "function") {
           return adminModule.parseDurationToMs(input);
         }
@@ -1034,6 +1183,9 @@
       }
 
       function formatRemainingMs(ms) {
+        if (typeof adminsModule.formatRemainingMs === "function") {
+          return adminsModule.formatRemainingMs(ms);
+        }
         if (typeof adminModule.formatRemainingMs === "function") {
           return adminModule.formatRemainingMs(ms);
         }
@@ -1078,6 +1230,9 @@
       }
 
       function normalizeBanRecord(record) {
+        if (typeof adminsModule.normalizeBanRecord === "function") {
+          return adminsModule.normalizeBanRecord(record);
+        }
         const value = record || {};
         const typeRaw = String(value.type || "").toLowerCase();
         const type = typeRaw === "permanent" ? "permanent" : "temporary";
@@ -1092,6 +1247,9 @@
       }
 
       function getBanStatus(record, nowMs) {
+        if (typeof adminsModule.getBanStatus === "function") {
+          return adminsModule.getBanStatus(record, nowMs);
+        }
         if (!record) return { active: false, expired: false, type: "temporary", remainingMs: 0, reason: "" };
         const normalized = normalizeBanRecord(record);
         if (normalized.type === "permanent") {
@@ -1128,6 +1286,9 @@
       }
 
       function escapeHtml(value) {
+        if (typeof stringUtilsModule.escapeHtml === "function") {
+          return stringUtilsModule.escapeHtml(value);
+        }
         return String(value)
           .replaceAll("&", "&amp;")
           .replaceAll("<", "&lt;")
@@ -1137,6 +1298,9 @@
       }
 
       function totalInventoryCount(inv) {
+        if (typeof adminsModule.totalInventoryCount === "function") {
+          return adminsModule.totalInventoryCount(inv, INVENTORY_IDS);
+        }
         if (!inv || typeof inv !== "object") return 0;
         let total = 0;
         for (const id of INVENTORY_IDS) {
@@ -2290,6 +2454,9 @@
       }
 
       function validateCredentials(username, password) {
+        if (typeof authModule.validateCredentials === "function") {
+          return authModule.validateCredentials(username, password);
+        }
         if (!/^[a-z0-9_]{3,20}$/.test(username)) {
           return "Username must be 3-20 chars: a-z, 0-9, _.";
         }
@@ -2385,6 +2552,18 @@
       }
 
       async function getAuthDb() {
+        const authCtrl = getAuthController();
+        if (authCtrl && typeof authCtrl.getAuthDb === "function") {
+          return authCtrl.getAuthDb();
+        }
+        if (typeof dbModule.getOrInitAuthDb === "function") {
+          return dbModule.getOrInitAuthDb({
+            network,
+            firebaseRef: (typeof firebase !== "undefined" ? firebase : window.firebase || null),
+            firebaseConfig: window.FIREBASE_CONFIG,
+            getFirebaseApiKey: window.getFirebaseApiKey
+          });
+        }
         if (!window.firebase) {
           throw new Error("Firebase SDK not loaded.");
         }
@@ -2409,6 +2588,10 @@
       }
 
       async function reserveAccountSession(db, accountId, username) {
+        const authCtrl = getAuthController();
+        if (authCtrl && typeof authCtrl.reserveAccountSession === "function") {
+          return authCtrl.reserveAccountSession(db, accountId, username);
+        }
         const sessionRef = db.ref(BASE_PATH + "/account-sessions/" + accountId);
         const sessionId = "s_" + Math.random().toString(36).slice(2, 12);
         const startedAtLocal = Date.now();
@@ -2436,6 +2619,11 @@
       }
 
       function releaseAccountSession() {
+        const authCtrl = getAuthController();
+        if (authCtrl && typeof authCtrl.releaseAccountSession === "function") {
+          authCtrl.releaseAccountSession();
+          return;
+        }
         if (playerSessionRef) {
           playerSessionRef.remove().catch(() => {});
           if (playerName) {
@@ -2448,6 +2636,10 @@
       }
 
       async function createAccountAndLogin() {
+        const authCtrl = getAuthController();
+        if (authCtrl && typeof authCtrl.createAccountAndLogin === "function") {
+          return authCtrl.createAccountAndLogin();
+        }
         const username = normalizeUsername(authUsernameEl.value);
         const password = authPasswordEl.value || "";
         const validation = validateCredentials(username, password);
@@ -2488,6 +2680,10 @@
       }
 
       async function loginWithAccount() {
+        const authCtrl = getAuthController();
+        if (authCtrl && typeof authCtrl.loginWithAccount === "function") {
+          return authCtrl.loginWithAccount();
+        }
         const username = normalizeUsername(authUsernameEl.value);
         const password = authPasswordEl.value || "";
         const validation = validateCredentials(username, password);
@@ -2542,6 +2738,10 @@
       function onAuthSuccess(accountId, username) {
         playerProfileId = accountId;
         playerName = username;
+        const antiCheat = getAntiCheatController();
+        if (antiCheat && typeof antiCheat.onSessionStart === "function") {
+          antiCheat.onSessionStart();
+        }
         const gemsCtrl = getGemsController();
         if (gemsCtrl && typeof gemsCtrl.reset === "function") {
           gemsCtrl.reset();
@@ -2575,51 +2775,27 @@
       }
 
       function getInventoryStorageKey() {
-        return "growtopia_inventory_" + (playerProfileId || "guest");
+        const ctrl = getInventoryController();
+        return ctrl && typeof ctrl.getStorageKey === "function"
+          ? ctrl.getStorageKey()
+          : ("growtopia_inventory_" + (playerProfileId || "guest"));
       }
 
       function clampInventoryCount(value) {
-        const n = Number(value);
-        const safe = Number.isFinite(n) ? Math.floor(n) : 0;
-        return Math.max(0, Math.min(INVENTORY_ITEM_LIMIT, safe));
+        const ctrl = getInventoryController();
+        return ctrl && typeof ctrl.clampCount === "function"
+          ? ctrl.clampCount(value)
+          : 0;
       }
 
       function clampLocalInventoryAll() {
-        for (const id of INVENTORY_IDS) {
-          inventory[id] = clampInventoryCount(inventory[id]);
-        }
-        for (const item of COSMETIC_ITEMS) {
-          cosmeticInventory[item.id] = clampInventoryCount(cosmeticInventory[item.id]);
-        }
+        const ctrl = getInventoryController();
+        if (ctrl && typeof ctrl.clampAll === "function") ctrl.clampAll();
       }
 
       function applyInventoryFromRecord(record) {
-        for (const id of INVENTORY_IDS) {
-          const value = Number(record && record[id]);
-          inventory[id] = clampInventoryCount(value);
-        }
-        const itemRecord = record && record.cosmeticItems || {};
-        const legacyOwned = record && record.owned || {};
-        for (const item of COSMETIC_ITEMS) {
-          const nestedValue = Number(itemRecord[item.id]);
-          const topLevelValue = Number(record && record[item.id]);
-          const legacyHasOwned = Array.isArray(legacyOwned[item.slot]) && legacyOwned[item.slot].includes(item.id);
-          let finalValue = 0;
-          if (Number.isFinite(nestedValue)) finalValue = clampInventoryCount(nestedValue);
-          if (!finalValue && Number.isFinite(topLevelValue)) finalValue = clampInventoryCount(topLevelValue);
-          if (!finalValue && legacyHasOwned) finalValue = 1;
-          cosmeticInventory[item.id] = clampInventoryCount(finalValue);
-        }
-        const equippedRecord = record && record.equippedCosmetics || record && record.equipped || {};
-        for (const slot of COSMETIC_SLOTS) {
-          const id = String(equippedRecord[slot] || "");
-          equippedCosmetics[slot] = id && COSMETIC_LOOKUP[slot][id] && (cosmeticInventory[id] || 0) > 0 ? id : "";
-        }
-        const gemsCtrl = getGemsController();
-        if (gemsCtrl && typeof gemsCtrl.readFromRecord === "function") {
-          gemsCtrl.readFromRecord(record || {});
-        }
-        updateGemsLabel();
+        const ctrl = getInventoryController();
+        if (ctrl && typeof ctrl.applyFromRecord === "function") ctrl.applyFromRecord(record);
       }
 
       function normalizeRemoteEquippedCosmetics(raw) {
@@ -2632,28 +2808,8 @@
       }
 
       function buildInventoryPayload() {
-        clampLocalInventoryAll();
-        const payload = {};
-        for (const id of INVENTORY_IDS) {
-          payload[id] = clampInventoryCount(inventory[id]);
-        }
-        const itemPayload = {};
-        for (const item of COSMETIC_ITEMS) {
-          itemPayload[item.id] = clampInventoryCount(cosmeticInventory[item.id]);
-        }
-        payload.cosmeticItems = itemPayload;
-        payload.equippedCosmetics = {
-          clothes: equippedCosmetics.clothes || "",
-          wings: equippedCosmetics.wings || "",
-          swords: equippedCosmetics.swords || ""
-        };
-        const gemsCtrl = getGemsController();
-        if (gemsCtrl && typeof gemsCtrl.writeToPayload === "function") {
-          gemsCtrl.writeToPayload(payload);
-        } else {
-          payload.gems = 0;
-        }
-        return payload;
+        const ctrl = getInventoryController();
+        return ctrl && typeof ctrl.buildPayload === "function" ? ctrl.buildPayload() : {};
       }
 
       function updateGemsLabel() {
@@ -2661,48 +2817,33 @@
         const gemsCtrl = getGemsController();
         if (gemsCtrl && typeof gemsCtrl.formatLabel === "function") {
           gemsCountEl.textContent = gemsCtrl.formatLabel();
-          return;
+        } else {
+          gemsCountEl.textContent = "0 gems";
         }
-        gemsCountEl.textContent = "0 gems";
+        const shopCtrl = getShopController();
+        if (shopCtrl && typeof shopCtrl.isOpen === "function" && shopCtrl.isOpen() && typeof shopCtrl.render === "function") {
+          shopCtrl.render();
+        }
       }
 
       function loadInventoryFromLocal() {
-        try {
-          const raw = localStorage.getItem(getInventoryStorageKey());
-          if (!raw) return false;
-          const parsed = JSON.parse(raw);
-          applyInventoryFromRecord(parsed);
-          return true;
-        } catch (error) {
-          return false;
-        }
+        const ctrl = getInventoryController();
+        return ctrl && typeof ctrl.loadFromLocal === "function" ? ctrl.loadFromLocal() : false;
       }
 
       function saveInventoryToLocal() {
-        try {
-          localStorage.setItem(getInventoryStorageKey(), JSON.stringify(buildInventoryPayload()));
-        } catch (error) {
-          // ignore localStorage quota/write failures
-        }
+        const ctrl = getInventoryController();
+        if (ctrl && typeof ctrl.saveToLocal === "function") ctrl.saveToLocal();
       }
 
       function saveInventory() {
-        clampLocalInventoryAll();
-        saveInventoryToLocal();
-        if (!network.enabled || !network.inventoryRef) return;
-        network.inventoryRef.set(buildInventoryPayload()).catch(() => {
-          setNetworkState("Inventory save error", true);
-        });
+        const ctrl = getInventoryController();
+        if (ctrl && typeof ctrl.saveToNetwork === "function") ctrl.saveToNetwork();
       }
 
       function reloadMyInventoryFromServer() {
-        if (!network.enabled || !network.inventoryRef) return;
-        network.inventoryRef.once("value").then((snapshot) => {
-          if (!snapshot.exists()) return;
-          applyInventoryFromRecord(snapshot.val() || {});
-          saveInventoryToLocal();
-          refreshToolbar();
-        }).catch(() => {});
+        const ctrl = getInventoryController();
+        if (ctrl && typeof ctrl.reloadFromServer === "function") ctrl.reloadFromServer();
       }
 
       function getInitialWorldId() {
@@ -3170,6 +3311,10 @@
 
       function forceLogout(reason) {
         saveInventoryToLocal();
+        const antiCheat = getAntiCheatController();
+        if (antiCheat && typeof antiCheat.onSessionStart === "function") {
+          antiCheat.onSessionStart();
+        }
         if (inWorld) {
           sendSystemWorldMessage(playerName + " left the world.");
           logCameraEvent(
@@ -3218,6 +3363,10 @@
         authScreenEl.classList.remove("hidden");
         setChatOpen(false);
         hideAnnouncementPopup();
+        const shopCtrl = getShopController();
+        if (shopCtrl && typeof shopCtrl.closeModal === "function") {
+          shopCtrl.closeModal();
+        }
         applySavedCredentialsToForm();
         setAuthStatus(reason || "Logged out.", true);
       }
@@ -3265,6 +3414,10 @@
         const raw = chatInputEl.value || "";
         const trimmed = raw.trim();
         if (!trimmed) return;
+        const antiCheat = getAntiCheatController();
+        if (antiCheat && typeof antiCheat.onChatSend === "function") {
+          antiCheat.onChatSend(trimmed);
+        }
         suppressChatOpenUntilMs = performance.now() + 300;
         if (handleAdminChatCommand(trimmed)) {
           chatInputEl.value = "";
@@ -4891,6 +5044,7 @@
             if (id === VENDING_ID) {
               if (drawBlockImage(def, x, y)) {
                 drawBlockDamageOverlay(tx, ty, id, x, y);
+                drawVendingWorldLabel(tx, ty, x, y);
                 continue;
               }
               ctx.fillStyle = "#4d6b8b";
@@ -4902,6 +5056,7 @@
               ctx.fillStyle = "#ffd166";
               ctx.fillRect(x + TILE - 10, y + 6, 4, 4);
               drawBlockDamageOverlay(tx, ty, id, x, y);
+              drawVendingWorldLabel(tx, ty, x, y);
               continue;
             }
 
@@ -5129,6 +5284,65 @@
         ctx.drawImage(frames[i1], x, y, TILE, TILE);
         ctx.restore();
         return true;
+      }
+
+      function getVendingWorldLabel(tx, ty) {
+        const ctrl = getVendingController();
+        if (!ctrl || typeof ctrl.getLocal !== "function") return "";
+        const vm = ctrl.getLocal(tx, ty);
+        if (!vm) return "";
+        const qty = Math.max(1, Math.floor(Number(vm.sellQuantity) || 1));
+        const price = Math.max(0, Math.floor(Number(vm.priceLocks) || 0));
+        let itemName = "";
+        if (String(vm.sellType || "") === "cosmetic") {
+          const cosmeticId = String(vm.sellCosmeticId || "").trim();
+          let cosmeticItem = null;
+          if (cosmeticId) {
+            for (let i = 0; i < COSMETIC_ITEMS.length; i++) {
+              const item = COSMETIC_ITEMS[i];
+              if (item && item.id === cosmeticId) {
+                cosmeticItem = item;
+                break;
+              }
+            }
+          }
+          itemName = cosmeticItem && cosmeticItem.name ? cosmeticItem.name : cosmeticId;
+        } else {
+          const blockId = Math.max(0, Math.floor(Number(vm.sellBlockId) || 0));
+          const itemDef = blockDefs[blockId];
+          itemName = itemDef && itemDef.name ? itemDef.name : "";
+        }
+        if (!itemName || price <= 0) return "Unconfigured";
+        return itemName + " x" + qty + " / " + price + " WL";
+      }
+
+      function drawVendingWorldLabel(tx, ty, x, y) {
+        const label = getVendingWorldLabel(tx, ty);
+        if (!label) return;
+        ctx.save();
+        ctx.font = "10px 'Trebuchet MS', sans-serif";
+        const maxWidth = 138;
+        const lines = wrapChatText(label, maxWidth - 8).slice(0, 2);
+        let textW = 0;
+        for (let i = 0; i < lines.length; i++) {
+          textW = Math.max(textW, ctx.measureText(lines[i]).width);
+        }
+        const bubbleW = Math.max(52, Math.min(maxWidth, Math.ceil(textW) + 8));
+        const bubbleH = lines.length * 12 + 6;
+        let bx = x + Math.floor((TILE - bubbleW) / 2);
+        const by = y - bubbleH - 4;
+        const viewW = getCameraViewWidth();
+        if (bx < 4) bx = 4;
+        if (bx + bubbleW > viewW - 4) bx = viewW - 4 - bubbleW;
+        ctx.fillStyle = "rgba(8, 22, 34, 0.86)";
+        ctx.fillRect(bx, by, bubbleW, bubbleH);
+        ctx.strokeStyle = "rgba(255,255,255,0.26)";
+        ctx.strokeRect(bx + 0.5, by + 0.5, bubbleW - 1, bubbleH - 1);
+        ctx.fillStyle = "#f4fbff";
+        for (let i = 0; i < lines.length; i++) {
+          ctx.fillText(lines[i], bx + 4, by + 11 + i * 12);
+        }
+        ctx.restore();
       }
 
       function drawBlockImage(def, x, y) {
@@ -6132,6 +6346,10 @@
 
       function useActionAt(tx, ty) {
         if (shouldBlockActionForFreeze()) return;
+        const antiCheat = getAntiCheatController();
+        if (antiCheat && typeof antiCheat.onActionAttempt === "function") {
+          antiCheat.onActionAttempt({ tx, ty, action: "primary" });
+        }
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
         if (selectedId === TOOL_FIST) {
@@ -6150,6 +6368,10 @@
 
       function useSecondaryActionAt(tx, ty) {
         if (shouldBlockActionForFreeze()) return;
+        const antiCheat = getAntiCheatController();
+        if (antiCheat && typeof antiCheat.onActionAttempt === "function") {
+          antiCheat.onActionAttempt({ tx, ty, action: "secondary" });
+        }
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
         if (selectedId === TOOL_FIST) {
@@ -6175,6 +6397,9 @@
       }
 
       function hasFirebaseConfig(config) {
+        if (typeof dbModule.hasFirebaseConfig === "function") {
+          return dbModule.hasFirebaseConfig(config);
+        }
         return Boolean(config && config.apiKey && config.projectId && config.databaseURL);
       }
 
@@ -6556,97 +6781,13 @@
         if (blockSyncer && typeof blockSyncer.flush === "function") {
           blockSyncer.flush();
         }
-        if (network.lockRef && network.handlers.worldLock) {
-          network.lockRef.off("value", network.handlers.worldLock);
-        }
-        if (network.dropFeedRef && network.handlers.dropAdded) {
-          network.dropFeedRef.off("child_added", network.handlers.dropAdded);
-        }
-        if (network.dropsRef && network.handlers.dropChanged) {
-          network.dropsRef.off("child_changed", network.handlers.dropChanged);
-        }
-        if (network.dropsRef && network.handlers.dropRemoved) {
-          network.dropsRef.off("child_removed", network.handlers.dropRemoved);
-        }
-        if (network.hitsRef && network.handlers.hitAdded) {
-          network.hitsRef.off("child_added", network.handlers.hitAdded);
-        }
-        if (network.hitsRef && network.handlers.hitChanged) {
-          network.hitsRef.off("child_changed", network.handlers.hitChanged);
-        }
-        if (network.hitsRef && network.handlers.hitRemoved) {
-          network.hitsRef.off("child_removed", network.handlers.hitRemoved);
-        }
-        if (network.vendingRef && network.handlers.vendingAdded) {
-          network.vendingRef.off("child_added", network.handlers.vendingAdded);
-        }
-        if (network.vendingRef && network.handlers.vendingChanged) {
-          network.vendingRef.off("child_changed", network.handlers.vendingChanged);
-        }
-        if (network.vendingRef && network.handlers.vendingRemoved) {
-          network.vendingRef.off("child_removed", network.handlers.vendingRemoved);
-        }
-        if (network.signsRef && network.handlers.signAdded) {
-          network.signsRef.off("child_added", network.handlers.signAdded);
-        }
-        if (network.signsRef && network.handlers.signChanged) {
-          network.signsRef.off("child_changed", network.handlers.signChanged);
-        }
-        if (network.signsRef && network.handlers.signRemoved) {
-          network.signsRef.off("child_removed", network.handlers.signRemoved);
-        }
-        if (network.displaysRef && network.handlers.displayAdded) {
-          network.displaysRef.off("child_added", network.handlers.displayAdded);
-        }
-        if (network.displaysRef && network.handlers.displayChanged) {
-          network.displaysRef.off("child_changed", network.handlers.displayChanged);
-        }
-        if (network.displaysRef && network.handlers.displayRemoved) {
-          network.displaysRef.off("child_removed", network.handlers.displayRemoved);
-        }
-        if (network.doorsRef && network.handlers.doorAdded) {
-          network.doorsRef.off("child_added", network.handlers.doorAdded);
-        }
-        if (network.doorsRef && network.handlers.doorChanged) {
-          network.doorsRef.off("child_changed", network.handlers.doorChanged);
-        }
-        if (network.doorsRef && network.handlers.doorRemoved) {
-          network.doorsRef.off("child_removed", network.handlers.doorRemoved);
-        }
-        if (network.antiGravRef && network.handlers.antiGravAdded) {
-          network.antiGravRef.off("child_added", network.handlers.antiGravAdded);
-        }
-        if (network.antiGravRef && network.handlers.antiGravChanged) {
-          network.antiGravRef.off("child_changed", network.handlers.antiGravChanged);
-        }
-        if (network.antiGravRef && network.handlers.antiGravRemoved) {
-          network.antiGravRef.off("child_removed", network.handlers.antiGravRemoved);
-        }
-        if (network.plantsRef && network.handlers.plantAdded) {
-          network.plantsRef.off("child_added", network.handlers.plantAdded);
-        }
-        if (network.plantsRef && network.handlers.plantChanged) {
-          network.plantsRef.off("child_changed", network.handlers.plantChanged);
-        }
-        if (network.plantsRef && network.handlers.plantRemoved) {
-          network.plantsRef.off("child_removed", network.handlers.plantRemoved);
-        }
-        if (network.weatherRef && network.handlers.worldWeather) {
-          network.weatherRef.off("value", network.handlers.worldWeather);
-        }
-        if (network.camerasRef && network.handlers.cameraAdded) {
-          network.camerasRef.off("child_added", network.handlers.cameraAdded);
-        }
-        if (network.camerasRef && network.handlers.cameraChanged) {
-          network.camerasRef.off("child_changed", network.handlers.cameraChanged);
-        }
-        if (network.camerasRef && network.handlers.cameraRemoved) {
-          network.camerasRef.off("child_removed", network.handlers.cameraRemoved);
-        }
-        if (network.cameraLogsFeedRef && network.handlers.cameraLogAdded) {
-          network.cameraLogsFeedRef.off("child_added", network.handlers.cameraLogAdded);
-        }
-        if (typeof syncWorldsModule.detachWorldListeners === "function") {
+        if (typeof dbModule.detachWorldRuntimeListeners === "function") {
+          dbModule.detachWorldRuntimeListeners({
+            network,
+            handlers: network.handlers,
+            syncWorldsModule
+          });
+        } else if (typeof syncWorldsModule.detachWorldListeners === "function") {
           syncWorldsModule.detachWorldListeners(network, network.handlers, true);
         } else if (network.playerRef) {
           network.playerRef.remove().catch(() => {});
@@ -6654,64 +6795,9 @@
         if (blockSyncer && typeof blockSyncer.reset === "function") {
           blockSyncer.reset();
         }
-
-        network.playerRef = null;
-        network.playersRef = null;
-        network.blocksRef = null;
-        network.hitsRef = null;
-        network.dropsRef = null;
-        network.dropFeedRef = null;
-        network.vendingRef = null;
-        network.signsRef = null;
-        network.displaysRef = null;
-        network.doorsRef = null;
-        network.antiGravRef = null;
-        network.plantsRef = null;
-        network.weatherRef = null;
-        network.camerasRef = null;
-        network.cameraLogsRef = null;
-        network.cameraLogsFeedRef = null;
-        network.lockRef = null;
-        network.chatRef = null;
-        network.chatFeedRef = null;
-        network.handlers.players = null;
-        network.handlers.playerAdded = null;
-        network.handlers.playerChanged = null;
-        network.handlers.playerRemoved = null;
-        network.handlers.blockAdded = null;
-        network.handlers.blockChanged = null;
-        network.handlers.blockRemoved = null;
-        network.handlers.hitAdded = null;
-        network.handlers.hitChanged = null;
-        network.handlers.hitRemoved = null;
-        network.handlers.dropAdded = null;
-        network.handlers.dropChanged = null;
-        network.handlers.dropRemoved = null;
-        network.handlers.vendingAdded = null;
-        network.handlers.vendingChanged = null;
-        network.handlers.vendingRemoved = null;
-        network.handlers.signAdded = null;
-        network.handlers.signChanged = null;
-        network.handlers.signRemoved = null;
-        network.handlers.displayAdded = null;
-        network.handlers.displayChanged = null;
-        network.handlers.displayRemoved = null;
-        network.handlers.doorAdded = null;
-        network.handlers.doorChanged = null;
-        network.handlers.doorRemoved = null;
-        network.handlers.antiGravAdded = null;
-        network.handlers.antiGravChanged = null;
-        network.handlers.antiGravRemoved = null;
-        network.handlers.plantAdded = null;
-        network.handlers.plantChanged = null;
-        network.handlers.plantRemoved = null;
-        network.handlers.worldWeather = null;
-        network.handlers.cameraAdded = null;
-        network.handlers.cameraChanged = null;
-        network.handlers.cameraRemoved = null;
-        network.handlers.cameraLogAdded = null;
-        network.handlers.worldLock = null;
-        network.handlers.chatAdded = null;
+        if (typeof dbModule.clearWorldNetworkRefsAndHandlers === "function") {
+          dbModule.clearWorldNetworkRefsAndHandlers({ network });
+        }
         currentWorldLock = null;
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
@@ -6804,6 +6890,10 @@
         if (!network.enabled) {
           setInWorldState(true);
           currentWorldId = worldId;
+          const antiCheat = getAntiCheatController();
+          if (antiCheat && typeof antiCheat.onWorldSwitch === "function") {
+            antiCheat.onWorldSwitch(worldId);
+          }
           localStorage.setItem("growtopia_current_world", worldId);
           setCurrentWorldUI();
           resetForWorldChange();
@@ -6833,40 +6923,31 @@
         setInWorldState(true);
         detachCurrentWorldListeners();
         currentWorldId = worldId;
+        const antiCheat = getAntiCheatController();
+        if (antiCheat && typeof antiCheat.onWorldSwitch === "function") {
+          antiCheat.onWorldSwitch(worldId);
+        }
         localStorage.setItem("growtopia_current_world", worldId);
         setCurrentWorldUI();
         resetForWorldChange();
         writeWorldIndexMeta(worldId, createIfMissing);
         worldChatStartedAt = Date.now();
 
-        const worldRefs = typeof syncWorldsModule.createWorldRefs === "function"
-          ? syncWorldsModule.createWorldRefs(network.db, BASE_PATH, worldId)
-          : null;
-        network.playersRef = worldRefs && worldRefs.playersRef ? worldRefs.playersRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/players");
-        network.blocksRef = worldRefs && worldRefs.blocksRef ? worldRefs.blocksRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/blocks");
-        network.hitsRef = typeof syncHitsModule.createWorldHitsRef === "function"
-          ? syncHitsModule.createWorldHitsRef(network.db, BASE_PATH, worldId)
-          : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/hits");
-        network.dropsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/drops");
-        network.dropFeedRef = network.dropsRef.limitToLast(DROP_MAX_PER_WORLD);
-        network.vendingRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/vending");
-        network.signsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/signs");
-        network.displaysRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/displays");
-        network.doorsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/doors");
-        network.antiGravRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/anti-gravity");
-        network.plantsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/plants");
-        network.weatherRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/weather");
-        network.camerasRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/cameras");
-        network.cameraLogsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/camera-logs");
-        network.cameraLogsFeedRef = network.cameraLogsRef.limitToLast(500);
-        network.lockRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/lock");
-        network.chatRef = worldRefs && worldRefs.chatRef ? worldRefs.chatRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/chat");
-        network.chatFeedRef = typeof syncWorldsModule.createChatFeed === "function"
-          ? syncWorldsModule.createChatFeed(network.chatRef, worldChatStartedAt, 100)
-          : (worldChatStartedAt > 0
-            ? network.chatRef.orderByChild("createdAt").startAt(worldChatStartedAt).limitToLast(100)
-            : network.chatRef.limitToLast(100));
-        network.playerRef = network.playersRef.child(playerId);
+        if (typeof dbModule.buildWorldRefs !== "function") {
+          setNetworkState("DB module missing", true);
+          return;
+        }
+        dbModule.buildWorldRefs({
+          network,
+          db: network.db,
+          basePath: BASE_PATH,
+          worldId,
+          worldChatStartedAt,
+          dropMaxPerWorld: DROP_MAX_PER_WORLD,
+          playerId,
+          syncWorldsModule,
+          syncHitsModule
+        });
         network.handlers.worldLock = (snapshot) => {
           currentWorldLock = normalizeWorldLock(snapshot.val());
           if (worldLockModalEl && !worldLockModalEl.classList.contains("hidden")) {
@@ -6877,9 +6958,6 @@
             }
           }
         };
-        if (network.lockRef && network.handlers.worldLock) {
-          network.lockRef.on("value", network.handlers.worldLock);
-        }
 
         const applyBlockValue = (tx, ty, id) => {
           clearTileDamage(tx, ty);
@@ -7116,60 +7194,15 @@
             createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now()
           });
         };
-        if (typeof syncWorldsModule.attachWorldListeners === "function") {
-          syncWorldsModule.attachWorldListeners(network, network.handlers);
+        if (typeof dbModule.attachWorldRuntimeListeners !== "function") {
+          setNetworkState("DB module missing", true);
+          return;
         }
-        if (network.vendingRef && network.handlers.vendingAdded) {
-          network.vendingRef.on("child_added", network.handlers.vendingAdded);
-          network.vendingRef.on("child_changed", network.handlers.vendingChanged);
-          network.vendingRef.on("child_removed", network.handlers.vendingRemoved);
-        }
-        if (network.dropFeedRef && network.handlers.dropAdded) {
-          network.dropFeedRef.on("child_added", network.handlers.dropAdded);
-          network.dropsRef.on("child_changed", network.handlers.dropChanged);
-          network.dropsRef.on("child_removed", network.handlers.dropRemoved);
-        }
-        if (network.hitsRef && network.handlers.hitAdded) {
-          network.hitsRef.on("child_added", network.handlers.hitAdded);
-          network.hitsRef.on("child_changed", network.handlers.hitChanged);
-          network.hitsRef.on("child_removed", network.handlers.hitRemoved);
-        }
-        if (network.signsRef && network.handlers.signAdded) {
-          network.signsRef.on("child_added", network.handlers.signAdded);
-          network.signsRef.on("child_changed", network.handlers.signChanged);
-          network.signsRef.on("child_removed", network.handlers.signRemoved);
-        }
-        if (network.displaysRef && network.handlers.displayAdded) {
-          network.displaysRef.on("child_added", network.handlers.displayAdded);
-          network.displaysRef.on("child_changed", network.handlers.displayChanged);
-          network.displaysRef.on("child_removed", network.handlers.displayRemoved);
-        }
-        if (network.doorsRef && network.handlers.doorAdded) {
-          network.doorsRef.on("child_added", network.handlers.doorAdded);
-          network.doorsRef.on("child_changed", network.handlers.doorChanged);
-          network.doorsRef.on("child_removed", network.handlers.doorRemoved);
-        }
-        if (network.antiGravRef && network.handlers.antiGravAdded) {
-          network.antiGravRef.on("child_added", network.handlers.antiGravAdded);
-          network.antiGravRef.on("child_changed", network.handlers.antiGravChanged);
-          network.antiGravRef.on("child_removed", network.handlers.antiGravRemoved);
-        }
-        if (network.plantsRef && network.handlers.plantAdded) {
-          network.plantsRef.on("child_added", network.handlers.plantAdded);
-          network.plantsRef.on("child_changed", network.handlers.plantChanged);
-          network.plantsRef.on("child_removed", network.handlers.plantRemoved);
-        }
-        if (network.weatherRef && network.handlers.worldWeather) {
-          network.weatherRef.on("value", network.handlers.worldWeather);
-        }
-        if (network.camerasRef && network.handlers.cameraAdded) {
-          network.camerasRef.on("child_added", network.handlers.cameraAdded);
-          network.camerasRef.on("child_changed", network.handlers.cameraChanged);
-          network.camerasRef.on("child_removed", network.handlers.cameraRemoved);
-        }
-        if (network.cameraLogsFeedRef && network.handlers.cameraLogAdded) {
-          network.cameraLogsFeedRef.on("child_added", network.handlers.cameraLogAdded);
-        }
+        dbModule.attachWorldRuntimeListeners({
+          network,
+          handlers: network.handlers,
+          syncWorldsModule
+        });
         enforceSpawnStructureInWorldData();
         enforceSpawnStructureInDatabase();
         addClientLog("Joined world: " + worldId + ".");
@@ -7302,6 +7335,13 @@
           if (!inWorld) return;
           setChatOpen(true);
         });
+        if (shopToggleBtn) {
+          shopToggleBtn.addEventListener("click", () => {
+            const ctrl = getShopController();
+            if (!ctrl || typeof ctrl.openModal !== "function") return;
+            ctrl.openModal();
+          });
+        }
         adminToggleBtn.addEventListener("click", () => {
           setAdminOpen(!isAdminOpen);
         });
@@ -8018,10 +8058,6 @@
         const icon = document.createElement("div");
         icon.className = "item-icon " + (extraClass || "");
         if (baseColor) icon.style.setProperty("--chip-color", baseColor);
-        const fallbackLabel = document.createElement("span");
-        fallbackLabel.className = "item-icon-fallback-label";
-        fallbackLabel.textContent = label || "";
-        icon.appendChild(fallbackLabel);
         if (faIconClass) {
           const fallbackIcon = document.createElement("i");
           fallbackIcon.className = "item-icon-fallback-icon " + faIconClass;
@@ -8196,16 +8232,8 @@
         slot.type = "button";
         slot.className = "inventory-slot" + (opts.selected ? " selected" : "") + (opts.muted ? " muted" : "") + (opts.variant ? " " + opts.variant : "");
         slot.title = opts.title || "";
-        const key = document.createElement("span");
-        key.className = "slot-key";
-        key.textContent = opts.keyLabel || "";
         const icon = createIconChip(opts.color, opts.iconLabel, opts.iconClass, opts.faIconClass, opts.imageSrc);
-        const name = document.createElement("span");
-        name.className = "slot-name";
-        name.textContent = opts.name || "";
-        slot.appendChild(key);
         slot.appendChild(icon);
-        slot.appendChild(name);
         if (opts.countText) {
           const count = document.createElement("span");
           count.className = "slot-count";
@@ -8252,7 +8280,6 @@
             selected: i === selectedSlot,
             variant: "inventory-slot-block",
             title: title + (isTool ? "" : " (x" + (inventory[id] || 0) + ")"),
-            keyLabel: isFist ? "1" : (isWrench ? "2" : ""),
             color: isFist ? "#c59b81" : (isWrench ? "#90a4ae" : (blockDef && blockDef.color ? blockDef.color : "#999")),
             iconClass: isTool ? "icon-fist" : "icon-block",
             faIconClass: isFist ? "fa-solid fa-hand-fist" : (isWrench ? "fa-solid fa-screwdriver-wrench" : (blockDef && blockDef.faIcon ? blockDef.faIcon : "")),
@@ -8296,7 +8323,6 @@
               selected: equipped,
               variant: "inventory-slot-cosmetic",
               title: item.slot + " | " + item.name + " | x" + item.count,
-              keyLabel: item.slot.slice(0, 2).toUpperCase(),
               color: item.color || "#8aa0b5",
               iconClass: "icon-cosmetic icon-" + item.slot,
               faIconClass: item.faIcon || "",
@@ -8599,6 +8625,12 @@
           closeTradeMenuModal();
           return;
         }
+        const shopCtrl = getShopController();
+        if (e.key === "Escape" && shopCtrl && typeof shopCtrl.isOpen === "function" && shopCtrl.isOpen()) {
+          e.preventDefault();
+          if (typeof shopCtrl.closeModal === "function") shopCtrl.closeModal();
+          return;
+        }
         if (e.key === "Escape" && adminInventoryModalEl && !adminInventoryModalEl.classList.contains("hidden")) {
           e.preventDefault();
           closeAdminInventoryModal();
@@ -8735,6 +8767,10 @@
         function tick() {
           if (inWorld) {
             updatePlayer();
+            const antiCheat = getAntiCheatController();
+            if (antiCheat && typeof antiCheat.onFrame === "function") {
+              antiCheat.onFrame();
+            }
             updateCamera();
             tickTileDamageDecay();
             updateWorldDrops();

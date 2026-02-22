@@ -43,29 +43,48 @@ window.getFirebaseApiKey = async function getFirebaseApiKey() {
   if (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey) {
     return window.FIREBASE_CONFIG.apiKey;
   }
+
   if (isLocalRuntime()) {
     const localKey = getLocalApiKeyFromPrompt();
     if (!localKey) throw new Error("Missing local Firebase API key.");
-    if (window.FIREBASE_CONFIG) {
-      window.FIREBASE_CONFIG.apiKey = localKey;
-    }
+    if (window.FIREBASE_CONFIG) window.FIREBASE_CONFIG.apiKey = localKey;
     return localKey;
   }
+
   if (__firebaseApiKeyPromise) return __firebaseApiKeyPromise;
-  __firebaseApiKeyPromise = fetch(window.FIREBASE_APIKEY_ENDPOINT, { cache: "no-store" }).then((res) => {
-    if (!res.ok) throw new Error("Blocked: " + res.status);
-    return res.text();
-  }).then((key) => {
-    const safeKey = (key || "").trim();
-    if (!safeKey) throw new Error("Empty API key response.");
-    if (window.FIREBASE_CONFIG) {
-      window.FIREBASE_CONFIG.apiKey = safeKey;
-    }
-    return safeKey;
-  }).catch((err) => {
-    __firebaseApiKeyPromise = null;
-    throw err;
-  });
+
+  __firebaseApiKeyPromise = fetch(window.FIREBASE_APIKEY_ENDPOINT, {
+    cache: "no-store",
+    headers: { "Accept": "application/json, text/plain;q=0.9" },
+  })
+    .then(async (res) => {
+      if (!res.ok) throw new Error("Blocked: " + res.status);
+
+      // Try JSON first (new API)
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+      if (ct.includes("application/json")) {
+        const data = await res.json();
+        if (!data || data.ok !== true || typeof data.key !== "string") {
+          throw new Error(data?.error || "Invalid JSON response.");
+        }
+        return data.key;
+      }
+
+      // Fallback: old plain-text API
+      const txt = await res.text();
+      return txt;
+    })
+    .then((key) => {
+      const safeKey = (key || "").trim();
+      if (!safeKey) throw new Error("Empty API key response.");
+      if (window.FIREBASE_CONFIG) window.FIREBASE_CONFIG.apiKey = safeKey;
+      return safeKey;
+    })
+    .catch((err) => {
+      __firebaseApiKeyPromise = null;
+      throw err;
+    });
+
   return __firebaseApiKeyPromise;
 };
 
