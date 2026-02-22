@@ -114,6 +114,7 @@
       const itemsModule = modules.items || {};
       const playerModule = modules.player || {};
       const authStorageModule = modules.authStorage || {};
+      const dbModule = modules.db || {};
       const worldModule = modules.world || {};
       const physicsModule = modules.physics || {};
       const animationsModule = modules.animations || {};
