@@ -15,10 +15,10 @@ window.GTModules.gacha = (function createGachaModule() {
         { id: "trash_stone", weight: 14, kind: "block", blockKey: "stone_block", amount: [1, 2], rarity: "trash", text: "Trash drop: Stone." },
         { id: "common_gems", weight: 18, kind: "gems", amount: [8, 35], rarity: "common", text: "You got some gems." },
         { id: "sparkle_only", weight: 8, kind: "effect", effect: "sparkle", rarity: "common", text: "Mystery energy sparkles." },
-        { id: "rare_world_lock", weight: 4, kind: "block", blockKey: "world_lock", amount: 1, rarity: "rare", text: "Rare drop: World Lock!" },
-        { id: "rare_wing", weight: 2, kind: "cosmetic", cosmeticId: "angel_white", amount: 1, rarity: "rare", text: "Rare drop: Angel Wings!" },
+        { id: "rare_world_lock", weight: 5, kind: "block", blockKey: "world_lock", amount: 1, rarity: "rare", text: "Rare drop: World Lock!" },
+        { id: "rare_wing", weight: 4, kind: "cosmetic", cosmeticId: "angel_white", amount: 1, rarity: "rare", text: "Rare drop: Angel Wings!" },
         { id: "ultra_title", weight: 1, kind: "title", titleId: "legend", amount: 1, rarity: "legendary", text: "Legendary drop: Legend title!" },
-        { id: "jackpot_gems", weight: 3, kind: "gems", amount: [120, 420], rarity: "epic", text: "Jackpot gems!" }
+        { id: "jackpot_gems", weight: 1, kind: "gems", amount: [120, 420], rarity: "epic", text: "Jackpot gems!" }
       ]
     }
   ];

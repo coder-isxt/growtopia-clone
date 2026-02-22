@@ -115,7 +115,15 @@ window.GTModules.trade = (function () {
     function handleWrenchPlayer(playerData) {
       if (tradeData && tradeId) { renderPanel(); return true; }
       const accountId = String(playerData && playerData.accountId || "");
-      if (!accountId || accountId === me()) return false;
+      if (!accountId) return false;
+      if (accountId === me()) {
+        const friendCtrl = g("getFriendsController", null);
+        if (friendCtrl && typeof friendCtrl.openProfile === "function") {
+          friendCtrl.openProfile(playerData);
+          return true;
+        }
+        return false;
+      }
       menuCtx = { accountId, name: String(playerData && playerData.name || "Player").slice(0, 20) };
       const m = g("getTradeMenuModalEl", null), t = g("getTradeMenuTitleEl", null);
       if (t) t.textContent = "@" + menuCtx.name;

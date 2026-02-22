@@ -8114,7 +8114,7 @@
         const py = Math.round(player.y - cameraY);
         const cosmetics = equippedCosmetics;
         const localMotion = typeof animationsModule.sampleLocal === "function"
-          ? animationsModule.sampleLocal(player)
+          ? animationsModule.sampleLocal(player, nowMs)
           : { speed: Math.abs(player.vx), vy: player.vy, grounded: player.grounded };
         const pose = typeof animationsModule.buildPose === "function"
           ? animationsModule.buildPose(localMotion, nowMs, playerId)

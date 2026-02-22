@@ -60,7 +60,7 @@ window.GTModules.physics = {
       for (let tx = left; tx <= right; tx++) {
         if (!this.isOneWayPlatformTile(world, blockDefs, tx, ty, worldW, worldH)) continue;
         const tileTop = ty * tileSize;
-        if (prevBottom <= tileTop + 1 && nextBottom >= tileTop + 1) return true;
+        if (prevBottom <= tileTop + 5 && nextBottom >= tileTop + 1) return true;
       }
     }
     return false;

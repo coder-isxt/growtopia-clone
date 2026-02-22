@@ -223,7 +223,7 @@ window.GTModules.friends = (function createFriendsModule() {
 
     function openProfile(playerData) {
       const accountId = String(playerData && playerData.accountId || "");
-      if (!accountId || accountId === me()) return false;
+      if (!accountId) return false;
       profileCtx = {
         accountId,
         name: String(playerData && playerData.name || "Player").slice(0, 20)

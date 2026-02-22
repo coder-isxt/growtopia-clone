@@ -21,8 +21,11 @@ window.GTModules.animations = (function createAnimationsModule() {
     return new Map();
   }
 
-  function sampleLocal(player) {
+  function sampleLocal(player, nowMs) {
     const p = player || {};
+    const t = Number(nowMs) || performance.now();
+    const dt = Math.max(0, t - (Number(p._lastAnimTime) || t));
+    p._lastAnimTime = t;
     const rawSpeed = Math.abs(Number(p.vx) || 0);
     const rawVy = Number(p.vy) || 0;
     const grounded = Boolean(p.grounded);
@@ -34,10 +37,18 @@ window.GTModules.animations = (function createAnimationsModule() {
       if (smoothSpeed < 0.03) smoothSpeed = 0;
     }
     p._animSpeed = smoothSpeed;
+
+    const stride = clamp(smoothSpeed / 2.6, 0, 1);
+    const walkFreq = 0.003 + stride * 0.012;
+    const prevPhase = Number(p._animPhase) || 0;
+    const nextPhase = prevPhase + (walkFreq * dt);
+    p._animPhase = nextPhase;
+
     return {
       speed: smoothSpeed,
       vy: rawVy,
-      grounded
+      grounded,
+      phase: nextPhase
     };
   }
 
@@ -63,11 +74,19 @@ window.GTModules.animations = (function createAnimationsModule() {
     const prevVy = prev && Number.isFinite(prev.vySmooth) ? prev.vySmooth : rawVy;
     const vxSmooth = prevVx + (rawVx - prevVx) * 0.32;
     const vySmooth = prevVy + (rawVy - prevVy) * 0.32;
-    map.set(key, { x: px, y: py, t, vxSmooth, vySmooth });
+
+    const speed = Math.abs(vxSmooth);
+    const stride = clamp(speed / 2.6, 0, 1);
+    const walkFreq = 0.003 + stride * 0.012;
+    const prevPhase = Number(prev && prev.phase) || 0;
+    const nextPhase = prevPhase + (walkFreq * Math.max(1, t - (prev ? prev.t : t)));
+
+    map.set(key, { x: px, y: py, t, vxSmooth, vySmooth, phase: nextPhase });
     return {
-      speed: Math.abs(vxSmooth),
+      speed,
       vy: vySmooth,
-      grounded: Math.abs(vySmooth) < 0.35
+      grounded: Math.abs(vySmooth) < 0.35,
+      phase: nextPhase
     };
   }
 
@@ -86,8 +105,7 @@ window.GTModules.animations = (function createAnimationsModule() {
     let stride = clamp((Number(m.speed) || 0) / 2.6, 0, 1);
     const grounded = Boolean(m.grounded);
     const vy = Number(m.vy) || 0;
-    const walkFreq = 0.003 + stride * 0.012;
-    const phase = t * walkFreq + seed * 10;
+    const phase = (Number(m.phase) || 0) + seed * 10;
 
     let bodyBob = 0;
     let bodyTilt = 0;
