@@ -74,7 +74,7 @@ window.GTModules.animations = (function createAnimationsModule() {
     const t = Number(nowMs) || performance.now();
     const m = motion || {};
     const seed = hashSeed(seedInput);
-    const stride = clamp((Number(m.speed) || 0) / 2.6, 0, 1);
+    let stride = clamp((Number(m.speed) || 0) / 2.6, 0, 1);
     const grounded = Boolean(m.grounded);
     const vy = Number(m.vy) || 0;
     const walkFreq = 0.003 + stride * 0.012;
@@ -90,12 +90,14 @@ window.GTModules.animations = (function createAnimationsModule() {
     let eyeYOffset = 0;
 
     if (grounded) {
+      // Deadzone removes tiny idle-speed oscillation that looks like friction jitter.
+      if (stride < 0.12) stride = 0;
       const walkWave = Math.sin(phase);
       const walkWave2 = Math.sin(phase * 2);
       bodyBob = walkWave2 * (0.08 + stride * 0.55);
       bodyTilt = walkWave * (0.004 + stride * 0.018);
-      wingFlap = Math.sin(t * (0.0022 + stride * 0.005) + seed * 8) * (0.06 + stride * 0.22);
-      wingOpen = 0.2 + stride * 0.16;
+      wingFlap = Math.sin(t * (0.0024 + stride * 0.005) + seed * 8) * (0.06 + stride * 0.23);
+      wingOpen = 0.24 + stride * 0.16;
       swordSwing = walkWave * (0.12 + stride * 1.2);
       armSwing = walkWave * (0.22 + stride * 1.7);
       legSwing = -walkWave * (0.3 + stride * 2.2);

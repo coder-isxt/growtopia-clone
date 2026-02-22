@@ -4811,8 +4811,11 @@
           player.vx = moveTowards(player.vx, moveDir * maxMoveSpeed, accelStep);
           player.facing = moveDir > 0 ? 1 : -1;
         } else if (player.grounded) {
-          const stopStep = Math.max(0.08, maxMoveSpeed * 0.14);
+          const stopStep = Math.max(0.1, maxMoveSpeed * 0.16);
           player.vx = moveTowards(player.vx, 0, stopStep);
+          if (Math.abs(player.vx) < 0.14) {
+            player.vx = 0;
+          }
         }
         if (jumpPressedThisFrame && player.grounded && (nowMs - lastJumpAtMs) >= JUMP_COOLDOWN_MS) {
           player.vy = JUMP_VELOCITY;
@@ -4848,7 +4851,7 @@
 
         if (!player.grounded) {
           player.vx *= airFrictionNow;
-        } else if (Math.abs(player.vx) < 0.08) {
+        } else if (Math.abs(player.vx) < 0.12) {
           player.vx = 0;
         }
 
@@ -5599,10 +5602,10 @@
         if (!hatId) return;
         const item = COSMETIC_LOOKUP.hats && COSMETIC_LOOKUP.hats[hatId];
         if (!item) return;
-        const hatBoxX = px - 1;
-        const hatBoxY = py - 9;
-        const hatBoxW = PLAYER_W + 2;
-        const hatBoxH = 11;
+        const hatBoxX = px - 2;
+        const hatBoxY = py - 10;
+        const hatBoxW = PLAYER_W + 4;
+        const hatBoxH = 12;
         if (drawCosmeticSprite(item, hatBoxX, hatBoxY, hatBoxW, hatBoxH, facing === -1 ? -1 : 1, { mode: "contain", alignX: 0.5, alignY: 1 })) {
           return;
         }
@@ -5781,7 +5784,8 @@
           pose.hitMode = "";
           pose.hitStrength = 0;
         }
-        const basePy = py + (pose.bodyBob || 0);
+        // Pixel-snap body baseline to avoid subpixel jitter and slight ground clipping.
+        const basePy = Math.round(py + (pose.bodyBob || 0) - 1);
         const localWingFlap = (pose.wingFlap || 0) + getWingFlapPulse(nowMs);
         const localWingOpen = Math.max(0, Math.min(1, Number(pose.wingOpen) || 0.24));
 
@@ -5827,7 +5831,7 @@
             pose.armSwing = (Number(pose.armSwing) || 0) + Math.sin(danceT * 2.3) * 3.6;
             pose.legSwing = (Number(pose.legSwing) || 0) + Math.cos(danceT * 2.3) * 2.8;
           }
-          const basePy = py + (pose.bodyBob || 0);
+          const basePy = Math.round(py + (pose.bodyBob || 0) - 1);
 
           drawWings(px, basePy, cosmetics.wings || "", other.facing || 1, pose.wingFlap || 0, pose.wingOpen || 0.24);
 

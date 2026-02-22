@@ -125,7 +125,7 @@ window.GTModules.sign = (function createSignModule() {
       }
 
       ctx.save();
-      ctx.font = "14px 'Trebuchet MS', sans-serif";
+      ctx.font = "17px 'Trebuchet MS', sans-serif";
       const padX = 8;
       const padY = 6;
       const maxW = Math.min(300, canvas.width - 24);
@@ -135,7 +135,7 @@ window.GTModules.sign = (function createSignModule() {
         widest = Math.max(widest, ctx.measureText(lines[i]).width);
       }
       const bubbleW = Math.min(maxW, Math.max(70, widest + padX * 2));
-      const lineH = 16;
+      const lineH = 20;
       const bubbleH = lines.length * lineH + padY * 2;
       let x = tileScreenX + (tileScreenSize - bubbleW) * 0.5;
       let y = tileScreenY - bubbleH - 6;
@@ -148,7 +148,7 @@ window.GTModules.sign = (function createSignModule() {
       ctx.strokeRect(x, y, bubbleW, bubbleH);
       ctx.fillStyle = "#f4f9ff";
       for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], x + padX, y + padY + 12 + i * lineH);
+        ctx.fillText(lines[i], x + padX, y + padY + 14 + i * lineH);
       }
       ctx.restore();
     }
