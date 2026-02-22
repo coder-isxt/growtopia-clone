@@ -77,6 +77,8 @@ window.GTModules.syncPlayer = (function createSyncPlayerModule() {
   function buildPayload(input) {
     const data = input || {};
     const rawTitle = data && data.title && typeof data.title === "object" ? data.title : {};
+    const rawProgression = data && data.progression && typeof data.progression === "object" ? data.progression : {};
+    const rawAchievements = data && data.achievements && typeof data.achievements === "object" ? data.achievements : {};
     return {
       name: String(data.name || "").slice(0, 16),
       accountId: String(data.accountId || ""),
@@ -86,6 +88,7 @@ window.GTModules.syncPlayer = (function createSyncPlayerModule() {
       cosmetics: {
         shirts: String(data.cosmetics && (data.cosmetics.shirts || data.cosmetics.clothes) || ""),
         pants: String(data.cosmetics && data.cosmetics.pants || ""),
+        shoes: String(data.cosmetics && data.cosmetics.shoes || ""),
         hats: String(data.cosmetics && data.cosmetics.hats || ""),
         wings: String(data.cosmetics && data.cosmetics.wings || ""),
         swords: String(data.cosmetics && data.cosmetics.swords || "")
@@ -94,6 +97,16 @@ window.GTModules.syncPlayer = (function createSyncPlayerModule() {
         id: String(rawTitle.id || "").slice(0, 32),
         name: String(rawTitle.name || "").slice(0, 24),
         color: String(rawTitle.color || "").slice(0, 24)
+      },
+      progression: {
+        xp: Math.max(0, toInt(rawProgression.xp, 0)),
+        level: Math.max(1, toInt(rawProgression.level, 1)),
+        xpIntoLevel: Math.max(0, toInt(rawProgression.xpIntoLevel, 0)),
+        xpForNext: Math.max(0, toInt(rawProgression.xpForNext, 0))
+      },
+      achievements: {
+        completed: Math.max(0, toInt(rawAchievements.completed, 0)),
+        total: Math.max(0, toInt(rawAchievements.total, 0))
       },
       danceUntil: Math.max(0, toInt(data.danceUntil, 0)),
       world: String(data.world || ""),

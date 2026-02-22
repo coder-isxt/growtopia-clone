@@ -8,6 +8,7 @@ window.GTModules.items = {
     return {
       shirts: Array.isArray(source.shirts) ? source.shirts.slice() : [],
       pants: Array.isArray(source.pants) ? source.pants.slice() : [],
+      shoes: Array.isArray(source.shoes) ? source.shoes.slice() : [],
       hats: Array.isArray(source.hats) ? source.hats.slice() : [],
       wings: Array.isArray(source.wings) ? source.wings.slice() : [],
       swords: Array.isArray(source.swords) ? source.swords.slice() : []
@@ -18,6 +19,7 @@ window.GTModules.items = {
     return {
       shirts: catalog.shirts.slice(),
       pants: catalog.pants.slice(),
+      shoes: catalog.shoes.slice(),
       hats: catalog.hats.slice(),
       wings: catalog.wings.slice(),
       swords: catalog.swords.slice()
@@ -28,6 +30,7 @@ window.GTModules.items = {
     return []
       .concat(catalog.shirts || [])
       .concat(catalog.pants || [])
+      .concat(catalog.shoes || [])
       .concat(catalog.hats || [])
       .concat(catalog.wings || [])
       .concat(catalog.swords || []);

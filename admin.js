@@ -108,7 +108,7 @@ window.GTModules.admin = {
     if (key === "permban" || key === "tempban") return "critical";
     if (key === "kick" || key === "resetinv" || key === "clear_logs" || key === "clearaudit" || key === "freeze") return "warn";
     if (key === "unban") return "success";
-    if (key === "setrole" || key === "givex" || key === "giveitem" || key === "givetitle" || key === "removetitle" || key === "tp" || key === "reach" || key === "summon" || key === "bring" || key === "unfreeze" || key === "godmode" || key === "clearworld" || key === "announce_user" || key === "announce" || key === "db_backup" || key === "db_restore" || key === "db_export_json" || key === "db_import_json") return "accent";
+    if (key === "setrole" || key === "givex" || key === "giveitem" || key === "spawnd" || key === "givetitle" || key === "removetitle" || key === "tp" || key === "reach" || key === "summon" || key === "bring" || key === "unfreeze" || key === "godmode" || key === "clearworld" || key === "announce_user" || key === "announce" || key === "db_backup" || key === "db_restore" || key === "db_export_json" || key === "db_import_json") return "accent";
     return "info";
   },
   getLogLevel(text) {

@@ -106,6 +106,7 @@ window.GTModules.commands = {
       if (c.hasAdminPermission("resetinv")) available.push("/resetinv");
       if (c.hasAdminPermission("give_block")) available.push("/givex");
       if (c.hasAdminPermission("give_item")) available.push("/giveitem");
+      if (c.hasAdminPermission("give_item")) available.push("/spawnd");
       if (c.hasAdminPermission("give_title")) available.push("/givetitle");
       if (c.hasAdminPermission("remove_title")) available.push("/removetitle");
       if (c.hasAdminPermission("tp")) available.push("/tp");
@@ -499,6 +500,106 @@ window.GTModules.commands = {
       }
       if (c.applyCosmeticItemGrant(accountId, itemId, amount, "chat", targetRef)) {
         c.postLocalSystemChat("Gave item " + itemId + " x" + amount + " to @" + targetRef + ".");
+      }
+      return true;
+    }
+    if (command === "/spawnd") {
+      if (!c.hasAdminPermission("give_item")) {
+        c.postLocalSystemChat("Permission denied.");
+        return true;
+      }
+      if (!c.inWorld) {
+        c.postLocalSystemChat("Enter a world first.");
+        return true;
+      }
+      if (!c.ensureCommandReady("give_item")) return true;
+      if (typeof c.spawnWorldDropEntry !== "function") {
+        c.postLocalSystemChat("Drop spawn handler is unavailable.");
+        return true;
+      }
+      const itemRefRaw = String(parts[1] || "").trim();
+      const quantityRaw = Number(parts[2]);
+      const amountRaw = Number(parts[3]);
+      if (!itemRefRaw || !Number.isFinite(quantityRaw) || !Number.isFinite(amountRaw)) {
+        c.postLocalSystemChat("Usage: /spawnd <item> <quantity_per_drop> <tile_amount>");
+        return true;
+      }
+      const quantity = Math.max(1, Math.min(300, Math.floor(quantityRaw)));
+      const tileAmount = Math.max(1, Math.min(225, Math.floor(amountRaw)));
+
+      let entry = null;
+      let label = itemRefRaw;
+      const itemRef = itemRefRaw.toLowerCase();
+
+      if (itemRef === "fist" || itemRef === c.TOOL_FIST) {
+        entry = { type: "tool", toolId: c.TOOL_FIST };
+        label = "Fist";
+      } else if (itemRef === "wrench" || itemRef === c.TOOL_WRENCH) {
+        entry = { type: "tool", toolId: c.TOOL_WRENCH };
+        label = "Wrench";
+      } else {
+        const blockId = c.parseBlockRef(itemRefRaw);
+        if (c.INVENTORY_IDS.includes(blockId)) {
+          entry = { type: "block", blockId };
+          if (typeof c.getBlockNameById === "function") {
+            label = c.getBlockNameById(blockId) || ("Block " + blockId);
+          } else {
+            label = "Block " + blockId;
+          }
+        } else {
+          const cosmeticItems = typeof c.getCosmeticItems === "function" ? c.getCosmeticItems() : [];
+          const cosmetic = Array.isArray(cosmeticItems)
+            ? cosmeticItems.find((it) => it && String(it.id || "").toLowerCase() === itemRef)
+            : null;
+          if (cosmetic) {
+            entry = { type: "cosmetic", cosmeticId: cosmetic.id };
+            label = cosmetic.name || cosmetic.id;
+          }
+        }
+      }
+
+      if (!entry) {
+        c.postLocalSystemChat("Unknown item: " + itemRefRaw + ".");
+        return true;
+      }
+
+      const centerTx = Math.max(0, Math.min(c.WORLD_W - 1, Math.floor((Number(c.player.x) || 0) / c.TILE)));
+      const centerTy = Math.max(0, Math.min(c.WORLD_H - 1, Math.floor((Number(c.player.y) || 0) / c.TILE)));
+      const spawnTiles = [];
+      const seen = new Set();
+      const centerKey = centerTx + "_" + centerTy;
+      seen.add(centerKey);
+      spawnTiles.push({ tx: centerTx, ty: centerTy });
+
+      let radius = 1;
+      while (spawnTiles.length < tileAmount && radius <= Math.max(c.WORLD_W, c.WORLD_H)) {
+        for (let dy = -radius; dy <= radius && spawnTiles.length < tileAmount; dy++) {
+          for (let dx = -radius; dx <= radius && spawnTiles.length < tileAmount; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+            const tx = centerTx + dx;
+            const ty = centerTy + dy;
+            if (tx < 0 || ty < 0 || tx >= c.WORLD_W || ty >= c.WORLD_H) continue;
+            const key = tx + "_" + ty;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            spawnTiles.push({ tx, ty });
+          }
+        }
+        radius++;
+      }
+
+      let spawned = 0;
+      for (let i = 0; i < spawnTiles.length; i++) {
+        const tile = spawnTiles[i];
+        const ok = c.spawnWorldDropEntry(entry, quantity, tile.tx * c.TILE, tile.ty * c.TILE);
+        if (ok) spawned++;
+      }
+      c.postLocalSystemChat("Spawned " + spawned + " drop stacks of " + label + " x" + quantity + ".");
+      if (typeof c.logAdminAudit === "function") {
+        c.logAdminAudit("Admin(chat) spawned drops: " + label + " x" + quantity + " in " + spawned + " tiles.");
+      }
+      if (typeof c.pushAdminAuditEntry === "function") {
+        c.pushAdminAuditEntry("spawnd", "", label + " qty=" + quantity + " tiles=" + spawned);
       }
       return true;
     }

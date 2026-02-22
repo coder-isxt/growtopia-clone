@@ -129,6 +129,14 @@ window.GTModules.friends = (function createFriendsModule() {
       const world = online ? String(presence.world || "unknown").slice(0, 24) : "offline";
       const friend = isFriend(accountId);
       const canRequest = !friend && accountId && accountId !== me();
+      let progressionHtml = "";
+      if (typeof opts.getProfileProgressionHtml === "function") {
+        progressionHtml = String(opts.getProfileProgressionHtml({
+          accountId,
+          username,
+          presence
+        }) || "");
+      }
       els.title.textContent = "@" + username;
       els.body.innerHTML =
         "<div class='vending-section'>" +
@@ -138,6 +146,7 @@ window.GTModules.friends = (function createFriendsModule() {
             "<div class='vending-stat'><span>Friend</span><strong>" + (friend ? "Yes" : "No") + "</strong></div>" +
           "</div>" +
         "</div>" +
+        progressionHtml +
         "<div class='vending-auto-stock-note'>Send friend requests, open friends menu, or start a trade.</div>";
       els.actions.innerHTML =
         "<button data-profile-act='friend' " + (canRequest ? "" : "disabled") + ">Add Friend</button>" +
@@ -434,4 +443,3 @@ window.GTModules.friends = (function createFriendsModule() {
 
   return { createController };
 })();
-

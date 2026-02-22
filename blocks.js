@@ -38,7 +38,8 @@ window.GTModules.blocks = (function createBlocksModule() {
     { id: 38, key: "spike_block_r2", name: "Spikes SE", color: "#8d9aae", solid: false, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation", image: "special/spike.png" },
     { id: 39, key: "spike_block_r3", name: "Spikes SW", color: "#8d9aae", solid: false, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation", image: "special/spike.png" },
     { id: 40, key: "spawn_mover", name: "Spawn Mover", color: "#79c6ff", solid: false, seedable: false, icon: "SM", faIcon: "fa-solid fa-location-crosshairs", image: "special/spawn_mover.png" },
-    { id: 34, key: "donation_box", name: "Donation Box", color: "#8f6d4f", solid: true, donationBox: true, icon: "DN", faIcon: "fa-solid fa-box-open", image: "special/donation_box.png" },
+    { id: 41, key: "mystery_block", name: "Mystery Block", color: "#a46cff", solid: true, icon: "MB", faIcon: "fa-solid fa-dice", image: "special/mystery_block.png" },
+    { id: 34, key: "donation_box", name: "Donation Box", color: "#8f6d4f", solid: true, donationBox: true, icon: "DN", faIcon: "fa-solid fa-box-open", image: "special/donation_block.png" },
     { id: 36, key: "storage_chest", name: "Storage Chest", color: "#7f5f3e", solid: true, chestStorage: true, icon: "CH", faIcon: "fa-solid fa-box-archive", image: "special/chest.png" },
     { id: 35, key: "leaf_block", name: "Leaf Block", color: "#467f3e", solid: true, icon: "CH", faIcon: "fa-solid fa-box-archive", image: "special/leaf.png" }
   ];

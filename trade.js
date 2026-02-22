@@ -11,6 +11,7 @@ window.GTModules.trade = (function () {
     let tradeHandler = null;
     let lastReqId = "";
     let lastRespId = "";
+    let lastCompletedTradeId = "";
     let pendingPick = null;
 
     const g = (k, d) => {
@@ -379,7 +380,23 @@ window.GTModules.trade = (function () {
         if (!tradeData || !isMember(tradeData)) { closePanel(); return; }
         const st = String(tradeData.status || "").toLowerCase();
         if (st === "cancelled") { post("Trade cancelled."); popup("Trade cancelled.", 2000); closePanel(); return; }
-        if (st === "completed") { post("Trade completed."); closePanel(); return; }
+        if (st === "completed") {
+          post("Trade completed.");
+          if (tradeId && tradeId !== lastCompletedTradeId && typeof opts.onTradeCompleted === "function") {
+            lastCompletedTradeId = tradeId;
+            try {
+              opts.onTradeCompleted({
+                tradeId,
+                otherAccountId: otherId(tradeData) || "",
+                otherName: otherName(tradeData) || ""
+              });
+            } catch (error) {
+              // ignore quest hook errors
+            }
+          }
+          closePanel();
+          return;
+        }
         if (st === "failed") { post("Trade failed: " + (tradeData.reason || "unknown")); closePanel(); return; }
         renderPanel();
       };

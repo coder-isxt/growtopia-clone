@@ -27,6 +27,7 @@
       const enterWorldBtn = document.getElementById("enterWorldBtn");
       const chatToggleBtn = document.getElementById("chatToggleBtn");
       const friendsToggleBtn = document.getElementById("friendsToggleBtn");
+      const achievementsToggleBtn = document.getElementById("achievementsToggleBtn");
       const shopToggleBtn = document.getElementById("shopToggleBtn");
       const adminToggleBtn = document.getElementById("adminToggleBtn");
       const respawnBtn = document.getElementById("respawnBtn");
@@ -87,6 +88,11 @@
       const friendsBodyEl = document.getElementById("friendsBody");
       const friendsActionsEl = document.getElementById("friendsActions");
       const friendsCloseBtn = document.getElementById("friendsCloseBtn");
+      const achievementsModalEl = document.getElementById("achievementsModal");
+      const achievementsTitleEl = document.getElementById("achievementsTitle");
+      const achievementsBodyEl = document.getElementById("achievementsBody");
+      const achievementsActionsEl = document.getElementById("achievementsActions");
+      const achievementsCloseBtn = document.getElementById("achievementsCloseBtn");
       const worldLockModalEl = document.getElementById("worldLockModal");
       const worldLockTitleEl = document.getElementById("worldLockTitle");
       const worldLockAdminInputEl = document.getElementById("worldLockAdminInput");
@@ -147,6 +153,7 @@
       const worldModule = modules.world || {};
       const physicsModule = modules.physics || {};
       const animationsModule = modules.animations || {};
+      const particlesModule = modules.particles || {};
       const drawUtilsModule = modules.drawUtils || {};
       const inputUtilsModule = modules.inputUtils || {};
       const syncPlayerModule = modules.syncPlayer || {};
@@ -158,6 +165,10 @@
       const menuModule = modules.menu || {};
       const messagesModule = modules.messages || {};
       const anticheatModule = modules.anticheat || {};
+      const progressionModule = modules.progression || {};
+      const achievementsModule = modules.achievements || {};
+      const questsModule = modules.quests || {};
+      const gachaModule = modules.gacha || {};
       const backupModule = modules.backup || {};
       const vendingModule = modules.vending || {};
       const donationModule = modules.donation || {};
@@ -263,7 +274,8 @@
         37: { key: "spike_block_r1", name: "Spikes NE", color: "#8d9aae", solid: false, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation" },
         38: { key: "spike_block_r2", name: "Spikes SE", color: "#8d9aae", solid: false, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation" },
         39: { key: "spike_block_r3", name: "Spikes SW", color: "#8d9aae", solid: false, lethal: true, rotatable: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation" },
-        40: { key: "spawn_mover", name: "Spawn Mover", color: "#79c6ff", solid: false, seedable: false, icon: "SM", faIcon: "fa-solid fa-location-crosshairs" }
+        40: { key: "spawn_mover", name: "Spawn Mover", color: "#79c6ff", solid: false, seedable: false, icon: "SM", faIcon: "fa-solid fa-location-crosshairs" },
+        41: { key: "mystery_block", name: "Mystery Block", color: "#a46cff", solid: true, icon: "MB", faIcon: "fa-solid fa-dice" }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
@@ -327,7 +339,7 @@
       const SEED_INVENTORY_IDS = INVENTORY_IDS.filter((id) => PLANT_SEED_ID_SET.has(id));
       const BLOCK_ONLY_INVENTORY_IDS = INVENTORY_IDS.filter((id) => !PLANT_SEED_ID_SET.has(id));
       const slotOrder = [TOOL_FIST, TOOL_WRENCH].concat(INVENTORY_IDS);
-      const COSMETIC_SLOTS = ["shirts", "pants", "hats", "wings", "swords"];
+      const COSMETIC_SLOTS = ["shirts", "pants", "shoes", "hats", "wings", "swords"];
       const blockMaps = typeof blockKeysModule.buildMaps === "function"
         ? blockKeysModule.buildMaps(blockDefs)
         : { idToKey: {}, keyToId: {} };
@@ -338,7 +350,7 @@
       const BLOCK_KEY_TO_ID = blockMaps.keyToId || {};
       const COSMETIC_CATALOG = typeof itemsModule.getCosmeticItemsBySlot === "function"
         ? itemsModule.getCosmeticItemsBySlot()
-        : { shirts: [], pants: [], hats: [], wings: [], swords: [] };
+        : { shirts: [], pants: [], shoes: [], hats: [], wings: [], swords: [] };
       const COSMETIC_ASSET_BASE = typeof itemsModule.getCosmeticAssetBasePath === "function"
         ? (itemsModule.getCosmeticAssetBasePath() || "./assets/cosmetics")
         : "./assets/cosmetics";
@@ -411,6 +423,15 @@
       let playerSessionRef = null;
       let playerSessionId = "";
       let playerSessionStartedAt = 0;
+      let progressionXp = 0;
+      let progressionLevel = 1;
+      let progressionXpIntoLevel = 0;
+      let progressionXpForNext = 100;
+      let progressionSaveTimer = 0;
+      let achievementsState = null;
+      let achievementsSaveTimer = 0;
+      let questsState = null;
+      let questsSaveTimer = 0;
       let worldChatStartedAt = 0;
       let desktopLeftPanelWidth = DESKTOP_PANEL_LEFT_DEFAULT;
       let desktopRightPanelWidth = DESKTOP_PANEL_RIGHT_DEFAULT;
@@ -535,6 +556,7 @@
       const equippedCosmetics = {
         shirts: "",
         pants: "",
+        shoes: "",
         hats: "",
         wings: "",
         swords: ""
@@ -678,7 +700,12 @@
             world: normalizeWorldId(entry.world || ""),
             x: Number(entry.x),
             y: Number(entry.y),
-            online: true
+            online: true,
+            progression: normalizeProgressionRecord(entry.progression || {}),
+            achievements: {
+              completed: Math.max(0, Math.floor(Number(entry.achievements && entry.achievements.completed) || 0)),
+              total: Math.max(0, Math.floor(Number(entry.achievements && entry.achievements.total) || 0))
+            }
           };
         }
         return null;
@@ -726,6 +753,44 @@
             const tradeCtrl = getTradeController();
             if (!tradeCtrl || typeof tradeCtrl.handleWrenchPlayer !== "function") return;
             tradeCtrl.handleWrenchPlayer({ accountId, name });
+          },
+          getProfileProgressionHtml: ({ presence }) => {
+            const progression = presence && presence.progression ? presence.progression : null;
+            const ach = presence && presence.achievements ? presence.achievements : { completed: 0, total: 0 };
+            const achCompleted = Math.max(0, Math.floor(Number(ach.completed) || 0));
+            const achTotalRaw = Math.max(0, Math.floor(Number(ach.total) || 0));
+            const achTotal = achTotalRaw > 0
+              ? achTotalRaw
+              : Math.max(0, Math.floor(Number((typeof achievementsModule.getCatalog === "function" ? achievementsModule.getCatalog().length : 0)) || 0));
+            if (!progression) {
+              return (
+                "<div class='vending-section'>" +
+                  "<div class='vending-section-title'>Progression</div>" +
+                  "<div class='vending-stat-grid'>" +
+                    "<div class='vending-stat'><span>Level</span><strong>?</strong></div>" +
+                    "<div class='vending-stat'><span>XP</span><strong>?</strong></div>" +
+                    "<div class='vending-stat'><span>Achievements</span><strong>" + achCompleted + " / " + achTotal + "</strong></div>" +
+                  "</div>" +
+                "</div>"
+              );
+            }
+            const level = Math.max(1, Math.floor(Number(progression.level) || 1));
+            const xpInto = Math.max(0, Math.floor(Number(progression.xpIntoLevel) || 0));
+            const xpNext = Math.max(0, Math.floor(Number(progression.xpForNext) || 0));
+            const pct = xpNext > 0 ? Math.max(0, Math.min(100, (xpInto / xpNext) * 100)) : 100;
+            return (
+              "<div class='vending-section'>" +
+                "<div class='vending-section-title'>Progression</div>" +
+                "<div class='vending-stat-grid'>" +
+                  "<div class='vending-stat'><span>Level</span><strong>" + level + "</strong></div>" +
+                  "<div class='vending-stat'><span>XP</span><strong>" + xpInto + " / " + xpNext + "</strong></div>" +
+                  "<div class='vending-stat'><span>Achievements</span><strong>" + achCompleted + " / " + achTotal + "</strong></div>" +
+                "</div>" +
+                "<div style='margin-top:8px;height:9px;border-radius:999px;background:rgba(18,35,52,0.85);border:1px solid rgba(128,182,232,0.35);overflow:hidden;'>" +
+                  "<div style='height:100%;width:" + pct.toFixed(2) + "%;background:linear-gradient(90deg,#55d6ff,#7cff9b);'></div>" +
+                "</div>" +
+              "</div>"
+            );
           },
           postLocalSystemChat
         });
@@ -779,6 +844,11 @@
           getToolbarEl: () => toolbar,
           startInventoryDragFromTrade: (entry, event) => {
             startInventoryDrag(entry, event);
+          },
+          onTradeCompleted: (payload) => {
+            const tradeId = payload && payload.tradeId ? String(payload.tradeId) : "";
+            applyQuestEvent("trade_complete", { tradeId, count: 1 });
+            applyAchievementEvent("trade_complete", { tradeId });
           }
         });
         return tradeController;
@@ -946,6 +1016,17 @@
           flushDelayMs: 16
         })
         : null;
+      const gachaController = typeof gachaModule.createController === "function"
+        ? gachaModule.createController({
+          getBlockIdByKey: (blockKey) => parseBlockRef(blockKey),
+          random: Math.random
+        })
+        : null;
+      const particleController = typeof particlesModule.createController === "function"
+        ? particlesModule.createController({
+          maxParticles: Number(SETTINGS.PARTICLES_MAX) || 340
+        })
+        : null;
       let lastJumpAtMs = -9999;
       let lastAirJumpAtMs = -9999;
       let airJumpsUsed = 0;
@@ -954,7 +1035,9 @@
       let wasJumpHeld = false;
       let lastHitAtMs = -9999;
       let lastBlockHitAtMs = -9999;
+      let lastWaterSplashAtMs = -9999;
       let lastSpikeKillAtMs = -9999;
+      let wasInWaterLastFrame = false;
       let danceUntilMs = 0;
       let isFrozenByAdmin = false;
       let isGodModeByAdmin = false;
@@ -979,6 +1062,14 @@
         const now = performance.now();
         wingFlapPulseEndsAtMs = now + 260;
         wingFlapPulseStrength = Math.max(0.35, Number(strength) || 1);
+        if (particleController && typeof particleController.emitWingFlap === "function") {
+          particleController.emitWingFlap(
+            player.x + PLAYER_W / 2,
+            player.y + 15,
+            player.facing || 1,
+            wingFlapPulseStrength
+          );
+        }
       }
 
       function getWingFlapPulse(nowMs) {
@@ -1035,6 +1126,9 @@
         chatRef: null,
         chatFeedRef: null,
         inventoryRef: null,
+        progressRef: null,
+        achievementsRef: null,
+        questsRef: null,
         accountLogsRef: null,
         accountLogsFeedRef: null,
         accountLogsRootRef: null,
@@ -1055,6 +1149,9 @@
           worldsIndex: null,
           globalPlayers: null,
           inventory: null,
+          progression: null,
+          achievements: null,
+          quests: null,
           mySession: null,
           myCommand: null,
           myReach: null,
@@ -2050,6 +2147,7 @@
         if (ctrl && typeof ctrl.closeAll === "function") {
           ctrl.closeAll();
         }
+        closeAchievementsMenu();
       }
 
       function renderAdminPanel() {
@@ -3207,7 +3305,7 @@
             cosmeticItems,
             titleItems,
             equippedTitle: TITLE_DEFAULT_ID || "",
-            equippedCosmetics: { shirts: "", pants: "", hats: "", wings: "", swords: "" }
+            equippedCosmetics: { shirts: "", pants: "", shoes: "", hats: "", wings: "", swords: "" }
           };
           network.db.ref(BASE_PATH + "/player-inventories/" + accountId).set(resetPayload).then(() => {
             adminState.inventories[accountId] = JSON.parse(JSON.stringify(resetPayload));
@@ -3520,6 +3618,14 @@
           clearCurrentWorldToBedrock,
           parseBlockRef,
           INVENTORY_IDS,
+          getBlockNameById: (id) => {
+            const def = blockDefs[Math.floor(Number(id) || 0)];
+            return def && def.name ? def.name : "";
+          },
+          getCosmeticItems: () => COSMETIC_ITEMS,
+          TOOL_FIST,
+          TOOL_WRENCH,
+          spawnWorldDropEntry,
           applyInventoryGrant,
           applyCosmeticItemGrant,
           applyTitleGrant,
@@ -3893,7 +3999,15 @@
           gameBootstrapped = true;
         } else {
           loadInventoryFromLocal();
+          loadProgressionFromLocal();
+          if (!loadAchievementsFromLocal()) {
+            achievementsState = normalizeAchievementsState({});
+          }
+          if (!loadQuestsFromLocal()) {
+            questsState = normalizeQuestsState({});
+          }
           refreshToolbar();
+          postDailyQuestStatus();
           setInWorldState(false);
           refreshWorldButtons([currentWorldId]);
           updateOnlineCount();
@@ -3903,6 +4017,463 @@
 
       function getInventoryStorageKey() {
         return "growtopia_inventory_" + (playerProfileId || "guest");
+      }
+
+      function getProgressionStorageKey() {
+        return "growtopia_progression_" + (playerProfileId || "guest");
+      }
+
+      function normalizeProgressionRecord(raw) {
+        if (typeof progressionModule.normalizeProgress === "function") {
+          return progressionModule.normalizeProgress(raw || {});
+        }
+        const xp = Math.max(0, Math.floor(Number(raw && raw.xp) || 0));
+        return {
+          xp,
+          level: Math.max(1, Math.floor(Number(raw && raw.level) || 1)),
+          xpIntoLevel: Math.max(0, Math.floor(Number(raw && raw.xpIntoLevel) || 0)),
+          xpForNext: Math.max(0, Math.floor(Number(raw && raw.xpForNext) || 100))
+        };
+      }
+
+      function buildProgressionPayload() {
+        const normalized = normalizeProgressionRecord({ xp: progressionXp });
+        return {
+          xp: normalized.xp,
+          level: normalized.level,
+          xpIntoLevel: normalized.xpIntoLevel,
+          xpForNext: normalized.xpForNext
+        };
+      }
+
+      function ensureLevelTitleUnlocks(level, announce, persistInventory) {
+        if (typeof progressionModule.getTitleUnlockIdsForLevel !== "function") return false;
+        const unlockIds = progressionModule.getTitleUnlockIdsForLevel(level);
+        if (!Array.isArray(unlockIds) || !unlockIds.length) return false;
+        const unlockedNames = [];
+        for (let i = 0; i < unlockIds.length; i++) {
+          const id = String(unlockIds[i] || "").trim();
+          if (!id || !TITLE_LOOKUP[id]) continue;
+          if ((titleInventory[id] || 0) > 0) continue;
+          titleInventory[id] = 1;
+          unlockedNames.push(TITLE_LOOKUP[id].name || id);
+        }
+        if (!unlockedNames.length) return false;
+        if (persistInventory) {
+          saveInventory();
+        }
+        refreshToolbar();
+        if (announce) {
+          postLocalSystemChat("Unlocked title(s): " + unlockedNames.join(", ") + ".");
+        }
+        return true;
+      }
+
+      function applyProgressionFromRecord(record, announceUnlocks) {
+        const normalized = normalizeProgressionRecord(record || {});
+        progressionXp = normalized.xp;
+        progressionLevel = normalized.level;
+        progressionXpIntoLevel = normalized.xpIntoLevel;
+        progressionXpForNext = normalized.xpForNext;
+        ensureLevelTitleUnlocks(progressionLevel, Boolean(announceUnlocks), false);
+      }
+
+      function saveProgressionToLocal() {
+        try {
+          localStorage.setItem(getProgressionStorageKey(), JSON.stringify(buildProgressionPayload()));
+        } catch (error) {
+          // ignore localStorage quota/write failures
+        }
+      }
+
+      function loadProgressionFromLocal() {
+        try {
+          const raw = localStorage.getItem(getProgressionStorageKey());
+          if (!raw) return false;
+          const parsed = JSON.parse(raw);
+          applyProgressionFromRecord(parsed, false);
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function flushProgressionSave() {
+        progressionSaveTimer = 0;
+        saveProgressionToLocal();
+        if (!network.enabled || !network.progressRef) return;
+        const payload = buildProgressionPayload();
+        payload.updatedAt = firebase.database.ServerValue.TIMESTAMP;
+        network.progressRef.set(payload).catch(() => {
+          setNetworkState("Progression save error", true);
+        });
+      }
+
+      function scheduleProgressionSave(immediate) {
+        if (progressionSaveTimer) {
+          clearTimeout(progressionSaveTimer);
+          progressionSaveTimer = 0;
+        }
+        if (immediate) {
+          flushProgressionSave();
+          return;
+        }
+        progressionSaveTimer = setTimeout(flushProgressionSave, 260);
+      }
+
+      function awardXp(amount, reason) {
+        const add = Math.max(0, Math.floor(Number(amount) || 0));
+        if (!add) return;
+        const before = buildProgressionPayload();
+        let next = null;
+        if (typeof progressionModule.gainXp === "function") {
+          const result = progressionModule.gainXp({ xp: before.xp }, add);
+          next = result && result.after ? result.after : null;
+        }
+        if (!next) {
+          next = normalizeProgressionRecord({ xp: before.xp + add });
+        }
+        progressionXp = next.xp;
+        progressionLevel = next.level;
+        progressionXpIntoLevel = next.xpIntoLevel;
+        progressionXpForNext = next.xpForNext;
+        const leveledUp = progressionLevel > before.level;
+        ensureLevelTitleUnlocks(progressionLevel, leveledUp, true);
+        scheduleProgressionSave(false);
+        if (leveledUp) {
+          postLocalSystemChat("Level up! You are now level " + progressionLevel + ".");
+          if (reason) {
+            postLocalSystemChat("+ " + add + " XP (" + reason + ").");
+          }
+        }
+        syncPlayer(leveledUp);
+      }
+
+      function getAchievementsStorageKey() {
+        return "growtopia_achievements_" + (playerProfileId || "guest");
+      }
+
+      function normalizeAchievementsState(raw) {
+        if (typeof achievementsModule.normalizeState === "function") {
+          return achievementsModule.normalizeState(raw || {});
+        }
+        return raw && typeof raw === "object" ? raw : {};
+      }
+
+      function buildAchievementsPayload() {
+        if (typeof achievementsModule.buildPayload === "function") {
+          return achievementsModule.buildPayload(achievementsState || {});
+        }
+        return normalizeAchievementsState(achievementsState || {});
+      }
+
+      function getAchievementsSummary() {
+        const state = normalizeAchievementsState(achievementsState || {});
+        achievementsState = state;
+        if (typeof achievementsModule.summarize === "function") {
+          const summary = achievementsModule.summarize(state);
+          return {
+            completed: Math.max(0, Math.floor(Number(summary && summary.completed) || 0)),
+            total: Math.max(0, Math.floor(Number(summary && summary.total) || 0))
+          };
+        }
+        const rows = state.achievements && typeof state.achievements === "object" ? state.achievements : {};
+        let completed = 0;
+        const ids = Object.keys(rows);
+        for (let i = 0; i < ids.length; i++) {
+          if (rows[ids[i]] && rows[ids[i]].completed) completed += 1;
+        }
+        return { completed, total: ids.length };
+      }
+
+      function saveAchievementsToLocal() {
+        try {
+          localStorage.setItem(getAchievementsStorageKey(), JSON.stringify(buildAchievementsPayload()));
+        } catch (error) {
+          // ignore localStorage quota/write failures
+        }
+      }
+
+      function loadAchievementsFromLocal() {
+        try {
+          const raw = localStorage.getItem(getAchievementsStorageKey());
+          if (!raw) return false;
+          achievementsState = normalizeAchievementsState(JSON.parse(raw));
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function flushAchievementsSave() {
+        achievementsSaveTimer = 0;
+        saveAchievementsToLocal();
+        if (!network.enabled || !network.achievementsRef) return;
+        const payload = buildAchievementsPayload();
+        payload.updatedAt = firebase.database.ServerValue.TIMESTAMP;
+        network.achievementsRef.set(payload).catch(() => {
+          setNetworkState("Achievement save error", true);
+        });
+      }
+
+      function scheduleAchievementsSave(immediate) {
+        if (achievementsSaveTimer) {
+          clearTimeout(achievementsSaveTimer);
+          achievementsSaveTimer = 0;
+        }
+        if (immediate) {
+          flushAchievementsSave();
+          return;
+        }
+        achievementsSaveTimer = setTimeout(flushAchievementsSave, 260);
+      }
+
+      function applyAchievementEvent(eventType, payload) {
+        if (typeof achievementsModule.applyEvent !== "function") return;
+        const result = achievementsModule.applyEvent(achievementsState || {}, eventType, payload || {});
+        if (!result || !result.state) return;
+        achievementsState = normalizeAchievementsState(result.state);
+        if (!result.changed) return;
+        if (achievementsModalEl && !achievementsModalEl.classList.contains("hidden")) {
+          renderAchievementsMenu();
+        }
+        const unlocked = Array.isArray(result.unlockedNow) ? result.unlockedNow : [];
+        for (let i = 0; i < unlocked.length; i++) {
+          const id = String(unlocked[i] || "");
+          if (!id) continue;
+          const def = typeof achievementsModule.getAchievementById === "function"
+            ? achievementsModule.getAchievementById(id)
+            : null;
+          postLocalSystemChat("Achievement unlocked: " + (def && def.label ? def.label : id) + ".");
+        }
+        scheduleAchievementsSave(false);
+      }
+
+      function addPlayerGems(amount, trackAchievement) {
+        const delta = Math.floor(Number(amount) || 0);
+        if (!delta) return 0;
+        const gemsCtrl = getGemsController();
+        if (!gemsCtrl || typeof gemsCtrl.add !== "function" || typeof gemsCtrl.get !== "function") return 0;
+        const before = Math.max(0, Math.floor(Number(gemsCtrl.get()) || 0));
+        gemsCtrl.add(delta);
+        const after = Math.max(0, Math.floor(Number(gemsCtrl.get()) || 0));
+        const gained = Math.max(0, after - before);
+        updateGemsLabel();
+        if (trackAchievement && gained > 0) {
+          applyAchievementEvent("gems_earned", { amount: gained });
+        }
+        return gained;
+      }
+
+      function renderAchievementsMenu() {
+        if (!achievementsBodyEl || !achievementsActionsEl || !achievementsTitleEl) return;
+        const state = normalizeAchievementsState(achievementsState || {});
+        achievementsState = state;
+        const catalog = typeof achievementsModule.getCatalog === "function" ? achievementsModule.getCatalog() : [];
+        const summary = getAchievementsSummary();
+        achievementsTitleEl.textContent = "Achievements (" + summary.completed + "/" + summary.total + ")";
+        if (!catalog.length) {
+          achievementsBodyEl.innerHTML = "<div class='vending-empty'>No achievements configured.</div>";
+          achievementsActionsEl.innerHTML = "<button type='button' data-ach-act='close'>Close</button>";
+          return;
+        }
+        const rows = [];
+        for (let i = 0; i < catalog.length; i++) {
+          const def = catalog[i];
+          const row = state.achievements && state.achievements[def.id] ? state.achievements[def.id] : { progress: 0, completed: false };
+          const target = Math.max(1, Math.floor(Number(def.target) || 1));
+          const progress = Math.max(0, Math.min(target, Math.floor(Number(row.progress) || 0)));
+          const pct = Math.max(0, Math.min(100, (progress / target) * 100));
+          rows.push(
+            "<div class='vending-section'>" +
+              "<div class='vending-stat-grid'>" +
+                "<div class='vending-stat'><span>Achievement</span><strong>" + escapeHtml(def.label || def.id) + "</strong></div>" +
+                "<div class='vending-stat'><span>Status</span><strong>" + (row.completed ? "Completed" : "In progress") + "</strong></div>" +
+                "<div class='vending-stat'><span>Progress</span><strong>" + progress + " / " + target + "</strong></div>" +
+              "</div>" +
+              "<div style='margin-top:8px;height:8px;border-radius:999px;background:rgba(18,35,52,0.8);border:1px solid rgba(128,182,232,0.35);overflow:hidden;'>" +
+                "<div style='height:100%;width:" + pct.toFixed(2) + "%;background:" + (row.completed ? "linear-gradient(90deg,#7cff9b,#5ff1c8)" : "linear-gradient(90deg,#55d6ff,#8fb4ff)") + ";'></div>" +
+              "</div>" +
+            "</div>"
+          );
+        }
+        achievementsBodyEl.innerHTML = rows.join("");
+        achievementsActionsEl.innerHTML = "<button type='button' data-ach-act='close'>Close</button>";
+      }
+
+      function closeAchievementsMenu() {
+        if (achievementsModalEl) achievementsModalEl.classList.add("hidden");
+      }
+
+      function openAchievementsMenu() {
+        renderAchievementsMenu();
+        if (achievementsModalEl) achievementsModalEl.classList.remove("hidden");
+      }
+
+      function getQuestsStorageKey() {
+        return "growtopia_quests_" + (playerProfileId || "guest");
+      }
+
+      function normalizeQuestsState(raw) {
+        if (typeof questsModule.normalizeState === "function") {
+          return questsModule.normalizeState(raw || {}, Date.now());
+        }
+        return raw && typeof raw === "object" ? raw : {};
+      }
+
+      function buildQuestsPayload() {
+        if (typeof questsModule.buildPayload === "function") {
+          return questsModule.buildPayload(questsState || {});
+        }
+        return normalizeQuestsState(questsState || {});
+      }
+
+      function saveQuestsToLocal() {
+        try {
+          localStorage.setItem(getQuestsStorageKey(), JSON.stringify(buildQuestsPayload()));
+        } catch (error) {
+          // ignore localStorage quota/write failures
+        }
+      }
+
+      function loadQuestsFromLocal() {
+        try {
+          const raw = localStorage.getItem(getQuestsStorageKey());
+          if (!raw) return false;
+          questsState = normalizeQuestsState(JSON.parse(raw));
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function describeQuestRewards(rewards) {
+        const row = rewards && typeof rewards === "object" ? rewards : {};
+        const parts = [];
+        const gems = Math.max(0, Math.floor(Number(row.gems) || 0));
+        if (gems > 0) parts.push(gems + " gems");
+        const cosmeticId = String(row.cosmeticId || "").trim();
+        const cosmeticAmount = Math.max(1, Math.floor(Number(row.cosmeticAmount) || 1));
+        if (cosmeticId) {
+          let cosmeticName = cosmeticId;
+          for (let i = 0; i < COSMETIC_ITEMS.length; i++) {
+            if (COSMETIC_ITEMS[i] && COSMETIC_ITEMS[i].id === cosmeticId) {
+              cosmeticName = COSMETIC_ITEMS[i].name || cosmeticId;
+              break;
+            }
+          }
+          parts.push(cosmeticAmount + "x " + cosmeticName);
+        }
+        const titleId = String(row.titleId || "").trim();
+        const titleAmount = Math.max(1, Math.floor(Number(row.titleAmount) || 1));
+        if (titleId && TITLE_LOOKUP[titleId]) {
+          parts.push(titleAmount + "x title " + (TITLE_LOOKUP[titleId].name || titleId));
+        }
+        return parts.join(", ");
+      }
+
+      function grantQuestRewards(questDef) {
+        const def = questDef && typeof questDef === "object" ? questDef : null;
+        if (!def) return false;
+        const rewards = def.rewards && typeof def.rewards === "object" ? def.rewards : {};
+        let changed = false;
+        const gems = Math.max(0, Math.floor(Number(rewards.gems) || 0));
+        if (gems > 0) {
+          const gained = addPlayerGems(gems, true);
+          if (gained > 0) changed = true;
+        }
+        const cosmeticId = String(rewards.cosmeticId || "").trim();
+        if (cosmeticId && cosmeticInventory.hasOwnProperty(cosmeticId)) {
+          const amount = Math.max(1, Math.floor(Number(rewards.cosmeticAmount) || 1));
+          cosmeticInventory[cosmeticId] = clampInventoryCount((cosmeticInventory[cosmeticId] || 0) + amount);
+          changed = true;
+        }
+        const titleId = String(rewards.titleId || "").trim();
+        if (titleId && TITLE_LOOKUP[titleId]) {
+          const amount = Math.max(1, Math.floor(Number(rewards.titleAmount) || 1));
+          titleInventory[titleId] = clampInventoryCount((titleInventory[titleId] || 0) + amount);
+          changed = true;
+        }
+        if (changed) {
+          saveInventory();
+          refreshToolbar();
+          syncPlayer(true);
+        }
+        const rewardText = describeQuestRewards(rewards);
+        if (rewardText) {
+          postLocalSystemChat("Daily quest complete: " + (def.label || def.id) + " -> " + rewardText + ".");
+        } else {
+          postLocalSystemChat("Daily quest complete: " + (def.label || def.id) + ".");
+        }
+        return changed;
+      }
+
+      function flushQuestsSave() {
+        questsSaveTimer = 0;
+        saveQuestsToLocal();
+        if (!network.enabled || !network.questsRef) return;
+        const payload = buildQuestsPayload();
+        payload.updatedAt = firebase.database.ServerValue.TIMESTAMP;
+        network.questsRef.set(payload).catch(() => {
+          setNetworkState("Quest save error", true);
+        });
+      }
+
+      function scheduleQuestsSave(immediate) {
+        if (questsSaveTimer) {
+          clearTimeout(questsSaveTimer);
+          questsSaveTimer = 0;
+        }
+        if (immediate) {
+          flushQuestsSave();
+          return;
+        }
+        questsSaveTimer = setTimeout(flushQuestsSave, 260);
+      }
+
+      function applyQuestEvent(eventType, payload) {
+        if (typeof questsModule.applyEvent !== "function") return;
+        const result = questsModule.applyEvent(questsState || {}, eventType, payload || {});
+        if (!result || !result.state) return;
+        questsState = normalizeQuestsState(result.state);
+        if (!result.changed) return;
+        const completed = Array.isArray(result.completedNow) ? result.completedNow : [];
+        for (let i = 0; i < completed.length; i++) {
+          const questId = String(completed[i] || "");
+          if (!questId) continue;
+          const row = questsState && questsState.quests ? questsState.quests[questId] : null;
+          if (!row || row.rewarded) continue;
+          const def = typeof questsModule.getQuestById === "function"
+            ? questsModule.getQuestById(questId)
+            : null;
+          grantQuestRewards(def);
+          if (typeof questsModule.markRewarded === "function") {
+            const marked = questsModule.markRewarded(questsState, questId);
+            if (marked && marked.state) questsState = normalizeQuestsState(marked.state);
+          } else {
+            row.rewarded = true;
+          }
+        }
+        scheduleQuestsSave(false);
+      }
+
+      function postDailyQuestStatus() {
+        const state = normalizeQuestsState(questsState || {});
+        questsState = state;
+        const catalog = typeof questsModule.getCatalog === "function" ? questsModule.getCatalog() : [];
+        if (!Array.isArray(catalog) || !catalog.length) return;
+        const pending = [];
+        for (let i = 0; i < catalog.length; i++) {
+          const def = catalog[i];
+          const row = state.quests && state.quests[def.id] ? state.quests[def.id] : null;
+          if (!row || row.rewarded) continue;
+          pending.push((def.label || def.id) + " (" + Math.max(0, Number(row.progress) || 0) + "/" + Math.max(1, Number(def.target) || 1) + ")");
+        }
+        if (!pending.length) {
+          postLocalSystemChat("Daily quests completed for today.");
+          return;
+        }
+        postLocalSystemChat("Daily quests: " + pending.slice(0, 3).join(" | "));
       }
 
       function clampInventoryCount(value) {
@@ -4010,7 +4581,7 @@
       }
 
       function normalizeRemoteEquippedCosmetics(raw) {
-        const output = { shirts: "", pants: "", hats: "", wings: "", swords: "" };
+        const output = { shirts: "", pants: "", shoes: "", hats: "", wings: "", swords: "" };
         for (const slot of COSMETIC_SLOTS) {
           const id = String(raw && raw[slot] || "");
           output[slot] = id && COSMETIC_LOOKUP[slot][id] ? id : "";
@@ -4325,6 +4896,9 @@
       function resetForWorldChange() {
         remotePlayers.clear();
         clearWorldDrops();
+        if (particleController && typeof particleController.clear === "function") {
+          particleController.clear();
+        }
         clearAllTileDamage();
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
@@ -4366,6 +4940,8 @@
           playerSyncController.reset();
         }
         airJumpsUsed = 0;
+        wasInWaterLastFrame = false;
+        lastWaterSplashAtMs = -9999;
       }
 
       function setInWorldState(nextValue) {
@@ -4382,8 +4958,13 @@
           hasRenderedMenuWorldList = false;
           setChatOpen(false);
         } else {
+          if (particleController && typeof particleController.clear === "function") {
+            particleController.clear();
+          }
+          wasInWaterLastFrame = false;
           stopInventoryDrag();
           setChatOpen(false);
+          closeAchievementsMenu();
           closeVendingModal();
           closeDonationModal();
           closeChestModal();
@@ -4561,6 +5142,15 @@
         if (network.inventoryRef && network.handlers.inventory) {
           network.inventoryRef.off("value", network.handlers.inventory);
         }
+        if (network.progressRef && network.handlers.progression) {
+          network.progressRef.off("value", network.handlers.progression);
+        }
+        if (network.achievementsRef && network.handlers.achievements) {
+          network.achievementsRef.off("value", network.handlers.achievements);
+        }
+        if (network.questsRef && network.handlers.quests) {
+          network.questsRef.off("value", network.handlers.quests);
+        }
         if (network.mySessionRef && network.handlers.mySession) {
           network.mySessionRef.off("value", network.handlers.mySession);
         }
@@ -4733,6 +5323,21 @@
 
       function forceLogout(reason) {
         saveInventoryToLocal();
+        saveProgressionToLocal();
+        saveAchievementsToLocal();
+        saveQuestsToLocal();
+        if (progressionSaveTimer) {
+          clearTimeout(progressionSaveTimer);
+          progressionSaveTimer = 0;
+        }
+        if (achievementsSaveTimer) {
+          clearTimeout(achievementsSaveTimer);
+          achievementsSaveTimer = 0;
+        }
+        if (questsSaveTimer) {
+          clearTimeout(questsSaveTimer);
+          questsSaveTimer = 0;
+        }
         if (inWorld) {
           sendSystemWorldMessage(playerName + " left the world.");
           logCameraEvent(
@@ -4765,6 +5370,12 @@
         isFrozenByAdmin = false;
         isGodModeByAdmin = false;
         frozenByAdminBy = "";
+        progressionXp = 0;
+        progressionLevel = 1;
+        progressionXpIntoLevel = 0;
+        progressionXpForNext = 100;
+        achievementsState = null;
+        questsState = null;
         worldIndexMetaById = {};
         worldLockOwnerCache.clear();
         ownedWorldScanInFlight = false;
@@ -4791,6 +5402,7 @@
         authScreenEl.classList.remove("hidden");
         setChatOpen(false);
         hideAnnouncementPopup();
+        closeAchievementsMenu();
         const shopCtrl = getShopController();
         if (shopCtrl && typeof shopCtrl.closeModal === "function") {
           shopCtrl.closeModal();
@@ -4970,6 +5582,107 @@
       function isChestBlockId(id) {
         const def = blockDefs[id];
         return Boolean(def && def.chestStorage);
+      }
+
+      function isGachaBlockId(id) {
+        if (!gachaController || typeof gachaController.isGachaBlockId !== "function") return false;
+        return Boolean(gachaController.isGachaBlockId(id));
+      }
+
+      function applyGachaEffect(effectId, tx, ty) {
+        const effect = String(effectId || "").trim().toLowerCase();
+        const cx = tx * TILE + TILE * 0.5;
+        const cy = ty * TILE + TILE * 0.5;
+        if (!particleController) return;
+        if (effect === "splash") {
+          if (typeof particleController.emitWaterSplash === "function") {
+            particleController.emitWaterSplash(cx, cy, 10);
+          }
+          return;
+        }
+        if (effect === "seed") {
+          if (typeof particleController.emitSeedDrop === "function") {
+            particleController.emitSeedDrop(cx, cy);
+          }
+          return;
+        }
+        if (effect === "sparkle" || effect === "burst" || !effect) {
+          if (typeof particleController.emitBlockBreak === "function") {
+            particleController.emitBlockBreak(cx, cy, 16);
+          }
+        }
+      }
+
+      function grantGachaBlockReward(blockId, amount, tx, ty) {
+        const id = Math.floor(Number(blockId) || 0);
+        const qty = Math.max(0, Math.floor(Number(amount) || 0));
+        if (!id || !qty || !INVENTORY_IDS.includes(id)) return 0;
+        const current = Math.max(0, Math.floor(Number(inventory[id]) || 0));
+        const room = Math.max(0, INVENTORY_ITEM_LIMIT - current);
+        const addNow = Math.min(room, qty);
+        if (addNow > 0) {
+          inventory[id] = current + addNow;
+        }
+        const spill = qty - addNow;
+        if (spill > 0) {
+          spawnWorldDropEntry({ type: "block", blockId: id }, spill, tx * TILE, ty * TILE);
+        }
+        return qty;
+      }
+
+      function grantGachaCosmeticReward(cosmeticId, amount) {
+        const id = String(cosmeticId || "").trim();
+        const qty = Math.max(0, Math.floor(Number(amount) || 0));
+        if (!id || !qty || !cosmeticInventory.hasOwnProperty(id)) return 0;
+        cosmeticInventory[id] = clampInventoryCount((cosmeticInventory[id] || 0) + qty);
+        return qty;
+      }
+
+      function grantGachaTitleReward(titleId, amount) {
+        const id = String(titleId || "").trim();
+        const qty = Math.max(0, Math.floor(Number(amount) || 0));
+        if (!id || !qty || !TITLE_LOOKUP[id]) return 0;
+        titleInventory[id] = clampInventoryCount((titleInventory[id] || 0) + qty);
+        return qty;
+      }
+
+      function resolveGachaBreak(blockId, tx, ty) {
+        if (!gachaController || typeof gachaController.roll !== "function") return false;
+        const result = gachaController.roll(blockId);
+        if (!result || !Array.isArray(result.rolls) || !result.rolls.length) return false;
+        let changedInventory = false;
+        for (let i = 0; i < result.rolls.length; i++) {
+          const row = result.rolls[i] || {};
+          const kind = String(row.kind || "").trim().toLowerCase();
+          const amount = Math.max(0, Math.floor(Number(row.amount) || 0));
+          if (kind === "block") {
+            const rewardBlockId = parseBlockRef(row.blockKey || "");
+            const given = grantGachaBlockReward(rewardBlockId, amount || 1, tx, ty);
+            changedInventory = changedInventory || given > 0;
+          } else if (kind === "cosmetic") {
+            const given = grantGachaCosmeticReward(row.cosmeticId, amount || 1);
+            changedInventory = changedInventory || given > 0;
+          } else if (kind === "title") {
+            const given = grantGachaTitleReward(row.titleId, amount || 1);
+            changedInventory = changedInventory || given > 0;
+          } else if (kind === "gems") {
+            const given = addPlayerGems(amount || 0, true);
+            changedInventory = changedInventory || given > 0;
+          } else if (kind === "effect") {
+            applyGachaEffect(row.effect, tx, ty);
+          }
+          const text = String(row.text || "").trim();
+          if (text) {
+            postLocalSystemChat("[Gacha] " + text);
+          }
+        }
+        if (changedInventory) {
+          saveInventory();
+          refreshToolbar();
+          syncPlayer(true);
+        }
+        showAnnouncementPopup("Mystery block opened!");
+        return true;
       }
 
       function rectTouchesLethal(x, y, w, h) {
@@ -6240,14 +6953,22 @@
         if (isFrozenByAdmin) {
           player.vx = 0;
           player.vy = 0;
+          wasInWaterLastFrame = rectTouchesLiquid(player.x, player.y, PLAYER_W, PLAYER_H);
           wasJumpHeld = jump;
           return;
         }
         const hasWingDoubleJump = Boolean(equippedCosmetics.wings);
+        const equippedShoesId = String(equippedCosmetics.shoes || "");
+        const equippedShoes = equippedShoesId && COSMETIC_LOOKUP.shoes ? COSMETIC_LOOKUP.shoes[equippedShoesId] : null;
+        const shoeSpeedBoost = Math.max(-0.3, Math.min(1.5, Number(equippedShoes && equippedShoes.speedBoost) || 0));
+        const shoeJumpBoost = Math.max(-0.25, Math.min(1.0, Number(equippedShoes && equippedShoes.jumpBoost) || 0));
+        const speedMult = Math.max(0.65, 1 + shoeSpeedBoost);
+        const jumpVelocityNow = JUMP_VELOCITY * Math.max(0.7, 1 + shoeJumpBoost);
         const inWater = rectTouchesLiquid(player.x, player.y, PLAYER_W, PLAYER_H);
         const inAntiGravity = isPlayerInAntiGravityField(player.x, player.y, PLAYER_W, PLAYER_H);
-        const moveAccel = inWater ? MOVE_ACCEL * WATER_MOVE_MULT : MOVE_ACCEL;
-        const maxMoveSpeed = inWater ? MAX_MOVE_SPEED * WATER_MOVE_MULT : MAX_MOVE_SPEED;
+        const moveAccelBase = inWater ? MOVE_ACCEL * WATER_MOVE_MULT : MOVE_ACCEL;
+        const moveAccel = moveAccelBase * (1 + shoeSpeedBoost * 0.65);
+        const maxMoveSpeed = (inWater ? MAX_MOVE_SPEED * WATER_MOVE_MULT : MAX_MOVE_SPEED) * speedMult;
         let gravityNow = inWater ? GRAVITY * WATER_GRAVITY_MULT : GRAVITY;
         let maxFallNow = inWater ? MAX_FALL_SPEED * WATER_FALL_MULT : MAX_FALL_SPEED;
         const airFrictionNow = inWater ? Math.min(0.985, AIR_FRICTION * WATER_FRICTION_MULT) : AIR_FRICTION;
@@ -6269,7 +6990,7 @@
           }
         }
         if (jumpPressedThisFrame && player.grounded && (nowMs - lastJumpAtMs) >= JUMP_COOLDOWN_MS) {
-          player.vy = JUMP_VELOCITY;
+          player.vy = jumpVelocityNow;
           player.grounded = false;
           lastJumpAtMs = nowMs;
           airJumpsUsed = 0;
@@ -6280,7 +7001,7 @@
           inAntiGravity &&
           (nowMs - lastAirJumpAtMs) >= ANTI_GRAV_AIR_JUMP_COOLDOWN_MS
         ) {
-          player.vy = JUMP_VELOCITY;
+          player.vy = jumpVelocityNow;
           lastAirJumpAtMs = nowMs;
           triggerWingFlapPulse(1.1);
         } else if (
@@ -6290,7 +7011,7 @@
           airJumpsUsed < 1 &&
           (nowMs - lastAirJumpAtMs) >= 120
         ) {
-          player.vy = JUMP_VELOCITY;
+          player.vy = jumpVelocityNow;
           lastAirJumpAtMs = nowMs;
           airJumpsUsed += 1;
           triggerWingFlapPulse(1.25);
@@ -6370,6 +7091,22 @@
           airJumpsUsed = 0;
         }
 
+        if (particleController && typeof particleController.emitWaterSplash === "function") {
+          const enteringWater = inWater && !wasInWaterLastFrame;
+          const movingInWater = inWater && Math.abs(player.vx) > 1.05 && player.grounded;
+          if ((enteringWater || movingInWater) && (nowMs - lastWaterSplashAtMs) >= 170) {
+            lastWaterSplashAtMs = nowMs;
+            const intensity = enteringWater
+              ? Math.max(7, Math.min(14, Math.round(Math.abs(player.vy) * 2.4)))
+              : 5;
+            particleController.emitWaterSplash(
+              player.x + PLAYER_W / 2,
+              player.y + PLAYER_H - 2,
+              intensity
+            );
+          }
+        }
+
         // Only snap to stair surface while descending/landing, never during upward jump.
         if (player.vy >= 0) {
           snapPlayerToStairSurface();
@@ -6392,6 +7129,7 @@
           player.vy = 0;
         }
 
+        wasInWaterLastFrame = inWater;
         wasJumpHeld = jump;
       }
 
@@ -7105,6 +7843,23 @@
         ctx.fillRect(px + PLAYER_W - 10, py + 23, 4, 7);
       }
 
+      function drawShoes(px, py, shoesId) {
+        if (!shoesId) return;
+        const item = COSMETIC_LOOKUP.shoes && COSMETIC_LOOKUP.shoes[shoesId];
+        if (!item) return;
+        const leftX = px + 5;
+        const rightX = px + PLAYER_W - 9;
+        const shoeY = py + 28;
+        const shoeW = 6;
+        const shoeH = 4;
+        const drewLeft = drawCosmeticSprite(item, leftX, shoeY, shoeW, shoeH, 1, { mode: "contain", alignX: 0.5, alignY: 1 });
+        const drewRight = drawCosmeticSprite(item, rightX, shoeY, shoeW, shoeH, -1, { mode: "contain", alignX: 0.5, alignY: 1 });
+        if (drewLeft || drewRight) return;
+        ctx.fillStyle = item.color || "#5f5f6a";
+        ctx.fillRect(leftX + 1, shoeY + 1, shoeW - 1, shoeH - 1);
+        ctx.fillRect(rightX + 1, shoeY + 1, shoeW - 1, shoeH - 1);
+      }
+
       function drawHat(px, py, hatId, facing) {
         if (!hatId) return;
         const item = COSMETIC_LOOKUP.hats && COSMETIC_LOOKUP.hats[hatId];
@@ -7153,7 +7908,7 @@
         ctx.restore();
       }
 
-      function drawHumanoid(px, py, facing, bodyColor, skinColor, eyeColor, shirtId, pantsId, hatId, pose, lookX, lookY) {
+      function drawHumanoid(px, py, facing, bodyColor, skinColor, eyeColor, shirtId, pantsId, shoesId, hatId, pose, lookX, lookY) {
         function fillChamferRect(x, y, w, h, color) {
           const rx = Math.round(x);
           const ry = Math.round(y);
@@ -7213,6 +7968,7 @@
 
         drawShirt(px, py, shirtId);
         drawPants(px, py, pantsId);
+        drawShoes(px, py, shoesId);
         drawHat(px, py, hatId, facing);
 
         ctx.fillStyle = "rgba(0,0,0,0.14)";
@@ -7320,7 +8076,7 @@
         ctx.translate(-(px + PLAYER_W / 2), -(basePy + PLAYER_H / 2));
 
         const localLook = getLocalLookVector();
-        drawHumanoid(px, basePy, player.facing, "#263238", "#b98a78", "#0d0d0d", cosmetics.shirts, cosmetics.pants, cosmetics.hats, pose, localLook.x, localLook.y);
+        drawHumanoid(px, basePy, player.facing, "#263238", "#b98a78", "#0d0d0d", cosmetics.shirts, cosmetics.pants, cosmetics.shoes, cosmetics.hats, pose, localLook.x, localLook.y);
 
         drawSword(px, basePy, cosmetics.swords, player.facing, pose.swordSwing || 0);
         ctx.restore();
@@ -7380,7 +8136,7 @@
           ctx.translate(-(px + PLAYER_W / 2), -(basePy + PLAYER_H / 2));
 
           const remoteLook = getRemoteLookVector(other);
-          drawHumanoid(px, basePy, other.facing || 1, "#2a75bb", "#b98a78", "#102338", cosmetics.shirts || "", cosmetics.pants || "", cosmetics.hats || "", pose, remoteLook.x, remoteLook.y);
+          drawHumanoid(px, basePy, other.facing || 1, "#2a75bb", "#b98a78", "#102338", cosmetics.shirts || "", cosmetics.pants || "", cosmetics.shoes || "", cosmetics.hats || "", pose, remoteLook.x, remoteLook.y);
 
           drawSword(px, basePy, cosmetics.swords || "", other.facing || 1, pose.swordSwing || 0);
           ctx.restore();
@@ -7623,6 +8379,9 @@
         ctx.setTransform(cameraZoom, 0, 0, cameraZoom, 0, 0);
         drawBackground();
         drawWorld();
+        if (particleController && typeof particleController.draw === "function") {
+          particleController.draw(ctx, cameraX, cameraY);
+        }
         drawWorldDrops();
         drawRemotePlayers();
         drawPlayer();
@@ -7942,6 +8701,7 @@
           }
           saveInventory();
           refreshToolbar();
+          awardXp(3, "placing blocks");
         };
 
         if (id === WORLD_LOCK_ID) {
@@ -7964,6 +8724,7 @@
             };
             finalizePlace();
             postLocalSystemChat("World locked.");
+            applyAchievementEvent("world_lock_placed", { worldId: currentWorldId });
             return;
           }
           network.lockRef.transaction((current) => {
@@ -7991,6 +8752,7 @@
             };
             finalizePlace();
             postLocalSystemChat("World locked.");
+            applyAchievementEvent("world_lock_placed", { worldId: currentWorldId });
           }).catch(() => {
             postLocalSystemChat("Failed to place world lock.");
           });
@@ -8085,16 +8847,18 @@
           syncTileDamageToNetwork(tx, ty, 0);
           saveTreePlant(tx, ty, null);
           syncBlock(tx, ty, 0);
+          if (particleController && typeof particleController.emitBlockBreak === "function") {
+            particleController.emitBlockBreak(tx * TILE + TILE * 0.5, ty * TILE + TILE * 0.5, 11);
+          }
           if (INVENTORY_IDS.includes(rewardBlockId)) {
             inventory[rewardBlockId] = (inventory[rewardBlockId] || 0) + rewardAmount;
           }
-          const gemsCtrl = getGemsController();
-          if (gemsCtrl && typeof gemsCtrl.add === "function") {
-            gemsCtrl.add(gemReward);
-          }
-          updateGemsLabel();
+          addPlayerGems(gemReward, true);
           saveInventory();
           refreshToolbar();
+          awardXp(15, "harvesting");
+          applyAchievementEvent("tree_harvest", { count: 1 });
+          applyQuestEvent("break_block", { count: 1 });
           const rewardDef = blockDefs[rewardBlockId];
           const rewardName = rewardDef && rewardDef.name ? rewardDef.name : ("Block " + rewardBlockId);
           postLocalSystemChat("Harvested seed: +" + rewardAmount + " " + rewardName + " and +" + gemReward + " gems.");
@@ -8191,28 +8955,38 @@
         }
 
         world[ty][tx] = 0;
-        const dropId = getInventoryDropId(id);
-        if (INVENTORY_IDS.includes(dropId)) {
-          const currentCount = Math.max(0, Math.floor(Number(inventory[dropId]) || 0));
-          if (currentCount >= INVENTORY_ITEM_LIMIT) {
-            if (Math.random() < (1 / 3)) {
-              spawnWorldDropEntry(
-                { type: "block", blockId: dropId },
-                1,
-                tx * TILE,
-                ty * TILE
-              );
-            }
-          } else {
-            inventory[dropId] = currentCount + 1;
-          }
+        if (particleController && typeof particleController.emitBlockBreak === "function") {
+          particleController.emitBlockBreak(tx * TILE + TILE * 0.5, ty * TILE + TILE * 0.5, 12);
         }
-        const seedDropId = SEED_DROP_BY_BLOCK_ID[id] || 0;
-        if (seedDropId && Math.random() < SEED_DROP_CHANCE) {
-          inventory[seedDropId] = (inventory[seedDropId] || 0) + 1;
-          const seedDef = blockDefs[seedDropId];
-          const seedName = seedDef && seedDef.name ? seedDef.name : "Seed";
-          postLocalSystemChat("You found a " + seedName + ".");
+        if (isGachaBlockId(id)) {
+          resolveGachaBreak(id, tx, ty);
+        } else {
+          const dropId = getInventoryDropId(id);
+          if (INVENTORY_IDS.includes(dropId)) {
+            const currentCount = Math.max(0, Math.floor(Number(inventory[dropId]) || 0));
+            if (currentCount >= INVENTORY_ITEM_LIMIT) {
+              if (Math.random() < (1 / 3)) {
+                spawnWorldDropEntry(
+                  { type: "block", blockId: dropId },
+                  1,
+                  tx * TILE,
+                  ty * TILE
+                );
+              }
+            } else {
+              inventory[dropId] = currentCount + 1;
+            }
+          }
+          const seedDropId = SEED_DROP_BY_BLOCK_ID[id] || 0;
+          if (seedDropId && Math.random() < SEED_DROP_CHANCE) {
+            inventory[seedDropId] = (inventory[seedDropId] || 0) + 1;
+            if (particleController && typeof particleController.emitSeedDrop === "function") {
+              particleController.emitSeedDrop(tx * TILE + TILE * 0.5, ty * TILE + TILE * 0.4);
+            }
+            const seedDef = blockDefs[seedDropId];
+            const seedName = seedDef && seedDef.name ? seedDef.name : "Seed";
+            postLocalSystemChat("You found a " + seedName + ".");
+          }
         }
         syncBlock(tx, ty, 0);
         if (id === WORLD_LOCK_ID) {
@@ -8224,6 +8998,8 @@
         }
         saveInventory();
         refreshToolbar();
+        awardXp(5, "breaking blocks");
+        applyQuestEvent("break_block", { count: 1 });
       }
 
       function tryRotate(tx, ty) {
@@ -8779,6 +9555,16 @@
         if ((dx * dx + dy * dy) > (DROP_PICKUP_RADIUS * DROP_PICKUP_RADIUS)) return;
 
         const applyPickup = () => {
+          if (particleController && typeof particleController.emitPickup === "function") {
+            particleController.emitPickup(
+              drop.x + TILE * 0.5,
+              drop.y + TILE * 0.5,
+              player.x + PLAYER_W * 0.5,
+              player.y + PLAYER_H * 0.5,
+              drop.amount,
+              drop.type
+            );
+          }
           if (drop.type === "cosmetic") {
             cosmeticInventory[drop.cosmeticId] = Math.max(0, Math.floor((cosmeticInventory[drop.cosmeticId] || 0) + drop.amount));
           } else if (drop.type === "block") {
@@ -9265,6 +10051,7 @@
             text: "Entered " + worldId + " with 1 player.",
             createdAt: Date.now()
           });
+          applyQuestEvent("visit_world", { worldId });
           return;
         }
 
@@ -9769,6 +10556,7 @@
             createdAt: Date.now()
           });
         }).catch(() => {});
+        applyQuestEvent("visit_world", { worldId });
 
         if (network.connected) {
           if (network.globalPlayerRef) {
@@ -9827,11 +10615,14 @@
           cosmetics: {
             shirts: equippedCosmetics.shirts || "",
             pants: equippedCosmetics.pants || "",
+            shoes: equippedCosmetics.shoes || "",
             hats: equippedCosmetics.hats || "",
             wings: equippedCosmetics.wings || "",
             swords: equippedCosmetics.swords || ""
           },
           title: getEquippedTitlePayload(),
+          progression: buildProgressionPayload(),
+          achievements: getAchievementsSummary(),
           danceUntil: Math.max(0, Math.floor(danceUntilMs)),
           world: inWorld ? currentWorldId : "menu",
           updatedAt: firebase.database.ServerValue.TIMESTAMP
@@ -9884,6 +10675,32 @@
             const ctrl = getShopController();
             if (!ctrl || typeof ctrl.openModal !== "function") return;
             ctrl.openModal();
+          });
+        }
+        if (achievementsToggleBtn) {
+          achievementsToggleBtn.addEventListener("click", () => {
+            openAchievementsMenu();
+          });
+        }
+        if (achievementsCloseBtn) {
+          achievementsCloseBtn.addEventListener("click", () => {
+            closeAchievementsMenu();
+          });
+        }
+        if (achievementsModalEl) {
+          achievementsModalEl.addEventListener("click", (event) => {
+            if (event.target === achievementsModalEl) {
+              closeAchievementsMenu();
+            }
+          });
+        }
+        if (achievementsActionsEl) {
+          achievementsActionsEl.addEventListener("click", (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            if (String(target.dataset.achAct || "") === "close") {
+              closeAchievementsMenu();
+            }
           });
         }
         adminToggleBtn.addEventListener("click", () => {
@@ -10296,6 +11113,9 @@
           network.myFriendsRef = network.db.ref(BASE_PATH + "/friends/" + playerProfileId);
           network.myFriendRequestsRef = network.db.ref(BASE_PATH + "/friend-requests/" + playerProfileId);
           network.inventoryRef = network.db.ref(BASE_PATH + "/player-inventories/" + playerProfileId);
+          network.progressRef = network.db.ref(BASE_PATH + "/player-progress/" + playerProfileId);
+          network.achievementsRef = network.db.ref(BASE_PATH + "/player-achievements/" + playerProfileId);
+          network.questsRef = network.db.ref(BASE_PATH + "/player-quests/" + playerProfileId);
           network.accountLogsRootRef = network.db.ref(BASE_PATH + "/account-logs");
           network.antiCheatLogsRef = network.db.ref(BASE_PATH + "/anti-cheat-logs").limitToLast(320);
           network.forceReloadRef = network.db.ref(BASE_PATH + "/system/force-reload");
@@ -10320,6 +11140,43 @@
             refreshToolbar();
             if (inWorld) {
               syncPlayer(true);
+            }
+          };
+
+          network.handlers.progression = (snapshot) => {
+            if (snapshot.exists()) {
+              applyProgressionFromRecord(snapshot.val() || {}, false);
+              saveProgressionToLocal();
+            } else {
+              scheduleProgressionSave(true);
+            }
+            if (inWorld) {
+              syncPlayer(true);
+            }
+          };
+
+          network.handlers.achievements = (snapshot) => {
+            if (snapshot.exists()) {
+              achievementsState = normalizeAchievementsState(snapshot.val() || {});
+              saveAchievementsToLocal();
+            } else {
+              achievementsState = normalizeAchievementsState({});
+              scheduleAchievementsSave(true);
+            }
+            const open = achievementsModalEl && !achievementsModalEl.classList.contains("hidden");
+            if (open) renderAchievementsMenu();
+            if (inWorld) {
+              syncPlayer(true);
+            }
+          };
+
+          network.handlers.quests = (snapshot) => {
+            if (snapshot.exists()) {
+              questsState = normalizeQuestsState(snapshot.val() || {});
+              saveQuestsToLocal();
+            } else {
+              questsState = normalizeQuestsState({});
+              scheduleQuestsSave(true);
             }
           };
 
@@ -10526,7 +11383,7 @@
               const sev = (value.severity || "warn").toString().toLowerCase().slice(0, 16);
               const uname = (value.username || value.accountId || "unknown").toString().slice(0, 24);
               const worldId = (value.world || "").toString().slice(0, 24);
-              const detail = (value.details || "").toString().slice(0, 120);
+              const detail = (value.details || "").toString().slice(0, 220);
               const text = "@" + uname + " | " + rule + (worldId ? (" | " + worldId) : "") + (detail ? (" | " + detail) : "");
               flattened.push({
                 text,
@@ -10646,6 +11503,9 @@
 
           network.connectedRef.on("value", network.handlers.connected);
           network.inventoryRef.on("value", network.handlers.inventory);
+          network.progressRef.on("value", network.handlers.progression);
+          network.achievementsRef.on("value", network.handlers.achievements);
+          network.questsRef.on("value", network.handlers.quests);
           network.mySessionRef.on("value", network.handlers.mySession);
           network.myCommandRef.on("value", network.handlers.myCommand);
           network.myReachRef.on("value", network.handlers.myReach);
@@ -10674,6 +11534,9 @@
 
           window.addEventListener("beforeunload", () => {
             saveInventory();
+            scheduleProgressionSave(true);
+            scheduleAchievementsSave(true);
+            scheduleQuestsSave(true);
             if (inWorld) {
               sendSystemWorldMessage(playerName + " left the world.");
             }
@@ -11424,6 +12287,11 @@
           if (friendCtrl && typeof friendCtrl.closeFriends === "function") friendCtrl.closeFriends();
           return;
         }
+        if (e.key === "Escape" && achievementsModalEl && !achievementsModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeAchievementsMenu();
+          return;
+        }
         const tradePanelEl = document.getElementById("tradePanelModal");
         if (e.key === "Escape" && tradePanelEl && !tradePanelEl.classList.contains("hidden")) {
           e.preventDefault();
@@ -11561,7 +12429,15 @@
 
       function bootstrapGame() {
         loadInventoryFromLocal();
+        loadProgressionFromLocal();
+        if (!loadAchievementsFromLocal()) {
+          achievementsState = normalizeAchievementsState({});
+        }
+        if (!loadQuestsFromLocal()) {
+          questsState = normalizeQuestsState({});
+        }
         refreshToolbar();
+        postDailyQuestStatus();
         bindMobileControls();
         setInWorldState(false);
         refreshWorldButtons([currentWorldId]);
@@ -11590,6 +12466,9 @@
             }
             if (inWorld) {
               updatePlayer();
+              if (particleController && typeof particleController.update === "function") {
+                particleController.update(FIXED_FRAME_MS / 1000);
+              }
               updateCamera();
               tickTileDamageDecay();
               updateWorldDrops();

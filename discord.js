@@ -104,18 +104,48 @@ window.GTModules.discord = (function createDiscordModule() {
     return String(payload || "").trim();
   }
 
+  function toEmbeds(payload) {
+    if (!payload || typeof payload !== "object") return [];
+    if (Array.isArray(payload.embeds)) return payload.embeds.filter((x) => x && typeof x === "object");
+    if (payload.embed && typeof payload.embed === "object") return [payload.embed];
+    return [];
+  }
+
+  function sanitizeEmbed(embed) {
+    if (!embed || typeof embed !== "object") return null;
+    const out = { ...embed };
+    if (typeof out.title === "string" && out.title.length > 256) out.title = out.title.slice(0, 256);
+    if (typeof out.description === "string" && out.description.length > 4096) out.description = out.description.slice(0, 4096);
+    if (Array.isArray(out.fields)) {
+      out.fields = out.fields.slice(0, 25).map((f) => {
+        const row = f && typeof f === "object" ? { ...f } : {};
+        row.name = String(row.name || "").slice(0, 256);
+        row.value = String(row.value || "").slice(0, 1024);
+        row.inline = Boolean(row.inline);
+        return row;
+      });
+    }
+    return out;
+  }
+
   async function send(payload, options) {
     const opts = options || {};
     const contentRaw = toContent(payload);
     const content = contentRaw.length > 1900 ? (contentRaw.slice(0, 1897) + "...") : contentRaw;
-    if (!content) return false;
+    const embedsRaw = toEmbeds(payload);
+    const embeds = embedsRaw.map(sanitizeEmbed).filter(Boolean).slice(0, 10);
+    if (!content && !embeds.length) return false;
 
     const explicitWebhookUrl = String(opts.webhookUrl || "").trim();
     const unresolved = explicitWebhookUrl || (await getWebhookUrl(Boolean(opts.forceRefresh)));
     const url = await resolveDiscordWebhookUrl(unresolved);
     if (!url) return false;
 
-    const body = { content };
+    const body = {};
+    if (content) body.content = content;
+    if (embeds.length) body.embeds = embeds;
+    if (typeof opts.username === "string" && opts.username.trim()) body.username = opts.username.trim().slice(0, 80);
+    if (typeof opts.avatarUrl === "string" && opts.avatarUrl.trim()) body.avatar_url = opts.avatarUrl.trim();
     try {
       const directRes = await fetch(url, {
         method: "POST",
@@ -130,9 +160,32 @@ window.GTModules.discord = (function createDiscordModule() {
     return false;
   }
 
+  async function sendEmbed(embed, options) {
+    const payload = { embeds: Array.isArray(embed) ? embed : [embed] };
+    return send(payload, options);
+  }
+
   return {
     isLocalRuntime,
     getWebhookUrl,
-    send
+    send,
+    sendEmbed
   };
 })();
+
+
+
+/*
+
+window.GTModules.discord.sendEmbed({
+  title: "Anti-Cheat",
+  description: "Speed anomaly detected",
+  color: 0xff5555,
+  fields: [
+    { name: "User", value: "@isxt", inline: true },
+    { name: "World", value: "buywings", inline: true }
+  ],
+  timestamp: new Date().toISOString()
+});
+
+*/
