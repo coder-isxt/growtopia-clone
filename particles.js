@@ -88,19 +88,19 @@ window.GTModules.particles = (function createParticlesModule() {
     function emitWingFlap(x, y, facing, strength) {
       const dir = Number(facing) >= 0 ? 1 : -1;
       const power = Math.max(0.6, Math.min(2.2, Number(strength) || 1));
-      const n = Math.max(3, Math.min(14, Math.floor(5 * power)));
+      const n = Math.max(5, Math.min(20, Math.floor(8 * power)));
       const items = [];
       for (let i = 0; i < n; i++) {
         items.push(makeParticle(
-          x + rand(-5, 5) - dir * rand(2, 8),
-          y + rand(-4, 8),
-          -dir * rand(0.15, 0.9),
-          rand(-1.0, 0.55) - power * 0.35,
-          rand(0.16, 0.36),
-          rand(0.9, 1.8),
-          i % 2 ? "rgba(252, 252, 252, 0.9)" : "rgba(217, 239, 255, 0.88)",
-          0.12,
-          0.976
+          x + rand(-8, 8) - dir * rand(5, 15),
+          y + rand(-6, 6),
+          -dir * rand(0.5, 2.0),
+          rand(-0.5, 0.5) - power * 0.2,
+          rand(0.5, 1.5),
+          rand(1.2, 2.5),
+          "rgba(255, 255, 255, 0.6)",
+          0.08,
+          0.95
         ));
       }
       pushMany(items);

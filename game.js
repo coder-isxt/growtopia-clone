@@ -530,6 +530,7 @@
       };
       let toolbarRenderQueued = false;
       let toolbarRenderRafId = 0;
+      let lastToolbarRefresh = 0;
       let suppressInventoryClickUntilMs = 0;
       let pickupInventoryFlushTimer = 0;
       let lastInventoryFullHintAt = 0;
@@ -3958,6 +3959,8 @@
       function onAuthSuccess(accountId, username) {
         playerProfileId = accountId;
         playerName = username;
+        loadQuestsFromLocal();
+        postDailyQuestStatus();
         const gemsCtrl = getGemsController();
         if (gemsCtrl && typeof gemsCtrl.reset === "function") {
           gemsCtrl.reset();
@@ -8181,12 +8184,19 @@
         const keepIds = [];
         playerWrenchHitboxes.length = 0;
         const wrenchSelected = slotOrder[selectedSlot] === TOOL_WRENCH;
+        const visiblePlayers = [];
         remotePlayers.forEach((other) => {
           const otherId = (other.id || "").toString();
           keepIds.push(otherId);
           const px = Math.round(other.x - cameraX);
           const py = Math.round(other.y - cameraY);
           if (px < -40 || py < -40 || px > viewW + 40 || py > viewH + 40) return;
+          const distance = Math.sqrt(px * px + py * py);
+          visiblePlayers.push({ other, otherId, px, py, distance });
+        });
+        // Sort by distance and limit to 30 closest
+        visiblePlayers.sort((a, b) => a.distance - b.distance);
+        visiblePlayers.slice(0, 30).forEach(({ other, otherId, px, py }) => {
           const cosmetics = other.cosmetics || {};
           const remoteMotion = typeof animationsModule.sampleRemote === "function"
             ? animationsModule.sampleRemote(remoteAnimationTracker, otherId, other.x, other.y, nowMs)
@@ -11985,6 +11995,7 @@
       }
 
       function renderToolbarNow() {
+        lastToolbarRefresh = performance.now();
         toolbar.innerHTML = "";
         const blockSection = createInventorySection("Blocks & Tools", "Click to select (1: Fist, 2: Wrench)");
         const cosmeticEntries = [];
@@ -12122,6 +12133,8 @@
           renderToolbarNow();
           return;
         }
+        const now = performance.now();
+        if (now - lastToolbarRefresh < 100) return; // Throttle to 10fps
         if (toolbarRenderQueued) return;
         toolbarRenderQueued = true;
         toolbarRenderRafId = requestAnimationFrame(() => {
