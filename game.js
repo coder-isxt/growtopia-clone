@@ -2401,7 +2401,7 @@
           try {
             firebaseConfig.apiKey = await window.getFirebaseApiKey();
           } catch (error) {
-            throw new Error("Failed to fetch Firebase API key at runtime.");
+            throw new Error("Failed to fetch Firebase API key at runtime." + error.message);
           }
         }
         if (!hasFirebaseConfig(firebaseConfig)) {
