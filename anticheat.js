@@ -63,6 +63,7 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
     const MAX_ACTIONS_PER_2S = Math.max(8, Number(SETTINGS.AC_MAX_ACTIONS_PER_2S) || 24);
     const MAX_CHAT_PER_10S = Math.max(4, Number(SETTINGS.AC_MAX_CHAT_PER_10S) || 10);
     const ALERT_COOLDOWN_MS = Math.max(3000, Number(SETTINGS.AC_ALERT_COOLDOWN_MS) || 15000);
+    let lastWebhookFailNoticeAt = 0;
 
     function get(k, fallback) {
       const fn = opts[k];
@@ -100,8 +101,8 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       const timestamp = new Date().toISOString();
       const detailText = typeof details === "string"
         ? details
-        : JSON.stringify(details || {}).slice(0, 1800);
-      const content = [
+        : JSON.stringify(details || {}).slice(0, 1200);
+      let content = [
         "**Anti-Cheat Alert**",
         "Rule: `" + rule + "`",
         "Severity: `" + severity + "`",
@@ -112,13 +113,32 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
         "Time: `" + timestamp + "`",
         "Details: " + detailText
       ].filter(Boolean).join("\n");
+      if (content.length > 1900) {
+        content = content.slice(0, 1897) + "...";
+      }
+      const payload = { content };
       try {
-        await fetch(url, {
+        const directRes = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content })
+          body: JSON.stringify(payload)
         });
-        return true;
+        if (directRes && directRes.ok) return true;
+      } catch (error) {
+        // Try proxy fallback below.
+      }
+      try {
+        const endpoint = String(window.ANTICHEAT_WEBHOOK_ENDPOINT || "").trim();
+        if (!endpoint || endpoint === url) return false;
+        const proxyRes = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: payload.content,
+            webhookUrl: url
+          })
+        });
+        return Boolean(proxyRes && proxyRes.ok);
       } catch (error) {
         return false;
       }
@@ -134,7 +154,14 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
           details: details || {}
         });
       }
-      sendWebhook(rule, severity || "warn", details || {}).catch(() => {});
+      sendWebhook(rule, severity || "warn", details || {}).then((ok) => {
+        if (ok) return;
+        const now = Date.now();
+        if ((now - lastWebhookFailNoticeAt) > 60000) {
+          lastWebhookFailNoticeAt = now;
+          postLocal("Anti-cheat webhook send failed.");
+        }
+      }).catch(() => {});
     }
 
     function onSessionStart() {

@@ -5524,12 +5524,15 @@
         if (!item) return;
         const flap = Number(wingFlap) || 0;
         const open = Math.max(0, Math.min(1, Number(wingOpen) || 0));
+        const upStroke = Math.max(0, -flap);
+        const downStroke = Math.max(0, flap);
+        // Strong hinge-style flap: quick downstroke + lighter upstroke.
+        const flapStroke = (downStroke * 0.88) - (upStroke * 0.58);
         const wingImg = getCosmeticImage(item);
         if (wingImg) {
           const centerX = px + PLAYER_W / 2;
-          const centerY = py + 14;
-          const baseAngle = 0.24 + open * 0.42;
-          const flapAngle = flap * 0.38;
+          const centerY = py + 14.5;
+          const baseAngle = 0.2 + open * 0.34;
           const wingH = 20;
           const wingW = Math.max(10, Math.round(wingH * (wingImg.naturalWidth / Math.max(1, wingImg.naturalHeight))));
           const offsetX = Number(item && item.offsetX);
@@ -5537,7 +5540,7 @@
           const useOffsetX = Number.isFinite(offsetX) ? offsetX : 3;
           const useOffsetY = Number.isFinite(offsetY) ? offsetY : 0;
           const drawWingSide = (sideSign) => {
-            const angle = sideSign * (baseAngle + flapAngle);
+            const angle = (sideSign * baseAngle) - (sideSign * flapStroke);
             ctx.save();
             ctx.translate(centerX + sideSign * (1.5 + useOffsetX), centerY + useOffsetY);
             ctx.rotate(angle);
@@ -5552,12 +5555,12 @@
         }
         ctx.fillStyle = item.color;
         const centerX = px + PLAYER_W / 2;
-        const centerY = py + 14;
+        const centerY = py + 14.5;
         const forwardSign = facing === 1 ? 1 : -1;
         const drawWing = (sideSign) => {
           const dir = sideSign * forwardSign;
-          const base = (0.28 + open * 0.42) * sideSign;
-          const angle = base + flap * sideSign;
+          const base = (0.24 + open * 0.34) * sideSign;
+          const angle = base - (sideSign * flapStroke);
           ctx.save();
           ctx.translate(centerX, centerY);
           ctx.rotate(angle);

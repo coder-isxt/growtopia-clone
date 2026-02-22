@@ -24,13 +24,20 @@ window.GTModules.animations = (function createAnimationsModule() {
   function sampleLocal(player) {
     const p = player || {};
     const rawSpeed = Math.abs(Number(p.vx) || 0);
+    const rawVy = Number(p.vy) || 0;
+    const grounded = Boolean(p.grounded);
     const prevSpeed = Number(p._animSpeed) || 0;
-    const smoothSpeed = prevSpeed + (rawSpeed - prevSpeed) * 0.28;
+    let smoothSpeed = prevSpeed + (rawSpeed - prevSpeed) * 0.28;
+    if (grounded && rawSpeed < 0.12 && Math.abs(rawVy) < 0.12) {
+      // Kill tiny friction noise so idle does not micro-wobble.
+      smoothSpeed *= 0.45;
+      if (smoothSpeed < 0.03) smoothSpeed = 0;
+    }
     p._animSpeed = smoothSpeed;
     return {
       speed: smoothSpeed,
-      vy: Number(p.vy) || 0,
-      grounded: Boolean(p.grounded)
+      vy: rawVy,
+      grounded
     };
   }
 
@@ -48,8 +55,10 @@ window.GTModules.animations = (function createAnimationsModule() {
       vx = (px - prev.x) / dt * 16.6667;
       vy = (py - prev.y) / dt * 16.6667;
     }
-    const rawVx = clamp(vx, -8, 8);
-    const rawVy = clamp(vy, -10, 10);
+    let rawVx = clamp(vx, -8, 8);
+    let rawVy = clamp(vy, -10, 10);
+    if (Math.abs(rawVx) < 0.08) rawVx = 0;
+    if (Math.abs(rawVy) < 0.08) rawVy = 0;
     const prevVx = prev && Number.isFinite(prev.vxSmooth) ? prev.vxSmooth : rawVx;
     const prevVy = prev && Number.isFinite(prev.vySmooth) ? prev.vySmooth : rawVy;
     const vxSmooth = prevVx + (rawVx - prevVx) * 0.32;
@@ -58,7 +67,7 @@ window.GTModules.animations = (function createAnimationsModule() {
     return {
       speed: Math.abs(vxSmooth),
       vy: vySmooth,
-      grounded: Math.abs(vySmooth) < 0.2
+      grounded: Math.abs(vySmooth) < 0.35
     };
   }
 
@@ -92,16 +101,28 @@ window.GTModules.animations = (function createAnimationsModule() {
     if (grounded) {
       // Deadzone removes tiny idle-speed oscillation that looks like friction jitter.
       if (stride < 0.12) stride = 0;
-      const walkWave = Math.sin(phase);
-      const walkWave2 = Math.sin(phase * 2);
-      bodyBob = walkWave2 * (0.08 + stride * 0.55);
-      bodyTilt = walkWave * (0.004 + stride * 0.018);
-      wingFlap = Math.sin(t * (0.0024 + stride * 0.005) + seed * 8) * (0.06 + stride * 0.23);
-      wingOpen = 0.24 + stride * 0.16;
-      swordSwing = walkWave * (0.12 + stride * 1.2);
-      armSwing = walkWave * (0.22 + stride * 1.7);
-      legSwing = -walkWave * (0.3 + stride * 2.2);
-      eyeYOffset = 0;
+      if (stride <= 0.0001) {
+        // True grounded idle pose: no motion-driven offsets.
+        bodyBob = 0;
+        bodyTilt = 0;
+        wingFlap = Math.sin(t * 0.0018 + seed * 8) * 0.03;
+        wingOpen = 0.24;
+        swordSwing = 0;
+        armSwing = 0;
+        legSwing = 0;
+        eyeYOffset = 0;
+      } else {
+        const walkWave = Math.sin(phase);
+        const walkWave2 = Math.sin(phase * 2);
+        bodyBob = walkWave2 * (0.06 + stride * 0.48);
+        bodyTilt = walkWave * (0.003 + stride * 0.016);
+        wingFlap = Math.sin(t * (0.0024 + stride * 0.005) + seed * 8) * (0.06 + stride * 0.23);
+        wingOpen = 0.24 + stride * 0.16;
+        swordSwing = walkWave * (0.1 + stride * 1.05);
+        armSwing = walkWave * (0.18 + stride * 1.45);
+        legSwing = -walkWave * (0.24 + stride * 1.9);
+        eyeYOffset = 0;
+      }
     } else {
       const jumpUp = vy < -0.12;
       const fallDown = vy > 0.12;

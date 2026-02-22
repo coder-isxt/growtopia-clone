@@ -282,6 +282,9 @@ canvas {
   color: #8ff8e4;
   font-weight: 700;
   text-align: center;
+  z-index: 6;
+  pointer-events: none;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.65);
 }
 
 .slot-badge {
@@ -298,6 +301,8 @@ canvas {
   line-height: 16px;
   text-align: center;
   font-weight: 700;
+  z-index: 6;
+  pointer-events: none;
 }
 
 .item-icon {
