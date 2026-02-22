@@ -4104,15 +4104,14 @@
       }
 
       function scheduleProgressionSave(immediate) {
-        if (progressionSaveTimer) {
-          clearTimeout(progressionSaveTimer);
-          progressionSaveTimer = 0;
-        }
         if (immediate) {
+          if (progressionSaveTimer) { clearTimeout(progressionSaveTimer); progressionSaveTimer = 0; }
           flushProgressionSave();
           return;
         }
-        progressionSaveTimer = setTimeout(flushProgressionSave, 260);
+        if (!progressionSaveTimer) {
+          progressionSaveTimer = setTimeout(flushProgressionSave, 260);
+        }
       }
 
       function awardXp(amount, reason) {
@@ -4211,15 +4210,14 @@
       }
 
       function scheduleAchievementsSave(immediate) {
-        if (achievementsSaveTimer) {
-          clearTimeout(achievementsSaveTimer);
-          achievementsSaveTimer = 0;
-        }
         if (immediate) {
+          if (achievementsSaveTimer) { clearTimeout(achievementsSaveTimer); achievementsSaveTimer = 0; }
           flushAchievementsSave();
           return;
         }
-        achievementsSaveTimer = setTimeout(flushAchievementsSave, 260);
+        if (!achievementsSaveTimer) {
+          achievementsSaveTimer = setTimeout(flushAchievementsSave, 260);
+        }
       }
 
       function applyAchievementEvent(eventType, payload) {
@@ -4485,15 +4483,14 @@
       }
 
       function scheduleQuestsSave(immediate) {
-        if (questsSaveTimer) {
-          clearTimeout(questsSaveTimer);
-          questsSaveTimer = 0;
-        }
         if (immediate) {
+          if (questsSaveTimer) { clearTimeout(questsSaveTimer); questsSaveTimer = 0; }
           flushQuestsSave();
           return;
         }
-        questsSaveTimer = setTimeout(flushQuestsSave, 260);
+        if (!questsSaveTimer) {
+          questsSaveTimer = setTimeout(flushQuestsSave, 260);
+        }
       }
 
       function applyQuestEvent(eventType, payload) {
@@ -4713,24 +4710,21 @@
       }
 
       function saveInventory(immediate = true) {
-        if (inventorySaveTimer) {
-          clearTimeout(inventorySaveTimer);
-          inventorySaveTimer = 0;
-        }
         if (immediate) {
+          if (inventorySaveTimer) { clearTimeout(inventorySaveTimer); inventorySaveTimer = 0; }
           clampLocalInventoryAll();
           saveInventoryToLocal();
           if (network.enabled && network.inventoryRef) {
-            network.inventoryRef.set(buildInventoryPayload()).catch(() => {
-              setNetworkState("Inventory save error", true);
-            });
+            network.inventoryRef.set(buildInventoryPayload()).catch(() => {});
           }
           return;
         }
-        inventorySaveTimer = setTimeout(() => {
-          inventorySaveTimer = 0;
-          saveInventory(true);
-        }, 1000);
+        if (!inventorySaveTimer) {
+          inventorySaveTimer = setTimeout(() => {
+            inventorySaveTimer = 0;
+            saveInventory(true);
+          }, 1000);
+        }
       }
 
       function schedulePickupInventoryFlush() {
@@ -7286,7 +7280,9 @@
         ctx.fillRect(0, viewH - 46, viewW, 46);
       }
 
-      function drawWorld() {
+      function drawAllDamageOverlays() {
+        if (tileDamageByKey.size === 0) return;
+        
         const viewW = getCameraViewWidth();
         const viewH = getCameraViewHeight();
         const startX = Math.floor(cameraX / TILE);
@@ -7294,18 +7290,29 @@
         const startY = Math.floor(cameraY / TILE);
         const endY = Math.ceil((cameraY + viewH) / TILE);
 
-        const drawBlockDamageOverlay = (tx, ty, id, x, y) => {
+        tileDamageByKey.forEach((damage, key) => {
+          if (!damage || !damage.hits) return;
+          const parts = key.split("_");
+          const tx = parseInt(parts[0], 10);
+          const ty = parseInt(parts[1], 10);
+          
+          if (tx < startX || tx > endX || ty < startY || ty > endY) return;
+          
+          const id = world[ty] && world[ty][tx];
           if (!id) return;
           const durability = getBlockDurability(id);
           if (!Number.isFinite(durability) || durability <= 1) return;
-          const damage = getTileDamage(tx, ty);
-          if (!damage.hits) return;
+          
           const ratio = Math.max(0, Math.min(1, damage.hits / durability));
           if (ratio <= 0) return;
+          
+          const x = tx * TILE - cameraX;
+          const y = ty * TILE - cameraY;
           const stage = Math.max(1, Math.min(4, Math.ceil(ratio * 4)));
           const alpha = 0.22 + stage * 0.14;
           const crackColor = "rgba(245, 251, 255, " + alpha.toFixed(3) + ")";
           const seed = ((tx * 73856093) ^ (ty * 19349663) ^ (id * 83492791)) >>> 0;
+          
           ctx.save();
           ctx.strokeStyle = crackColor;
           ctx.lineWidth = 1;
@@ -7325,7 +7332,49 @@
           }
           ctx.stroke();
           ctx.restore();
-        };
+        });
+      }
+
+      function drawWorld() {
+        const viewW = getCameraViewWidth();
+        const viewH = getCameraViewHeight();
+        const startX = Math.floor(cameraX / TILE);
+        const endX = Math.ceil((cameraX + viewW) / TILE);
+        const startY = Math.floor(cameraY / TILE);
+        const endY = Math.ceil((cameraY + viewH) / TILE);
+
+        // const //drawBlockDamageOverlay = (tx, ty, id, x, y) => {
+        //   if (!id) return;
+        //   const durability = getBlockDurability(id);
+        //   if (!Number.isFinite(durability) || durability <= 1) return;
+        //   const damage = getTileDamage(tx, ty);
+        //   if (!damage.hits) return;
+        //   const ratio = Math.max(0, Math.min(1, damage.hits / durability));
+        //   if (ratio <= 0) return;
+        //   const stage = Math.max(1, Math.min(4, Math.ceil(ratio * 4)));
+        //   const alpha = 0.22 + stage * 0.14;
+        //   const crackColor = "rgba(245, 251, 255, " + alpha.toFixed(3) + ")";
+        //   const seed = ((tx * 73856093) ^ (ty * 19349663) ^ (id * 83492791)) >>> 0;
+        //   ctx.save();
+        //   ctx.strokeStyle = crackColor;
+        //   ctx.lineWidth = 1;
+        //   ctx.beginPath();
+        //   const lineCount = 2 + stage * 2;
+        //   for (let i = 0; i < lineCount; i++) {
+        //     const a = ((seed + i * 137) % 1000) / 1000;
+        //     const b = ((seed + i * 241 + 71) % 1000) / 1000;
+        //     const c = ((seed + i * 389 + 19) % 1000) / 1000;
+        //     const d = ((seed + i * 521 + 43) % 1000) / 1000;
+        //     const x1 = x + 1 + a * (TILE - 2);
+        //     const y1 = y + 1 + b * (TILE - 2);
+        //     const x2 = x + 1 + c * (TILE - 2);
+        //     const y2 = y + 1 + d * (TILE - 2);
+        //     ctx.moveTo(x1, y1);
+        //     ctx.lineTo(x2, y2);
+        //   }
+        //   ctx.stroke();
+        //   ctx.restore();
+        // };
 
         for (let ty = startY; ty <= endY; ty++) {
           if (ty < 0 || ty >= WORLD_H) continue;
@@ -7341,20 +7390,20 @@
 
             if (id === PLATFORM_ID) {
               if (drawBlockImage(def, x, y)) {
-                drawBlockDamageOverlay(tx, ty, id, x, y);
+                //drawBlockDamageOverlay(tx, ty, id, x, y);
                 continue;
               }
               ctx.fillStyle = "#6d4f35";
               ctx.fillRect(x, y + 2, TILE, 6);
               ctx.fillStyle = "rgba(255, 238, 202, 0.25)";
               ctx.fillRect(x + 1, y + 2, TILE - 2, 2);
-              drawBlockDamageOverlay(tx, ty, id, x, y);
+              //drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
 
             if (STAIR_ROTATION_IDS.includes(id)) {
               if (drawStairImage(id, def, x, y)) {
-                drawBlockDamageOverlay(tx, ty, id, x, y);
+                //drawBlockDamageOverlay(tx, ty, id, x, y);
                 continue;
               }
               ctx.fillStyle = def.color;
@@ -7380,13 +7429,13 @@
               ctx.fill();
               ctx.fillStyle = "rgba(255,255,255,0.11)";
               ctx.fillRect(x + 2, y + 2, TILE - 4, 4);
-              drawBlockDamageOverlay(tx, ty, id, x, y);
+              //drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
 
             if (SPIKE_ROTATION_IDS.includes(id)) {
               if (drawSpikeImage(id, def, x, y)) {
-                drawBlockDamageOverlay(tx, ty, id, x, y);
+                //drawBlockDamageOverlay(tx, ty, id, x, y);
                 continue;
               }
               ctx.fillStyle = def.color || "#8d9aae";
@@ -7402,13 +7451,13 @@
               ctx.closePath();
               ctx.fill();
               ctx.restore();
-              drawBlockDamageOverlay(tx, ty, id, x, y);
+              //drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
 
             if (isPlantSeedBlockId(id)) {
               drawTreePlant(tx, ty, x, y);
-              drawBlockDamageOverlay(tx, ty, id, x, y);
+              //drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
 
@@ -7449,18 +7498,18 @@
                   }
                 }
               }
-              drawBlockDamageOverlay(tx, ty, id, x, y);
+              //drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
 
             if (id === SIGN_ID && drawBlockImage(def, x, y)) {
-              drawBlockDamageOverlay(tx, ty, id, x, y);
+              //drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
 
             if (id === VENDING_ID) {
               if (drawBlockImage(def, x, y)) {
-                drawBlockDamageOverlay(tx, ty, id, x, y);
+                //drawBlockDamageOverlay(tx, ty, id, x, y);
                 drawVendingWorldLabel(tx, ty, x, y);
                 continue;
               }
@@ -7472,18 +7521,18 @@
               ctx.fillRect(x + 6, y + 14, TILE - 12, 10);
               ctx.fillStyle = "#ffd166";
               ctx.fillRect(x + TILE - 10, y + 6, 4, 4);
-              drawBlockDamageOverlay(tx, ty, id, x, y);
+              //drawBlockDamageOverlay(tx, ty, id, x, y);
               drawVendingWorldLabel(tx, ty, x, y);
               continue;
             }
 
             if (id === WATER_ID && drawAnimatedWater(def, x, y, tx, ty)) {
-              drawBlockDamageOverlay(tx, ty, id, x, y);
+              //drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
 
             if (drawBlockImage(def, x, y)) {
-              drawBlockDamageOverlay(tx, ty, id, x, y);
+              //drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
 
@@ -7501,7 +7550,7 @@
               ctx.fillStyle = "rgba(0,0,0,0.14)";
               ctx.fillRect(x, y + TILE - 5, TILE, 5);
             }
-            drawBlockDamageOverlay(tx, ty, id, x, y);
+            //drawBlockDamageOverlay(tx, ty, id, x, y);
           }
         }
       }
@@ -8528,6 +8577,7 @@
         ctx.setTransform(cameraZoom, 0, 0, cameraZoom, 0, 0);
         drawBackground();
         drawWorld();
+        drawAllDamageOverlays(); // ADDED HERE
         if (particleController && typeof particleController.draw === "function") {
           particleController.draw(ctx, cameraX, cameraY);
         }
@@ -10780,6 +10830,26 @@
         if (!network.playerRef && !network.globalPlayerRef) return;
 
         const now = performance.now();
+        let writePlayer = inWorld && Boolean(network.playerRef);
+        let writeGlobal = Boolean(network.globalPlayerRef);
+
+        // Figure out if we ACTUALLY need to sync before allocating memory
+        if (playerSyncController && typeof playerSyncController.compute === "function") {
+          const syncDecision = playerSyncController.compute({
+            nowMs: now,
+            force,
+            x: Math.round(player.x),
+            y: Math.round(player.y),
+            facing: player.facing,
+            world: inWorld ? currentWorldId : "menu"
+          });
+          writePlayer = Boolean(syncDecision.writePlayer);
+          writeGlobal = Boolean(syncDecision.writeGlobal) && Boolean(network.globalPlayerRef);
+        }
+
+        // OPTIMIZATION: Early exit! Saves 60 heavy object allocations per second.
+        if (!writePlayer && !writeGlobal) return;
+
         const rawPayload = {
           name: playerName,
           accountId: playerProfileId,
@@ -10801,35 +10871,21 @@
           world: inWorld ? currentWorldId : "menu",
           updatedAt: firebase.database.ServerValue.TIMESTAMP
         };
+        
         const payload = typeof syncPlayerModule.buildPayload === "function"
           ? syncPlayerModule.buildPayload(rawPayload)
           : rawPayload;
-
-        let writePlayer = inWorld && Boolean(network.playerRef);
-        let writeGlobal = Boolean(network.globalPlayerRef);
-        if (playerSyncController && typeof playerSyncController.compute === "function") {
-          const syncDecision = playerSyncController.compute({
-            nowMs: now,
-            force,
-            x: payload.x,
-            y: payload.y,
-            facing: payload.facing,
-            world: payload.world
-          });
-          writePlayer = Boolean(syncDecision.writePlayer);
-          writeGlobal = Boolean(syncDecision.writeGlobal) && Boolean(network.globalPlayerRef);
-        }
-        if (!writePlayer && !writeGlobal) return;
 
         if (writePlayer && network.playerRef) {
           network.playerRef.update(payload).catch(() => {
             setNetworkState("Network error", true);
           });
         }
-        if (!writeGlobal || !network.globalPlayerRef) return;
-        network.globalPlayerRef.update(payload).catch(() => {
-          setNetworkState("Network error", true);
-        });
+        if (writeGlobal && network.globalPlayerRef) {
+          network.globalPlayerRef.update(payload).catch(() => {
+            setNetworkState("Network error", true);
+          });
+        }
       }
 
       function enterWorldFromInput() {
