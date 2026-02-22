@@ -9,7 +9,7 @@ window.GTModules.admin = {
   },
   DEFAULT_PERMISSIONS: {
     owner: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "setrole", "clear_logs", "view_audit", "force_reload", "freeze", "unfreeze", "announce_user"],
-    manager: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "setrole_limited", "clear_logs", "view_audit", "freeze", "unfreeze", "announce_user"],
+    manager: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "clear_logs", "view_audit", "freeze", "unfreeze", "announce_user"],
     admin: ["panel_open", "view_logs", "kick", "resetinv", "givex", "tp", "bring", "freeze", "unfreeze", "announce_user"],
     moderator: ["panel_open", "kick", "tp", "bring", "announce_user"],
     none: []

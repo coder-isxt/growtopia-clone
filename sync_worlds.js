@@ -106,6 +106,14 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
     const clearBlockValue = typeof opts.clearBlockValue === "function" ? opts.clearBlockValue : () => {};
     const addChatMessage = typeof opts.addChatMessage === "function" ? opts.addChatMessage : () => {};
     const onPlayerHit = typeof opts.onPlayerHit === "function" ? opts.onPlayerHit : () => {};
+    const normalizeTitle = (value) => {
+      const raw = value && typeof value === "object" ? value : {};
+      return {
+        id: String(raw.id || "").slice(0, 32),
+        name: String(raw.name || "").slice(0, 24),
+        color: String(raw.color || "").slice(0, 24)
+      };
+    };
     const setRemotePlayer = (id, p) => {
       if (!remotePlayers || typeof remotePlayers.set !== "function") return;
       remotePlayers.set(id, {
@@ -116,6 +124,7 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
         facing: p.facing || 1,
         name: (p.name || "Player").toString().slice(0, 16),
         cosmetics: normalizeCosmetics(p.cosmetics || {}),
+        title: normalizeTitle(p.title),
         danceUntil: Math.max(0, Math.floor(Number(p.danceUntil) || 0))
       });
     };
@@ -179,6 +188,9 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
         name: (value.name || "Guest").toString().slice(0, 16),
         playerId: (value.playerId || "").toString(),
         sessionId: (value.sessionId || "").toString(),
+        titleId: (value.titleId || "").toString().slice(0, 32),
+        titleName: (value.titleName || "").toString().slice(0, 24),
+        titleColor: (value.titleColor || "").toString().slice(0, 24),
         text: (value.text || "").toString().slice(0, 120),
         createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now()
       });

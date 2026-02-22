@@ -130,8 +130,14 @@ window.GTModules.animations = (function createAnimationsModule() {
       const flapFreq = jumpUp ? 0.007 : 0.009;
       bodyBob = Math.sin(t * 0.004 + seed * 6) * 0.14 + (jumpUp ? -0.38 : (fallDown ? 0.42 : 0));
       bodyTilt = clamp(vy * 0.012, -0.11, 0.11);
-      wingFlap = Math.sin(t * flapFreq + seed * 11) * (0.25 + airStrength * 0.45);
-      wingOpen = jumpUp ? 0.34 : (fallDown ? (0.72 + airStrength * 0.2) : 0.5);
+      if (fallDown) {
+        // Falling: keep wings opened and lifted upward.
+        wingFlap = -0.22 - airStrength * 0.2 + Math.sin(t * flapFreq + seed * 11) * (0.08 + airStrength * 0.12);
+        wingOpen = 0.84 + airStrength * 0.14;
+      } else {
+        wingFlap = Math.sin(t * flapFreq + seed * 11) * (0.22 + airStrength * 0.34);
+        wingOpen = jumpUp ? 0.36 : 0.54;
+      }
       swordSwing = clamp(vy * 0.1, -1.2, 1.2);
       if (jumpUp) {
         armSwing = -0.55 - airStrength * 0.5;

@@ -74,8 +74,15 @@ window.GTModules.world = {
       }
     }
 
+    // Absolute world bottom is always two bedrock layers.
+    const bottomY = height - 1;
+    const bottomY2 = height - 2;
+    for (let x = 0; x < width; x++) {
+      if (bottomY2 >= 0) w[bottomY2][x] = baseId;
+      if (bottomY >= 0) w[bottomY][x] = baseId;
+    }
+
     this.applySpawnStructureToGrid(w, width, height, spawnX, spawnY, doorId, baseId);
     return w;
   }
 };
-

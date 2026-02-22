@@ -76,6 +76,7 @@ window.GTModules.syncPlayer = (function createSyncPlayerModule() {
 
   function buildPayload(input) {
     const data = input || {};
+    const rawTitle = data && data.title && typeof data.title === "object" ? data.title : {};
     return {
       name: String(data.name || "").slice(0, 16),
       accountId: String(data.accountId || ""),
@@ -88,6 +89,11 @@ window.GTModules.syncPlayer = (function createSyncPlayerModule() {
         hats: String(data.cosmetics && data.cosmetics.hats || ""),
         wings: String(data.cosmetics && data.cosmetics.wings || ""),
         swords: String(data.cosmetics && data.cosmetics.swords || "")
+      },
+      title: {
+        id: String(rawTitle.id || "").slice(0, 32),
+        name: String(rawTitle.name || "").slice(0, 24),
+        color: String(rawTitle.color || "").slice(0, 24)
       },
       danceUntil: Math.max(0, toInt(data.danceUntil, 0)),
       world: String(data.world || ""),

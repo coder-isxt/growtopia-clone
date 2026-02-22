@@ -31,15 +31,12 @@ window.GTModules.blocks = (function createBlocksModule() {
     { id: 22, key: "display_block", name: "Display Block", color: "#314154", solid: true, icon: "DP", faIcon: "fa-regular fa-square" },
     { id: 23, key: "wood_plank", name: "Wooden Plank", color: "#b4bcc5", solid: true, icon: "WP", faIcon: "fa-regular fa-square", image: "special/plank.png" },
     
-    { id: 24, key: "tree_seed", name: "Tree Seed", color: "#6fbf52", solid: false, icon: "SE", faIcon: "fa-solid fa-seedling", image: "special/tree_seed.png" },
-    { id: 25, key: "grass_seed", name: "Grass Seed", color: "#5fbd54", solid: false, icon: "GS", faIcon: "fa-solid fa-seedling" },
-    { id: 26, key: "dirt_seed", name: "Dirt Seed", color: "#8c5d32", solid: false, icon: "DS", faIcon: "fa-solid fa-seedling" },
-    { id: 27, key: "stone_seed", name: "Stone Seed", color: "#8a949f", solid: false, icon: "SS", faIcon: "fa-solid fa-seedling" },
-    { id: 28, key: "sand_seed", name: "Sand Seed", color: "#e0cd89", solid: false, icon: "NS", faIcon: "fa-solid fa-seedling" },
-    { id: 29, key: "brick_seed", name: "Brick Seed", color: "#bd5c4a", solid: false, icon: "BS", faIcon: "fa-solid fa-seedling" },
-    { id: 30, key: "lock_seed", name: "Lock Seed", color: "#ffd166", solid: false, icon: "LS", faIcon: "fa-solid fa-seedling" },
-    { id: 31, key: "door_seed", name: "Door Seed", color: "#69c8ff", solid: false, icon: "OS", faIcon: "fa-solid fa-seedling" },
-    { id: 32, key: "plank_seed", name: "Plank Seed", color: "#b8c2cb", solid: false, icon: "PS", faIcon: "fa-solid fa-seedling" }
+    
+    
+    { id: 33, key: "spike_block", name: "Spikes", color: "#8d9aae", solid: false, lethal: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation", image: "special/spike.png" },
+    { id: 34, key: "donation_box", name: "Donation Box", color: "#8f6d4f", solid: true, donationBox: true, icon: "DN", faIcon: "fa-solid fa-box-open", image: "special/donation_box.png" },
+    { id: 36, key: "storage_chest", name: "Storage Chest", color: "#7f5f3e", solid: true, chestStorage: true, icon: "CH", faIcon: "fa-solid fa-box-archive" },
+    { id: 35, key: "leaf_block", name: "Leaf Block", color: "#467f3e", solid: true, icon: "CH", faIcon: "fa-solid fa-box-archive", image: "special/leaf.png" }
   ];
 
   function resolveImagePath(image) {

@@ -31,5 +31,11 @@ window.GTModules.items = {
       .concat(catalog.hats || [])
       .concat(catalog.wings || [])
       .concat(catalog.swords || []);
+  },
+  getTitleCatalog() {
+    const titlesModule = (window.GTModules && window.GTModules.titles) || {};
+    if (!titlesModule || typeof titlesModule.getCatalog !== "function") return [];
+    const list = titlesModule.getCatalog();
+    return Array.isArray(list) ? list.slice() : [];
   }
 };

@@ -26,6 +26,7 @@
       const worldInputEl = document.getElementById("worldInput");
       const enterWorldBtn = document.getElementById("enterWorldBtn");
       const chatToggleBtn = document.getElementById("chatToggleBtn");
+      const friendsToggleBtn = document.getElementById("friendsToggleBtn");
       const shopToggleBtn = document.getElementById("shopToggleBtn");
       const adminToggleBtn = document.getElementById("adminToggleBtn");
       const respawnBtn = document.getElementById("respawnBtn");
@@ -47,6 +48,16 @@
       const vendingBodyEl = document.getElementById("vendingBody");
       const vendingActionsEl = document.getElementById("vendingActions");
       const vendingCloseBtn = document.getElementById("vendingCloseBtn");
+      const donationModalEl = document.getElementById("donationModal");
+      const donationTitleEl = document.getElementById("donationTitle");
+      const donationBodyEl = document.getElementById("donationBody");
+      const donationActionsEl = document.getElementById("donationActions");
+      const donationCloseBtn = document.getElementById("donationCloseBtn");
+      const chestModalEl = document.getElementById("chestModal");
+      const chestTitleEl = document.getElementById("chestTitle");
+      const chestBodyEl = document.getElementById("chestBody");
+      const chestActionsEl = document.getElementById("chestActions");
+      const chestCloseBtn = document.getElementById("chestCloseBtn");
       const signModalEl = document.getElementById("signModal");
       const signTitleEl = document.getElementById("signTitle");
       const signTextInputEl = document.getElementById("signTextInput");
@@ -63,6 +74,16 @@
       const tradeRequestTextEl = document.getElementById("tradeRequestText");
       const tradeAcceptBtn = document.getElementById("tradeAcceptBtn");
       const tradeDeclineBtn = document.getElementById("tradeDeclineBtn");
+      const profileModalEl = document.getElementById("profileModal");
+      const profileTitleEl = document.getElementById("profileTitle");
+      const profileBodyEl = document.getElementById("profileBody");
+      const profileActionsEl = document.getElementById("profileActions");
+      const profileCloseBtn = document.getElementById("profileCloseBtn");
+      const friendsModalEl = document.getElementById("friendsModal");
+      const friendsTitleEl = document.getElementById("friendsTitle");
+      const friendsBodyEl = document.getElementById("friendsBody");
+      const friendsActionsEl = document.getElementById("friendsActions");
+      const friendsCloseBtn = document.getElementById("friendsCloseBtn");
       const worldLockModalEl = document.getElementById("worldLockModal");
       const worldLockTitleEl = document.getElementById("worldLockTitle");
       const worldLockAdminInputEl = document.getElementById("worldLockAdminInput");
@@ -106,6 +127,7 @@
       const modules = window.GTModules || {};
       const adminModule = modules.admin || {};
       const blocksModule = modules.blocks || {};
+      const seedsModule = modules.seeds || {};
       const plantsModule = modules.plants || {};
       const gemsModule = modules.gems || {};
       const rewardsModule = modules.rewards || {};
@@ -130,6 +152,9 @@
       const messagesModule = modules.messages || {};
       const anticheatModule = modules.anticheat || {};
       const vendingModule = modules.vending || {};
+      const donationModule = modules.donation || {};
+      const chestModule = modules.chest || {};
+      const friendsModule = modules.friends || {};
       const tradeModule = modules.trade || {};
       const shopModule = modules.shop || {};
       const signModule = modules.sign || {};
@@ -199,7 +224,7 @@
       const CAMERA_ZOOM_MAX = Math.max(CAMERA_ZOOM_MIN + 0.1, Number(SETTINGS.CAMERA_ZOOM_MAX) || 2.2);
       const CAMERA_ZOOM_STEP = Math.max(0.05, Number(SETTINGS.CAMERA_ZOOM_STEP) || 0.12);
 
-      const blockDefs = typeof blocksModule.getBlockDefs === "function" ? blocksModule.getBlockDefs() : {
+      const baseBlockDefs = typeof blocksModule.getBlockDefs === "function" ? blocksModule.getBlockDefs() : {
         0: { key: "air", name: "Air", color: "transparent", solid: false, icon: "A", faIcon: "fa-regular fa-circle" },
         1: { key: "grass_block", name: "Grass", color: "#4caf50", solid: true, icon: "GR", faIcon: "fa-solid fa-seedling" },
         2: { key: "dirt_block", name: "Dirt", color: "#8b5a2b", solid: true, icon: "DI", faIcon: "fa-solid fa-mound" },
@@ -224,15 +249,9 @@
         21: { key: "weather_machine", name: "Weather Machine", color: "#7aa8d9", solid: true, icon: "WM", faIcon: "fa-solid fa-cloud-sun-rain" },
         22: { key: "display_block", name: "Display Block", color: "#314154", solid: true, icon: "DP", faIcon: "fa-regular fa-square" },
         23: { key: "wood_plank", name: "Wooden Plank", color: "#b4bcc5", solid: true, icon: "WP", faIcon: "fa-regular fa-square" },
-        24: { key: "tree_seed", name: "Tree Seed", color: "#6fbf52", solid: false, icon: "SE", faIcon: "fa-solid fa-seedling" },
-        25: { key: "grass_seed", name: "Grass Seed", color: "#5fbd54", solid: false, icon: "GS", faIcon: "fa-solid fa-seedling" },
-        26: { key: "dirt_seed", name: "Dirt Seed", color: "#8c5d32", solid: false, icon: "DS", faIcon: "fa-solid fa-seedling" },
-        27: { key: "stone_seed", name: "Stone Seed", color: "#8a949f", solid: false, icon: "SS", faIcon: "fa-solid fa-seedling" },
-        28: { key: "sand_seed", name: "Sand Seed", color: "#e0cd89", solid: false, icon: "NS", faIcon: "fa-solid fa-seedling" },
-        29: { key: "brick_seed", name: "Brick Seed", color: "#bd5c4a", solid: false, icon: "BS", faIcon: "fa-solid fa-seedling" },
-        30: { key: "lock_seed", name: "Lock Seed", color: "#ffd166", solid: false, icon: "LS", faIcon: "fa-solid fa-seedling" },
-        31: { key: "door_seed", name: "Door Seed", color: "#69c8ff", solid: false, icon: "OS", faIcon: "fa-solid fa-seedling" },
-        32: { key: "plank_seed", name: "Plank Seed", color: "#b8c2cb", solid: false, icon: "PS", faIcon: "fa-solid fa-seedling" }
+        33: { key: "spike_block", name: "Spikes", color: "#8d9aae", solid: false, lethal: true, icon: "SP", faIcon: "fa-solid fa-triangle-exclamation" },
+        34: { key: "donation_box", name: "Donation Box", color: "#8f6d4f", solid: true, donationBox: true, icon: "DN", faIcon: "fa-solid fa-box-open" },
+        36: { key: "storage_chest", name: "Storage Chest", color: "#7f5f3e", solid: true, chestStorage: true, icon: "CH", faIcon: "fa-solid fa-box-archive" }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
@@ -252,15 +271,8 @@
       const WEATHER_MACHINE_ID = 21;
       const DISPLAY_BLOCK_ID = 22;
       const WOOD_PLANK_ID = 23;
-      const TREE_SEED_ID = 24;
-      const GRASS_SEED_ID = 25;
-      const DIRT_SEED_ID = 26;
-      const STONE_SEED_ID = 27;
-      const SAND_SEED_ID = 28;
-      const BRICK_SEED_ID = 29;
-      const LOCK_SEED_ID = 30;
-      const DOOR_SEED_ID = 31;
-      const PLANK_SEED_ID = 32;
+      const DONATION_BOX_ID = 34;
+      const STORAGE_CHEST_ID = 36;
       const TREE_YIELD_BLOCK_ID = 4;
       const TREE_GROW_MS = Math.max(5000, Number(SETTINGS.TREE_GROW_MS) || 120000);
       const TREE_STAGE_COUNT = 4;
@@ -273,17 +285,13 @@
       const MAX_EDIT_REACH_TILES = 16;
       const TOOL_FIST = "fist";
       const TOOL_WRENCH = "wrench";
-      const PLANT_SEED_CONFIG = {
-        [TREE_SEED_ID]: { yieldBlockId: 4, growMs: TREE_GROW_MS, dropFromBlockId: 4, label: "Tree Seed" },
-        [GRASS_SEED_ID]: { yieldBlockId: 1, growMs: TREE_GROW_MS, dropFromBlockId: 1, label: "Grass Seed" },
-        [DIRT_SEED_ID]: { yieldBlockId: 2, growMs: TREE_GROW_MS, dropFromBlockId: 2, label: "Dirt Seed" },
-        [STONE_SEED_ID]: { yieldBlockId: 3, growMs: TREE_GROW_MS, dropFromBlockId: 3, label: "Stone Seed" },
-        [SAND_SEED_ID]: { yieldBlockId: 5, growMs: TREE_GROW_MS, dropFromBlockId: 5, label: "Sand Seed" },
-        [BRICK_SEED_ID]: { yieldBlockId: 6, growMs: TREE_GROW_MS, dropFromBlockId: 6, label: "Brick Seed" },
-        [LOCK_SEED_ID]: { yieldBlockId: 9, growMs: TREE_GROW_MS, dropFromBlockId: 9, label: "Lock Seed" },
-        [DOOR_SEED_ID]: { yieldBlockId: 10, growMs: TREE_GROW_MS, dropFromBlockId: 10, label: "Door Seed" },
-        [PLANK_SEED_ID]: { yieldBlockId: WOOD_PLANK_ID, growMs: TREE_GROW_MS, dropFromBlockId: WOOD_PLANK_ID, label: "Plank Seed" }
-      };
+      const seedRegistry = typeof seedsModule.createSeedRegistry === "function"
+        ? seedsModule.createSeedRegistry(baseBlockDefs, { growMs: TREE_GROW_MS })
+        : { defs: {}, config: {} };
+      const blockDefs = { ...baseBlockDefs, ...(seedRegistry.defs || {}) };
+      const PLANT_SEED_CONFIG = seedRegistry && seedRegistry.config && typeof seedRegistry.config === "object"
+        ? seedRegistry.config
+        : {};
       const PLANT_SEED_IDS = Object.keys(PLANT_SEED_CONFIG).map((id) => Number(id)).filter((id) => Number.isInteger(id));
       const PLANT_SEED_ID_SET = new Set(PLANT_SEED_IDS);
       const SEED_DROP_BY_BLOCK_ID = (() => {
@@ -317,6 +325,24 @@
         : "./assets/cosmetics";
       const COSMETIC_LOOKUP = {};
       const COSMETIC_ITEMS = [];
+      const TITLE_CATALOG = (typeof itemsModule.getTitleCatalog === "function"
+        ? itemsModule.getTitleCatalog()
+        : [])
+        .map((raw) => {
+          const row = raw && typeof raw === "object" ? raw : {};
+          return {
+            id: String(row.id || "").trim().slice(0, 32),
+            name: String(row.name || "").trim().slice(0, 24),
+            color: String(row.color || "").trim().slice(0, 24) || "#8fb4ff",
+            defaultUnlocked: Boolean(row.defaultUnlocked)
+          };
+        })
+        .filter((row) => row.id && row.name);
+      const TITLE_LOOKUP = {};
+      for (const title of TITLE_CATALOG) {
+        TITLE_LOOKUP[title.id] = title;
+      }
+      const TITLE_DEFAULT_ID = (TITLE_CATALOG.find((title) => title.defaultUnlocked) || TITLE_CATALOG[0] || {}).id || "";
       const cosmeticImageCache = new Map();
       const blockImageCache = new Map();
       const waterFramePathCache = [];
@@ -391,6 +417,9 @@
       const localWeatherByWorld = new Map();
       const worldOccupancy = new Map();
       let vendingController = null;
+      let donationController = null;
+      let chestController = null;
+      let friendsController = null;
       let tradeController = null;
       let messagesController = null;
       let shopController = null;
@@ -427,6 +456,7 @@
       let adminAuditActorFilter = "";
       let adminAuditTargetFilter = "";
       let isAdminOpen = false;
+      let hasSeenAdminRoleSnapshot = false;
       const adminCommandLastUsedAt = new Map();
       const chatMessages = [];
       const logsMessages = [];
@@ -471,6 +501,7 @@
         facing: 1
       };
       const cosmeticInventory = {};
+      const titleInventory = {};
       const equippedCosmetics = {
         shirts: "",
         pants: "",
@@ -478,6 +509,16 @@
         wings: "",
         swords: ""
       };
+      let equippedTitleId = "";
+      for (const item of COSMETIC_ITEMS) {
+        cosmeticInventory[item.id] = 0;
+      }
+      for (const title of TITLE_CATALOG) {
+        titleInventory[title.id] = title.defaultUnlocked ? 1 : 0;
+      }
+      if (TITLE_DEFAULT_ID) {
+        equippedTitleId = TITLE_DEFAULT_ID;
+      }
 
       function getVendingController() {
         if (vendingController) return vendingController;
@@ -528,6 +569,140 @@
           vendingController.bindModalEvents();
         }
         return vendingController;
+      }
+
+      function getDonationController() {
+        if (donationController) return donationController;
+        if (typeof donationModule.createController !== "function") return null;
+        donationController = donationModule.createController({
+          getNetwork: () => network,
+          getBasePath: () => BASE_PATH,
+          getCurrentWorldId: () => currentWorldId,
+          getPlayerProfileId: () => playerProfileId,
+          getPlayerName: () => playerName,
+          getFirebase: () => (typeof firebase !== "undefined" ? firebase : null),
+          getInventory: () => inventory,
+          getCosmeticInventory: () => cosmeticInventory,
+          getInventoryIds: () => INVENTORY_IDS,
+          getCosmeticItems: () => COSMETIC_ITEMS,
+          getBlockDefs: () => blockDefs,
+          clampInventoryCount,
+          saveInventory,
+          refreshToolbar,
+          postLocalSystemChat,
+          getDonationModalEl: () => donationModalEl,
+          getDonationTitleEl: () => donationTitleEl,
+          getDonationBodyEl: () => donationBodyEl,
+          getDonationActionsEl: () => donationActionsEl,
+          getDonationCloseBtnEl: () => donationCloseBtn
+        });
+        if (typeof donationController.bindModalEvents === "function") {
+          donationController.bindModalEvents();
+        }
+        return donationController;
+      }
+
+      function getChestController() {
+        if (chestController) return chestController;
+        if (typeof chestModule.createController !== "function") return null;
+        chestController = chestModule.createController({
+          getNetwork: () => network,
+          getBasePath: () => BASE_PATH,
+          getCurrentWorldId: () => currentWorldId,
+          getPlayerProfileId: () => playerProfileId,
+          getPlayerName: () => playerName,
+          getFirebase: () => (typeof firebase !== "undefined" ? firebase : null),
+          getInventory: () => inventory,
+          getCosmeticInventory: () => cosmeticInventory,
+          getInventoryIds: () => INVENTORY_IDS,
+          getCosmeticItems: () => COSMETIC_ITEMS,
+          getBlockDefs: () => blockDefs,
+          clampInventoryCount,
+          saveInventory,
+          refreshToolbar,
+          postLocalSystemChat,
+          canManageAt: () => isWorldLocked() && isWorldLockOwner(),
+          isWorldLocked: () => isWorldLocked(),
+          getChestModalEl: () => chestModalEl,
+          getChestTitleEl: () => chestTitleEl,
+          getChestBodyEl: () => chestBodyEl,
+          getChestActionsEl: () => chestActionsEl,
+          getChestCloseBtnEl: () => chestCloseBtn
+        });
+        if (typeof chestController.bindModalEvents === "function") {
+          chestController.bindModalEvents();
+        }
+        return chestController;
+      }
+
+      function getPresenceByAccountId(accountId) {
+        const targetId = String(accountId || "");
+        if (!targetId) return null;
+        const players = adminState.globalPlayers || {};
+        for (const entry of Object.values(players)) {
+          if (!entry || typeof entry !== "object") continue;
+          if (String(entry.accountId || "") !== targetId) continue;
+          return {
+            accountId: targetId,
+            name: String(entry.name || "").slice(0, 20),
+            world: normalizeWorldId(entry.world || ""),
+            x: Number(entry.x),
+            y: Number(entry.y),
+            online: true
+          };
+        }
+        return null;
+      }
+
+      function warpToFriendAccount(accountId) {
+        const presence = getPresenceByAccountId(accountId);
+        if (!presence || !presence.online || !presence.world) return false;
+        const warpWorld = normalizeWorldId(presence.world);
+        if (!warpWorld) return false;
+        const warpX = Number.isFinite(presence.x) ? Math.floor(presence.x) : Math.floor(player.x);
+        const warpY = Number.isFinite(presence.y) ? Math.floor(presence.y) : Math.floor(player.y);
+        pendingTeleportSelf = {
+          worldId: warpWorld,
+          x: warpX,
+          y: warpY
+        };
+        switchWorld(warpWorld, false);
+        postLocalSystemChat("Warping to @" + (presence.name || accountId) + "...");
+        return true;
+      }
+
+      function getFriendsController() {
+        if (friendsController) return friendsController;
+        if (typeof friendsModule.createController !== "function") return null;
+        friendsController = friendsModule.createController({
+          getNetwork: () => network,
+          getBasePath: () => BASE_PATH,
+          getPlayerProfileId: () => playerProfileId,
+          getPlayerName: () => playerName,
+          getFriendsToggleBtnEl: () => friendsToggleBtn,
+          getProfileModalEl: () => profileModalEl,
+          getProfileTitleEl: () => profileTitleEl,
+          getProfileBodyEl: () => profileBodyEl,
+          getProfileActionsEl: () => profileActionsEl,
+          getProfileCloseBtnEl: () => profileCloseBtn,
+          getFriendsModalEl: () => friendsModalEl,
+          getFriendsTitleEl: () => friendsTitleEl,
+          getFriendsBodyEl: () => friendsBodyEl,
+          getFriendsActionsEl: () => friendsActionsEl,
+          getFriendsCloseBtnEl: () => friendsCloseBtn,
+          getPresenceByAccountId,
+          onWarpToFriend: (accountId) => warpToFriendAccount(accountId),
+          onOpenTrade: (accountId, name) => {
+            const tradeCtrl = getTradeController();
+            if (!tradeCtrl || typeof tradeCtrl.handleWrenchPlayer !== "function") return;
+            tradeCtrl.handleWrenchPlayer({ accountId, name });
+          },
+          postLocalSystemChat
+        });
+        if (typeof friendsController.bindUiEvents === "function") {
+          friendsController.bindUiEvents();
+        }
+        return friendsController;
       }
 
       function getTradeController() {
@@ -749,6 +924,7 @@
       let wasJumpHeld = false;
       let lastHitAtMs = -9999;
       let lastBlockHitAtMs = -9999;
+      let lastSpikeKillAtMs = -9999;
       let danceUntilMs = 0;
       let isFrozenByAdmin = false;
       let frozenByAdminBy = "";
@@ -762,6 +938,7 @@
       };
       const HIT_ANIM_MS = 200;
       const BLOCK_HIT_COOLDOWN_MS = Math.max(60, Number(SETTINGS.BLOCK_HIT_COOLDOWN_MS) || 120);
+      const SPIKE_KILL_COOLDOWN_MS = Math.max(350, Number(SETTINGS.SPIKE_KILL_COOLDOWN_MS) || 700);
       const DANCE_DURATION_MS = Math.max(1200, Number(SETTINGS.DANCE_DURATION_MS) || 5000);
 
       function triggerWingFlapPulse(strength) {
@@ -774,7 +951,10 @@
         if (nowMs >= wingFlapPulseEndsAtMs) return 0;
         const durationMs = 260;
         const progress = Math.max(0, Math.min(1, 1 - ((wingFlapPulseEndsAtMs - nowMs) / durationMs)));
-        return Math.sin(progress * Math.PI) * wingFlapPulseStrength;
+        // One impulse cycle: upstroke first, then downstroke.
+        const envelope = Math.sin(progress * Math.PI);
+        const direction = -1 + (2 * progress); // -1 -> +1 across pulse
+        return envelope * direction * wingFlapPulseStrength;
       }
 
       const network = {
@@ -796,12 +976,16 @@
         myTradeRequestRef: null,
         myTradeResponseRef: null,
         myActiveTradeRef: null,
+        myFriendsRef: null,
+        myFriendRequestsRef: null,
         playersRef: null,
         blocksRef: null,
         hitsRef: null,
         dropsRef: null,
         dropFeedRef: null,
         vendingRef: null,
+        donationRef: null,
+        chestsRef: null,
         signsRef: null,
         displaysRef: null,
         doorsRef: null,
@@ -844,6 +1028,8 @@
           myTradeRequest: null,
           myTradeResponse: null,
           myActiveTrade: null,
+          myFriends: null,
+          myFriendRequests: null,
           players: null,
           playerAdded: null,
           playerChanged: null,
@@ -860,6 +1046,12 @@
           vendingAdded: null,
           vendingChanged: null,
           vendingRemoved: null,
+          donationAdded: null,
+          donationChanged: null,
+          donationRemoved: null,
+          chestAdded: null,
+          chestChanged: null,
+          chestRemoved: null,
           signAdded: null,
           signChanged: null,
           signRemoved: null,
@@ -1076,8 +1268,26 @@
         return getConfiguredRoleForUsername(username);
       }
 
-      function refreshAdminCapabilities() {
+      function formatRoleLabel(role) {
+        const normalized = normalizeAdminRole(role);
+        if (normalized === "none") return "Player";
+        return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+      }
+
+      function refreshAdminCapabilities(announceRoleChange) {
+        const previousRole = normalizeAdminRole(currentAdminRole);
         currentAdminRole = normalizeAdminRole(getAccountRole(playerProfileId, playerName));
+        const nextRole = normalizeAdminRole(currentAdminRole);
+        if (announceRoleChange && playerProfileId && previousRole !== nextRole) {
+          const prevRank = getRoleRank(previousRole);
+          const nextRank = getRoleRank(nextRole);
+          let headline = "Your role was updated.";
+          if (nextRank > prevRank) headline = "You were promoted.";
+          if (nextRank < prevRank) headline = "You were demoted.";
+          const details = formatRoleLabel(previousRole) + " -> " + formatRoleLabel(nextRole);
+          showAnnouncementPopup(headline + " " + details, 5600);
+          postLocalSystemChat("[System] Role change: " + details + ".");
+        }
         canUseAdminPanel = hasAdminPermission("panel_open");
         canViewAccountLogs = canUserViewLogs(playerName);
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
@@ -1449,6 +1659,92 @@
         }
       }
 
+      function normalizeDonationBoxRecord(value) {
+        const ctrl = getDonationController();
+        if (ctrl && typeof ctrl.normalizeRecord === "function") {
+          return ctrl.normalizeRecord(value);
+        }
+        return value && typeof value === "object" ? value : {};
+      }
+
+      function setLocalDonationBox(tx, ty, value) {
+        const ctrl = getDonationController();
+        if (ctrl && typeof ctrl.setLocal === "function") {
+          ctrl.setLocal(tx, ty, value);
+        }
+      }
+
+      function getLocalDonationBox(tx, ty) {
+        const ctrl = getDonationController();
+        if (ctrl && typeof ctrl.getLocal === "function") {
+          return ctrl.getLocal(tx, ty);
+        }
+        return null;
+      }
+
+      function closeDonationModal() {
+        const ctrl = getDonationController();
+        if (ctrl && typeof ctrl.closeModal === "function") {
+          ctrl.closeModal();
+          return;
+        }
+        if (donationModalEl) donationModalEl.classList.add("hidden");
+      }
+
+      function seedDonationBoxOwner(tx, ty) {
+        const ctrl = getDonationController();
+        if (ctrl && typeof ctrl.seedOwner === "function") {
+          ctrl.seedOwner(tx, ty);
+        }
+      }
+
+      function getDonationStoredCount(items) {
+        const ctrl = getDonationController();
+        if (ctrl && typeof ctrl.getStoredCount === "function") {
+          return ctrl.getStoredCount(items);
+        }
+        const list = items && typeof items === "object" ? items : {};
+        let total = 0;
+        for (const value of Object.values(list)) {
+          total += Math.max(0, Math.floor(Number(value) || 0));
+        }
+        return total;
+      }
+
+      function openDonationModal(tx, ty) {
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
+        if (!isDonationBoxBlockId(world[ty][tx])) return;
+        const ctrl = getDonationController();
+        if (ctrl && typeof ctrl.openModal === "function") {
+          ctrl.openModal(tx, ty);
+        }
+      }
+
+      function closeChestModal() {
+        const ctrl = getChestController();
+        if (ctrl && typeof ctrl.closeModal === "function") {
+          ctrl.closeModal();
+          return;
+        }
+        if (chestModalEl) chestModalEl.classList.add("hidden");
+      }
+
+      function openChestModal(tx, ty) {
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
+        if (!isChestBlockId(world[ty][tx])) return;
+        const ctrl = getChestController();
+        if (ctrl && typeof ctrl.openModal === "function") {
+          ctrl.openModal(tx, ty);
+        }
+      }
+
+      function closeFriendModals() {
+        const ctrl = getFriendsController();
+        if (ctrl && typeof ctrl.closeAll === "function") {
+          ctrl.closeAll();
+        }
+      }
+
       function renderAdminPanel() {
         if (!canUseAdminPanel) {
           adminAccountsEl.innerHTML = "";
@@ -1502,9 +1798,12 @@
           const onlineStatusClass = online ? "online" : "offline";
           const banStatusClass = banned ? "banned" : "active";
           const roleControlMarkup = assignable.length > 0
-            ? `<div class="admin-role-wrap">
+            ? `<div class="admin-action-group">
+                <div class="admin-action-label">Role</div>
+                <div class="admin-role-wrap">
                 <select class="admin-role-select" data-account-id="${escapeHtml(accountId)}" ${canSetRole ? "" : "disabled"}>${roleOptions}</select>
                 <button data-admin-act="setrole" data-account-id="${escapeHtml(accountId)}" ${canSetRole ? "" : "disabled"}>Set Role</button>
+                </div>
               </div>`
             : "";
           return `
@@ -1518,39 +1817,51 @@
                 </div>
               </div>
               <div class="admin-actions">
-                <div class="admin-quick-actions">
-                  <button data-admin-act="viewinv" data-account-id="${escapeHtml(accountId)}">View Inv</button>
-                  <button data-admin-act="kick" data-account-id="${escapeHtml(accountId)}" ${canKick ? "" : "disabled"}>Kick</button>
-                  <button data-admin-act="resetinv" data-account-id="${escapeHtml(accountId)}" ${canReset ? "" : "disabled"}>Reset Inv</button>
-                  <button data-admin-act="unban" data-account-id="${escapeHtml(accountId)}" ${canUnban ? "" : "disabled"}>Unban</button>
-                  <button data-admin-act="tempban" data-account-id="${escapeHtml(accountId)}" ${canTempBan ? "" : "disabled"}>Temp Ban</button>
-                  <button data-admin-act="permban" data-account-id="${escapeHtml(accountId)}" ${canPermBan ? "" : "disabled"}>Perm Ban</button>
+                <div class="admin-action-group">
+                  <div class="admin-action-label">Moderation</div>
+                  <div class="admin-quick-actions">
+                    <button data-admin-act="viewinv" data-account-id="${escapeHtml(accountId)}">View Inv</button>
+                    <button data-admin-act="kick" data-account-id="${escapeHtml(accountId)}" ${canKick ? "" : "disabled"}>Kick</button>
+                    <button data-admin-act="resetinv" data-account-id="${escapeHtml(accountId)}" ${canReset ? "" : "disabled"}>Reset Inv</button>
+                    <button data-admin-act="unban" data-account-id="${escapeHtml(accountId)}" ${canUnban ? "" : "disabled"}>Unban</button>
+                    <button data-admin-act="tempban" data-account-id="${escapeHtml(accountId)}" ${canTempBan ? "" : "disabled"}>Temp Ban</button>
+                    <button data-admin-act="permban" data-account-id="${escapeHtml(accountId)}" ${canPermBan ? "" : "disabled"}>Perm Ban</button>
+                  </div>
                 </div>
                 ${roleControlMarkup}
-                <div class="admin-ban-wrap">
-                  <select class="admin-ban-preset" data-account-id="${escapeHtml(accountId)}" ${canTempBan ? "" : "disabled"}>
-                    <option value="15m">15m</option>
-                    <option value="1h">1h</option>
-                    <option value="24h">24h</option>
-                    <option value="7d">7d</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  <input class="admin-ban-duration" data-account-id="${escapeHtml(accountId)}" type="text" value="15m" placeholder="60m/12h/7d" ${canTempBan ? "" : "disabled"}>
-                  <input class="admin-ban-reason" data-account-id="${escapeHtml(accountId)}" type="text" maxlength="80" value="Banned by admin" placeholder="reason" ${(canTempBan || canPermBan) ? "" : "disabled"}>
+                <div class="admin-action-group">
+                  <div class="admin-action-label">Ban Settings</div>
+                  <div class="admin-ban-wrap">
+                    <select class="admin-ban-preset" data-account-id="${escapeHtml(accountId)}" ${canTempBan ? "" : "disabled"}>
+                      <option value="15m">15m</option>
+                      <option value="1h">1h</option>
+                      <option value="24h">24h</option>
+                      <option value="7d">7d</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                    <input class="admin-ban-duration" data-account-id="${escapeHtml(accountId)}" type="text" value="15m" placeholder="60m/12h/7d" ${canTempBan ? "" : "disabled"}>
+                    <input class="admin-ban-reason" data-account-id="${escapeHtml(accountId)}" type="text" maxlength="80" value="Banned by admin" placeholder="reason" ${(canTempBan || canPermBan) ? "" : "disabled"}>
+                  </div>
                 </div>
-                <div class="admin-give-wrap">
-                  <select class="admin-give-block" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>
-                    ${INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
-                  </select>
-                  <input class="admin-give-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="10" placeholder="amount">
-                  <button data-admin-act="give" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give</button>
+                <div class="admin-action-group">
+                  <div class="admin-action-label">Give Blocks</div>
+                  <div class="admin-give-wrap">
+                    <select class="admin-give-block" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>
+                      ${INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
+                    </select>
+                    <input class="admin-give-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="10" placeholder="amount">
+                    <button data-admin-act="give" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give</button>
+                  </div>
                 </div>
-                <div class="admin-give-item-wrap">
-                  <select class="admin-give-item-id" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>
-                    ${COSMETIC_ITEMS.map((item) => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name + " (" + item.id + ")") + "</option>").join("")}
-                  </select>
-                  <input class="admin-give-item-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="1" placeholder="amount">
-                  <button data-admin-act="giveitem" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give Item</button>
+                <div class="admin-action-group">
+                  <div class="admin-action-label">Give Cosmetics</div>
+                  <div class="admin-give-item-wrap">
+                    <select class="admin-give-item-id" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>
+                      ${COSMETIC_ITEMS.map((item) => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name + " (" + item.id + ")") + "</option>").join("")}
+                    </select>
+                    <input class="admin-give-item-amount" data-account-id="${escapeHtml(accountId)}" type="number" min="1" step="1" value="1" placeholder="amount">
+                    <button data-admin-act="giveitem" data-account-id="${escapeHtml(accountId)}" ${canGive ? "" : "disabled"}>Give Item</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2141,9 +2452,15 @@
           for (const item of COSMETIC_ITEMS) {
             cosmeticItems[item.id] = 0;
           }
+          const titleItems = {};
+          for (const title of TITLE_CATALOG) {
+            titleItems[title.id] = title.defaultUnlocked ? 1 : 0;
+          }
           const resetPayload = {
             1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0,
             cosmeticItems,
+            titleItems,
+            equippedTitle: TITLE_DEFAULT_ID || "",
             equippedCosmetics: { shirts: "", pants: "", hats: "", wings: "", swords: "" }
           };
           network.db.ref(BASE_PATH + "/player-inventories/" + accountId).set(resetPayload).then(() => {
@@ -2822,6 +3139,38 @@
         for (const item of COSMETIC_ITEMS) {
           cosmeticInventory[item.id] = clampInventoryCount(cosmeticInventory[item.id]);
         }
+        for (const title of TITLE_CATALOG) {
+          titleInventory[title.id] = clampInventoryCount(titleInventory[title.id]);
+        }
+      }
+
+      function ensureDefaultTitleUnlocked() {
+        if (!TITLE_DEFAULT_ID) return;
+        if ((titleInventory[TITLE_DEFAULT_ID] || 0) <= 0) {
+          titleInventory[TITLE_DEFAULT_ID] = 1;
+        }
+      }
+
+      function getTitleDef(titleId) {
+        const id = String(titleId || "").trim();
+        return id ? (TITLE_LOOKUP[id] || null) : null;
+      }
+
+      function getEquippedTitleDef() {
+        const def = getTitleDef(equippedTitleId);
+        if (!def) return null;
+        if ((titleInventory[def.id] || 0) <= 0) return null;
+        return def;
+      }
+
+      function getEquippedTitlePayload() {
+        const def = getEquippedTitleDef();
+        if (!def) return { id: "", name: "", color: "" };
+        return {
+          id: def.id,
+          name: def.name,
+          color: def.color || "#8fb4ff"
+        };
       }
 
       function applyInventoryFromRecord(record) {
@@ -2844,6 +3193,17 @@
           if (!finalValue && legacyHasOwned) finalValue = 1;
           cosmeticInventory[item.id] = clampInventoryCount(finalValue);
         }
+        const titleRecord = record && record.titleItems || {};
+        for (const title of TITLE_CATALOG) {
+          const nestedValue = Number(titleRecord[title.id]);
+          const topLevelValue = Number(record && record[title.id]);
+          let finalValue = 0;
+          if (Number.isFinite(nestedValue)) finalValue = clampInventoryCount(nestedValue);
+          if (!finalValue && Number.isFinite(topLevelValue)) finalValue = clampInventoryCount(topLevelValue);
+          if (!finalValue && title.defaultUnlocked) finalValue = 1;
+          titleInventory[title.id] = clampInventoryCount(finalValue);
+        }
+        ensureDefaultTitleUnlocked();
         const equippedRecord = record && record.equippedCosmetics || record && record.equipped || {};
         for (const slot of COSMETIC_SLOTS) {
           const id = String(equippedRecord[slot] || "");
@@ -2855,6 +3215,13 @@
           if (legacyShirtId && COSMETIC_LOOKUP.shirts && COSMETIC_LOOKUP.shirts[legacyShirtId] && (cosmeticInventory[legacyShirtId] || 0) > 0) {
             equippedCosmetics.shirts = legacyShirtId;
           }
+        }
+        const equippedTitleRaw = String(record && record.equippedTitle || "");
+        equippedTitleId = equippedTitleRaw && TITLE_LOOKUP[equippedTitleRaw] && (titleInventory[equippedTitleRaw] || 0) > 0
+          ? equippedTitleRaw
+          : "";
+        if (!equippedTitleId && TITLE_DEFAULT_ID && (titleInventory[TITLE_DEFAULT_ID] || 0) > 0) {
+          equippedTitleId = TITLE_DEFAULT_ID;
         }
         const gemsCtrl = getGemsController();
         if (gemsCtrl && typeof gemsCtrl.readFromRecord === "function") {
@@ -2890,6 +3257,12 @@
           itemPayload[item.id] = clampInventoryCount(cosmeticInventory[item.id]);
         }
         payload.cosmeticItems = itemPayload;
+        const titlePayload = {};
+        for (const title of TITLE_CATALOG) {
+          titlePayload[title.id] = clampInventoryCount(titleInventory[title.id]);
+        }
+        payload.titleItems = titlePayload;
+        payload.equippedTitle = getEquippedTitlePayload().id || "";
         payload.equippedCosmetics = {};
         for (const slot of COSMETIC_SLOTS) {
           payload.equippedCosmetics[slot] = equippedCosmetics[slot] || "";
@@ -2987,6 +3360,10 @@
           );
         }
         const w = Array.from({ length: WORLD_H }, () => Array(WORLD_W).fill(0));
+        for (let x = 0; x < WORLD_W; x++) {
+          if (WORLD_H - 2 >= 0) w[WORLD_H - 2][x] = SPAWN_BASE_ID;
+          if (WORLD_H - 1 >= 0) w[WORLD_H - 1][x] = SPAWN_BASE_ID;
+        }
         if (typeof worldModule.applySpawnStructureToGrid === "function") {
           worldModule.applySpawnStructureToGrid(w, WORLD_W, WORLD_H, SPAWN_TILE_X, SPAWN_TILE_Y, SPAWN_DOOR_ID, SPAWN_BASE_ID);
         }
@@ -3015,6 +3392,7 @@
       }
 
       function getProtectedTileRequiredId(tx, ty) {
+        if (ty >= WORLD_H - 2 && tx >= 0 && tx < WORLD_W) return SPAWN_BASE_ID;
         const tiles = getSpawnStructureTiles();
         if (tx === tiles.door.tx && ty === tiles.door.ty) return tiles.door.id;
         if (tx === tiles.base.tx && ty === tiles.base.ty) return tiles.base.id;
@@ -3077,6 +3455,10 @@
         clearAllTileDamage();
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
+        const donationCtrl = getDonationController();
+        if (donationCtrl && typeof donationCtrl.clearAll === "function") donationCtrl.clearAll();
+        const chestCtrl = getChestController();
+        if (chestCtrl && typeof chestCtrl.clearAll === "function") chestCtrl.clearAll();
         const signCtrl = getSignController();
         if (signCtrl && typeof signCtrl.clearAll === "function") signCtrl.clearAll();
         displayItemsByTile.clear();
@@ -3090,8 +3472,11 @@
         closeDoorModal();
         closeCameraModal();
         closeWeatherModal();
+        closeDonationModal();
+        closeChestModal();
         closeTradeMenuModal();
         closeTradeRequestModal();
+        closeFriendModals();
         updateOnlineCount();
         world = makeWorld(currentWorldId);
         setLocalWorldWeather(localWeatherByWorld.get(currentWorldId) || null);
@@ -3126,6 +3511,8 @@
           stopInventoryDrag();
           setChatOpen(false);
           closeVendingModal();
+          closeDonationModal();
+          closeChestModal();
           closeSignModal();
           closeWorldLockModal();
           closeDoorModal();
@@ -3133,6 +3520,7 @@
           closeWeatherModal();
           closeTradeMenuModal();
           closeTradeRequestModal();
+          closeFriendModals();
           if (!hasRenderedMenuWorldList) {
             refreshWorldButtons(null, true);
             hasRenderedMenuWorldList = true;
@@ -3176,7 +3564,26 @@
           const name = (message.name || "Guest").slice(0, 16);
           const sessionTag = String(message.sessionId || "").slice(-4);
           const sessionLabel = sessionTag ? " #" + sessionTag : "";
-          row.textContent = (time ? "[" + time + "] " : "") + name + sessionLabel + ": " + (message.text || "");
+          const titleId = String(message.titleId || "").trim();
+          const fallbackTitle = getTitleDef(titleId);
+          const titleName = String(message.titleName || (fallbackTitle && fallbackTitle.name) || "").trim().slice(0, 24);
+          const titleColor = String(message.titleColor || (fallbackTitle && fallbackTitle.color) || "#8fb4ff").trim().slice(0, 24);
+          const prefix = document.createElement("span");
+          prefix.textContent = (time ? "[" + time + "] " : "");
+          row.appendChild(prefix);
+          if (titleName) {
+            const titleEl = document.createElement("span");
+            titleEl.className = "chat-title";
+            titleEl.style.color = titleColor || "#8fb4ff";
+            titleEl.textContent = "[" + titleName + "] ";
+            row.appendChild(titleEl);
+          }
+          const nameEl = document.createElement("span");
+          nameEl.textContent = name + sessionLabel + ": ";
+          row.appendChild(nameEl);
+          const textEl = document.createElement("span");
+          textEl.textContent = (message.text || "");
+          row.appendChild(textEl);
           chatMessagesEl.appendChild(row);
         }
         chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
@@ -3306,6 +3713,12 @@
         }
         if (network.myActiveTradeRef && network.handlers.myActiveTrade) {
           network.myActiveTradeRef.off("value", network.handlers.myActiveTrade);
+        }
+        if (network.myFriendsRef && network.handlers.myFriends) {
+          network.myFriendsRef.off("value", network.handlers.myFriends);
+        }
+        if (network.myFriendRequestsRef && network.handlers.myFriendRequests) {
+          network.myFriendRequestsRef.off("value", network.handlers.myFriendRequests);
         }
         if (network.worldsIndexRef && network.handlers.worldsIndex) {
           network.worldsIndexRef.off("value", network.handlers.worldsIndex);
@@ -3475,6 +3888,7 @@
         frozenByAdminBy = "";
         danceUntilMs = 0;
         currentAdminRole = "none";
+        hasSeenAdminRoleSnapshot = false;
         canUseAdminPanel = false;
         canViewAccountLogs = false;
         const gemsCtrl = getGemsController();
@@ -3554,6 +3968,7 @@
         }
         const text = trimmed.slice(0, 120);
         if (!text) return;
+        const titlePayload = getEquippedTitlePayload();
         if (antiCheatController && typeof antiCheatController.onChatSend === "function") {
           antiCheatController.onChatSend(text);
         }
@@ -3563,6 +3978,9 @@
             name: playerName,
             playerId,
             sessionId: playerSessionId || "",
+            titleId: titlePayload.id || "",
+            titleName: titlePayload.name || "",
+            titleColor: titlePayload.color || "",
             text,
             createdAt: Date.now()
           });
@@ -3580,6 +3998,9 @@
             name: playerName,
             playerId,
             sessionId: playerSessionId || "",
+            titleId: titlePayload.id || "",
+            titleName: titlePayload.name || "",
+            titleColor: titlePayload.color || "",
             text,
             createdAt: firebase.database.ServerValue.TIMESTAMP
           }).catch(() => {
@@ -3650,6 +4071,36 @@
         const id = world[ty][tx];
         const def = blockDefs[id];
         return Boolean(def && def.oneWay);
+      }
+
+      function isLethalTile(tx, ty) {
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return false;
+        const id = world[ty][tx];
+        const def = blockDefs[id];
+        return Boolean(def && def.lethal);
+      }
+
+      function isDonationBoxBlockId(id) {
+        const def = blockDefs[id];
+        return Boolean(def && def.donationBox);
+      }
+
+      function isChestBlockId(id) {
+        const def = blockDefs[id];
+        return Boolean(def && def.chestStorage);
+      }
+
+      function rectTouchesLethal(x, y, w, h) {
+        const left = Math.floor(x / TILE);
+        const right = Math.floor((x + w - 1) / TILE);
+        const top = Math.floor(y / TILE);
+        const bottom = Math.floor((y + h - 1) / TILE);
+        for (let ty = top; ty <= bottom; ty++) {
+          for (let tx = left; tx <= right; tx++) {
+            if (isLethalTile(tx, ty)) return true;
+          }
+        }
+        return false;
       }
 
       function isStairTileId(id) {
@@ -4664,8 +5115,7 @@
       }
 
       function isProtectedSpawnTile(tx, ty) {
-        const tiles = getSpawnStructureTiles();
-        return (tx === tiles.door.tx && ty === tiles.door.ty) || (tx === tiles.base.tx && ty === tiles.base.ty);
+        return getProtectedTileRequiredId(tx, ty) > 0;
       }
 
       function rectCollides(x, y, w, h) {
@@ -4922,6 +5372,16 @@
         // Only snap to stair surface while descending/landing, never during upward jump.
         if (player.vy >= 0) {
           snapPlayerToStairSurface();
+        }
+
+        if (rectTouchesLethal(player.x, player.y, PLAYER_W, PLAYER_H)) {
+          if ((nowMs - lastSpikeKillAtMs) >= SPIKE_KILL_COOLDOWN_MS) {
+            lastSpikeKillAtMs = nowMs;
+            respawnPlayerAtDoor();
+            postLocalSystemChat("You were killed by spikes.");
+          }
+          wasJumpHeld = jump;
+          return;
         }
 
         if (player.y > WORLD_H * TILE) {
@@ -5804,6 +6264,19 @@
 
         drawSword(px, basePy, cosmetics.swords, player.facing, pose.swordSwing || 0);
         ctx.restore();
+        const titleDef = getEquippedTitleDef();
+        const nameText = String(playerName || "Player").slice(0, 20);
+        let cursorX = px;
+        const nameY = basePy - 8;
+        ctx.font = PLAYER_NAME_FONT;
+        if (titleDef) {
+          const titleText = "[" + titleDef.name + "] ";
+          ctx.fillStyle = titleDef.color || "#8fb4ff";
+          ctx.fillText(titleText, cursorX, nameY);
+          cursorX += ctx.measureText(titleText).width;
+        }
+        ctx.fillStyle = "#f3fbff";
+        ctx.fillText(nameText, cursorX, nameY);
       }
 
       function drawRemotePlayers() {
@@ -5850,13 +6323,24 @@
           ctx.restore();
 
           const nameText = String(other.name || "Player").slice(0, 20);
+          const titleRaw = other && other.title && typeof other.title === "object" ? other.title : {};
+          const fallbackTitle = getTitleDef(titleRaw.id || "");
+          const titleName = String(titleRaw.name || (fallbackTitle && fallbackTitle.name) || "").slice(0, 24);
+          const titleColor = String(titleRaw.color || (fallbackTitle && fallbackTitle.color) || "#8fb4ff").slice(0, 24);
           const nameX = px;
           const nameY = basePy - 8;
+          let cursorX = nameX;
           ctx.font = PLAYER_NAME_FONT;
+          if (titleName) {
+            const titleText = "[" + titleName + "] ";
+            ctx.fillStyle = titleColor || "#8fb4ff";
+            ctx.fillText(titleText, cursorX, nameY);
+            cursorX += ctx.measureText(titleText).width;
+          }
           ctx.fillStyle = "#f3fbff";
-          ctx.fillText(nameText, nameX, nameY);
+          ctx.fillText(nameText, cursorX, nameY);
           if (wrenchSelected && other.accountId) {
-            const textWidth = ctx.measureText(nameText).width;
+            const textWidth = (cursorX - nameX) + ctx.measureText(nameText).width;
             const iconSize = 12;
             const iconX = Math.floor(nameX + textWidth + 5);
             const iconY = Math.floor(nameY - 10);
@@ -5914,9 +6398,9 @@
         const point = canvasPointFromClient(clientX, clientY);
         const hit = hitWrenchNameIcon(point.x / Math.max(0.01, cameraZoom), point.y / Math.max(0.01, cameraZoom));
         if (!hit || !hit.accountId) return false;
-        const tradeCtrl = getTradeController();
-        if (!tradeCtrl || typeof tradeCtrl.handleWrenchPlayer !== "function") return false;
-        return Boolean(tradeCtrl.handleWrenchPlayer({ accountId: hit.accountId, name: hit.name }));
+        const friendCtrl = getFriendsController();
+        if (!friendCtrl || typeof friendCtrl.openProfileByAccount !== "function") return false;
+        return Boolean(friendCtrl.openProfileByAccount(hit.accountId, hit.name));
       }
 
       function wrapChatText(text, maxTextWidth) {
@@ -6114,6 +6598,18 @@
         return false;
       }
 
+      function getRemotePlayerAtTile(tx, ty) {
+        const bx = tx * TILE;
+        const by = ty * TILE;
+        for (const other of remotePlayers.values()) {
+          if (!other || !other.accountId || typeof other.x !== "number" || typeof other.y !== "number") continue;
+          if (rectsOverlap(bx, by, TILE, TILE, other.x, other.y, PLAYER_W, PLAYER_H)) {
+            return other;
+          }
+        }
+        return null;
+      }
+
       function tryPlace(tx, ty) {
         const id = slotOrder[selectedSlot];
         if (typeof id !== "number") return;
@@ -6163,6 +6659,18 @@
               updatedAt: Date.now()
             });
             seedVendingMachineOwner(tx, ty);
+          } else if (isDonationBoxBlockId(id)) {
+            const donationCtrl = getDonationController();
+            if (donationCtrl && typeof donationCtrl.onPlaced === "function") {
+              donationCtrl.onPlaced(tx, ty);
+            } else {
+              seedDonationBoxOwner(tx, ty);
+            }
+          } else if (isChestBlockId(id)) {
+            const chestCtrl = getChestController();
+            if (chestCtrl && typeof chestCtrl.onPlaced === "function") {
+              chestCtrl.onPlaced(tx, ty);
+            }
           } else if (id === SIGN_ID) {
             saveSignText(tx, ty, "");
           } else if (id === ANTI_GRAV_ID) {
@@ -6266,6 +6774,41 @@
           notifyOwnerOnlyWorldEdit("vending machines");
           return;
         }
+        if (isDonationBoxBlockId(id)) {
+          const donationCtrl = getDonationController();
+          const box = donationCtrl && typeof donationCtrl.getLocal === "function"
+            ? donationCtrl.getLocal(tx, ty)
+            : getLocalDonationBox(tx, ty);
+          if (box && box.ownerAccountId && box.ownerAccountId !== playerProfileId) {
+            postLocalSystemChat("Only the donation box owner can break it.");
+            return;
+          }
+          const storedCount = donationCtrl && typeof donationCtrl.getStoredCountAt === "function"
+            ? donationCtrl.getStoredCountAt(tx, ty)
+            : getDonationStoredCount(box && box.items);
+          if (storedCount > 0) {
+            postLocalSystemChat("Collect donations before breaking this box.");
+            return;
+          }
+        }
+        if (isChestBlockId(id)) {
+          const chestCtrl = getChestController();
+          const chest = chestCtrl && typeof chestCtrl.getLocal === "function" ? chestCtrl.getLocal(tx, ty) : null;
+          const canManageChest = isWorldLocked()
+            ? isWorldLockOwner()
+            : Boolean(chest && chest.ownerAccountId && chest.ownerAccountId === playerProfileId);
+          if (!canManageChest) {
+            postLocalSystemChat("Only the chest manager can break storage chests.");
+            return;
+          }
+          const stored = chestCtrl && typeof chestCtrl.getStoredCountAt === "function"
+            ? chestCtrl.getStoredCountAt(tx, ty)
+            : 0;
+          if (stored > 0) {
+            postLocalSystemChat("Collect chest items before breaking it.");
+            return;
+          }
+        }
 
         const now = performance.now();
         if ((now - lastBlockHitAtMs) < BLOCK_HIT_COOLDOWN_MS) return;
@@ -6368,6 +6911,26 @@
             grantDisplayItemToInventory(existingDisplay);
           }
           saveDisplayItem(tx, ty, null);
+        }
+        if (isDonationBoxBlockId(id)) {
+          const donationCtrl = getDonationController();
+          if (donationCtrl && typeof donationCtrl.onBroken === "function") {
+            donationCtrl.onBroken(tx, ty);
+          } else {
+            setLocalDonationBox(tx, ty, null);
+          }
+          if (network.enabled && network.donationRef) {
+            network.donationRef.child(getTileKey(tx, ty)).remove().catch(() => {});
+          }
+        }
+        if (isChestBlockId(id)) {
+          const chestCtrl = getChestController();
+          if (chestCtrl && typeof chestCtrl.onBroken === "function") {
+            chestCtrl.onBroken(tx, ty);
+          }
+          if (network.enabled && network.chestsRef) {
+            network.chestsRef.child(getTileKey(tx, ty)).remove().catch(() => {});
+          }
         }
         if (id === WEATHER_MACHINE_ID) {
           const active = normalizeWeatherRecord(currentWorldWeather);
@@ -6474,6 +7037,17 @@
 
       function interactWithWrench(tx, ty) {
         if (!canEditTarget(tx, ty)) return;
+        const remoteAtTile = getRemotePlayerAtTile(tx, ty);
+        if (remoteAtTile) {
+          const friendCtrl = getFriendsController();
+          if (friendCtrl && typeof friendCtrl.openProfile === "function") {
+            friendCtrl.openProfile({
+              accountId: remoteAtTile.accountId,
+              name: remoteAtTile.name
+            });
+            return;
+          }
+        }
         const id = world[ty][tx];
         if (id === WORLD_LOCK_ID) {
           openWorldLockModal(tx, ty);
@@ -6481,6 +7055,14 @@
         }
         if (id === VENDING_ID) {
           interactWithVendingMachine(tx, ty);
+          return;
+        }
+        if (isDonationBoxBlockId(id)) {
+          openDonationModal(tx, ty);
+          return;
+        }
+        if (isChestBlockId(id)) {
+          openChestModal(tx, ty);
           return;
         }
         if (id === SIGN_ID) {
@@ -6978,6 +7560,24 @@
         if (network.vendingRef && network.handlers.vendingRemoved) {
           network.vendingRef.off("child_removed", network.handlers.vendingRemoved);
         }
+        if (network.donationRef && network.handlers.donationAdded) {
+          network.donationRef.off("child_added", network.handlers.donationAdded);
+        }
+        if (network.donationRef && network.handlers.donationChanged) {
+          network.donationRef.off("child_changed", network.handlers.donationChanged);
+        }
+        if (network.donationRef && network.handlers.donationRemoved) {
+          network.donationRef.off("child_removed", network.handlers.donationRemoved);
+        }
+        if (network.chestsRef && network.handlers.chestAdded) {
+          network.chestsRef.off("child_added", network.handlers.chestAdded);
+        }
+        if (network.chestsRef && network.handlers.chestChanged) {
+          network.chestsRef.off("child_changed", network.handlers.chestChanged);
+        }
+        if (network.chestsRef && network.handlers.chestRemoved) {
+          network.chestsRef.off("child_removed", network.handlers.chestRemoved);
+        }
         if (network.signsRef && network.handlers.signAdded) {
           network.signsRef.off("child_added", network.handlers.signAdded);
         }
@@ -7054,6 +7654,8 @@
         network.dropsRef = null;
         network.dropFeedRef = null;
         network.vendingRef = null;
+        network.donationRef = null;
+        network.chestsRef = null;
         network.signsRef = null;
         network.displaysRef = null;
         network.doorsRef = null;
@@ -7082,6 +7684,12 @@
         network.handlers.vendingAdded = null;
         network.handlers.vendingChanged = null;
         network.handlers.vendingRemoved = null;
+        network.handlers.donationAdded = null;
+        network.handlers.donationChanged = null;
+        network.handlers.donationRemoved = null;
+        network.handlers.chestAdded = null;
+        network.handlers.chestChanged = null;
+        network.handlers.chestRemoved = null;
         network.handlers.signAdded = null;
         network.handlers.signChanged = null;
         network.handlers.signRemoved = null;
@@ -7107,6 +7715,10 @@
         currentWorldLock = null;
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
+        const donationCtrl = getDonationController();
+        if (donationCtrl && typeof donationCtrl.clearAll === "function") donationCtrl.clearAll();
+        const chestCtrl = getChestController();
+        if (chestCtrl && typeof chestCtrl.clearAll === "function") chestCtrl.clearAll();
         const signCtrl = getSignController();
         if (signCtrl && typeof signCtrl.clearAll === "function") signCtrl.clearAll();
         displayItemsByTile.clear();
@@ -7121,8 +7733,11 @@
         closeDoorModal();
         closeCameraModal();
         closeWeatherModal();
+        closeDonationModal();
+        closeChestModal();
         closeTradeMenuModal();
         closeTradeRequestModal();
+        closeFriendModals();
       }
 
       function leaveCurrentWorld() {
@@ -7249,6 +7864,8 @@
         network.dropsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/drops");
         network.dropFeedRef = network.dropsRef.limitToLast(DROP_MAX_PER_WORLD);
         network.vendingRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/vending");
+        network.donationRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/donation-boxes");
+        network.chestsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/chests");
         network.signsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/signs");
         network.displaysRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/displays");
         network.doorsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/doors");
@@ -7289,6 +7906,13 @@
               network.blocksRef.child(tx + "_" + ty).set(requiredId).catch(() => {});
             }
             setLocalVendingMachine(tx, ty, null);
+            setLocalDonationBox(tx, ty, null);
+            {
+              const chestCtrl = getChestController();
+              if (chestCtrl && typeof chestCtrl.setLocal === "function") {
+                chestCtrl.setLocal(tx, ty, null);
+              }
+            }
             setLocalSignText(tx, ty, null);
             setLocalDisplayItem(tx, ty, null);
             setLocalDoorAccess(tx, ty, null);
@@ -7299,6 +7923,15 @@
           world[ty][tx] = id;
           if (id !== VENDING_ID) {
             setLocalVendingMachine(tx, ty, null);
+          }
+          if (!isDonationBoxBlockId(id)) {
+            setLocalDonationBox(tx, ty, null);
+          }
+          if (!isChestBlockId(id)) {
+            const chestCtrl = getChestController();
+            if (chestCtrl && typeof chestCtrl.setLocal === "function") {
+              chestCtrl.setLocal(tx, ty, null);
+            }
           }
           if (id !== SIGN_ID) {
             setLocalSignText(tx, ty, null);
@@ -7328,6 +7961,13 @@
               network.blocksRef.child(tx + "_" + ty).set(requiredId).catch(() => {});
             }
             setLocalVendingMachine(tx, ty, null);
+            setLocalDonationBox(tx, ty, null);
+            {
+              const chestCtrl = getChestController();
+              if (chestCtrl && typeof chestCtrl.setLocal === "function") {
+                chestCtrl.setLocal(tx, ty, null);
+              }
+            }
             setLocalSignText(tx, ty, null);
             setLocalDisplayItem(tx, ty, null);
             setLocalDoorAccess(tx, ty, null);
@@ -7337,6 +7977,13 @@
           }
           world[ty][tx] = 0;
           setLocalVendingMachine(tx, ty, null);
+          setLocalDonationBox(tx, ty, null);
+          {
+            const chestCtrl = getChestController();
+            if (chestCtrl && typeof chestCtrl.setLocal === "function") {
+              chestCtrl.setLocal(tx, ty, null);
+            }
+          }
           setLocalSignText(tx, ty, null);
           setLocalDisplayItem(tx, ty, null);
           setLocalDoorAccess(tx, ty, null);
@@ -7431,6 +8078,34 @@
           if (!tile) return;
           setLocalVendingMachine(tile.tx, tile.ty, null);
         };
+        network.handlers.donationAdded = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalDonationBox(tile.tx, tile.ty, snapshot.val());
+        };
+        network.handlers.donationChanged = network.handlers.donationAdded;
+        network.handlers.donationRemoved = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalDonationBox(tile.tx, tile.ty, null);
+        };
+        network.handlers.chestAdded = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          const chestCtrl = getChestController();
+          if (chestCtrl && typeof chestCtrl.setLocal === "function") {
+            chestCtrl.setLocal(tile.tx, tile.ty, snapshot.val());
+          }
+        };
+        network.handlers.chestChanged = network.handlers.chestAdded;
+        network.handlers.chestRemoved = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          const chestCtrl = getChestController();
+          if (chestCtrl && typeof chestCtrl.setLocal === "function") {
+            chestCtrl.setLocal(tile.tx, tile.ty, null);
+          }
+        };
         network.handlers.signAdded = (snapshot) => {
           const tile = parseTileKey(snapshot.key || "");
           if (!tile) return;
@@ -7522,6 +8197,16 @@
           network.vendingRef.on("child_added", network.handlers.vendingAdded);
           network.vendingRef.on("child_changed", network.handlers.vendingChanged);
           network.vendingRef.on("child_removed", network.handlers.vendingRemoved);
+        }
+        if (network.donationRef && network.handlers.donationAdded) {
+          network.donationRef.on("child_added", network.handlers.donationAdded);
+          network.donationRef.on("child_changed", network.handlers.donationChanged);
+          network.donationRef.on("child_removed", network.handlers.donationRemoved);
+        }
+        if (network.chestsRef && network.handlers.chestAdded) {
+          network.chestsRef.on("child_added", network.handlers.chestAdded);
+          network.chestsRef.on("child_changed", network.handlers.chestChanged);
+          network.chestsRef.on("child_removed", network.handlers.chestRemoved);
         }
         if (network.dropFeedRef && network.handlers.dropAdded) {
           network.dropFeedRef.on("child_added", network.handlers.dropAdded);
@@ -7656,6 +8341,7 @@
             wings: equippedCosmetics.wings || "",
             swords: equippedCosmetics.swords || ""
           },
+          title: getEquippedTitlePayload(),
           danceUntil: Math.max(0, Math.floor(danceUntilMs)),
           world: inWorld ? currentWorldId : "menu",
           updatedAt: firebase.database.ServerValue.TIMESTAMP
@@ -7735,6 +8421,14 @@
         const vendingCtrl = getVendingController();
         if (vendingCtrl && typeof vendingCtrl.bindModalEvents === "function") {
           vendingCtrl.bindModalEvents();
+        }
+        const donationCtrl = getDonationController();
+        if (donationCtrl && typeof donationCtrl.bindModalEvents === "function") {
+          donationCtrl.bindModalEvents();
+        }
+        const chestCtrl = getChestController();
+        if (chestCtrl && typeof chestCtrl.bindModalEvents === "function") {
+          chestCtrl.bindModalEvents();
         }
         if (signCloseBtn) {
           signCloseBtn.addEventListener("click", () => {
@@ -7962,6 +8656,10 @@
         if (tradeCtrl && typeof tradeCtrl.bindUiEvents === "function") {
           tradeCtrl.bindUiEvents();
         }
+        const friendCtrl = getFriendsController();
+        if (friendCtrl && typeof friendCtrl.bindUiEvents === "function") {
+          friendCtrl.bindUiEvents();
+        }
         if (adminSearchInput) {
           adminSearchInput.addEventListener("input", () => {
             adminSearchQuery = (adminSearchInput.value || "").trim().toLowerCase();
@@ -8043,6 +8741,7 @@
         try {
           network.db = await getAuthDb();
           network.enabled = true;
+          hasSeenAdminRoleSnapshot = false;
           network.connectedRef = network.db.ref(".info/connected");
           network.worldsIndexRef = network.db.ref(BASE_PATH + "/worlds-index");
           network.globalPlayersRef = network.db.ref(BASE_PATH + "/global-players");
@@ -8057,6 +8756,8 @@
           network.myTradeRequestRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/tradeRequest");
           network.myTradeResponseRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/tradeResponse");
           network.myActiveTradeRef = network.db.ref(BASE_PATH + "/active-trades/" + playerProfileId);
+          network.myFriendsRef = network.db.ref(BASE_PATH + "/friends/" + playerProfileId);
+          network.myFriendRequestsRef = network.db.ref(BASE_PATH + "/friend-requests/" + playerProfileId);
           network.inventoryRef = network.db.ref(BASE_PATH + "/player-inventories/" + playerProfileId);
           network.accountLogsRootRef = network.db.ref(BASE_PATH + "/account-logs");
           network.antiCheatLogsRef = network.db.ref(BASE_PATH + "/anti-cheat-logs").limitToLast(320);
@@ -8188,6 +8889,16 @@
             if (!ctrl || typeof ctrl.onActiveTradePointer !== "function") return;
             ctrl.onActiveTradePointer(snapshot.val() || "");
           };
+          network.handlers.myFriends = (snapshot) => {
+            const ctrl = getFriendsController();
+            if (!ctrl || typeof ctrl.setFriendsData !== "function") return;
+            ctrl.setFriendsData(snapshot.val() || {});
+          };
+          network.handlers.myFriendRequests = (snapshot) => {
+            const ctrl = getFriendsController();
+            if (!ctrl || typeof ctrl.setRequestsData !== "function") return;
+            ctrl.setRequestsData(snapshot.val() || {});
+          };
 
           network.handlers.worldsIndex = (snapshot) => {
             const data = snapshot.val() || {};
@@ -8226,6 +8937,10 @@
               refreshWorldButtons();
             }
             updateOnlineCount();
+            const friendCtrl = getFriendsController();
+            if (friendCtrl && typeof friendCtrl.renderOpen === "function") {
+              friendCtrl.renderOpen();
+            }
           };
           network.handlers.accountLogAdded = (snapshot) => {
             if (!canViewAccountLogs) return;
@@ -8341,7 +9056,8 @@
           };
           network.handlers.adminRoles = (snapshot) => {
             adminState.roles = snapshot.val() || {};
-            refreshAdminCapabilities();
+            refreshAdminCapabilities(hasSeenAdminRoleSnapshot);
+            hasSeenAdminRoleSnapshot = true;
             renderAdminPanelFromLiveUpdate();
           };
           network.handlers.adminAudit = (snapshot) => {
@@ -8392,6 +9108,8 @@
           network.myTradeRequestRef.on("value", network.handlers.myTradeRequest);
           network.myTradeResponseRef.on("value", network.handlers.myTradeResponse);
           network.myActiveTradeRef.on("value", network.handlers.myActiveTrade);
+          network.myFriendsRef.on("value", network.handlers.myFriends);
+          network.myFriendRequestsRef.on("value", network.handlers.myFriendRequests);
           network.worldsIndexRef.on("value", network.handlers.worldsIndex);
           network.globalPlayersRef.on("value", network.handlers.globalPlayers);
           network.myBanRef.on("value", network.handlers.myBan);
@@ -8438,6 +9156,18 @@
         const id = String(itemId || "");
         if (id && (!COSMETIC_LOOKUP[slot][id] || (cosmeticInventory[id] || 0) <= 0)) return;
         equippedCosmetics[slot] = equippedCosmetics[slot] === id ? "" : id;
+        saveInventory();
+        refreshToolbar();
+        syncPlayer(true);
+      }
+
+      function equipTitle(titleId) {
+        const id = String(titleId || "").trim();
+        if (id && (!TITLE_LOOKUP[id] || (titleInventory[id] || 0) <= 0)) return;
+        equippedTitleId = equippedTitleId === id ? "" : id;
+        if (!equippedTitleId && TITLE_DEFAULT_ID && (titleInventory[TITLE_DEFAULT_ID] || 0) > 0) {
+          equippedTitleId = TITLE_DEFAULT_ID;
+        }
         saveInventory();
         refreshToolbar();
         syncPlayer(true);
@@ -8596,6 +9326,46 @@
         const wasDrag = inventoryDrag.moved;
         const endX = Number(event.clientX);
         const endY = Number(event.clientY);
+        const chestCtrl = getChestController();
+        if (wasDrag && Number.isFinite(endX) && Number.isFinite(endY) && chestCtrl) {
+          if (typeof chestCtrl.handleInventoryDragEnd === "function") {
+            const chestResult = chestCtrl.handleInventoryDragEnd(
+              inventoryDrag.entry,
+              inventoryDrag.amount,
+              endX,
+              endY
+            ) || {};
+            if (chestResult.handled) {
+              suppressInventoryClickUntilMs = performance.now() + 180;
+              stopInventoryDrag();
+              return;
+            }
+            if (chestResult.blockWorldDrop) {
+              stopInventoryDrag();
+              return;
+            }
+          }
+        }
+        const donationCtrl = getDonationController();
+        if (wasDrag && Number.isFinite(endX) && Number.isFinite(endY) && donationCtrl) {
+          if (typeof donationCtrl.handleInventoryDragEnd === "function") {
+            const donationResult = donationCtrl.handleInventoryDragEnd(
+              inventoryDrag.entry,
+              inventoryDrag.amount,
+              endX,
+              endY
+            ) || {};
+            if (donationResult.handled) {
+              suppressInventoryClickUntilMs = performance.now() + 180;
+              stopInventoryDrag();
+              return;
+            }
+            if (donationResult.blockWorldDrop) {
+              stopInventoryDrag();
+              return;
+            }
+          }
+        }
         const tradeCtrl = getTradeController();
         if (wasDrag && Number.isFinite(endX) && Number.isFinite(endY) && tradeCtrl) {
           if (typeof tradeCtrl.handleInventoryDragEnd === "function") {
@@ -8757,6 +9527,45 @@
             cosmeticSection.grid.appendChild(slotEl);
           }
           toolbar.appendChild(cosmeticSection.section);
+        }
+        const titleEntries = [];
+        for (const title of TITLE_CATALOG) {
+          const count = Math.max(0, Number(titleInventory[title.id]) || 0);
+          if (count <= 0) continue;
+          titleEntries.push({ ...title, count });
+        }
+        if (titleEntries.length > 0) {
+          const titleSection = createInventorySection("Titles", equippedTitleId ? "1 equipped" : "None equipped");
+          for (const title of titleEntries) {
+            const equipped = equippedTitleId === title.id;
+            const slotEl = createInventorySlot({
+              selected: equipped,
+              variant: "inventory-slot-cosmetic",
+              title: "Title | " + title.name + " | x" + title.count,
+              color: title.color || "#8fb4ff",
+              iconClass: "icon-cosmetic",
+              faIconClass: "fa-solid fa-tag",
+              imageSrc: "",
+              iconLabel: title.name.slice(0, 2).toUpperCase(),
+              name: title.name,
+              countText: "x" + title.count,
+              badgeText: equipped ? "E" : "",
+              getDragEntry: null,
+              onClick: () => {
+                equipTitle(title.id);
+              }
+            });
+            titleSection.grid.appendChild(slotEl);
+          }
+          toolbar.appendChild(titleSection.section);
+        }
+        const donationCtrl = getDonationController();
+        if (donationCtrl && typeof donationCtrl.isOpen === "function" && donationCtrl.isOpen()) {
+          if (typeof donationCtrl.renderOpen === "function") donationCtrl.renderOpen();
+        }
+        const chestCtrl = getChestController();
+        if (chestCtrl && typeof chestCtrl.isOpen === "function" && chestCtrl.isOpen()) {
+          if (typeof chestCtrl.renderOpen === "function") chestCtrl.renderOpen();
         }
       }
 
@@ -8996,6 +9805,16 @@
           closeVendingModal();
           return;
         }
+        if (e.key === "Escape" && donationModalEl && !donationModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeDonationModal();
+          return;
+        }
+        if (e.key === "Escape" && chestModalEl && !chestModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeChestModal();
+          return;
+        }
         if (e.key === "Escape" && signModalEl && !signModalEl.classList.contains("hidden")) {
           e.preventDefault();
           closeSignModal();
@@ -9024,6 +9843,18 @@
         if (e.key === "Escape" && tradeRequestModalEl && !tradeRequestModalEl.classList.contains("hidden")) {
           e.preventDefault();
           respondToTradeRequest(false);
+          return;
+        }
+        if (e.key === "Escape" && profileModalEl && !profileModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          const friendCtrl = getFriendsController();
+          if (friendCtrl && typeof friendCtrl.closeProfile === "function") friendCtrl.closeProfile();
+          return;
+        }
+        if (e.key === "Escape" && friendsModalEl && !friendsModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          const friendCtrl = getFriendsController();
+          if (friendCtrl && typeof friendCtrl.closeFriends === "function") friendCtrl.closeFriends();
           return;
         }
         const tradePanelEl = document.getElementById("tradePanelModal");
