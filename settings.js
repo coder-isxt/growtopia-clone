@@ -63,5 +63,15 @@ window.GT_SETTINGS = {
   GLOBAL_SYNC_MIN_MS: 220
 };
 
+// Firebase App Check (compat) configuration.
+// Set this to your reCAPTCHA v3 site key from Firebase App Check setup.
+window.FIREBASE_APP_CHECK_SITE_KEY = "6LdzFnQsAAAAAEvzL6ZBuv6DjnEb_GCiqlGbyF56";
+window.FIREBASE_APP_CHECK_AUTO_REFRESH = true;
+// For local development only (optional):
+// - set allow localhost to true if your localhost domain is allowed in App Check.
+// - set debug token to true or a token string when testing debug mode.
+window.FIREBASE_APP_CHECK_ALLOW_LOCALHOST = false;
+window.FIREBASE_APP_CHECK_DEBUG_TOKEN = "";
+
 // Cloudflare Worker endpoint that returns the Discord webhook URL for anti-cheat alerts.
-window.ANTICHEAT_WEBHOOK_ENDPOINT = "https://growtopia.isxtgg.workers.dev/discord-webhook";
+window.ANTICHEAT_WEBHOOK_ENDPOINT = "https://growtopia.isxtgg.workers.dev/webhook";

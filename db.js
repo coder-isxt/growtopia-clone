@@ -1,6 +1,38 @@
 window.GTModules = window.GTModules || {};
 
 window.GTModules.db = (function createDbModule() {
+  let appCheckActivated = false;
+
+  function isLocalRuntime() {
+    const host = (window.location && window.location.hostname || "").toLowerCase();
+    const protocol = (window.location && window.location.protocol || "").toLowerCase();
+    return protocol === "file:" || host === "localhost" || host === "127.0.0.1" || host === "::1";
+  }
+
+  function activateAppCheckIfConfigured(firebaseRef) {
+    if (appCheckActivated) return;
+    if (!firebaseRef || typeof firebaseRef.appCheck !== "function") return;
+
+    const siteKey = String(window.FIREBASE_APP_CHECK_SITE_KEY || "").trim();
+    if (!siteKey) return;
+
+    const autoRefresh = window.FIREBASE_APP_CHECK_AUTO_REFRESH !== false;
+    const allowLocal = Boolean(window.FIREBASE_APP_CHECK_ALLOW_LOCALHOST);
+    if (!allowLocal && isLocalRuntime()) return;
+
+    const debugToken = window.FIREBASE_APP_CHECK_DEBUG_TOKEN;
+    if (debugToken !== undefined && debugToken !== null && debugToken !== "") {
+      window.FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
+    }
+
+    try {
+      firebaseRef.appCheck().activate(siteKey, autoRefresh);
+      appCheckActivated = true;
+    } catch (error) {
+      // keep DB flow resilient even if App Check setup fails
+    }
+  }
+
   function hasFirebaseConfig(config) {
     return Boolean(config && config.apiKey && config.projectId && config.databaseURL);
   }
@@ -30,6 +62,7 @@ window.GTModules.db = (function createDbModule() {
     if (!firebaseRef.apps.length) {
       firebaseRef.initializeApp(firebaseConfig);
     }
+    activateAppCheckIfConfigured(firebaseRef);
     if (!network.authDb) {
       network.authDb = firebaseRef.database();
     }
