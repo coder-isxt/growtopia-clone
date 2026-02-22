@@ -4,50 +4,8 @@ window.ANTICHEAT_WEBHOOK_ENDPOINT = window.ANTICHEAT_WEBHOOK_ENDPOINT || "https:
 window.ANTICHEAT_LOCAL_WEBHOOK_STORAGE = window.ANTICHEAT_LOCAL_WEBHOOK_STORAGE || "growtopia_local_ac_webhook_v1";
 
 window.GTModules.anticheat = (function createAntiCheatModule() {
-  let webhookUrlPromise = null;
-
-  function isLocalRuntime() {
-    const host = (window.location && window.location.hostname || "").toLowerCase();
-    const protocol = (window.location && window.location.protocol || "").toLowerCase();
-    return protocol === "file:" || host === "localhost" || host === "127.0.0.1" || host === "::1";
-  }
-
-  function getLocalWebhookFromPrompt() {
-    const key = window.ANTICHEAT_LOCAL_WEBHOOK_STORAGE || "growtopia_local_ac_webhook_v1";
-    try {
-      const cached = localStorage.getItem(key);
-      if (cached && cached.trim()) return cached.trim();
-    } catch (error) {
-      // ignore localStorage failures
-    }
-    const entered = window.prompt("Enter Anti-Cheat Discord webhook URL (local run):");
-    const safe = (entered || "").trim();
-    if (!safe) return "";
-    try {
-      localStorage.setItem(key, safe);
-    } catch (error) {
-      // ignore localStorage failures
-    }
-    return safe;
-  }
-
-  async function getWebhookUrl() {
-    if (webhookUrlPromise) return webhookUrlPromise;
-    webhookUrlPromise = (async () => {
-      if (isLocalRuntime()) {
-        return getLocalWebhookFromPrompt();
-      }
-      const endpoint = String(window.ANTICHEAT_WEBHOOK_ENDPOINT || "").trim();
-      if (!endpoint) return "";
-      const res = await fetch(endpoint, { cache: "no-store" });
-      if (!res.ok) throw new Error("Webhook endpoint blocked: " + res.status);
-      return (await res.text()).trim();
-    })().catch((error) => {
-      webhookUrlPromise = null;
-      return "";
-    });
-    return webhookUrlPromise;
-  }
+  const modules = window.GTModules || {};
+  const discordModule = modules.discord || {};
 
   function createController(options) {
     const opts = options || {};
@@ -92,8 +50,6 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
     }
 
     async function sendWebhook(rule, severity, details) {
-      const url = await getWebhookUrl();
-      if (!url) return false;
       const username = String(get("getPlayerName", "unknown") || "unknown");
       const accountId = String(get("getPlayerProfileId", "") || "");
       const sessionId = String(get("getPlayerSessionId", "") || "");
@@ -116,32 +72,10 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       if (content.length > 1900) {
         content = content.slice(0, 1897) + "...";
       }
-      const payload = { content };
-      try {
-        const directRes = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-        if (directRes && directRes.ok) return true;
-      } catch (error) {
-        // Try proxy fallback below.
+      if (discordModule && typeof discordModule.send === "function") {
+        return discordModule.send({ content });
       }
-      try {
-        const endpoint = String(window.ANTICHEAT_WEBHOOK_ENDPOINT || "").trim();
-        if (!endpoint || endpoint === url) return false;
-        const proxyRes = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            content: payload.content,
-            webhookUrl: url
-          })
-        });
-        return Boolean(proxyRes && proxyRes.ok);
-      } catch (error) {
-        return false;
-      }
+      return false;
     }
 
     function report(rule, severity, details) {
@@ -271,7 +205,6 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
   }
 
   return {
-    createController,
-    getWebhookUrl
+    createController
   };
 })();
