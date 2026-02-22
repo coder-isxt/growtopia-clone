@@ -156,6 +156,7 @@ window.GTModules.vending = (function createVendingModule() {
           : getListingLabel({ sellType: "block", sellBlockId: selectedParsed.blockId }))
         : "None selected";
       const buyBundleMax = Math.max(0, Math.floor((vm.stock || 0) / bundleQty));
+      const canBuy = Boolean(selectedToken && vm.stock >= bundleQty && vm.priceLocks > 0);
       els.title.textContent = "Vending Machine (" + tx + "," + ty + ")";
 
       let bodyHtml =
@@ -172,7 +173,8 @@ window.GTModules.vending = (function createVendingModule() {
 
       if (canManageMachine) {
         bodyHtml +=
-          '<div class="vending-section">' +
+          '<div class="vending-owner-layout">' +
+          '<div class="vending-section vending-owner-main">' +
           '<div class="vending-edit-title">Edit Listing</div>' +
           '<input type="hidden" data-vending-input="item" value="' + esc(selectedToken) + '">' +
           '<div class="vending-select-row">' +
@@ -180,10 +182,19 @@ window.GTModules.vending = (function createVendingModule() {
           '<div class="vending-selected-label">' + esc(selectedLabel) + '</div>' +
           '</div>' +
           '<div class="vending-field-grid">' +
-          '<label class="vending-field"><span>Offer Qty</span><input data-vending-input="packQty" type="number" min="1" step="1" value="' + bundleQty + '"></label>' +
+          '<label class="vending-field"><span>Quantity</span><input data-vending-input="packQty" type="number" min="1" step="1" value="' + bundleQty + '"></label>' +
           '<label class="vending-field"><span>Price (WL)</span><input data-vending-input="price" type="number" min="1" step="1" value="' + Math.max(1, vm.priceLocks || 1) + '"></label>' +
-          '<label class="vending-field"><span>Stock Total</span><input data-vending-input="stock" type="number" min="0" step="1" value="' + Math.max(0, vm.stock || 0) + '"></label>' +
+          '</div>' +
+          '<div class="vending-auto-stock-note">Stock auto-fills from all owned amount of selected item when you save.</div>' +
+          '</div>' +
+          '<div class="vending-section vending-owner-buy">' +
+          '<div class="vending-section-title">Buy</div>' +
+          '<div class="vending-field-grid">' +
           '<label class="vending-field"><span>Buy Amount</span><input data-vending-input="buyAmount" type="number" min="1" step="1" value="1"></label>' +
+          '</div>' +
+          '<div class="vending-owner-buy-actions">' +
+          '<button data-vending-act="buy"' + (canBuy ? "" : " disabled") + '>Buy</button>' +
+          '</div>' +
           '</div>' +
           '</div>';
       } else {
@@ -198,14 +209,12 @@ window.GTModules.vending = (function createVendingModule() {
 
       els.body.innerHTML = bodyHtml;
 
-      const canBuy = Boolean(selectedToken && vm.stock >= bundleQty && vm.priceLocks > 0);
       const buyDisabled = canBuy ? "" : " disabled";
       if (canManageMachine) {
         els.actions.innerHTML =
           '<button data-vending-act="configure">Save Listing</button>' +
           '<button data-vending-act="collect">Collect Earnings</button>' +
-          '<button data-vending-act="clear">Clear Machine</button>' +
-          '<button data-vending-act="buy"' + buyDisabled + '>Buy</button>';
+          '<button data-vending-act="clear">Clear Machine</button>';
       } else {
         els.actions.innerHTML = '<button data-vending-act="buy"' + buyDisabled + '>Buy</button>';
       }
@@ -308,8 +317,7 @@ window.GTModules.vending = (function createVendingModule() {
       const itemInput = els.body ? els.body.querySelector('[data-vending-input="item"]') : null;
       const packQtyInput = els.body ? els.body.querySelector('[data-vending-input="packQty"]') : null;
       const priceInput = els.body ? els.body.querySelector('[data-vending-input="price"]') : null;
-      const stockInput = els.body ? els.body.querySelector('[data-vending-input="stock"]') : null;
-      if (!itemInput || !packQtyInput || !priceInput || !stockInput) {
+      if (!itemInput || !packQtyInput || !priceInput) {
         post("Listing controls are missing.");
         return;
       }
@@ -339,15 +347,11 @@ window.GTModules.vending = (function createVendingModule() {
       const previousToken = getListingIdentity(vm) || "";
       const sameListing = previousToken === selected.token;
       const currentStockForListing = sameListing ? Math.max(0, Math.floor(Number(vm.stock) || 0)) : 0;
-      const desiredStock = Math.max(0, Math.floor(Number(stockInput.value) || 0));
-      const delta = desiredStock - currentStockForListing;
       const ownedNow = selected.type === "block"
         ? Math.max(0, Math.floor(Number(inventory[selected.blockId]) || 0))
         : Math.max(0, Math.floor(Number(cosmeticInv[selected.cosmeticId]) || 0));
-      if (delta > ownedNow) {
-        post("Not enough inventory to set that stock.");
-        return;
-      }
+      const desiredStock = currentStockForListing + ownedNow;
+      const delta = desiredStock - currentStockForListing;
 
       const sellQuantity = Math.max(1, Math.floor(Number(packQtyInput.value) || 0));
       const priceLocks = Math.max(1, Math.floor(Number(priceInput.value) || 0));
@@ -421,6 +425,10 @@ window.GTModules.vending = (function createVendingModule() {
         earningsLocks: 0
       };
       renderModal(tx, ty, vm);
+      const currentVm = getLocal(tx, ty) || vm;
+      if (canManage(currentVm)) {
+        configureMachine(tx, ty, currentVm);
+      }
       const post = opts.postLocalSystemChat || (() => {});
       post("Listing item selected from inventory.");
       return true;

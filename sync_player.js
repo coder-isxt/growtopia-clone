@@ -87,6 +87,7 @@ window.GTModules.syncPlayer = (function createSyncPlayerModule() {
         wings: String(data.cosmetics && data.cosmetics.wings || ""),
         swords: String(data.cosmetics && data.cosmetics.swords || "")
       },
+      danceUntil: Math.max(0, toInt(data.danceUntil, 0)),
       world: String(data.world || ""),
       updatedAt: data.updatedAt
     };
@@ -97,4 +98,3 @@ window.GTModules.syncPlayer = (function createSyncPlayerModule() {
     buildPayload
   };
 })();
-

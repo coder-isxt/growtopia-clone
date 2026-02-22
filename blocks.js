@@ -19,7 +19,7 @@ window.GTModules.blocks = (function createBlocksModule() {
     { id: 10, key: "door_block", name: "Door Block", color: "#5fc2ff", solid: false, icon: "DB", faIcon: "fa-solid fa-door-open", image: "special/door.png" },
     { id: 11, key: "water_block", name: "Water", color: "rgba(72, 174, 255, 0.7)", solid: false, liquid: true, icon: "WA", faIcon: "fa-solid fa-water", image: "special/water.png" },
     { id: 12, key: "platform_block", name: "Platform", color: "#7a5a3f", solid: false, oneWay: true, icon: "PF", faIcon: "fa-solid fa-grip-lines", image: "special/platform.png" },
-    { id: 13, key: "stair_block", name: "Stair NW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S1", faIcon: "fa-solid fa-stairs", image: "special/stairs.png" },
+    { id: 13, key: "stair_block", name: "Stairs", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S1", faIcon: "fa-solid fa-stairs", image: "special/stairs.png" },
     { id: 14, key: "stair_block_r1", name: "Stair NE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S2", faIcon: "fa-solid fa-stairs", image: "special/stair_block_r1.png" },
     { id: 15, key: "stair_block_r2", name: "Stair SE", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S3", faIcon: "fa-solid fa-stairs", image: "special/stair_block_r2.png" },
     { id: 16, key: "stair_block_r3", name: "Stair SW", color: "#b28457", solid: false, stair: true, rotatable: true, icon: "S4", faIcon: "fa-solid fa-stairs", image: "special/stair_block_r3.png" },
@@ -28,7 +28,18 @@ window.GTModules.blocks = (function createBlocksModule() {
     { id: 19, key: "anti_gravity_generator", name: "Anti Gravity Generator", color: "#6de9ff", solid: false, icon: "AG", faIcon: "fa-solid fa-meteor" },
     { id: 20, key: "camera_block", name: "Camera", color: "#8eb7d6", solid: false, icon: "CM", faIcon: "fa-solid fa-video", image: "special/camera.png" },
     { id: 21, key: "weather_machine", name: "Weather Machine", color: "#7aa8d9", solid: false, icon: "WM", faIcon: "fa-solid fa-cloud-sun-rain", image: "special/weather_machine.png" },
-    { id: 22, key: "display_block", name: "Display Block", color: "#314154", solid: true, icon: "DP", faIcon: "fa-regular fa-square" }
+    { id: 22, key: "display_block", name: "Display Block", color: "#314154", solid: true, icon: "DP", faIcon: "fa-regular fa-square" },
+    { id: 23, key: "wood_plank", name: "Wooden Plank", color: "#b4bcc5", solid: true, icon: "WP", faIcon: "fa-regular fa-square", image: "special/plank.png" },
+    
+    { id: 24, key: "tree_seed", name: "Tree Seed", color: "#6fbf52", solid: false, icon: "SE", faIcon: "fa-solid fa-seedling", image: "special/tree_seed.png" },
+    { id: 25, key: "grass_seed", name: "Grass Seed", color: "#5fbd54", solid: false, icon: "GS", faIcon: "fa-solid fa-seedling" },
+    { id: 26, key: "dirt_seed", name: "Dirt Seed", color: "#8c5d32", solid: false, icon: "DS", faIcon: "fa-solid fa-seedling" },
+    { id: 27, key: "stone_seed", name: "Stone Seed", color: "#8a949f", solid: false, icon: "SS", faIcon: "fa-solid fa-seedling" },
+    { id: 28, key: "sand_seed", name: "Sand Seed", color: "#e0cd89", solid: false, icon: "NS", faIcon: "fa-solid fa-seedling" },
+    { id: 29, key: "brick_seed", name: "Brick Seed", color: "#bd5c4a", solid: false, icon: "BS", faIcon: "fa-solid fa-seedling" },
+    { id: 30, key: "lock_seed", name: "Lock Seed", color: "#ffd166", solid: false, icon: "LS", faIcon: "fa-solid fa-seedling" },
+    { id: 31, key: "door_seed", name: "Door Seed", color: "#69c8ff", solid: false, icon: "OS", faIcon: "fa-solid fa-seedling" },
+    { id: 32, key: "plank_seed", name: "Plank Seed", color: "#b8c2cb", solid: false, icon: "PS", faIcon: "fa-solid fa-seedling" }
   ];
 
   function resolveImagePath(image) {

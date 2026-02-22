@@ -40,7 +40,11 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
 
   function attachWorldListeners(network, handlers) {
     if (!network || !handlers) return;
-    if (network.playersRef && handlers.players) {
+    if (network.playersRef && handlers.playerAdded && handlers.playerChanged && handlers.playerRemoved) {
+      network.playersRef.on("child_added", handlers.playerAdded);
+      network.playersRef.on("child_changed", handlers.playerChanged);
+      network.playersRef.on("child_removed", handlers.playerRemoved);
+    } else if (network.playersRef && handlers.players) {
       network.playersRef.on("value", handlers.players);
     }
     if (network.blocksRef && handlers.blockAdded) {
@@ -60,6 +64,15 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
   function detachWorldListeners(network, handlers, removePlayerRef) {
     if (!network) return;
     const h = handlers || {};
+    if (network.playersRef && h.playerAdded) {
+      network.playersRef.off("child_added", h.playerAdded);
+    }
+    if (network.playersRef && h.playerChanged) {
+      network.playersRef.off("child_changed", h.playerChanged);
+    }
+    if (network.playersRef && h.playerRemoved) {
+      network.playersRef.off("child_removed", h.playerRemoved);
+    }
     if (network.playersRef && h.players) {
       network.playersRef.off("value", h.players);
     }
@@ -93,8 +106,46 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
     const clearBlockValue = typeof opts.clearBlockValue === "function" ? opts.clearBlockValue : () => {};
     const addChatMessage = typeof opts.addChatMessage === "function" ? opts.addChatMessage : () => {};
     const onPlayerHit = typeof opts.onPlayerHit === "function" ? opts.onPlayerHit : () => {};
+    const setRemotePlayer = (id, p) => {
+      if (!remotePlayers || typeof remotePlayers.set !== "function") return;
+      remotePlayers.set(id, {
+        id,
+        accountId: (p.accountId || "").toString(),
+        x: p.x,
+        y: p.y,
+        facing: p.facing || 1,
+        name: (p.name || "Player").toString().slice(0, 16),
+        cosmetics: normalizeCosmetics(p.cosmetics || {}),
+        danceUntil: Math.max(0, Math.floor(Number(p.danceUntil) || 0))
+      });
+    };
+    const applyPlayerSnapshot = (snapshot) => {
+      const id = String(snapshot && snapshot.key || "");
+      if (!id || id === playerId) return;
+      const p = snapshot && typeof snapshot.val === "function" ? snapshot.val() : null;
+      if (!p || typeof p.x !== "number" || typeof p.y !== "number") {
+        if (remotePlayers && typeof remotePlayers.delete === "function") {
+          remotePlayers.delete(id);
+        }
+        updateOnlineCount();
+        return;
+      }
+      setRemotePlayer(id, p);
+      onPlayerHit(id, p.lastHit || null);
+      updateOnlineCount();
+    };
 
     const handlers = {};
+    handlers.playerAdded = applyPlayerSnapshot;
+    handlers.playerChanged = applyPlayerSnapshot;
+    handlers.playerRemoved = (snapshot) => {
+      const id = String(snapshot && snapshot.key || "");
+      if (!id || id === playerId) return;
+      if (remotePlayers && typeof remotePlayers.delete === "function") {
+        remotePlayers.delete(id);
+      }
+      updateOnlineCount();
+    };
     handlers.players = (snapshot) => {
       if (remotePlayers && typeof remotePlayers.clear === "function") {
         remotePlayers.clear();
@@ -104,17 +155,7 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
         if (id === playerId) return;
         const p = players[id];
         if (!p || typeof p.x !== "number" || typeof p.y !== "number") return;
-        if (remotePlayers && typeof remotePlayers.set === "function") {
-          remotePlayers.set(id, {
-            id,
-            accountId: (p.accountId || "").toString(),
-            x: p.x,
-            y: p.y,
-            facing: p.facing || 1,
-            name: (p.name || "Player").toString().slice(0, 16),
-            cosmetics: normalizeCosmetics(p.cosmetics || {})
-          });
-        }
+        setRemotePlayer(id, p);
         onPlayerHit(id, p.lastHit || null);
       });
       updateOnlineCount();

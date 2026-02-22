@@ -18,6 +18,7 @@
       const mobileRightBtn = document.getElementById("mobileRightBtn");
       const mobileJumpBtn = document.getElementById("mobileJumpBtn");
       const networkStateEl = document.getElementById("networkState");
+      const gemsCountEl = document.getElementById("gemsCount");
       const onlineCountEl = document.getElementById("onlineCount");
       const totalOnlineCountEl = document.getElementById("totalOnlineCount");
       const currentWorldLabelEl = document.getElementById("currentWorldLabel");
@@ -26,6 +27,7 @@
       const enterWorldBtn = document.getElementById("enterWorldBtn");
       const chatToggleBtn = document.getElementById("chatToggleBtn");
       const adminToggleBtn = document.getElementById("adminToggleBtn");
+      const respawnBtn = document.getElementById("respawnBtn");
       const adminPanelEl = document.getElementById("adminPanel");
       const adminSearchInput = document.getElementById("adminSearchInput");
       const adminAuditActionFilterEl = document.getElementById("adminAuditActionFilter");
@@ -103,6 +105,9 @@
       const modules = window.GTModules || {};
       const adminModule = modules.admin || {};
       const blocksModule = modules.blocks || {};
+      const plantsModule = modules.plants || {};
+      const gemsModule = modules.gems || {};
+      const rewardsModule = modules.rewards || {};
       const texturesModule = modules.textures || {};
       const blockKeysModule = modules.blockKeys || {};
       const itemsModule = modules.items || {};
@@ -117,6 +122,7 @@
       const syncBlocksModule = modules.syncBlocks || {};
       const syncWorldsModule = modules.syncWorlds || {};
       const syncHitsModule = modules.syncHits || {};
+      const commandsModule = modules.commands || {};
       const chatModule = modules.chat || {};
       const menuModule = modules.menu || {};
       const vendingModule = modules.vending || {};
@@ -142,13 +148,32 @@
       const ANTI_GRAV_AIR_JUMP_COOLDOWN_MS = Math.max(70, Number(SETTINGS.ANTI_GRAV_AIR_JUMP_COOLDOWN_MS) || 140);
       const BASE_PATH = typeof SETTINGS.BASE_PATH === "string" && SETTINGS.BASE_PATH ? SETTINGS.BASE_PATH : "growtopia-test";
       const LOG_VIEWER_USERNAMES = Array.isArray(SETTINGS.LOG_VIEWER_USERNAMES) ? SETTINGS.LOG_VIEWER_USERNAMES : ["isxt"];
-      const ADMIN_USERNAMES = Array.isArray(SETTINGS.ADMIN_USERNAMES) ? SETTINGS.ADMIN_USERNAMES : ["isxt"];
-      const ADMIN_ROLE_BY_USERNAME = SETTINGS.ADMIN_ROLE_BY_USERNAME && typeof SETTINGS.ADMIN_ROLE_BY_USERNAME === "object"
-        ? SETTINGS.ADMIN_ROLE_BY_USERNAME
-        : {};
+      const adminRoleConfig = typeof adminModule.createRoleConfig === "function"
+        ? adminModule.createRoleConfig(SETTINGS)
+        : {
+            roleRank: { none: 0, moderator: 1, admin: 2, manager: 3, owner: 4 },
+            permissions: {
+              owner: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "setrole", "clear_logs", "view_audit", "force_reload", "freeze", "unfreeze", "announce_user"],
+              manager: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "setrole_limited", "clear_logs", "view_audit", "freeze", "unfreeze", "announce_user"],
+              admin: ["panel_open", "view_logs", "kick", "resetinv", "givex", "tp", "bring", "freeze", "unfreeze", "announce_user"],
+              moderator: ["panel_open", "kick", "tp", "bring", "announce_user"],
+              none: []
+            },
+            commandCooldownsMs: SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS && typeof SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS === "object"
+              ? SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS
+              : {
+                  owner: {},
+                  manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, givex: 600, giveitem: 600, tp: 300, bring: 700, summon: 700, setrole: 2000, freeze: 700, unfreeze: 700, announcep: 500 },
+                  admin: { kick: 900, givex: 900, giveitem: 900, tp: 400, bring: 900, summon: 900, freeze: 900, unfreeze: 900, announcep: 700 },
+                  moderator: { kick: 1200, tp: 600, bring: 1200, summon: 1200, announcep: 900 },
+                  none: {}
+                },
+            roleByUsername: SETTINGS.ADMIN_ROLE_BY_USERNAME && typeof SETTINGS.ADMIN_ROLE_BY_USERNAME === "object" ? SETTINGS.ADMIN_ROLE_BY_USERNAME : {},
+            adminUsernames: Array.isArray(SETTINGS.ADMIN_USERNAMES) ? SETTINGS.ADMIN_USERNAMES : ["isxt"]
+          };
       const JUMP_COOLDOWN_MS = Number(SETTINGS.JUMP_COOLDOWN_MS) || 200;
-      const PLAYER_SYNC_MIN_MS = Math.max(25, Number(SETTINGS.PLAYER_SYNC_MIN_MS) || 90);
-      const GLOBAL_SYNC_MIN_MS = Math.max(PLAYER_SYNC_MIN_MS, Number(SETTINGS.GLOBAL_SYNC_MIN_MS) || 240);
+      const PLAYER_SYNC_MIN_MS = Math.max(25, Number(SETTINGS.PLAYER_SYNC_MIN_MS) || 60);
+      const GLOBAL_SYNC_MIN_MS = Math.max(PLAYER_SYNC_MIN_MS, Number(SETTINGS.GLOBAL_SYNC_MIN_MS) || 170);
       const LAYOUT_PREFS_KEY = "gt_layout_panels_v3";
       const DESKTOP_PANEL_LEFT_DEFAULT = 200;
       const DESKTOP_PANEL_RIGHT_DEFAULT = 190;
@@ -158,30 +183,6 @@
       const JUMP_VELOCITY = Number(SETTINGS.JUMP_VELOCITY) || -7.2;
       const MAX_MOVE_SPEED = Number(SETTINGS.MAX_MOVE_SPEED) || 3.7;
       const MAX_FALL_SPEED = Number(SETTINGS.MAX_FALL_SPEED) || 10;
-      const ADMIN_ROLE_RANK = {
-        none: 0,
-        moderator: 1,
-        admin: 2,
-        manager: 3,
-        owner: 4
-      };
-      const ADMIN_PERMISSIONS = {
-        owner: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "setrole", "clear_logs", "view_audit", "force_reload"],
-        manager: ["panel_open", "view_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "tp", "bring", "setrole_limited", "clear_logs", "view_audit"],
-        admin: ["panel_open", "view_logs", "kick", "resetinv", "givex", "tp", "bring"],
-        moderator: ["panel_open", "kick", "tp", "bring"],
-        none: []
-      };
-      const DEFAULT_COMMAND_COOLDOWNS_MS = {
-        owner: {},
-        manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, givex: 600, giveitem: 600, tp: 300, bring: 700, summon: 700, setrole: 2000 },
-        admin: { kick: 900, givex: 900, giveitem: 900, tp: 400, bring: 900, summon: 900 },
-        moderator: { kick: 1200, tp: 600, bring: 1200, summon: 1200 },
-        none: {}
-      };
-      const ADMIN_COMMAND_COOLDOWNS_MS = SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS && typeof SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS === "object"
-        ? SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS
-        : DEFAULT_COMMAND_COOLDOWNS_MS;
       const WEATHER_PRESET_IMAGES = Array.isArray(SETTINGS.WEATHER_PRESET_IMAGES)
         ? SETTINGS.WEATHER_PRESET_IMAGES
         : [];
@@ -215,7 +216,17 @@
         19: { key: "anti_gravity_generator", name: "Anti Gravity Generator", color: "#6de9ff", solid: true, icon: "AG", faIcon: "fa-solid fa-meteor" },
         20: { key: "camera_block", name: "Camera", color: "#8eb7d6", solid: true, icon: "CM", faIcon: "fa-solid fa-video" },
         21: { key: "weather_machine", name: "Weather Machine", color: "#7aa8d9", solid: true, icon: "WM", faIcon: "fa-solid fa-cloud-sun-rain" },
-        22: { key: "display_block", name: "Display Block", color: "#314154", solid: true, icon: "DP", faIcon: "fa-regular fa-square" }
+        22: { key: "display_block", name: "Display Block", color: "#314154", solid: true, icon: "DP", faIcon: "fa-regular fa-square" },
+        23: { key: "wood_plank", name: "Wooden Plank", color: "#b4bcc5", solid: true, icon: "WP", faIcon: "fa-regular fa-square" },
+        24: { key: "tree_seed", name: "Tree Seed", color: "#6fbf52", solid: false, icon: "SE", faIcon: "fa-solid fa-seedling" },
+        25: { key: "grass_seed", name: "Grass Seed", color: "#5fbd54", solid: false, icon: "GS", faIcon: "fa-solid fa-seedling" },
+        26: { key: "dirt_seed", name: "Dirt Seed", color: "#8c5d32", solid: false, icon: "DS", faIcon: "fa-solid fa-seedling" },
+        27: { key: "stone_seed", name: "Stone Seed", color: "#8a949f", solid: false, icon: "SS", faIcon: "fa-solid fa-seedling" },
+        28: { key: "sand_seed", name: "Sand Seed", color: "#e0cd89", solid: false, icon: "NS", faIcon: "fa-solid fa-seedling" },
+        29: { key: "brick_seed", name: "Brick Seed", color: "#bd5c4a", solid: false, icon: "BS", faIcon: "fa-solid fa-seedling" },
+        30: { key: "lock_seed", name: "Lock Seed", color: "#ffd166", solid: false, icon: "LS", faIcon: "fa-solid fa-seedling" },
+        31: { key: "door_seed", name: "Door Seed", color: "#69c8ff", solid: false, icon: "OS", faIcon: "fa-solid fa-seedling" },
+        32: { key: "plank_seed", name: "Plank Seed", color: "#b8c2cb", solid: false, icon: "PS", faIcon: "fa-solid fa-seedling" }
       };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
@@ -234,10 +245,52 @@
       const CAMERA_ID = 20;
       const WEATHER_MACHINE_ID = 21;
       const DISPLAY_BLOCK_ID = 22;
+      const WOOD_PLANK_ID = 23;
+      const TREE_SEED_ID = 24;
+      const GRASS_SEED_ID = 25;
+      const DIRT_SEED_ID = 26;
+      const STONE_SEED_ID = 27;
+      const SAND_SEED_ID = 28;
+      const BRICK_SEED_ID = 29;
+      const LOCK_SEED_ID = 30;
+      const DOOR_SEED_ID = 31;
+      const PLANK_SEED_ID = 32;
+      const TREE_YIELD_BLOCK_ID = 4;
+      const TREE_GROW_MS = Math.max(5000, Number(SETTINGS.TREE_GROW_MS) || 120000);
+      const TREE_STAGE_COUNT = 4;
+      const TREE_GEM_MIN = Math.max(0, Math.floor(Number(SETTINGS.TREE_GEM_MIN) || 1));
+      const TREE_GEM_MAX = Math.max(TREE_GEM_MIN, Math.floor(Number(SETTINGS.TREE_GEM_MAX) || 4));
+      const SEED_DROP_CHANCE = 1 / 8;
+      const INVENTORY_ITEM_LIMIT = 300;
+      const DEFAULT_EDIT_REACH_TILES = 4.5;
+      const MIN_EDIT_REACH_TILES = 1;
+      const MAX_EDIT_REACH_TILES = 16;
       const TOOL_FIST = "fist";
       const TOOL_WRENCH = "wrench";
-      const slotOrder = [TOOL_FIST, TOOL_WRENCH, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22];
-      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22];
+      const PLANT_SEED_CONFIG = {
+        [TREE_SEED_ID]: { yieldBlockId: 4, growMs: TREE_GROW_MS, dropFromBlockId: 4, label: "Tree Seed" },
+        [GRASS_SEED_ID]: { yieldBlockId: 1, growMs: TREE_GROW_MS, dropFromBlockId: 1, label: "Grass Seed" },
+        [DIRT_SEED_ID]: { yieldBlockId: 2, growMs: TREE_GROW_MS, dropFromBlockId: 2, label: "Dirt Seed" },
+        [STONE_SEED_ID]: { yieldBlockId: 3, growMs: TREE_GROW_MS, dropFromBlockId: 3, label: "Stone Seed" },
+        [SAND_SEED_ID]: { yieldBlockId: 5, growMs: TREE_GROW_MS, dropFromBlockId: 5, label: "Sand Seed" },
+        [BRICK_SEED_ID]: { yieldBlockId: 6, growMs: TREE_GROW_MS, dropFromBlockId: 6, label: "Brick Seed" },
+        [LOCK_SEED_ID]: { yieldBlockId: 9, growMs: TREE_GROW_MS, dropFromBlockId: 9, label: "Lock Seed" },
+        [DOOR_SEED_ID]: { yieldBlockId: 10, growMs: TREE_GROW_MS, dropFromBlockId: 10, label: "Door Seed" },
+        [PLANK_SEED_ID]: { yieldBlockId: WOOD_PLANK_ID, growMs: TREE_GROW_MS, dropFromBlockId: WOOD_PLANK_ID, label: "Plank Seed" }
+      };
+      const PLANT_SEED_IDS = Object.keys(PLANT_SEED_CONFIG).map((id) => Number(id)).filter((id) => Number.isInteger(id));
+      const PLANT_SEED_ID_SET = new Set(PLANT_SEED_IDS);
+      const SEED_DROP_BY_BLOCK_ID = (() => {
+        const out = {};
+        for (const seedId of PLANT_SEED_IDS) {
+          const cfg = PLANT_SEED_CONFIG[seedId] || {};
+          const sourceId = Math.max(0, Math.floor(Number(cfg.dropFromBlockId) || 0));
+          if (sourceId > 0) out[sourceId] = seedId;
+        }
+        return out;
+      })();
+      const slotOrder = [TOOL_FIST, TOOL_WRENCH, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+      const INVENTORY_IDS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
       const COSMETIC_SLOTS = ["clothes", "wings", "swords"];
       const blockMaps = typeof blockKeysModule.buildMaps === "function"
         ? blockKeysModule.buildMaps(blockDefs)
@@ -309,9 +362,18 @@
         19: 0,
         20: 0,
         21: 0,
-        22: 0
+        22: 0,
+        23: 0,
+        24: 0,
+        25: 0,
+        26: 0,
+        27: 0,
+        28: 0,
+        29: 0,
+        30: 0,
+        31: 0,
+        32: 0
       };
-
       let selectedSlot = 0;
       const keys = {};
       const playerId = "p_" + Math.random().toString(36).slice(2, 10);
@@ -327,6 +389,8 @@
       let gameBootstrapped = false;
       let pendingTeleportSelf = null;
       let lastHandledTeleportCommandId = "";
+      let lastHandledReachCommandId = "";
+      let lastPrivateMessageFrom = null;
       const remotePlayers = new Map();
       const remoteAnimationTracker = typeof animationsModule.createTracker === "function"
         ? animationsModule.createTracker()
@@ -345,6 +409,10 @@
       const worldOccupancy = new Map();
       let vendingController = null;
       let tradeController = null;
+      let plantsController = null;
+      let gemsController = null;
+      let rewardsController = null;
+      let editReachTiles = DEFAULT_EDIT_REACH_TILES;
       let signEditContext = null;
       let worldLockEditContext = null;
       let doorEditContext = null;
@@ -358,6 +426,8 @@
       let lastLockDeniedNoticeAt = 0;
       let lastHandledForceReloadEventId = loadForceReloadMarker();
       let lastHandledAnnouncementEventId = "";
+      let lastHandledFreezeCommandId = "";
+      let lastHandledPrivateAnnouncementId = "";
       let announcementHideTimer = 0;
       let isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
       let isChatOpen = false;
@@ -512,9 +582,42 @@
           getTradePanelTitleEl: () => document.getElementById("tradePanelTitle"),
           getTradePanelBodyEl: () => document.getElementById("tradePanelBody"),
           getTradePanelActionsEl: () => document.getElementById("tradePanelActions"),
-          getTradePanelCloseBtnEl: () => document.getElementById("tradePanelCloseBtn")
+          getTradePanelCloseBtnEl: () => document.getElementById("tradePanelCloseBtn"),
+          getToolbarEl: () => toolbar,
+          startInventoryDragFromTrade: (entry, event) => {
+            startInventoryDrag(entry, event);
+          }
         });
         return tradeController;
+      }
+
+      function getPlantsController() {
+        if (plantsController) return plantsController;
+        if (typeof plantsModule.createController !== "function") return null;
+        plantsController = plantsModule.createController({
+          getNetwork: () => network,
+          getTreeGrowMs: () => TREE_GROW_MS,
+          getTreeYieldBlockId: () => TREE_YIELD_BLOCK_ID,
+          getTreeStageCount: () => TREE_STAGE_COUNT
+        });
+        return plantsController;
+      }
+
+      function getGemsController() {
+        if (gemsController) return gemsController;
+        if (typeof gemsModule.createController !== "function") return null;
+        gemsController = gemsModule.createController({});
+        return gemsController;
+      }
+
+      function getRewardsController() {
+        if (rewardsController) return rewardsController;
+        if (typeof rewardsModule.createController !== "function") return null;
+        rewardsController = rewardsModule.createController({
+          getTreeGemMin: () => TREE_GEM_MIN,
+          getTreeGemMax: () => TREE_GEM_MAX
+        });
+        return rewardsController;
       }
 
       let cameraX = 0;
@@ -540,6 +643,10 @@
       let wasJumpHeld = false;
       let lastHitAtMs = -9999;
       let lastBlockHitAtMs = -9999;
+      let danceUntilMs = 0;
+      let isFrozenByAdmin = false;
+      let frozenByAdminBy = "";
+      let lastFrozenHintAtMs = -9999;
       let suppressSpawnSafetyUntilMs = 0;
       let mobileLastTouchActionAt = 0;
       const touchControls = {
@@ -549,6 +656,7 @@
       };
       const HIT_ANIM_MS = 200;
       const BLOCK_HIT_COOLDOWN_MS = Math.max(60, Number(SETTINGS.BLOCK_HIT_COOLDOWN_MS) || 120);
+      const DANCE_DURATION_MS = Math.max(1200, Number(SETTINGS.DANCE_DURATION_MS) || 5000);
 
       const network = {
         enabled: false,
@@ -561,6 +669,11 @@
         playerRef: null,
         mySessionRef: null,
         myCommandRef: null,
+        myReachRef: null,
+        myFreezeRef: null,
+        myPrivateAnnouncementRef: null,
+        myPmRef: null,
+        myPmFeedRef: null,
         myTradeRequestRef: null,
         myTradeResponseRef: null,
         myActiveTradeRef: null,
@@ -574,6 +687,7 @@
         displaysRef: null,
         doorsRef: null,
         antiGravRef: null,
+        plantsRef: null,
         weatherRef: null,
         camerasRef: null,
         cameraLogsRef: null,
@@ -603,10 +717,17 @@
           inventory: null,
           mySession: null,
           myCommand: null,
+          myReach: null,
+          myFreeze: null,
+          myPrivateAnnouncement: null,
+          myPmAdded: null,
           myTradeRequest: null,
           myTradeResponse: null,
           myActiveTrade: null,
           players: null,
+          playerAdded: null,
+          playerChanged: null,
+          playerRemoved: null,
           blockAdded: null,
           blockChanged: null,
           blockRemoved: null,
@@ -631,6 +752,9 @@
           antiGravAdded: null,
           antiGravChanged: null,
           antiGravRemoved: null,
+          plantAdded: null,
+          plantChanged: null,
+          plantRemoved: null,
           worldWeather: null,
           cameraAdded: null,
           cameraChanged: null,
@@ -782,29 +906,41 @@
       }
 
       function normalizeAdminRole(role) {
+        if (typeof adminModule.normalizeAdminRole === "function") {
+          return adminModule.normalizeAdminRole(role, adminRoleConfig);
+        }
         const value = String(role || "").trim().toLowerCase();
-        return ADMIN_ROLE_RANK[value] !== undefined ? value : "none";
+        return ["none", "moderator", "admin", "manager", "owner"].includes(value) ? value : "none";
       }
 
       function getRoleRank(role) {
-        return ADMIN_ROLE_RANK[normalizeAdminRole(role)] || 0;
+        if (typeof adminModule.getRoleRank === "function") {
+          return adminModule.getRoleRank(role, adminRoleConfig);
+        }
+        const map = adminRoleConfig && adminRoleConfig.roleRank ? adminRoleConfig.roleRank : {};
+        return Number(map[normalizeAdminRole(role)]) || 0;
       }
 
       function hasAdminPermission(permissionKey) {
+        if (typeof adminModule.hasAdminPermission === "function") {
+          return adminModule.hasAdminPermission(currentAdminRole, permissionKey, adminRoleConfig);
+        }
         const role = normalizeAdminRole(currentAdminRole);
-        const list = ADMIN_PERMISSIONS[role] || [];
+        const map = adminRoleConfig && adminRoleConfig.permissions ? adminRoleConfig.permissions : {};
+        const list = Array.isArray(map[role]) ? map[role] : [];
         return list.includes(permissionKey);
       }
 
       function getConfiguredRoleForUsername(username) {
+        if (typeof adminModule.getConfiguredRoleForUsername === "function") {
+          return adminModule.getConfiguredRoleForUsername(username, adminRoleConfig);
+        }
         const normalized = normalizeUsername(username);
         if (!normalized) return "none";
-        if (ADMIN_ROLE_BY_USERNAME[normalized]) {
-          return normalizeAdminRole(ADMIN_ROLE_BY_USERNAME[normalized]);
-        }
-        if (ADMIN_USERNAMES.includes(normalized)) {
-          return "owner";
-        }
+        const roleByUsername = adminRoleConfig && adminRoleConfig.roleByUsername ? adminRoleConfig.roleByUsername : {};
+        if (roleByUsername[normalized]) return normalizeAdminRole(roleByUsername[normalized]);
+        const adminUsernames = adminRoleConfig && Array.isArray(adminRoleConfig.adminUsernames) ? adminRoleConfig.adminUsernames : ["isxt"];
+        if (adminUsernames.includes(normalized)) return "owner";
         return "none";
       }
 
@@ -909,8 +1045,12 @@
       }
 
       function getCommandCooldownMs(commandKey) {
+        if (typeof adminModule.getCommandCooldownMs === "function") {
+          return adminModule.getCommandCooldownMs(currentAdminRole, commandKey, adminRoleConfig);
+        }
         const role = normalizeAdminRole(currentAdminRole);
-        const roleMap = ADMIN_COMMAND_COOLDOWNS_MS[role] || {};
+        const map = adminRoleConfig && adminRoleConfig.commandCooldownsMs ? adminRoleConfig.commandCooldownsMs : {};
+        const roleMap = map[role] && typeof map[role] === "object" ? map[role] : {};
         return Number(roleMap[commandKey]) || 0;
       }
 
@@ -1837,6 +1977,15 @@
           }).catch(() => {});
           return true;
         }
+        if (action === "freeze" || action === "unfreeze") {
+          const frozen = action === "freeze";
+          issueFreezeCommand(accountId, frozen).then((ok) => {
+            if (!ok) return;
+            logAdminAudit("Admin(" + sourceTag + ") " + (frozen ? "froze" : "unfroze") + " account " + accountId + ".");
+            pushAdminAuditEntry(action, accountId, "");
+          }).catch(() => {});
+          return true;
+        }
         if (action === "resetinv") {
           const cosmeticItems = {};
           for (const item of COSMETIC_ITEMS) {
@@ -1933,6 +2082,92 @@
           .catch(() => false);
       }
 
+      function normalizeEditReachTiles(value) {
+        const n = Number(value);
+        const safe = Number.isFinite(n) ? n : DEFAULT_EDIT_REACH_TILES;
+        return Math.max(MIN_EDIT_REACH_TILES, Math.min(MAX_EDIT_REACH_TILES, safe));
+      }
+
+      function getEditReachTiles() {
+        return normalizeEditReachTiles(editReachTiles);
+      }
+
+      function setEditReachTiles(value) {
+        editReachTiles = normalizeEditReachTiles(value);
+      }
+
+      function resetEditReachTiles() {
+        editReachTiles = DEFAULT_EDIT_REACH_TILES;
+      }
+
+      function issueReachCommand(targetAccountId, reachTiles) {
+        if (!network.db || !targetAccountId) return Promise.resolve(false);
+        const payload = {
+          id: "rch_" + Math.random().toString(36).slice(2, 12),
+          reachTiles: normalizeEditReachTiles(reachTiles),
+          by: (playerName || "admin").toString().slice(0, 20),
+          issuedAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        return network.db.ref(BASE_PATH + "/account-commands/" + targetAccountId + "/reach").set(payload)
+          .then(() => true)
+          .catch(() => false);
+      }
+
+      function issueFreezeCommand(targetAccountId, frozen) {
+        if (!network.db || !targetAccountId) return Promise.resolve(false);
+        const commandId = "frz_" + Math.random().toString(36).slice(2, 12);
+        const payload = {
+          id: commandId,
+          frozen: Boolean(frozen),
+          by: (playerName || "admin").toString().slice(0, 20),
+          issuedAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        return network.db.ref(BASE_PATH + "/account-commands/" + targetAccountId + "/freeze").set(payload)
+          .then(() => true)
+          .catch(() => false);
+      }
+
+      function issuePrivateAnnouncement(targetAccountId, messageText) {
+        if (!network.db || !targetAccountId) return Promise.resolve(false);
+        const commandId = "pa_" + Math.random().toString(36).slice(2, 12);
+        const text = (messageText || "").toString().trim().slice(0, 180);
+        if (!text) return Promise.resolve(false);
+        const payload = {
+          id: commandId,
+          text,
+          actorUsername: (playerName || "admin").toString().slice(0, 20),
+          issuedAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        return network.db.ref(BASE_PATH + "/account-commands/" + targetAccountId + "/announce").set(payload)
+          .then(() => true)
+          .catch(() => false);
+      }
+
+      function issuePrivateMessage(targetAccountId, messageText) {
+        if (!network.db || !targetAccountId) return Promise.resolve(false);
+        const text = (messageText || "").toString().trim().slice(0, 160);
+        if (!text) return Promise.resolve(false);
+        const payload = {
+          id: "pm_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
+          fromAccountId: playerProfileId || "",
+          fromUsername: (playerName || "").toString().slice(0, 20),
+          text,
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        return network.db.ref(BASE_PATH + "/account-commands/" + targetAccountId + "/pm").push(payload)
+          .then(() => true)
+          .catch(() => false);
+      }
+
+      function resolveAccountIdByUsernameFast(username) {
+        if (!network.db) return Promise.resolve("");
+        const normalized = normalizeUsername(username);
+        if (!normalized) return Promise.resolve("");
+        return network.db.ref(BASE_PATH + "/usernames/" + normalized).once("value")
+          .then((snap) => (snap && snap.val ? String(snap.val() || "") : ""))
+          .catch(() => "");
+      }
+
       function applySelfTeleport(worldId, x, y) {
         const safeWorld = normalizeWorldId(worldId);
         if (!safeWorld) return;
@@ -1951,6 +2186,31 @@
         player.vy = 0;
       }
 
+      function setFrozenState(nextFrozen, byName) {
+        const frozen = Boolean(nextFrozen);
+        isFrozenByAdmin = frozen;
+        frozenByAdminBy = (byName || "").toString().slice(0, 20);
+        if (frozen) {
+          player.vx = 0;
+          player.vy = 0;
+          const suffix = frozenByAdminBy ? " by @" + frozenByAdminBy : "";
+          postLocalSystemChat("You were frozen" + suffix + ".");
+        } else {
+          const suffix = frozenByAdminBy ? " by @" + frozenByAdminBy : "";
+          postLocalSystemChat("You were unfrozen" + suffix + ".");
+        }
+      }
+
+      function shouldBlockActionForFreeze() {
+        if (!isFrozenByAdmin) return false;
+        const now = performance.now();
+        if (now - lastFrozenHintAtMs > 900) {
+          lastFrozenHintAtMs = now;
+          postLocalSystemChat("You are frozen and cannot act.");
+        }
+        return true;
+      }
+
       function postLocalSystemChat(text) {
         addChatMessage({
           name: "[System]",
@@ -1961,418 +2221,72 @@
       }
 
       function handleAdminChatCommand(rawText) {
-        if (!rawText.startsWith("/")) return false;
-        const parts = rawText.trim().split(/\s+/);
-        const command = (parts[0] || "").toLowerCase();
-        if (command === "/lock") {
-          if (!inWorld) {
-            postLocalSystemChat("Enter a world first.");
-            return true;
-          }
-          if (isWorldLocked()) {
-            if (isWorldLockOwner()) {
-              postLocalSystemChat("You already own this world's lock.");
-            } else {
-              notifyWorldLockedDenied();
-            }
-            return true;
-          }
-          const target = getSpawnStructureTiles().base;
-          const oldSelected = selectedSlot;
-          const idx = slotOrder.indexOf(WORLD_LOCK_ID);
-          if (idx < 0 || (inventory[WORLD_LOCK_ID] || 0) <= 0) {
-            postLocalSystemChat("You need a World Lock item.");
-            return true;
-          }
-          selectedSlot = idx;
-          tryPlace(target.tx, target.ty);
-          selectedSlot = oldSelected;
-          refreshToolbar();
-          return true;
-        }
-        if (command === "/unlock") {
-          if (!inWorld) {
-            postLocalSystemChat("Enter a world first.");
-            return true;
-          }
-          if (!isWorldLocked()) {
-            postLocalSystemChat("World is not locked.");
-            return true;
-          }
-          if (!isWorldLockOwner()) {
-            notifyWorldLockedDenied();
-            return true;
-          }
-          const lockTx = Number(currentWorldLock && currentWorldLock.tx);
-          const lockTy = Number(currentWorldLock && currentWorldLock.ty);
-          if (Number.isInteger(lockTx) && Number.isInteger(lockTy) && lockTx >= 0 && lockTy >= 0 && lockTx < WORLD_W && lockTy < WORLD_H) {
-            tryBreak(lockTx, lockTy);
-          } else {
-            currentWorldLock = null;
-            if (network.enabled && network.lockRef) {
-              network.lockRef.remove().catch(() => {});
-            }
-            postLocalSystemChat("World unlocked.");
-          }
-          return true;
-        }
-        if (command === "/adminhelp") {
-          const available = ["/myrole"];
-          available.push("/lock", "/unlock");
-          available.push("/online");
-          if (hasAdminPermission("tp")) available.push("/where", "/goto");
-          if (hasAdminPermission("bring")) available.push("/bringall");
-          available.push("/announce");
-          if (hasAdminPermission("tempban")) available.push("/tempban", "/ban");
-          if (hasAdminPermission("permban")) available.push("/permban");
-          if (hasAdminPermission("unban")) available.push("/unban");
-          if (hasAdminPermission("kick")) available.push("/kick");
-          if (hasAdminPermission("resetinv")) available.push("/resetinv");
-          if (hasAdminPermission("givex")) available.push("/givex", "/giveitem");
-          if (hasAdminPermission("tp")) available.push("/tp");
-          if (hasAdminPermission("bring")) available.push("/bring", "/summon");
-          if (hasAdminPermission("setrole") || hasAdminPermission("setrole_limited")) available.push("/setrole", "/role");
-          postLocalSystemChat("Role: " + currentAdminRole + " | Commands: " + (available.join(", ") || "none"));
-          return true;
-        }
-        if (command === "/myrole") {
-          postLocalSystemChat("Your role: " + currentAdminRole);
-          return true;
-        }
-        if (command === "/online") {
-          const worldOnline = inWorld ? (remotePlayers.size + 1) : 0;
-          postLocalSystemChat("Online now: " + totalOnlinePlayers + " total | " + worldOnline + " in " + (inWorld ? currentWorldId : "menu"));
-          return true;
-        }
-        if (!canUseAdminPanel) {
-          postLocalSystemChat("You are not allowed to use admin commands.");
-          return true;
-        }
-        if (command === "/where") {
-          if (!hasAdminPermission("tp")) {
-            postLocalSystemChat("Permission denied.");
-            return true;
-          }
-          const targetRef = parts[1] || "";
-          if (!targetRef) {
-            postLocalSystemChat("Usage: /where <user>");
-            return true;
-          }
-          const accountId = findAccountIdByUserRef(targetRef);
-          if (!accountId) {
-            postLocalSystemChat("Target account not found: " + targetRef);
-            return true;
-          }
-          const online = findOnlineGlobalPlayerByAccountId(accountId);
-          if (!online || !online.world) {
-            postLocalSystemChat("@" + targetRef + " is offline.");
-            return true;
-          }
-          const tx = Math.max(0, Math.floor((Number(online.x) || 0) / TILE));
-          const ty = Math.max(0, Math.floor((Number(online.y) || 0) / TILE));
-          postLocalSystemChat("@" + targetRef + " is in " + online.world + " at " + tx + "," + ty + ".");
-          return true;
-        }
-        if (command === "/goto") {
-          if (!hasAdminPermission("tp")) {
-            postLocalSystemChat("Permission denied.");
-            return true;
-          }
-          if (!ensureCommandReady("tp")) return true;
-          const targetRef = parts[1] || "";
-          const accountId = findAccountIdByUserRef(targetRef);
-          if (!accountId) {
-            postLocalSystemChat("Target account not found: " + targetRef);
-            return true;
-          }
-          const online = findOnlineGlobalPlayerByAccountId(accountId);
-          if (!online || !online.world) {
-            postLocalSystemChat("Target is not online.");
-            return true;
-          }
-          applySelfTeleport(online.world, Number(online.x) || 0, Number(online.y) || 0);
-          postLocalSystemChat("Teleported to @" + targetRef + ".");
-          pushAdminAuditEntry("tp", accountId, "toWorld=" + (online.world || ""));
-          return true;
-        }
-        if (command === "/announce") {
-          const message = parts.slice(1).join(" ").trim();
-          if (!message) {
-            postLocalSystemChat("Usage: /announce <message>");
-            return true;
-          }
-          if (!network.db) {
-            postLocalSystemChat("Network unavailable.");
-            return true;
-          }
-          const announceId = "an_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
-          const msg = message.slice(0, 140);
-          network.db.ref(BASE_PATH + "/system/announcement").set({
-            id: announceId,
-            text: msg,
-            actorUsername: (playerName || "admin").toString().slice(0, 20),
-            createdAt: firebase.database.ServerValue.TIMESTAMP
-          }).then(() => {
-            sendSystemWorldMessage("[Admin] " + (playerName || "admin") + ": " + msg);
-            postLocalSystemChat("Announcement sent.");
-            pushAdminAuditEntry("announce", "", msg.slice(0, 80));
-          }).catch(() => {
-            postLocalSystemChat("Failed to send announcement.");
-          });
-          return true;
-        }
-        if (command === "/clearaudit") {
-          if (!hasAdminPermission("clear_logs") || !network.db) {
-            postLocalSystemChat("Permission denied.");
-            return true;
-          }
-          network.db.ref(BASE_PATH + "/admin-audit").remove().then(() => {
-            adminState.audit = [];
-            refreshAuditActionFilterOptions();
-            renderAdminPanel();
-            postLocalSystemChat("Audit trail cleared.");
-            pushAdminAuditEntry("clear_audit", "", "");
-          }).catch(() => {
-            postLocalSystemChat("Failed to clear audit trail.");
-          });
-          return true;
-        }
-        if (command === "/clearlogs") {
-          if (!hasAdminPermission("clear_logs")) {
-            postLocalSystemChat("Permission denied.");
-            return true;
-          }
-          clearLogsData();
-          return true;
-        }
-        if (command === "/bringall") {
-          if (!hasAdminPermission("bring")) {
-            postLocalSystemChat("Permission denied.");
-            return true;
-          }
-          if (!inWorld) {
-            postLocalSystemChat("Enter a world first.");
-            return true;
-          }
-          if (!ensureCommandReady("bring")) return true;
-          const players = adminState.globalPlayers || {};
-          const uniqueTargets = new Set();
-          const allowedTargets = [];
-          for (const p of Object.values(players)) {
-            if (!p || p.world !== currentWorldId) continue;
-            const accountId = (p.accountId || "").toString();
-            if (!accountId || accountId === playerProfileId || uniqueTargets.has(accountId)) continue;
-            const role = getAccountRole(accountId, adminState.accounts[accountId] && adminState.accounts[accountId].username);
-            if (!canActorAffectTarget(accountId, role)) continue;
-            uniqueTargets.add(accountId);
-            allowedTargets.push(accountId);
-          }
-          if (!allowedTargets.length) {
-            postLocalSystemChat("No summonable players found in this world.");
-            return true;
-          }
-          Promise.all(allowedTargets.map((accountId) => {
-            return issueTeleportCommand(accountId, currentWorldId, player.x + 24, player.y);
-          })).then((results) => {
-            const okCount = results.filter(Boolean).length;
-            postLocalSystemChat("Summoned " + okCount + "/" + allowedTargets.length + " players.");
-            logAdminAudit("Admin(chat) used bringall in " + currentWorldId + " (" + okCount + "/" + allowedTargets.length + ").");
-            pushAdminAuditEntry("bringall", "", "world=" + currentWorldId + " ok=" + okCount + "/" + allowedTargets.length);
-          }).catch(() => {
-            postLocalSystemChat("Failed to summon all players.");
-          });
-          return true;
-        }
-        const needsTarget = ["/unban", "/kick", "/resetinv"];
-        if (command === "/tp") {
-          if (!hasAdminPermission("tp")) {
-            postLocalSystemChat("Permission denied.");
-            return true;
-          }
-          if (!ensureCommandReady("tp")) return true;
-          const targetRef = parts[1] || "";
-          const accountId = findAccountIdByUserRef(targetRef);
-          if (!accountId) {
-            postLocalSystemChat("Target account not found: " + targetRef);
-            return true;
-          }
-          const online = findOnlineGlobalPlayerByAccountId(accountId);
-          if (!online || !online.world) {
-            postLocalSystemChat("Target is not online.");
-            return true;
-          }
-          applySelfTeleport(online.world, Number(online.x) || 0, Number(online.y) || 0);
-          postLocalSystemChat("Teleported to @" + targetRef + ".");
-          pushAdminAuditEntry("tp", accountId, "toWorld=" + (online.world || ""));
-          return true;
-        }
-        if (command === "/givex") {
-          const targetRef = parts[1] || "";
-          const blockRef = parts[2] || "";
-          const blockId = parseBlockRef(blockRef);
-          const amount = Number(parts[3]);
-          const accountId = findAccountIdByUserRef(targetRef);
-          if (!accountId) {
-            postLocalSystemChat("Target account not found: " + targetRef);
-            return true;
-          }
-          if (!INVENTORY_IDS.includes(blockId) || !Number.isInteger(amount) || amount <= 0) {
-            postLocalSystemChat("Usage: /givex <user> <block_key|block_id> <amount>");
-            return true;
-          }
-          if (applyInventoryGrant(accountId, blockRef || blockId, amount, "chat", targetRef)) {
-            postLocalSystemChat("Updated inventory for @" + targetRef + ".");
-          }
-          return true;
-        }
-        if (command === "/giveitem") {
-          const targetRef = parts[1] || "";
-          const itemId = parts[2] || "";
-          const amount = Number(parts[3]);
-          const accountId = findAccountIdByUserRef(targetRef);
-          if (!accountId) {
-            postLocalSystemChat("Target account not found: " + targetRef);
-            return true;
-          }
-          if (applyCosmeticItemGrant(accountId, itemId, amount, "chat", targetRef)) {
-            postLocalSystemChat("Gave item " + itemId + " x" + amount + " to @" + targetRef + ".");
-          }
-          return true;
-        }
-        if (command === "/bring" || command === "/summon") {
-          if (!hasAdminPermission("bring")) {
-            postLocalSystemChat("Permission denied.");
-            return true;
-          }
-          if (!ensureCommandReady(command === "/summon" ? "summon" : "bring")) return true;
-          const targetRef = parts[1] || "";
-          const accountId = findAccountIdByUserRef(targetRef);
-          if (!accountId) {
-            postLocalSystemChat("Target account not found: " + targetRef);
-            return true;
-          }
-          const targetRole = getAccountRole(accountId, adminState.accounts[accountId] && adminState.accounts[accountId].username);
-          if (!canActorAffectTarget(accountId, targetRole)) {
-            postLocalSystemChat("Permission denied on target role.");
-            return true;
-          }
-          if (!inWorld) {
-            postLocalSystemChat("Enter a world first.");
-            return true;
-          }
-          issueTeleportCommand(accountId, currentWorldId, player.x + 24, player.y).then((ok) => {
-            if (ok) {
-              postLocalSystemChat("Summon sent to @" + targetRef + ".");
-              logAdminAudit("Admin(chat) summoned @" + targetRef + " to " + currentWorldId + ".");
-              pushAdminAuditEntry("summon", accountId, "world=" + currentWorldId);
-            } else {
-              postLocalSystemChat("Failed to summon target.");
-            }
-          });
-          return true;
-        }
-        if (command === "/tempban" || command === "/ban") {
-          if (!hasAdminPermission("tempban")) {
-            postLocalSystemChat("Permission denied.");
-            return true;
-          }
-          const targetRef = parts[1] || "";
-          let durationRaw = parts[2] || "";
-          let durationMs = parseDurationToMs(durationRaw);
-          let reasonStartIndex = 3;
-          if (command === "/ban" && !durationMs) {
-            durationRaw = "60m";
-            durationMs = parseDurationToMs(durationRaw);
-            reasonStartIndex = 2;
-          }
-          const reason = parts.slice(reasonStartIndex).join(" ").trim() || "Temporarily banned by admin";
-          if (!targetRef || !durationMs) {
-            postLocalSystemChat("Usage: /tempban <user> <60m|12h|7d> [reason]");
-            return true;
-          }
-          const accountId = findAccountIdByUserRef(targetRef);
-          if (!accountId) {
-            postLocalSystemChat("Target account not found: " + targetRef);
-            return true;
-          }
-          const ok = applyAdminAction("tempban", accountId, "chat", { durationMs, reason, rawDuration: durationRaw });
-          if (ok) {
-            postLocalSystemChat("Temp banned @" + targetRef + " for " + durationRaw + ".");
-          }
-          return true;
-        }
-        if (command === "/permban") {
-          if (!hasAdminPermission("permban")) {
-            postLocalSystemChat("Permission denied.");
-            return true;
-          }
-          const targetRef = parts[1] || "";
-          const reason = parts.slice(2).join(" ").trim() || "Permanently banned by admin";
-          if (!targetRef) {
-            postLocalSystemChat("Usage: /permban <user> [reason]");
-            return true;
-          }
-          const accountId = findAccountIdByUserRef(targetRef);
-          if (!accountId) {
-            postLocalSystemChat("Target account not found: " + targetRef);
-            return true;
-          }
-          const ok = applyAdminAction("permban", accountId, "chat", { reason });
-          if (ok) {
-            postLocalSystemChat("Permanently banned @" + targetRef + ".");
-          }
-          return true;
-        }
-        if (command === "/role") {
-          const targetRef = parts[1] || "";
-          const accountId = findAccountIdByUserRef(targetRef);
-          if (!accountId) {
-            postLocalSystemChat("Target account not found: " + targetRef);
-            return true;
-          }
-          const username = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId;
-          const role = getAccountRole(accountId, username);
-          postLocalSystemChat("@" + username + " role: " + role);
-          return true;
-        }
-        if (command === "/setrole") {
-          if (!hasAdminPermission("setrole") && !hasAdminPermission("setrole_limited")) {
-            postLocalSystemChat("Permission denied.");
-            return true;
-          }
-          const targetRef = parts[1] || "";
-          const nextRole = normalizeAdminRole(parts[2] || "none");
-          if (!["none", "moderator", "admin", "manager", "owner"].includes(nextRole)) {
-            postLocalSystemChat("Usage: /setrole <user> <none|moderator|admin|manager|owner>");
-            return true;
-          }
-          const accountId = findAccountIdByUserRef(targetRef);
-          if (!accountId) {
-            postLocalSystemChat("Target account not found: " + targetRef);
-            return true;
-          }
-          if (applyAdminRoleChange(accountId, nextRole, "chat")) {
-            postLocalSystemChat("Set role " + nextRole + " for @" + targetRef + ".");
-          }
-          return true;
-        }
-        if (!needsTarget.includes(command)) return false;
-        const targetRef = parts[1] || "";
-        const accountId = findAccountIdByUserRef(targetRef);
-        if (!accountId) {
-          postLocalSystemChat("Target account not found: " + targetRef);
-          return true;
-        }
-        const map = {
-          "/unban": "unban",
-          "/kick": "kick",
-          "/resetinv": "resetinv"
-        };
-        const ok = applyAdminAction(map[command], accountId, "chat");
-        if (ok) {
-          postLocalSystemChat("Executed " + command + " for @" + (adminState.accounts[accountId] && adminState.accounts[accountId].username || accountId));
-        }
-        return true;
+        if (typeof commandsModule.handleChatCommand !== "function") return false;
+        return commandsModule.handleChatCommand({
+          normalizeWorldId,
+          switchWorld,
+          postLocalSystemChat,
+          setDanceUntilMs: (value) => { danceUntilMs = Number(value) || 0; },
+          DANCE_DURATION_MS,
+          inWorld,
+          syncPlayer,
+          isWorldLocked,
+          isWorldLockOwner,
+          notifyWorldLockedDenied,
+          getSpawnStructureTiles,
+          getSelectedSlot: () => selectedSlot,
+          setSelectedSlot: (value) => { selectedSlot = Number(value) || 0; },
+          slotOrder,
+          WORLD_LOCK_ID,
+          inventory,
+          tryPlace,
+          refreshToolbar,
+          currentWorldLock,
+          setCurrentWorldLock: (value) => { currentWorldLock = value; },
+          network,
+          tryBreak,
+          WORLD_W,
+          WORLD_H,
+          hasAdminPermission,
+          currentAdminRole,
+          totalOnlinePlayers,
+          remotePlayers,
+          currentWorldId,
+          canUseAdminPanel,
+          findAccountIdByUserRef,
+          findOnlineGlobalPlayerByAccountId,
+          TILE,
+          ensureCommandReady,
+          applySelfTeleport,
+          pushAdminAuditEntry,
+          getAccountRole,
+          adminState,
+          canActorAffectTarget,
+          issuePrivateAnnouncement,
+          issueReachCommand,
+          logAdminAudit,
+          BASE_PATH,
+          playerName,
+          firebase,
+          sendSystemWorldMessage,
+          clearLogsData,
+          refreshAuditActionFilterOptions,
+          renderAdminPanel,
+          playerProfileId,
+          issueTeleportCommand,
+          player,
+          applyAdminAction,
+          parseBlockRef,
+          INVENTORY_IDS,
+          applyInventoryGrant,
+          applyCosmeticItemGrant,
+          parseDurationToMs,
+          applyAdminRoleChange,
+          normalizeAdminRole,
+          resolveAccountIdByUsernameFast,
+          issuePrivateMessage,
+          getLastPrivateMessageFrom: () => lastPrivateMessageFrom
+        }, rawText);
       }
 
       function validateCredentials(username, password) {
@@ -2628,6 +2542,11 @@
       function onAuthSuccess(accountId, username) {
         playerProfileId = accountId;
         playerName = username;
+        const gemsCtrl = getGemsController();
+        if (gemsCtrl && typeof gemsCtrl.reset === "function") {
+          gemsCtrl.reset();
+        }
+        updateGemsLabel();
         adminSearchQuery = "";
         adminAuditActionFilter = "";
         adminAuditActorFilter = "";
@@ -2659,10 +2578,25 @@
         return "growtopia_inventory_" + (playerProfileId || "guest");
       }
 
+      function clampInventoryCount(value) {
+        const n = Number(value);
+        const safe = Number.isFinite(n) ? Math.floor(n) : 0;
+        return Math.max(0, Math.min(INVENTORY_ITEM_LIMIT, safe));
+      }
+
+      function clampLocalInventoryAll() {
+        for (const id of INVENTORY_IDS) {
+          inventory[id] = clampInventoryCount(inventory[id]);
+        }
+        for (const item of COSMETIC_ITEMS) {
+          cosmeticInventory[item.id] = clampInventoryCount(cosmeticInventory[item.id]);
+        }
+      }
+
       function applyInventoryFromRecord(record) {
         for (const id of INVENTORY_IDS) {
           const value = Number(record && record[id]);
-          inventory[id] = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+          inventory[id] = clampInventoryCount(value);
         }
         const itemRecord = record && record.cosmeticItems || {};
         const legacyOwned = record && record.owned || {};
@@ -2671,16 +2605,21 @@
           const topLevelValue = Number(record && record[item.id]);
           const legacyHasOwned = Array.isArray(legacyOwned[item.slot]) && legacyOwned[item.slot].includes(item.id);
           let finalValue = 0;
-          if (Number.isFinite(nestedValue)) finalValue = Math.max(0, Math.floor(nestedValue));
-          if (!finalValue && Number.isFinite(topLevelValue)) finalValue = Math.max(0, Math.floor(topLevelValue));
+          if (Number.isFinite(nestedValue)) finalValue = clampInventoryCount(nestedValue);
+          if (!finalValue && Number.isFinite(topLevelValue)) finalValue = clampInventoryCount(topLevelValue);
           if (!finalValue && legacyHasOwned) finalValue = 1;
-          cosmeticInventory[item.id] = finalValue;
+          cosmeticInventory[item.id] = clampInventoryCount(finalValue);
         }
         const equippedRecord = record && record.equippedCosmetics || record && record.equipped || {};
         for (const slot of COSMETIC_SLOTS) {
           const id = String(equippedRecord[slot] || "");
           equippedCosmetics[slot] = id && COSMETIC_LOOKUP[slot][id] && (cosmeticInventory[id] || 0) > 0 ? id : "";
         }
+        const gemsCtrl = getGemsController();
+        if (gemsCtrl && typeof gemsCtrl.readFromRecord === "function") {
+          gemsCtrl.readFromRecord(record || {});
+        }
+        updateGemsLabel();
       }
 
       function normalizeRemoteEquippedCosmetics(raw) {
@@ -2693,13 +2632,14 @@
       }
 
       function buildInventoryPayload() {
+        clampLocalInventoryAll();
         const payload = {};
         for (const id of INVENTORY_IDS) {
-          payload[id] = Math.max(0, Math.floor(inventory[id] || 0));
+          payload[id] = clampInventoryCount(inventory[id]);
         }
         const itemPayload = {};
         for (const item of COSMETIC_ITEMS) {
-          itemPayload[item.id] = Math.max(0, Math.floor(cosmeticInventory[item.id] || 0));
+          itemPayload[item.id] = clampInventoryCount(cosmeticInventory[item.id]);
         }
         payload.cosmeticItems = itemPayload;
         payload.equippedCosmetics = {
@@ -2707,7 +2647,23 @@
           wings: equippedCosmetics.wings || "",
           swords: equippedCosmetics.swords || ""
         };
+        const gemsCtrl = getGemsController();
+        if (gemsCtrl && typeof gemsCtrl.writeToPayload === "function") {
+          gemsCtrl.writeToPayload(payload);
+        } else {
+          payload.gems = 0;
+        }
         return payload;
+      }
+
+      function updateGemsLabel() {
+        if (!gemsCountEl) return;
+        const gemsCtrl = getGemsController();
+        if (gemsCtrl && typeof gemsCtrl.formatLabel === "function") {
+          gemsCountEl.textContent = gemsCtrl.formatLabel();
+          return;
+        }
+        gemsCountEl.textContent = "0 gems";
       }
 
       function loadInventoryFromLocal() {
@@ -2731,6 +2687,7 @@
       }
 
       function saveInventory() {
+        clampLocalInventoryAll();
         saveInventoryToLocal();
         if (!network.enabled || !network.inventoryRef) return;
         network.inventoryRef.set(buildInventoryPayload()).catch(() => {
@@ -2873,6 +2830,7 @@
         displayItemsByTile.clear();
         doorAccessByTile.clear();
         antiGravityByTile.clear();
+        clearTreePlants();
         cameraConfigsByTile.clear();
         cameraLogsByTile.clear();
         closeSignModal();
@@ -2907,6 +2865,7 @@
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
         chatToggleBtn.classList.toggle("hidden", !inWorld);
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
+        respawnBtn.classList.toggle("hidden", !inWorld);
         exitWorldBtn.classList.toggle("hidden", !inWorld);
         if (inWorld) {
           hasRenderedMenuWorldList = false;
@@ -3075,6 +3034,18 @@
         if (network.myCommandRef && network.handlers.myCommand) {
           network.myCommandRef.off("value", network.handlers.myCommand);
         }
+        if (network.myReachRef && network.handlers.myReach) {
+          network.myReachRef.off("value", network.handlers.myReach);
+        }
+        if (network.myFreezeRef && network.handlers.myFreeze) {
+          network.myFreezeRef.off("value", network.handlers.myFreeze);
+        }
+        if (network.myPrivateAnnouncementRef && network.handlers.myPrivateAnnouncement) {
+          network.myPrivateAnnouncementRef.off("value", network.handlers.myPrivateAnnouncement);
+        }
+        if (network.myPmFeedRef && network.handlers.myPmAdded) {
+          network.myPmFeedRef.off("child_added", network.handlers.myPmAdded);
+        }
         if (network.myTradeRequestRef && network.handlers.myTradeRequest) {
           network.myTradeRequestRef.off("value", network.handlers.myTradeRequest);
         }
@@ -3218,10 +3189,23 @@
         setInWorldState(false);
         setAdminOpen(false);
         pendingTeleportSelf = null;
+        lastPrivateMessageFrom = null;
         lastHandledTeleportCommandId = "";
+        lastHandledReachCommandId = "";
+        lastHandledFreezeCommandId = "";
+        lastHandledPrivateAnnouncementId = "";
+        isFrozenByAdmin = false;
+        frozenByAdminBy = "";
+        danceUntilMs = 0;
         currentAdminRole = "none";
         canUseAdminPanel = false;
         canViewAccountLogs = false;
+        const gemsCtrl = getGemsController();
+        if (gemsCtrl && typeof gemsCtrl.reset === "function") {
+          gemsCtrl.reset();
+        }
+        resetEditReachTiles();
+        updateGemsLabel();
         adminSearchQuery = "";
         adminAuditActionFilter = "";
         adminAuditActorFilter = "";
@@ -3398,6 +3382,14 @@
         return STAIR_ROTATION_IDS.includes(id) ? STAIR_BASE_ID : id;
       }
 
+      function isPlantSeedBlockId(id) {
+        return PLANT_SEED_ID_SET.has(Number(id));
+      }
+
+      function getPlantSeedConfig(seedBlockId) {
+        return PLANT_SEED_CONFIG[Number(seedBlockId)] || null;
+      }
+
       function getTileKey(tx, ty) {
         return String(tx) + "_" + String(ty);
       }
@@ -3531,6 +3523,30 @@
       function getLocalDoorMode(tx, ty) {
         const entry = doorAccessByTile.get(getTileKey(tx, ty));
         return entry && entry.mode === "owner" ? "owner" : "public";
+      }
+
+      function setLocalTreePlant(tx, ty, value) {
+        const ctrl = getPlantsController();
+        if (!ctrl || typeof ctrl.setLocal !== "function") return;
+        ctrl.setLocal(tx, ty, value);
+      }
+
+      function getLocalTreePlant(tx, ty) {
+        const ctrl = getPlantsController();
+        if (!ctrl || typeof ctrl.getLocal !== "function") return null;
+        return ctrl.getLocal(tx, ty);
+      }
+
+      function saveTreePlant(tx, ty, value) {
+        const ctrl = getPlantsController();
+        if (!ctrl || typeof ctrl.save !== "function") return;
+        ctrl.save(tx, ty, value);
+      }
+
+      function clearTreePlants() {
+        const ctrl = getPlantsController();
+        if (!ctrl || typeof ctrl.clear !== "function") return;
+        ctrl.clear();
       }
 
       function normalizeAntiGravityRecord(value) {
@@ -4524,6 +4540,12 @@
         const moveRight = keys["KeyD"] || keys["ArrowRight"] || touchControls.right;
         const jump = keys["KeyW"] || keys["Space"] || keys["ArrowUp"] || touchControls.jump;
         const jumpPressedThisFrame = jump && !wasJumpHeld;
+        if (isFrozenByAdmin) {
+          player.vx = 0;
+          player.vy = 0;
+          wasJumpHeld = jump;
+          return;
+        }
         const hasWingDoubleJump = Boolean(equippedCosmetics.wings);
         const inWater = rectTouchesLiquid(player.x, player.y, PLAYER_W, PLAYER_H);
         const inAntiGravity = isPlayerInAntiGravityField(player.x, player.y, PLAYER_W, PLAYER_H);
@@ -4641,7 +4663,8 @@
           airJumpsUsed = 0;
         }
 
-        if (!player.grounded || player.vy >= 0) {
+        // Only snap to stair surface while descending/landing, never during upward jump.
+        if (player.vy >= 0) {
           snapPlayerToStairSurface();
         }
 
@@ -4809,6 +4832,12 @@
               ctx.fill();
               ctx.fillStyle = "rgba(255,255,255,0.11)";
               ctx.fillRect(x + 2, y + 2, TILE - 4, 4);
+              drawBlockDamageOverlay(tx, ty, id, x, y);
+              continue;
+            }
+
+            if (isPlantSeedBlockId(id)) {
+              drawTreePlant(tx, ty, x, y);
               drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
             }
@@ -5132,6 +5161,12 @@
         return true;
       }
 
+      function drawTreePlant(tx, ty, x, y) {
+        const ctrl = getPlantsController();
+        if (!ctrl || typeof ctrl.drawTree !== "function") return;
+        ctrl.drawTree(ctx, tx, ty, x, y, TILE);
+      }
+
       function drawCosmeticSprite(item, x, y, w, h, facing) {
         const img = getCosmeticImage(item);
         if (!img) return false;
@@ -5219,18 +5254,20 @@
         if (!swordId) return;
         const item = COSMETIC_LOOKUP.swords[swordId];
         if (!item) return;
-        const swing = Number(swordSwing) || 0;
+        const facingSign = facing === 1 ? 1 : -1;
+        const swing = (Number(swordSwing) || 0) * facingSign;
         const armSwing = Math.max(-4, Math.min(4, swing * 0.18));
         const handX = facing === 1 ? (px + PLAYER_W - 3) : (px + 3);
-        const handY = py + 19 + (facing === 1 ? armSwing : -armSwing);
+        const handY = py + 19 + armSwing;
         const bladeW = 12;
         const bladeH = 8;
-        const baseAngle = facing === 1 ? 0.18 : (Math.PI - 0.18);
+        const baseAngle = 0.18;
         const slash = Math.max(-1.2, Math.min(1.2, swing * 0.12));
-        const angle = baseAngle + (facing === 1 ? slash : -slash);
+        const angle = baseAngle + slash;
 
         ctx.save();
         ctx.translate(handX, handY);
+        if (facing === -1) ctx.scale(-1, 1);
         ctx.rotate(angle);
         const img = getCosmeticImage(item);
         if (img) {
@@ -5347,6 +5384,13 @@
         const pose = typeof animationsModule.buildPose === "function"
           ? animationsModule.buildPose(localMotion, nowMs, playerId)
           : { bodyBob: 0, bodyTilt: 0, wingFlap: 0, swordSwing: 0, eyeYOffset: 0, eyeHeight: 3 };
+        if (danceUntilMs > Date.now()) {
+          const danceT = nowMs * 0.015;
+          pose.bodyBob = (Number(pose.bodyBob) || 0) + Math.sin(danceT * 1.6) * 1.6;
+          pose.bodyTilt = (Number(pose.bodyTilt) || 0) + Math.sin(danceT) * 0.18;
+          pose.armSwing = (Number(pose.armSwing) || 0) + Math.sin(danceT * 2.3) * 3.6;
+          pose.legSwing = (Number(pose.legSwing) || 0) + Math.cos(danceT * 2.3) * 2.8;
+        }
         const hitT = Math.max(0, Math.min(1, 1 - ((nowMs - lastHitAtMs) / HIT_ANIM_MS)));
         if (hitT > 0) {
           const hitEase = hitT * hitT * (3 - 2 * hitT);
@@ -5385,6 +5429,7 @@
 
       function drawRemotePlayers() {
         const nowMs = performance.now();
+        const nowEpoch = Date.now();
         const viewW = getCameraViewWidth();
         const viewH = getCameraViewHeight();
         const keepIds = [];
@@ -5403,6 +5448,13 @@
           const pose = typeof animationsModule.buildPose === "function"
             ? animationsModule.buildPose(remoteMotion, nowMs, otherId)
             : { bodyBob: 0, bodyTilt: 0, wingFlap: 0, swordSwing: 0, eyeYOffset: 0, eyeHeight: 3 };
+          if ((Number(other.danceUntil) || 0) > nowEpoch) {
+            const danceT = nowMs * 0.015;
+            pose.bodyBob = (Number(pose.bodyBob) || 0) + Math.sin(danceT * 1.6) * 1.6;
+            pose.bodyTilt = (Number(pose.bodyTilt) || 0) + Math.sin(danceT) * 0.18;
+            pose.armSwing = (Number(pose.armSwing) || 0) + Math.sin(danceT * 2.3) * 3.6;
+            pose.legSwing = (Number(pose.legSwing) || 0) + Math.cos(danceT * 2.3) * 2.8;
+          }
           const basePy = py + (pose.bodyBob || 0);
 
           drawWings(px, basePy, cosmetics.wings || "", other.facing || 1, pose.wingFlap || 0);
@@ -5645,7 +5697,7 @@
         const dx = targetX - centerX;
         const dy = targetY - centerY;
         const dist = Math.hypot(dx, dy);
-        return dist <= TILE * 4.5;
+        return dist <= TILE * getEditReachTiles();
       }
 
       function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
@@ -5724,6 +5776,21 @@
             saveCameraConfig(tx, ty, buildDefaultCameraConfig());
           } else if (id === DISPLAY_BLOCK_ID) {
             saveDisplayItem(tx, ty, null);
+          } else if (isPlantSeedBlockId(id)) {
+            const seedCfg = getPlantSeedConfig(id) || {};
+            const ctrl = getPlantsController();
+            const seedPlant = (ctrl && typeof ctrl.createSeedPlant === "function")
+              ? ctrl.createSeedPlant(Date.now(), {
+                  yieldBlockId: seedCfg.yieldBlockId || TREE_YIELD_BLOCK_ID,
+                  growMs: seedCfg.growMs || TREE_GROW_MS
+                })
+              : {
+                  type: "tree",
+                  plantedAt: Date.now(),
+                  growMs: seedCfg.growMs || TREE_GROW_MS,
+                  yieldBlockId: seedCfg.yieldBlockId || TREE_YIELD_BLOCK_ID
+                };
+            saveTreePlant(tx, ty, seedPlant);
           }
           saveInventory();
           refreshToolbar();
@@ -5809,6 +5876,48 @@
         if ((now - lastBlockHitAtMs) < BLOCK_HIT_COOLDOWN_MS) return;
         lastBlockHitAtMs = now;
 
+        if (isPlantSeedBlockId(id)) {
+          const plant = getLocalTreePlant(tx, ty);
+          const ctrl = getPlantsController();
+          const baseHarvest = (ctrl && typeof ctrl.getHarvestReward === "function")
+            ? ctrl.getHarvestReward(plant, Math.random)
+            : null;
+          if (!baseHarvest) {
+            postLocalSystemChat("Seed is still growing.");
+            return;
+          }
+          const rewardsCtrl = getRewardsController();
+          const harvest = (rewardsCtrl && typeof rewardsCtrl.getTreeHarvestRewards === "function")
+            ? rewardsCtrl.getTreeHarvestRewards(baseHarvest, Math.random)
+            : {
+                blockId: Math.max(1, Math.floor(Number(baseHarvest.blockId) || TREE_YIELD_BLOCK_ID)),
+                amount: Math.max(1, Math.floor(Number(baseHarvest.amount) || 1)),
+                gems: 1 + Math.floor(Math.random() * 4)
+              };
+          const rewardBlockId = Math.max(1, Math.floor(Number(harvest.blockId) || TREE_YIELD_BLOCK_ID));
+          const rewardAmount = Math.max(1, Math.floor(Number(harvest.amount) || 1));
+          const gemReward = Math.max(0, Math.floor(Number(harvest.gems) || 0));
+          world[ty][tx] = 0;
+          clearTileDamage(tx, ty);
+          syncTileDamageToNetwork(tx, ty, 0);
+          saveTreePlant(tx, ty, null);
+          syncBlock(tx, ty, 0);
+          if (INVENTORY_IDS.includes(rewardBlockId)) {
+            inventory[rewardBlockId] = (inventory[rewardBlockId] || 0) + rewardAmount;
+          }
+          const gemsCtrl = getGemsController();
+          if (gemsCtrl && typeof gemsCtrl.add === "function") {
+            gemsCtrl.add(gemReward);
+          }
+          updateGemsLabel();
+          saveInventory();
+          refreshToolbar();
+          const rewardDef = blockDefs[rewardBlockId];
+          const rewardName = rewardDef && rewardDef.name ? rewardDef.name : ("Block " + rewardBlockId);
+          postLocalSystemChat("Harvested seed: +" + rewardAmount + " " + rewardName + " and +" + gemReward + " gems.");
+          return;
+        }
+
         const durability = getBlockDurability(id);
         if (!Number.isFinite(durability)) return;
         const breakPower = getEquippedBreakPower();
@@ -5873,11 +5982,21 @@
             }
           }
         }
+        if (isPlantSeedBlockId(id)) {
+          saveTreePlant(tx, ty, null);
+        }
 
         world[ty][tx] = 0;
         const dropId = getInventoryDropId(id);
         if (INVENTORY_IDS.includes(dropId)) {
           inventory[dropId] = (inventory[dropId] || 0) + 1;
+        }
+        const seedDropId = SEED_DROP_BY_BLOCK_ID[id] || 0;
+        if (seedDropId && Math.random() < SEED_DROP_CHANCE) {
+          inventory[seedDropId] = (inventory[seedDropId] || 0) + 1;
+          const seedDef = blockDefs[seedDropId];
+          const seedName = seedDef && seedDef.name ? seedDef.name : "Seed";
+          postLocalSystemChat("You found a " + seedName + ".");
         }
         syncBlock(tx, ty, 0);
         if (id === WORLD_LOCK_ID) {
@@ -5990,6 +6109,7 @@
       }
 
       function useActionAt(tx, ty) {
+        if (shouldBlockActionForFreeze()) return;
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
         if (selectedId === TOOL_FIST) {
@@ -6007,6 +6127,7 @@
       }
 
       function useSecondaryActionAt(tx, ty) {
+        if (shouldBlockActionForFreeze()) return;
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
         if (selectedId === TOOL_FIST) {
@@ -6119,6 +6240,11 @@
 
       function getMaxDroppableAmount(entry) {
         if (!entry || !entry.type) return 0;
+        const tradeCtrl = getTradeController();
+        if (tradeCtrl && typeof tradeCtrl.getDragEntryMax === "function") {
+          const maxFromTrade = Math.max(0, Math.floor(Number(tradeCtrl.getDragEntryMax(entry)) || 0));
+          if (maxFromTrade > 0) return maxFromTrade;
+        }
         if (entry.type === "block") {
           const blockId = Math.max(0, Math.floor(Number(entry.blockId) || 0));
           if (!blockId || !INVENTORY_IDS.includes(blockId)) return 0;
@@ -6474,6 +6600,15 @@
         if (network.antiGravRef && network.handlers.antiGravRemoved) {
           network.antiGravRef.off("child_removed", network.handlers.antiGravRemoved);
         }
+        if (network.plantsRef && network.handlers.plantAdded) {
+          network.plantsRef.off("child_added", network.handlers.plantAdded);
+        }
+        if (network.plantsRef && network.handlers.plantChanged) {
+          network.plantsRef.off("child_changed", network.handlers.plantChanged);
+        }
+        if (network.plantsRef && network.handlers.plantRemoved) {
+          network.plantsRef.off("child_removed", network.handlers.plantRemoved);
+        }
         if (network.weatherRef && network.handlers.worldWeather) {
           network.weatherRef.off("value", network.handlers.worldWeather);
         }
@@ -6509,6 +6644,7 @@
         network.displaysRef = null;
         network.doorsRef = null;
         network.antiGravRef = null;
+        network.plantsRef = null;
         network.weatherRef = null;
         network.camerasRef = null;
         network.cameraLogsRef = null;
@@ -6517,6 +6653,9 @@
         network.chatRef = null;
         network.chatFeedRef = null;
         network.handlers.players = null;
+        network.handlers.playerAdded = null;
+        network.handlers.playerChanged = null;
+        network.handlers.playerRemoved = null;
         network.handlers.blockAdded = null;
         network.handlers.blockChanged = null;
         network.handlers.blockRemoved = null;
@@ -6541,6 +6680,9 @@
         network.handlers.antiGravAdded = null;
         network.handlers.antiGravChanged = null;
         network.handlers.antiGravRemoved = null;
+        network.handlers.plantAdded = null;
+        network.handlers.plantChanged = null;
+        network.handlers.plantRemoved = null;
         network.handlers.worldWeather = null;
         network.handlers.cameraAdded = null;
         network.handlers.cameraChanged = null;
@@ -6586,8 +6728,24 @@
         if (network.globalPlayerRef) {
           network.globalPlayerRef.remove().catch(() => {});
         }
+        resetEditReachTiles();
         setInWorldState(false);
         refreshWorldButtons();
+      }
+
+      function respawnPlayerAtDoor() {
+        if (!inWorld) return;
+        const safe = findSafeDoorSpawnPosition();
+        player.x = clampTeleport(safe.x, 0, WORLD_W * TILE - PLAYER_W - 2);
+        player.y = clampTeleport(safe.y, 0, WORLD_H * TILE - PLAYER_H - 2);
+        player.vx = 0;
+        player.vy = 0;
+        player.grounded = false;
+        airJumpsUsed = 0;
+        suppressSpawnSafetyUntilMs = performance.now() + 350;
+        if (network.enabled) {
+          syncPlayer(true);
+        }
       }
 
       function writeWorldIndexMeta(worldId, createIfMissing) {
@@ -6674,6 +6832,7 @@
         network.displaysRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/displays");
         network.doorsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/doors");
         network.antiGravRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/anti-gravity");
+        network.plantsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/plants");
         network.weatherRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/weather");
         network.camerasRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/cameras");
         network.cameraLogsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/camera-logs");
@@ -6732,6 +6891,9 @@
           if (id !== ANTI_GRAV_ID) {
             setLocalAntiGravityState(tx, ty, null);
           }
+          if (!isPlantSeedBlockId(id)) {
+            setLocalTreePlant(tx, ty, null);
+          }
           if (id !== CAMERA_ID) {
             setLocalCameraConfig(tx, ty, null);
           }
@@ -6758,6 +6920,7 @@
           setLocalDisplayItem(tx, ty, null);
           setLocalDoorAccess(tx, ty, null);
           setLocalAntiGravityState(tx, ty, null);
+          setLocalTreePlant(tx, ty, null);
           setLocalCameraConfig(tx, ty, null);
         };
 
@@ -6800,6 +6963,9 @@
           return;
         }
         network.handlers.players = handlers.players;
+        network.handlers.playerAdded = handlers.playerAdded;
+        network.handlers.playerChanged = handlers.playerChanged;
+        network.handlers.playerRemoved = handlers.playerRemoved;
         network.handlers.blockAdded = handlers.blockAdded;
         network.handlers.blockChanged = handlers.blockChanged;
         network.handlers.blockRemoved = handlers.blockRemoved;
@@ -6888,6 +7054,17 @@
           if (!tile) return;
           setLocalAntiGravityState(tile.tx, tile.ty, null);
         };
+        network.handlers.plantAdded = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalTreePlant(tile.tx, tile.ty, snapshot.val());
+        };
+        network.handlers.plantChanged = network.handlers.plantAdded;
+        network.handlers.plantRemoved = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalTreePlant(tile.tx, tile.ty, null);
+        };
         network.handlers.worldWeather = (snapshot) => {
           setLocalWorldWeather(snapshot.val());
         };
@@ -6954,6 +7131,11 @@
           network.antiGravRef.on("child_added", network.handlers.antiGravAdded);
           network.antiGravRef.on("child_changed", network.handlers.antiGravChanged);
           network.antiGravRef.on("child_removed", network.handlers.antiGravRemoved);
+        }
+        if (network.plantsRef && network.handlers.plantAdded) {
+          network.plantsRef.on("child_added", network.handlers.plantAdded);
+          network.plantsRef.on("child_changed", network.handlers.plantChanged);
+          network.plantsRef.on("child_removed", network.handlers.plantRemoved);
         }
         if (network.weatherRef && network.handlers.worldWeather) {
           network.weatherRef.on("value", network.handlers.worldWeather);
@@ -7051,6 +7233,7 @@
             wings: equippedCosmetics.wings || "",
             swords: equippedCosmetics.swords || ""
           },
+          danceUntil: Math.max(0, Math.floor(danceUntilMs)),
           world: currentWorldId,
           updatedAt: firebase.database.ServerValue.TIMESTAMP
         };
@@ -7398,6 +7581,9 @@
         exitWorldBtn.addEventListener("click", () => {
           leaveCurrentWorld();
         });
+        respawnBtn.addEventListener("click", () => {
+          respawnPlayerAtDoor();
+        });
         logoutBtn.addEventListener("click", () => {
           forceLogout("Logged out.");
         });
@@ -7430,6 +7616,11 @@
           network.globalPlayerRef = network.globalPlayersRef.child(playerId);
           network.mySessionRef = network.db.ref(BASE_PATH + "/account-sessions/" + playerProfileId);
           network.myCommandRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/teleport");
+          network.myReachRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/reach");
+          network.myFreezeRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/freeze");
+          network.myPrivateAnnouncementRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/announce");
+          network.myPmRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/pm");
+          network.myPmFeedRef = network.myPmRef.limitToLast(80);
           network.myTradeRequestRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/tradeRequest");
           network.myTradeResponseRef = network.db.ref(BASE_PATH + "/account-commands/" + playerProfileId + "/tradeResponse");
           network.myActiveTradeRef = network.db.ref(BASE_PATH + "/active-trades/" + playerProfileId);
@@ -7494,6 +7685,51 @@
             lastHandledTeleportCommandId = value.id;
             applySelfTeleport(value.world, value.x, value.y);
           };
+          network.handlers.myReach = (snapshot) => {
+            const value = snapshot.val();
+            if (!value || !value.id) return;
+            if (value.id === lastHandledReachCommandId) return;
+            lastHandledReachCommandId = value.id;
+            const nextReach = normalizeEditReachTiles(value.reachTiles);
+            setEditReachTiles(nextReach);
+            const by = (value.by || "admin").toString().slice(0, 20);
+            postLocalSystemChat("Reach set to " + nextReach.toFixed(1) + " tiles by @" + by + ". Resets when you exit world.");
+          };
+          network.handlers.myFreeze = (snapshot) => {
+            const value = snapshot.val();
+            if (!value || !value.id) return;
+            if (value.id === lastHandledFreezeCommandId) return;
+            lastHandledFreezeCommandId = value.id;
+            const frozen = Boolean(value.frozen);
+            const byName = (value.by || "admin").toString().slice(0, 20);
+            setFrozenState(frozen, byName);
+          };
+          network.handlers.myPrivateAnnouncement = (snapshot) => {
+            const value = snapshot.val() || {};
+            const eventId = (value.id || "").toString();
+            const text = (value.text || "").toString().trim().slice(0, 180);
+            if (!eventId || !text) return;
+            const issuedAt = Number(value.issuedAt) || 0;
+            if (issuedAt > 0 && playerSessionStartedAt > 0 && issuedAt <= playerSessionStartedAt) return;
+            if (eventId === lastHandledPrivateAnnouncementId) return;
+            lastHandledPrivateAnnouncementId = eventId;
+            const actor = (value.actorUsername || "admin").toString().slice(0, 20);
+            showAnnouncementPopup("[Private] @" + actor + ": " + text);
+          };
+          network.handlers.myPmAdded = (snapshot) => {
+            const value = snapshot.val() || {};
+            const text = (value.text || "").toString().trim().slice(0, 160);
+            if (!text) return;
+            const createdAt = Number(value.createdAt) || 0;
+            if (createdAt > 0 && playerSessionStartedAt > 0 && createdAt <= playerSessionStartedAt) return;
+            const fromAccountId = (value.fromAccountId || "").toString();
+            const fromUsername = (value.fromUsername || "").toString().slice(0, 20) || fromAccountId || "unknown";
+            lastPrivateMessageFrom = {
+              accountId: fromAccountId,
+              username: fromUsername
+            };
+            postLocalSystemChat("[PM] @" + fromUsername + ": " + text);
+          };
           network.handlers.myTradeRequest = (snapshot) => {
             const ctrl = getTradeController();
             if (!ctrl || typeof ctrl.onTradeRequest !== "function") return;
@@ -7542,7 +7778,10 @@
                 worldOccupancy.set(wid, (worldOccupancy.get(wid) || 0) + 1);
               });
             }
-            refreshWorldButtons();
+            // Avoid frequent menu DOM rebuilds while actively playing in-world.
+            if (!inWorld) {
+              refreshWorldButtons();
+            }
             updateOnlineCount();
           };
           network.handlers.accountLogAdded = (snapshot) => {
@@ -7680,6 +7919,10 @@
           network.inventoryRef.on("value", network.handlers.inventory);
           network.mySessionRef.on("value", network.handlers.mySession);
           network.myCommandRef.on("value", network.handlers.myCommand);
+          network.myReachRef.on("value", network.handlers.myReach);
+          network.myFreezeRef.on("value", network.handlers.myFreeze);
+          network.myPrivateAnnouncementRef.on("value", network.handlers.myPrivateAnnouncement);
+          network.myPmFeedRef.on("child_added", network.handlers.myPmAdded);
           network.myTradeRequestRef.on("value", network.handlers.myTradeRequest);
           network.myTradeResponseRef.on("value", network.handlers.myTradeResponse);
           network.myActiveTradeRef.on("value", network.handlers.myActiveTrade);
@@ -7888,6 +8131,26 @@
         const wasDrag = inventoryDrag.moved;
         const endX = Number(event.clientX);
         const endY = Number(event.clientY);
+        const tradeCtrl = getTradeController();
+        if (wasDrag && Number.isFinite(endX) && Number.isFinite(endY) && tradeCtrl) {
+          if (typeof tradeCtrl.handleInventoryDragEnd === "function") {
+            const tradeResult = tradeCtrl.handleInventoryDragEnd(
+              inventoryDrag.entry,
+              inventoryDrag.amount,
+              endX,
+              endY
+            ) || {};
+            if (tradeResult.handled) {
+              suppressInventoryClickUntilMs = performance.now() + 180;
+              stopInventoryDrag();
+              return;
+            }
+            if (tradeResult.blockWorldDrop) {
+              stopInventoryDrag();
+              return;
+            }
+          }
+        }
         if (wasDrag && Number.isFinite(endX) && Number.isFinite(endY) && isPointInsideCanvas(endX, endY) && inWorld) {
           const pos = worldFromClient(endX, endY);
           if (pos.tx >= 0 && pos.ty >= 0 && pos.tx < WORLD_W && pos.ty < WORLD_H && world[pos.ty][pos.tx] === DISPLAY_BLOCK_ID) {

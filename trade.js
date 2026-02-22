@@ -31,7 +31,12 @@ window.GTModules.trade = (function () {
     const esc = (s) => String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;").replaceAll("'", "&#039;");
     const closeQuick = () => { menuCtx = null; const m = g("getTradeMenuModalEl", null); if (m) m.classList.add("hidden"); };
     const closeReq = () => { reqCtx = null; const m = g("getTradeRequestModalEl", null); if (m) m.classList.add("hidden"); };
-    const closePanel = () => { const m = g("getTradePanelModalEl", null); if (m) m.classList.add("hidden"); };
+    const closePanel = () => {
+      const m = g("getTradePanelModalEl", null);
+      if (!m) return;
+      m.classList.remove("trade-modal-passive");
+      m.classList.add("hidden");
+    };
     const closeAll = () => { closeQuick(); closeReq(); closePanel(); };
     const isMember = (t) => t && (t.initiator?.accountId === me() || t.target?.accountId === me());
     const otherId = (t) => (t && t.initiator?.accountId === me()) ? t.target?.accountId : t?.initiator?.accountId;
@@ -81,6 +86,14 @@ window.GTModules.trade = (function () {
       const c = {}; cosItems().forEach((it) => { c[it.id] = Math.max(0, Math.floor(Number(csrc[it.id]) || 0)); }); out.cosmeticItems = c;
       const eq = {}; cosSlots().forEach((s) => { const x = String(eqsrc[s] || ""); eq[s] = x && (c[x] || 0) > 0 ? x : ""; }); out.equippedCosmetics = eq;
       return out;
+    };
+    const pointInsideEl = (el, clientX, clientY) => {
+      if (!el) return false;
+      const x = Number(clientX);
+      const y = Number(clientY);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+      const r = el.getBoundingClientRect();
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
     };
 
     function findRemoteAt(tx, ty) {
@@ -306,8 +319,18 @@ window.GTModules.trade = (function () {
 
     function offerRowsHtml(offer, mine) {
       const r = [];
-      Object.entries(offer.blocks || {}).forEach(([k, q]) => r.push("<div class='trade-offer-row'><span>" + esc(getBlockName(k) + " x" + q) + "</span>" + (mine ? "<button data-trade-act='remove' data-type='block' data-item-id='" + esc(k) + "'>-</button>" : "") + "</div>"));
-      Object.entries(offer.cosmetics || {}).forEach(([k, q]) => r.push("<div class='trade-offer-row'><span>" + esc(getCosName(k) + " x" + q) + "</span>" + (mine ? "<button data-trade-act='remove' data-type='cosmetic' data-item-id='" + esc(k) + "'>-</button>" : "") + "</div>"));
+      Object.entries(offer.blocks || {}).forEach(([k, q]) => r.push(
+        "<div class='trade-offer-row" + (mine ? " mine" : "") + "' data-mine='" + (mine ? "1" : "0") + "' data-type='block' data-item-id='" + esc(k) + "' data-qty='" + Math.max(0, Math.floor(Number(q) || 0)) + "'>" +
+        "<span>" + esc(getBlockName(k) + " x" + q) + "</span>" +
+        (mine ? "<button data-trade-act='remove' data-type='block' data-item-id='" + esc(k) + "'>-</button>" : "") +
+        "</div>"
+      ));
+      Object.entries(offer.cosmetics || {}).forEach(([k, q]) => r.push(
+        "<div class='trade-offer-row" + (mine ? " mine" : "") + "' data-mine='" + (mine ? "1" : "0") + "' data-type='cosmetic' data-item-id='" + esc(k) + "' data-qty='" + Math.max(0, Math.floor(Number(q) || 0)) + "'>" +
+        "<span>" + esc(getCosName(k) + " x" + q) + "</span>" +
+        (mine ? "<button data-trade-act='remove' data-type='cosmetic' data-item-id='" + esc(k) + "'>-</button>" : "") +
+        "</div>"
+      ));
       return r.join("") || "<div class='trade-offer-empty'>No items offered.</div>";
     }
 
@@ -331,8 +354,9 @@ window.GTModules.trade = (function () {
         : "";
       body.innerHTML = "<div class='trade-status'><span class='trade-chip " + (aMe ? "ready" : "wait") + "'>You: " + (aMe ? "Ready" : "Waiting") + "</span><span class='trade-chip " + (aHe ? "ready" : "wait") + "'>@" + esc(oname) + ": " + (aHe ? "Ready" : "Waiting") + "</span></div>" +
         "<div class='trade-offer'><div class='trade-offer-title'>Your Inventory (click to add)</div><div class='trade-inventory-list'>" + inventoryEntriesHtml(myOffer) + "</div>" + amountMenuMarkup + "</div>" +
-        "<div class='trade-top'><div class='trade-offer'><div class='trade-offer-title'>Your Offer</div><div class='trade-offer-list'>" + offerRowsHtml(myOffer, true) + "</div></div><div class='trade-offer'><div class='trade-offer-title'>@" + esc(oname) + " Offer</div><div class='trade-offer-list'>" + offerRowsHtml(his, false) + "</div></div></div>";
+        "<div class='trade-top'><div class='trade-offer'><div class='trade-offer-title'>Your Offer</div><div class='trade-offer-list' data-trade-drop='my-offer'>" + offerRowsHtml(myOffer, true) + "</div></div><div class='trade-offer'><div class='trade-offer-title'>@" + esc(oname) + " Offer</div><div class='trade-offer-list'>" + offerRowsHtml(his, false) + "</div></div></div>";
       actions.innerHTML = "<button data-trade-act='accept'>" + (aMe ? "Unaccept" : "Accept") + "</button><button data-trade-act='confirm' " + (bothA ? "" : "disabled") + ">" + (cMe ? "Confirmed" : "Confirm") + "</button><button data-trade-act='cancel'>Cancel Trade</button>";
+      modal.classList.add("trade-modal-passive");
       modal.classList.remove("hidden");
     }
 
@@ -374,6 +398,29 @@ window.GTModules.trade = (function () {
       if (pclose) pclose.addEventListener("click", () => { if (tradeData) cancelTrade(); else closePanel(); });
       if (pm) pm.addEventListener("click", (e) => { if (e.target === pm && tradeData) cancelTrade(); });
       if (pbody) {
+        pbody.addEventListener("pointerdown", (e) => {
+          const t = e.target; if (!(t instanceof HTMLElement)) return;
+          const row = t.closest(".trade-offer-row");
+          if (!(row instanceof HTMLElement)) return;
+          if (!row.dataset.mine || row.dataset.mine !== "1") return;
+          if (t.closest("button")) return;
+          if (typeof opts.startInventoryDragFromTrade !== "function") return;
+          const type = String(row.dataset.type || "") === "cosmetic" ? "cosmetic" : "block";
+          const itemId = String(row.dataset.itemId || "");
+          const qty = Math.max(1, Math.floor(Number(row.dataset.qty) || 1));
+          if (!itemId || qty <= 0) return;
+          e.preventDefault();
+          const entry = {
+            type,
+            source: "trade_offer",
+            label: type === "cosmetic" ? getCosName(itemId) : getBlockName(itemId),
+            maxAmount: qty,
+            defaultAmount: 1
+          };
+          if (type === "cosmetic") entry.cosmeticId = itemId;
+          else entry.blockId = Number(itemId);
+          opts.startInventoryDragFromTrade(entry, e);
+        });
         pbody.addEventListener("click", (e) => {
           const t = e.target; if (!(t instanceof HTMLElement)) return;
           const act = String(t.dataset.tradeAct || "");
@@ -423,8 +470,74 @@ window.GTModules.trade = (function () {
         });
       }
     }
+    function isTradePanelOpen() {
+      const modal = g("getTradePanelModalEl", null);
+      return Boolean(tradeData && tradeId && modal && !modal.classList.contains("hidden"));
+    }
+    function handleInventoryDragDrop(entry, amount, clientX, clientY) {
+      if (!isTradePanelOpen()) return false;
+      if (!entry || entry.source === "trade_offer") return false;
+      const type = String(entry.type || "");
+      if (type !== "block" && type !== "cosmetic") return false;
+      const body = g("getTradePanelBodyEl", null);
+      if (!body) return false;
+      const dropZone = body.querySelector("[data-trade-drop='my-offer']");
+      if (!(dropZone instanceof HTMLElement)) return false;
+      if (!pointInsideEl(dropZone, clientX, clientY)) return false;
+      const qty = Math.max(1, Math.floor(Number(amount) || 1));
+      const itemId = type === "cosmetic"
+        ? String(entry.cosmeticId || "")
+        : String(Math.max(0, Math.floor(Number(entry.blockId) || 0)));
+      if (!itemId) return false;
+      pendingPick = null;
+      applyOfferDelta(type, itemId, qty);
+      return true;
+    }
+    function handleOfferDragBack(entry, amount, clientX, clientY) {
+      if (!isTradePanelOpen()) return false;
+      if (!entry || entry.source !== "trade_offer") return false;
+      const toolbarEl = g("getToolbarEl", null);
+      if (!toolbarEl || !pointInsideEl(toolbarEl, clientX, clientY)) return false;
+      const type = String(entry.type || "");
+      if (type !== "block" && type !== "cosmetic") return false;
+      const itemId = type === "cosmetic"
+        ? String(entry.cosmeticId || "")
+        : String(Math.max(0, Math.floor(Number(entry.blockId) || 0)));
+      if (!itemId) return false;
+      const qty = Math.max(1, Math.floor(Number(amount) || 1));
+      pendingPick = null;
+      applyOfferDelta(type, itemId, -qty);
+      return true;
+    }
+    function getDragEntryMax(entry) {
+      if (!entry || entry.source !== "trade_offer") return 0;
+      return Math.max(0, Math.floor(Number(entry.maxAmount) || 0));
+    }
+    function handleInventoryDragEnd(entry, amount, clientX, clientY) {
+      if (!isTradePanelOpen()) return { handled: false, blockWorldDrop: false };
+      if (!entry) return { handled: false, blockWorldDrop: false };
+      if (entry.source === "trade_offer") {
+        const movedBack = handleOfferDragBack(entry, amount, clientX, clientY);
+        return { handled: movedBack, blockWorldDrop: true };
+      }
+      const offered = handleInventoryDragDrop(entry, amount, clientX, clientY);
+      return { handled: offered, blockWorldDrop: false };
+    }
 
-    return { bindUiEvents, closeAll, closeRequestModal: closeReq, handleWrenchAt, handleWrenchPlayer, onTradeRequest, onTradeResponse, onActiveTradePointer, respondToTradeRequest };
+    return {
+      bindUiEvents,
+      closeAll,
+      closeRequestModal: closeReq,
+      handleWrenchAt,
+      handleWrenchPlayer,
+      onTradeRequest,
+      onTradeResponse,
+      onActiveTradePointer,
+      respondToTradeRequest,
+      isTradePanelOpen,
+      getDragEntryMax,
+      handleInventoryDragEnd
+    };
   }
 
   return { createController };
