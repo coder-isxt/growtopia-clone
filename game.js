@@ -7511,6 +7511,7 @@
         const viewW = getCameraViewWidth();
         const viewH = getCameraViewHeight();
         const now = performance.now();
+        const DROP_RENDER_SCALE = 0.65;
         worldDrops.forEach((drop) => {
           if (!drop) return;
           const x = drop.x - cameraX;
@@ -7533,7 +7534,10 @@
             } else {
               ctx.save();
               ctx.fillStyle = def && def.color ? def.color : "#a0a0a0";
-              ctx.fillRect(x, y, TILE, TILE);
+              const size = TILE * 0.65;
+              const offset = (TILE - size) / 2;
+
+              ctx.fillRect(x + offset, y + offset, size, size);
               ctx.restore();
             }
           } else {
@@ -7545,7 +7549,10 @@
               if (!drawn) {
                 ctx.save();
                 ctx.fillStyle = item.color || "#9bb4ff";
-                ctx.fillRect(x + 4, y + 4, TILE - 8, TILE - 8);
+                const size = TILE * 0.65;
+                const offset = (TILE - size) / 2;
+
+                ctx.fillRect(x + offset, y + offset, size, size);
                 ctx.restore();
               }
               break;
@@ -7744,7 +7751,9 @@
         if (!img) return false;
         ctx.save();
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(img, x, y, TILE, TILE);
+        const size = TILE * 0.65;
+        const offset = (TILE - size) / 2;
+        ctx.drawImage(img, x + offset, y + offset, size, size);
         ctx.restore();
         return true;
       }
@@ -7848,7 +7857,8 @@
           ctx.scale(-1, 1);
           ctx.translate(-pivot, 0);
         }
-        ctx.drawImage(img, drawX, drawY, drawW, drawH);
+        const size = TILE * 0.65;
+        ctx.drawImage(img, drawX, drawY, size, size);
         ctx.restore();
         return true;
       }
