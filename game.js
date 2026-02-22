@@ -7506,12 +7506,26 @@
         }
       }
 
+      function drawBlockImageInWorld(def, x, y)
+      {
+        const DROP_RENDER_SCALE = 0.65;
+        const img = getBlockImage(def);
+        if (!img) return false;
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        const size = TILE * DROP_RENDER_SCALE;
+        const offset = (TILE - size) / 2;
+        ctx.drawImage(img, x + offset, y + offset, size, size);
+        ctx.restore();
+        return true;
+      }
+
       function drawWorldDrops() {
         if (!worldDrops.size) return;
         const viewW = getCameraViewWidth();
         const viewH = getCameraViewHeight();
         const now = performance.now();
-        const DROP_RENDER_SCALE = 0.65;
+        
         worldDrops.forEach((drop) => {
           if (!drop) return;
           const x = drop.x - cameraX;
@@ -7529,6 +7543,7 @@
             ctx.restore();
           } else if (drop.type === "block") {
             const def = blockDefs[drop.blockId];
+
             if (def && drawBlockImage(def, x, y)) {
               // draw count badge
             } else {
@@ -7536,7 +7551,6 @@
               ctx.fillStyle = def && def.color ? def.color : "#a0a0a0";
               const size = TILE * 0.65;
               const offset = (TILE - size) / 2;
-
               ctx.fillRect(x + offset, y + offset, size, size);
               ctx.restore();
             }
