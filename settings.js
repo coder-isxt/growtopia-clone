@@ -19,10 +19,10 @@ window.GT_SETTINGS = {
   PLAYER_HEIGHT: 30,
 
   GRAVITY: 0.15,        // low gravity (Mars-like)
-  MAX_FALL_SPEED: 3.9,  // slow falling cap
+  MAX_FALL_SPEED: 3.85,  // slow falling cap
 
   MOVE_ACCEL: 0.27,     // responsive movement
-  MAX_MOVE_SPEED: 2.05, // faster running
+  MAX_MOVE_SPEED: 2.35, // faster running
 
   FRICTION_GROUND: 0.88, 
   FRICTION_AIR: 0.985,
