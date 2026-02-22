@@ -42,7 +42,7 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
     let worldIdAtLastPos = "";
 
     const SETTINGS = window.GT_SETTINGS || {};
-    const MAX_SPEED_PX_S = Math.max(160, Number(SETTINGS.AC_MAX_SPEED_PX_S) || 730);
+    const MAX_SPEED_PX_S = Math.max(160, Number(SETTINGS.AC_MAX_SPEED_PX_S) || 3400);
     const TELEPORT_PX = Math.max(120, Number(SETTINGS.AC_TELEPORT_PX) || 420);
     const MAX_ACTIONS_PER_2S = Math.max(8, Number(SETTINGS.AC_MAX_ACTIONS_PER_2S) || 24);
     const MAX_CHAT_PER_10S = Math.max(4, Number(SETTINGS.AC_MAX_CHAT_PER_10S) || 10);
