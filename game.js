@@ -103,6 +103,7 @@
       const modules = window.GTModules || {};
       const adminModule = modules.admin || {};
       const blocksModule = modules.blocks || {};
+      const texturesModule = modules.textures || {};
       const blockKeysModule = modules.blockKeys || {};
       const itemsModule = modules.items || {};
       const playerModule = modules.player || {};
@@ -110,6 +111,8 @@
       const worldModule = modules.world || {};
       const physicsModule = modules.physics || {};
       const animationsModule = modules.animations || {};
+      const drawUtilsModule = modules.drawUtils || {};
+      const inputUtilsModule = modules.inputUtils || {};
       const syncPlayerModule = modules.syncPlayer || {};
       const syncBlocksModule = modules.syncBlocks || {};
       const syncWorldsModule = modules.syncWorlds || {};
@@ -239,6 +242,9 @@
       const blockMaps = typeof blockKeysModule.buildMaps === "function"
         ? blockKeysModule.buildMaps(blockDefs)
         : { idToKey: {}, keyToId: {} };
+      if (typeof texturesModule.applyDefaultBlockTextures === "function") {
+        texturesModule.applyDefaultBlockTextures(blockDefs);
+      }
       const BLOCK_ID_TO_KEY = blockMaps.idToKey || {};
       const BLOCK_KEY_TO_ID = blockMaps.keyToId || {};
       const COSMETIC_CATALOG = typeof itemsModule.getCosmeticItemsBySlot === "function"
@@ -324,6 +330,9 @@
       const remotePlayers = new Map();
       const remoteAnimationTracker = typeof animationsModule.createTracker === "function"
         ? animationsModule.createTracker()
+        : new Map();
+      const remoteHitTracker = typeof syncHitsModule.createRemoteHitTracker === "function"
+        ? syncHitsModule.createRemoteHitTracker()
         : new Map();
       const overheadChatByPlayer = new Map();
       const signTexts = new Map();
@@ -530,6 +539,7 @@
       let airJumpsUsed = 0;
       let wasJumpHeld = false;
       let lastHitAtMs = -9999;
+      let lastBlockHitAtMs = -9999;
       let suppressSpawnSafetyUntilMs = 0;
       let mobileLastTouchActionAt = 0;
       const touchControls = {
@@ -538,6 +548,7 @@
         jump: false
       };
       const HIT_ANIM_MS = 200;
+      const BLOCK_HIT_COOLDOWN_MS = Math.max(60, Number(SETTINGS.BLOCK_HIT_COOLDOWN_MS) || 120);
 
       const network = {
         enabled: false,
@@ -3326,6 +3337,17 @@
         return 3;
       }
 
+      function getEquippedBreakPower() {
+        const swordId = String(equippedCosmetics.swords || "");
+        if (!swordId || !COSMETIC_LOOKUP.swords || !COSMETIC_LOOKUP.swords[swordId]) {
+          return { multiplier: 1, instantBreak: false };
+        }
+        const item = COSMETIC_LOOKUP.swords[swordId];
+        const multiplier = Math.max(1, Number(item && item.breakMultiplier) || 1);
+        const instantBreak = Boolean(item && item.instantBreak);
+        return { multiplier, instantBreak };
+      }
+
       function clearTileDamage(tx, ty) {
         tileDamageByKey.delete(getTileKey(tx, ty));
       }
@@ -3377,16 +3399,28 @@
       }
 
       function syncTileDamageToNetwork(tx, ty, hits) {
-        if (!network.enabled || !network.hitsRef || !inWorld) return;
+        if (!network.enabled || !inWorld) return;
+        if (network.playerRef && typeof syncHitsModule.buildPlayerHitPayload === "function") {
+          const playerHit = syncHitsModule.buildPlayerHitPayload(tx, ty, hits);
+          if (playerHit) {
+            network.playerRef.child("lastHit").set(playerHit).catch(() => {});
+          }
+        }
+        if (!network.hitsRef) return;
         const key = getTileKey(tx, ty);
-        const payload = typeof syncHitsModule.buildHitPayload === "function"
-          ? syncHitsModule.buildHitPayload(hits)
-          : { hits: Math.max(0, Math.floor(Number(hits) || 0)), updatedAt: firebase.database.ServerValue.TIMESTAMP };
-        if (!payload || !payload.hits) {
+        if (typeof syncHitsModule.writeHit === "function") {
+          syncHitsModule.writeHit(network.hitsRef, key, hits, firebase);
+          return;
+        }
+        const safeHits = Math.max(0, Math.floor(Number(hits) || 0));
+        if (!safeHits) {
           network.hitsRef.child(key).remove().catch(() => {});
           return;
         }
-        network.hitsRef.child(key).set(payload).catch(() => {});
+        network.hitsRef.child(key).set({
+          hits: safeHits,
+          updatedAt: firebase.database.ServerValue.TIMESTAMP
+        }).catch(() => {});
       }
 
       function normalizeDoorAccessRecord(value) {
@@ -4748,6 +4782,10 @@
             }
 
             if (id === VENDING_ID) {
+              if (drawBlockImage(def, x, y)) {
+                drawBlockDamageOverlay(tx, ty, id, x, y);
+                continue;
+              }
               ctx.fillStyle = "#4d6b8b";
               ctx.fillRect(x, y, TILE, TILE);
               ctx.fillStyle = "rgba(255,255,255,0.12)";
@@ -5133,6 +5171,8 @@
       function drawHumanoid(px, py, facing, bodyColor, skinColor, eyeColor, clothesId, pose, lookX, lookY) {
         const armSwing = Number(pose && pose.armSwing) || 0;
         const legSwing = Number(pose && pose.legSwing) || 0;
+        const hitStrength = Math.max(0, Math.min(1, Number(pose && pose.hitStrength) || 0));
+        const hitMode = String(pose && pose.hitMode || "");
         const leftArmY = py + 13 + Math.round(-armSwing * 0.7);
         const rightArmY = py + 13 + Math.round(armSwing * 0.7);
         const leftLegY = py + 23 + Math.round(-legSwing * 0.8);
@@ -5155,8 +5195,23 @@
         ctx.fillStyle = skinColor;
         ctx.fillRect(headX, headY, headW, headH);
         ctx.fillRect(torsoX, torsoY, torsoW, torsoH);
-        ctx.fillRect(px + 2, leftArmY, 3, 8);
-        ctx.fillRect(px + PLAYER_W - 5, rightArmY, 3, 8);
+        let leftArmX = px + 2;
+        let rightArmX = px + PLAYER_W - 5;
+        if (hitStrength > 0) {
+          const forward = Math.round((hitMode === "fist" ? 4 : 2) * hitStrength) * (facing === 1 ? 1 : -1);
+          if (facing === 1) {
+            rightArmX += forward;
+          } else {
+            leftArmX += forward;
+          }
+        }
+        ctx.fillRect(leftArmX, leftArmY, 3, 8);
+        ctx.fillRect(rightArmX, rightArmY, 3, 8);
+        if (hitMode === "fist" && hitStrength > 0.05) {
+          const fistY = facing === 1 ? rightArmY + 5 : leftArmY + 5;
+          const fistX = facing === 1 ? (rightArmX + 2) : (leftArmX - 2);
+          ctx.fillRect(fistX, fistY, 3, 3);
+        }
         ctx.fillRect(px + 6, leftLegY, 4, 7);
         ctx.fillRect(px + PLAYER_W - 10, rightLegY, 4, 7);
 
@@ -5220,12 +5275,19 @@
           const facingSign = player.facing === 1 ? 1 : -1;
           pose.bodyTilt = (Number(pose.bodyTilt) || 0) + facingSign * (0.07 * hitEase);
           if (cosmetics.swords) {
+            pose.hitMode = "sword";
+            pose.hitStrength = hitEase;
             pose.armSwing = (Number(pose.armSwing) || 0) + facingSign * (1.1 * hitEase);
             pose.swordSwing = (Number(pose.swordSwing) || 0) + facingSign * (8.2 * hitEase);
           } else {
+            pose.hitMode = "fist";
+            pose.hitStrength = hitEase;
             pose.armSwing = (Number(pose.armSwing) || 0) + facingSign * (3.1 * hitEase);
             pose.swordSwing = 0;
           }
+        } else {
+          pose.hitMode = "";
+          pose.hitStrength = 0;
         }
         const basePy = py + (pose.bodyBob || 0);
 
@@ -5349,6 +5411,9 @@
       }
 
       function wrapChatText(text, maxTextWidth) {
+        if (typeof drawUtilsModule.wrapTextLines === "function") {
+          return drawUtilsModule.wrapTextLines(ctx, text, maxTextWidth, 4);
+        }
         const words = (text || "").split(/\s+/).filter(Boolean);
         if (!words.length) return [""];
         const lines = [];
@@ -5397,6 +5462,19 @@
           alpha = t * t * (3 - 2 * t);
         }
         const text = entry.text;
+        if (typeof drawUtilsModule.drawOverheadBubble === "function") {
+          drawUtilsModule.drawOverheadBubble(ctx, {
+            centerX,
+            baseY,
+            text,
+            alpha,
+            maxWidth: CHAT_BUBBLE_MAX_WIDTH,
+            lineHeight: CHAT_BUBBLE_LINE_HEIGHT,
+            viewWidth: getCameraViewWidth(),
+            font: "12px 'Trebuchet MS', sans-serif"
+          });
+          return;
+        }
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.font = "12px 'Trebuchet MS', sans-serif";
@@ -5416,7 +5494,6 @@
         const viewW = getCameraViewWidth();
         if (bubbleX + bubbleW > viewW - 4) bubbleX = viewW - 4 - bubbleW;
         if (bubbleY < 4) bubbleY = 4;
-
         ctx.fillStyle = "rgba(10, 25, 40, 0.92)";
         ctx.fillRect(bubbleX, bubbleY, bubbleW, bubbleH);
         ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
@@ -5650,8 +5727,16 @@
           return;
         }
 
+        const now = performance.now();
+        if ((now - lastBlockHitAtMs) < BLOCK_HIT_COOLDOWN_MS) return;
+        lastBlockHitAtMs = now;
+
         const durability = getBlockDurability(id);
         if (!Number.isFinite(durability)) return;
+        const breakPower = getEquippedBreakPower();
+        const hitAmount = breakPower.instantBreak
+          ? Math.max(1, Math.floor(durability))
+          : Math.max(1, Math.floor(breakPower.multiplier));
 
         if (id === VENDING_ID) {
           const ctrl = getVendingController();
@@ -5661,7 +5746,7 @@
         }
 
         const damage = getTileDamage(tx, ty);
-        const nextHits = Math.max(1, damage.hits + 1);
+        const nextHits = Math.max(1, damage.hits + hitAmount);
         if (nextHits < durability) {
           setTileDamage(tx, ty, nextHits);
           syncTileDamageToNetwork(tx, ty, nextHits);
@@ -6607,7 +6692,29 @@
             parseTileKey,
             applyBlockValue,
             clearBlockValue,
-            addChatMessage
+            addChatMessage,
+            onPlayerHit: (sourcePlayerId, rawHit) => {
+              if (typeof syncHitsModule.consumeRemoteHit === "function") {
+                syncHitsModule.consumeRemoteHit(remoteHitTracker, sourcePlayerId, rawHit, (tx, ty, hits) => {
+                  if (hits <= 0) {
+                    clearTileDamage(tx, ty);
+                  } else {
+                    setTileDamage(tx, ty, hits);
+                  }
+                });
+                return;
+              }
+              if (!rawHit || typeof rawHit !== "object") return;
+              const tx = Math.floor(Number(rawHit.tx));
+              const ty = Math.floor(Number(rawHit.ty));
+              const hits = Math.max(0, Math.floor(Number(rawHit.hits) || 0));
+              if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
+              if (hits <= 0) {
+                clearTileDamage(tx, ty);
+              } else {
+                setTileDamage(tx, ty, hits);
+              }
+            }
           })
           : null;
         if (!handlers) {
@@ -7634,6 +7741,9 @@
       }
 
       function isPointInsideCanvas(clientX, clientY) {
+        if (typeof inputUtilsModule.pointInsideElement === "function") {
+          return inputUtilsModule.pointInsideElement(canvas, clientX, clientY);
+        }
         const rect = canvas.getBoundingClientRect();
         return (
           clientX >= rect.left &&
@@ -7855,6 +7965,9 @@
       }
 
       function canvasPointFromClient(clientX, clientY) {
+        if (typeof inputUtilsModule.canvasPointFromClient === "function") {
+          return inputUtilsModule.canvasPointFromClient(canvas, clientX, clientY);
+        }
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
@@ -7864,6 +7977,17 @@
       }
 
       function worldFromClient(clientX, clientY) {
+        if (typeof inputUtilsModule.worldFromClient === "function") {
+          return inputUtilsModule.worldFromClient(
+            canvas,
+            clientX,
+            clientY,
+            cameraX,
+            cameraY,
+            cameraZoom,
+            TILE
+          );
+        }
         const point = canvasPointFromClient(clientX, clientY);
         const zoom = Math.max(0.01, cameraZoom);
         const x = point.x / zoom + cameraX;

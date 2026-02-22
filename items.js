@@ -19,12 +19,14 @@ window.GTModules.items = {
         { id: "black_outline_wings", name: "Black Outline Wings", color: "#ffffff", icon: "BOW", faIcon: "fa-solid fa-leaf", rarity: "epic", doubleJump: true, image: "wings/black_outline_wings.png", offsetX: 2, offsetY: 0 },
         { id: "golden_evil_wings", name: "Golden Evil Wings", color: "#ffffff", icon: "GEW", faIcon: "fa-solid fa-leaf", rarity: "epic", doubleJump: true, image: "wings/golden_evil.png", offsetX: 5, offsetY: 0 },
         { id: "pink_baby_angels", name: "Pink Baby Angel Wings", color: "#ffffff", icon: "PBAW", faIcon: "fa-solid fa-leaf", rarity: "epic", doubleJump: true, image: "wings/pink_baby_angels.png", offsetX: 5, offsetY: 0 },
+        { id: "admin_wings", name: "Admin Wings", color: "#ffffff", icon: "AW", faIcon: "fa-solid fa-leaf", rarity: "mythic", doubleJump: true, image: "wings/admin_wings.png", offsetX: 4, offsetY: -2 },
       ],
       swords: [
-        { id: "wood_blade", name: "Wood Blade", color: "#9a6a3f", icon: "WB", faIcon: "fa-solid fa-sword", rarity: "common", image: "swords/wood_blade.png" },
-        { id: "iron_sword", name: "Iron Sword", color: "#c7d2dc", icon: "IS", faIcon: "fa-solid fa-sword", rarity: "rare", image: "swords/iron_sword.png" },
-        { id: "flame_saber", name: "Flame Saber", color: "#ff7e57", icon: "FS", faIcon: "fa-solid fa-wand-sparkles", rarity: "epic", image: "swords/flame_saber.png" },
-        { id: "blue_dagger", name: "Blue Dagger", color: "#ffffff", icon: "BD", faIcon: "fa-solid fa-wand-sparkles", rarity: "epic", image: "swords/dagger.png" }
+        { id: "wood_blade", name: "Wood Blade", color: "#9a6a3f", icon: "WB", faIcon: "fa-solid fa-sword", rarity: "common", image: "swords/wood_blade.png", breakMultiplier: 1.05 },
+        { id: "iron_sword", name: "Iron Sword", color: "#c7d2dc", icon: "IS", faIcon: "fa-solid fa-sword", rarity: "rare", image: "swords/iron_sword.png", breakMultiplier: 1.2 },
+        { id: "flame_saber", name: "Flame Saber", color: "#ff7e57", icon: "FS", faIcon: "fa-solid fa-wand-sparkles", rarity: "epic", image: "swords/flame_saber.png", breakMultiplier: 1.35 },
+        { id: "blue_dagger", name: "Blue Dagger", color: "#ffffff", icon: "BD", faIcon: "fa-solid fa-wand-sparkles", rarity: "epic", image: "swords/dagger.png", breakMultiplier: 1.15 },
+        { id: "admin_pickaxe", name: "Admin Pickaxe", color: "#9be7ff", icon: "AP", faIcon: "fa-solid fa-hammer", rarity: "mythic", image: "swords/admin_pickaxe.png", breakMultiplier: 999, instantBreak: true }
       ]
     };
   },

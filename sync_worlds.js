@@ -92,6 +92,7 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
     const applyBlockValue = typeof opts.applyBlockValue === "function" ? opts.applyBlockValue : () => {};
     const clearBlockValue = typeof opts.clearBlockValue === "function" ? opts.clearBlockValue : () => {};
     const addChatMessage = typeof opts.addChatMessage === "function" ? opts.addChatMessage : () => {};
+    const onPlayerHit = typeof opts.onPlayerHit === "function" ? opts.onPlayerHit : () => {};
 
     const handlers = {};
     handlers.players = (snapshot) => {
@@ -114,6 +115,7 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
             cosmetics: normalizeCosmetics(p.cosmetics || {})
           });
         }
+        onPlayerHit(id, p.lastHit || null);
       });
       updateOnlineCount();
     };
