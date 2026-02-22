@@ -8,40 +8,54 @@ window.GTModules.shop = (function createShopModule() {
       category: "Blocks",
       name: "Starter Grass Pack",
       description: "Great for early building.",
-      priceGems: 40,
-      grants: { blocks: { 1: 40 } }
+      priceGems: 25,
+      grants: { blocks: { 1: 40 } },
+      image: "./assets/blocks/terrain/grass.png"
     },
     {
       id: "builder_mix_pack",
       category: "Blocks",
       name: "Builder Mix Pack",
       description: "Dirt, stone and wood bundle.",
-      priceGems: 95,
-      grants: { blocks: { 2: 35, 3: 25, 4: 25 } }
+      priceGems: 60,
+      grants: { blocks: { 2: 35, 3: 25, 4: 25 } },
+      image: "./assets/blocks/terrain/dirt.png"
     },
     {
       id: "seed_bundle",
       category: "Seeds",
       name: "Seed Bundle",
       description: "Assorted seeds for farming.",
-      priceGems: 120,
-      grants: { blocks: { 24: 8, 25: 5, 26: 5, 27: 5, 28: 5, 29: 5 } }
+      priceGems: 100,
+      grants: { blocks: { 24: 8, 25: 5, 26: 5, 27: 5, 28: 5, 29: 5 } },
+      image: "./assets/blocks/special/tree_seed.png"
     },
     {
       id: "door_lock_seed_set",
       category: "Seeds",
       name: "Door + Lock Seeds",
       description: "Rare seeds for utility items.",
-      priceGems: 140,
-      grants: { blocks: { 30: 3, 31: 4 } }
+      priceGems: 500,
+      grants: { blocks: { 30: 3, 31: 4 } },
+      image: "./assets/blocks/special/lock_seed.png"
     },
     {
       id: "cloth_tunic_basic",
       category: "Cosmetics",
       name: "Cloth Tunic",
       description: "Classic clothing piece.",
-      priceGems: 75,
-      grants: { cosmetics: { cloth_tunic: 1 } }
+      priceGems: 40,
+      grants: { cosmetics: { cloth_tunic: 1 } },
+      image: "./assets/cosmetics/shirts/cloth_tunic.png"
+    },
+    {
+      id: "basic_gacha_pack",
+      category: "Gacha",
+      name: "Mystery Block",
+      description: "A beginner friendly mystery blocks",
+      priceGems: 50,
+      grants: { blocks: { 41: 2 } },
+      image: "./assets/blocks/special/mystery.png"
     }
   ];
 
@@ -111,7 +125,8 @@ window.GTModules.shop = (function createShopModule() {
         name: String(raw.name || id).trim().slice(0, 48) || id,
         description: String(raw.description || "").trim().slice(0, 160),
         priceGems: price,
-        grants: { blocks, cosmetics }
+        grants: { blocks, cosmetics },
+        image: String(raw.image || "").trim()
       };
     }
 
@@ -183,6 +198,8 @@ window.GTModules.shop = (function createShopModule() {
         ".shop-cat-btn.active{border-color:rgba(45,212,191,.74);background:rgba(20,184,166,.2)}" +
         ".shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;padding:12px;overflow:auto}" +
         ".shop-item{display:grid;gap:8px;padding:10px;border-radius:10px;border:1px solid rgba(98,141,192,.35);background:rgba(9,18,30,.7)}" +
+        ".shop-item-image{width:100%;height:64px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.2);border-radius:6px;overflow:hidden;margin-bottom:4px}" +
+        ".shop-item-image img{max-width:100%;max-height:100%;object-fit:contain}" +
         ".shop-item h4{margin:0;font-size:14px;line-height:1.25;color:#f6fbff}" +
         ".shop-item p{margin:0;font-size:12px;line-height:1.35;opacity:.86;color:#dbecff;min-height:32px}" +
         ".shop-item .shop-grants{font-size:11px;line-height:1.3;opacity:.88;color:#cde8ff;word-break:break-word}" +
@@ -276,7 +293,11 @@ window.GTModules.shop = (function createShopModule() {
         } else {
           gridEl.innerHTML = filtered.map((entry) => {
             const allowed = canBuy(entry);
+            const imageHtml = entry.image
+              ? `<div class="shop-item-image"><img src="${esc(entry.image)}" alt="${esc(entry.name)}" loading="lazy"></div>`
+              : "";
             return "<div class='shop-item'>" +
+              imageHtml +
               "<h4>" + esc(entry.name) + "</h4>" +
               "<p>" + esc(entry.description || "No description.") + "</p>" +
               "<div class='shop-grants'>" + esc(formatGrants(entry)) + "</div>" +

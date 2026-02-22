@@ -535,6 +535,7 @@
       let pickupInventoryFlushTimer = 0;
       let inventorySaveTimer = 0;
       let lastInventoryFullHintAt = 0;
+      let isPointerDown = false;
 
       let currentWorldId = getInitialWorldId();
       let world = makeWorld(currentWorldId);
@@ -7838,6 +7839,8 @@
         return true;
       }
 
+
+      // COSMETICS
       function drawWings(px, py, wingsId, facing, wingFlap, wingOpen) {
         if (!wingsId) return;
         const item = COSMETIC_LOOKUP.wings[wingsId];
@@ -7944,7 +7947,7 @@
         const item = COSMETIC_LOOKUP.hats && COSMETIC_LOOKUP.hats[hatId];
         if (!item) return;
         const hatBoxX = px - 2;
-        const hatBoxY = py - 10;
+        const hatBoxY = py - 12;
         const hatBoxW = PLAYER_W + 4;
         const hatBoxH = 12;
         if (drawCosmeticSprite(item, hatBoxX, hatBoxY, hatBoxW, hatBoxH, facing === -1 ? -1 : 1, { mode: "contain", alignX: 0.5, alignY: 1 })) {
@@ -7986,7 +7989,7 @@
         ctx.fillRect(6, -1, 4, 2);
         ctx.restore();
       }
-
+      // CHARACTER
       function drawHumanoid(px, py, facing, bodyColor, skinColor, eyeColor, shirtId, pantsId, shoesId, hatId, pose, lookX, lookY) {
         function fillChamferRect(x, y, w, h, color) {
           const rx = Math.round(x);
@@ -12202,16 +12205,6 @@
         return worldFromClient(event.clientX, event.clientY);
       }
 
-      function applyMobileEditAction(clientX, clientY) {
-        if (!inWorld) return;
-        const now = performance.now();
-        if (now - mobileLastTouchActionAt < 90) return;
-        mobileLastTouchActionAt = now;
-        const pos = worldFromClient(clientX, clientY);
-        mouseWorld = pos;
-        useActionAt(pos.tx, pos.ty);
-      }
-
       function bindHoldButton(button, key) {
         const setOn = (event) => {
           event.preventDefault();
@@ -12554,10 +12547,11 @@
 
       canvas.addEventListener("mousedown", (e) => {
         if (!inWorld) return;
-        if (e.button === 0 && openWrenchMenuFromNameIcon(e.clientX, e.clientY)) return;
-        const pos = worldFromPointer(e);
-        mouseWorld = pos;
         if (e.button === 0) {
+          if (openWrenchMenuFromNameIcon(e.clientX, e.clientY)) return;
+          isPointerDown = true;
+          const pos = worldFromPointer(e);
+          mouseWorld = pos;
           useActionAt(pos.tx, pos.ty);
           return;
         }
@@ -12566,13 +12560,20 @@
         }
       });
 
+      window.addEventListener("mouseup", () => {
+        isPointerDown = false;
+      });
+
       canvas.addEventListener("touchstart", (e) => {
         if (!inWorld) return;
         e.preventDefault();
         const touch = e.changedTouches[0];
         if (!touch) return;
         if (openWrenchMenuFromNameIcon(touch.clientX, touch.clientY)) return;
-        applyMobileEditAction(touch.clientX, touch.clientY);
+        isPointerDown = true;
+        const pos = worldFromClient(touch.clientX, touch.clientY);
+        mouseWorld = pos;
+        useActionAt(pos.tx, pos.ty);
       }, { passive: false });
 
       canvas.addEventListener("touchmove", (e) => {
@@ -12580,8 +12581,12 @@
         e.preventDefault();
         const touch = e.touches[0];
         if (!touch) return;
-        applyMobileEditAction(touch.clientX, touch.clientY);
+        const pos = worldFromClient(touch.clientX, touch.clientY);
+        mouseWorld = pos;
       }, { passive: false });
+
+      window.addEventListener("touchend", () => { isPointerDown = false; });
+      window.addEventListener("touchcancel", () => { isPointerDown = false; });
 
       window.addEventListener("pointermove", onInventoryDragMove, { passive: true });
       window.addEventListener("pointerup", onInventoryDragEnd);
@@ -12630,6 +12635,12 @@
               antiCheatController.onFrame();
             }
             if (inWorld) {
+              if (isPointerDown && !isChatOpen && !isAdminOpen) {
+                const selectedId = slotOrder[selectedSlot];
+                if (selectedId !== TOOL_WRENCH) {
+                  useActionAt(mouseWorld.tx, mouseWorld.ty);
+                }
+              }
               updatePlayer();
               if (particleController && typeof particleController.update === "function") {
                 particleController.update(FIXED_FRAME_MS / 1000);
