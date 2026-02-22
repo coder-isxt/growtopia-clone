@@ -92,7 +92,7 @@ window.GTModules.physics = {
         const id = world[ty][tx];
         if (!stairIds.includes(id)) continue;
         const surfaceY = this.getStairSurfaceY(id, tx, ty, fx, tileSize);
-        if (bottomY < surfaceY - 6 || bottomY > surfaceY + 8) continue;
+        if (bottomY < surfaceY - 6 || bottomY > surfaceY + 12) continue;
         const testY = surfaceY - playerH;
         // Never snap onto stair if resulting player box would intersect solids.
         if (this.rectCollides(world, blockDefs, player.x, testY, playerW, playerH, tileSize, worldW, worldH)) continue;

@@ -44,11 +44,22 @@ window.GTModules.animations = (function createAnimationsModule() {
     const nextPhase = prevPhase + (walkFreq * dt);
     p._animPhase = nextPhase;
 
+    let wingFreq = 0.0018;
+    if (grounded) {
+      wingFreq = 0.0024 + stride * 0.005;
+    } else {
+      wingFreq = rawVy < -0.12 ? 0.007 : 0.009;
+    }
+    const prevWingPhase = Number(p._wingPhase) || 0;
+    const nextWingPhase = prevWingPhase + (wingFreq * dt);
+    p._wingPhase = nextWingPhase;
+
     return {
       speed: smoothSpeed,
       vy: rawVy,
       grounded,
-      phase: nextPhase
+      phase: nextPhase,
+      wingPhase: nextWingPhase
     };
   }
 
@@ -81,12 +92,23 @@ window.GTModules.animations = (function createAnimationsModule() {
     const prevPhase = Number(prev && prev.phase) || 0;
     const nextPhase = prevPhase + (walkFreq * Math.max(1, t - (prev ? prev.t : t)));
 
-    map.set(key, { x: px, y: py, t, vxSmooth, vySmooth, phase: nextPhase });
+    let wingFreq = 0.0018;
+    const grounded = Math.abs(vySmooth) < 0.35;
+    if (grounded) {
+      wingFreq = 0.0024 + stride * 0.005;
+    } else {
+      wingFreq = vySmooth < -0.12 ? 0.007 : 0.009;
+    }
+    const prevWingPhase = Number(prev && prev.wingPhase) || 0;
+    const nextWingPhase = prevWingPhase + (wingFreq * Math.max(1, t - (prev ? prev.t : t)));
+
+    map.set(key, { x: px, y: py, t, vxSmooth, vySmooth, phase: nextPhase, wingPhase: nextWingPhase });
     return {
       speed,
       vy: vySmooth,
-      grounded: Math.abs(vySmooth) < 0.35,
-      phase: nextPhase
+      grounded,
+      phase: nextPhase,
+      wingPhase: nextWingPhase
     };
   }
 
@@ -106,6 +128,7 @@ window.GTModules.animations = (function createAnimationsModule() {
     const grounded = Boolean(m.grounded);
     const vy = Number(m.vy) || 0;
     const phase = (Number(m.phase) || 0) + seed * 10;
+    const wingPhase = (Number(m.wingPhase) || 0) + seed * 8;
 
     let bodyBob = 0;
     let bodyTilt = 0;
@@ -123,7 +146,7 @@ window.GTModules.animations = (function createAnimationsModule() {
         // True grounded idle pose: no motion-driven offsets.
         bodyBob = 0;
         bodyTilt = 0;
-        wingFlap = Math.sin(t * 0.0018 + seed * 8) * 0.03;
+        wingFlap = Math.sin(wingPhase) * 0.03;
         wingOpen = 0.24;
         swordSwing = 0;
         armSwing = 0;
@@ -134,7 +157,7 @@ window.GTModules.animations = (function createAnimationsModule() {
         const walkWave2 = Math.sin(phase * 2);
         bodyBob = walkWave2 * (0.06 + stride * 0.48);
         bodyTilt = walkWave * (0.003 + stride * 0.016);
-        wingFlap = Math.sin(t * (0.0024 + stride * 0.005) + seed * 8) * (0.06 + stride * 0.23);
+        wingFlap = Math.sin(wingPhase) * (0.06 + stride * 0.23);
         wingOpen = 0.24 + stride * 0.16;
         swordSwing = walkWave * (0.1 + stride * 1.05);
         armSwing = walkWave * (0.18 + stride * 1.45);
@@ -145,15 +168,14 @@ window.GTModules.animations = (function createAnimationsModule() {
       const jumpUp = vy < -0.12;
       const fallDown = vy > 0.12;
       const airStrength = clamp(Math.abs(vy) / 4.2, 0, 1);
-      const flapFreq = jumpUp ? 0.007 : 0.009;
       bodyBob = Math.sin(t * 0.004 + seed * 6) * 0.14 + (jumpUp ? -0.38 : (fallDown ? 0.42 : 0));
       bodyTilt = clamp(vy * 0.012, -0.11, 0.11);
       if (fallDown) {
         // Falling: keep wings opened and lifted upward.
-        wingFlap = -0.22 - airStrength * 0.2 + Math.sin(t * flapFreq + seed * 11) * (0.08 + airStrength * 0.12);
+        wingFlap = -0.22 - airStrength * 0.2 + Math.sin(wingPhase) * (0.08 + airStrength * 0.12);
         wingOpen = 0.84 + airStrength * 0.14;
       } else {
-        wingFlap = Math.sin(t * flapFreq + seed * 11) * (0.22 + airStrength * 0.34);
+        wingFlap = Math.sin(wingPhase) * (0.22 + airStrength * 0.34);
         wingOpen = jumpUp ? 0.36 : 0.54;
       }
       swordSwing = clamp(vy * 0.1, -1.2, 1.2);
