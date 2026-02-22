@@ -5740,7 +5740,7 @@
           refreshToolbar();
           syncPlayer(true);
         }
-        showAnnouncementPopup("Mystery block opened!");
+        //showAnnouncementPopup("Mystery block opened!");
         return true;
       }
 
@@ -12134,7 +12134,7 @@
           return;
         }
         const now = performance.now();
-        if (now - lastToolbarRefresh < 100) return; // Throttle to 10fps
+        if (now - lastToolbarRefresh < 200) return; // Throttle to 5fps
         if (toolbarRenderQueued) return;
         toolbarRenderQueued = true;
         toolbarRenderRafId = requestAnimationFrame(() => {
