@@ -21,7 +21,7 @@ function isLocalRuntime() {
 }
 
 function getLocalApiKeyFromPrompt() {
-  const storageKey = window.FIREBASE_LOCAL_APIKEY_STORAGE || "growtopia_local_firebase_apikey_v1";
+  const storageKey = window.FIREBASE_LOCAL_APIKEY_STORAGE || "growtopia_local_firebase_apikey_v2";
   try {
     const cached = localStorage.getItem(storageKey);
     if (cached && cached.trim()) return cached.trim();
