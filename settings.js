@@ -18,13 +18,13 @@ window.GT_SETTINGS = {
   PLAYER_WIDTH: 22,
   PLAYER_HEIGHT: 30,
 
-  GRAVITY: 0.15,        // low gravity (Mars-like)
-  MAX_FALL_SPEED: 3.85,  // slow falling cap
+  GRAVITY: 0.13,        // low gravity (Mars-like)
+  MAX_FALL_SPEED: 3.95,  // slow falling cap
 
   MOVE_ACCEL: 0.27,     // responsive movement
-  MAX_MOVE_SPEED: 2.35, // faster running
+  MAX_MOVE_SPEED: 2.38, // faster running
 
-  FRICTION_GROUND: 0.88, 
+  FRICTION_GROUND: 0.89, 
   FRICTION_AIR: 0.985,
 
   AIR_CONTROL: 0.48,    // good air steering
@@ -39,11 +39,11 @@ window.GT_SETTINGS = {
      "./assets/blocks/special/VESI_3.png",
      "./assets/blocks/special/VESI_4.png"
   ],
-  WATER_FRAME_MS: 170,
+  WATER_FRAME_MS: 210,
 
   // Anti-gravity generator tuning
-  ANTI_GRAV_RADIUS_TILES: 20,
-  ANTI_GRAV_GRAVITY_MULT: 0.25,
+  ANTI_GRAV_RADIUS_TILES: 60,
+  ANTI_GRAV_GRAVITY_MULT: 0.29,
   ANTI_GRAV_FALL_MULT: 0.47,
   ANTI_GRAV_AIR_JUMP_COOLDOWN_MS: 140,
   // Camera zoom settings (mouse wheel / +/- / 0 reset)
@@ -59,8 +59,8 @@ window.GT_SETTINGS = {
     { id: "night", name: "Night", url: "./assets/weather/night.png" }
   ],
 
-  PLAYER_SYNC_MIN_MS: 70,
-  GLOBAL_SYNC_MIN_MS: 220
+  PLAYER_SYNC_MIN_MS: 50,
+  GLOBAL_SYNC_MIN_MS: 250
 };
 
 // Firebase App Check (compat) configuration.
