@@ -114,11 +114,6 @@
       const itemsModule = modules.items || {};
       const playerModule = modules.player || {};
       const authStorageModule = modules.authStorage || {};
-      const authModule = modules.auth || {};
-      const dbModule = modules.db || {};
-      const adminsModule = modules.admins || {};
-      const stringUtilsModule = modules.stringUtils || {};
-      const inventoryModule = modules.inventory || {};
       const worldModule = modules.world || {};
       const physicsModule = modules.physics || {};
       const animationsModule = modules.animations || {};
@@ -134,7 +129,6 @@
       const vendingModule = modules.vending || {};
       const tradeModule = modules.trade || {};
       const shopModule = modules.shop || {};
-      const antiCheatModule = modules.anticheat || {};
 
       const SETTINGS = window.GT_SETTINGS || {};
       const TILE = Number(SETTINGS.TILE_SIZE) || 32;
@@ -418,9 +412,6 @@
       let vendingController = null;
       let tradeController = null;
       let shopController = null;
-      let authController = null;
-      let inventoryController = null;
-      let antiCheatController = null;
       let plantsController = null;
       let gemsController = null;
       let rewardsController = null;
@@ -648,86 +639,6 @@
         return shopController;
       }
 
-      function getAuthController() {
-        if (authController) return authController;
-        if (typeof authModule.createController !== "function") return null;
-        authController = authModule.createController({
-          getNetwork: () => network,
-          getFirebase: () => (typeof firebase !== "undefined" ? firebase : window.firebase || null),
-          getBasePath: () => BASE_PATH,
-          getPlayerName: () => playerName,
-          setSession: (ref, id, startedAt) => {
-            playerSessionRef = ref || null;
-            playerSessionId = String(id || "");
-            playerSessionStartedAt = Number(startedAt) || 0;
-          },
-          getSession: () => ({
-            ref: playerSessionRef,
-            id: playerSessionId,
-            startedAt: playerSessionStartedAt
-          }),
-          onChatSessionReset: () => {
-            chatMessages.length = 0;
-            renderChatMessages();
-          },
-          getCredentialsInput: () => ({
-            username: authUsernameEl ? authUsernameEl.value : "",
-            password: authPasswordEl ? authPasswordEl.value : ""
-          }),
-          normalizeUsername,
-          setAuthBusy,
-          setAuthStatus,
-          onDbReady: (db) => {
-            network.db = db || null;
-          },
-          onAuthSuccess,
-          saveCredentials,
-          addClientLog,
-          getBanStatus,
-          formatRemainingMs
-        });
-        return authController;
-      }
-
-      function getInventoryController() {
-        if (inventoryController) return inventoryController;
-        if (typeof inventoryModule.createController !== "function") return null;
-        inventoryController = inventoryModule.createController({
-          getNetwork: () => network,
-          getPlayerProfileId: () => playerProfileId,
-          getInventoryItemLimit: () => INVENTORY_ITEM_LIMIT,
-          getInventory: () => inventory,
-          getInventoryIds: () => INVENTORY_IDS,
-          getCosmeticInventory: () => cosmeticInventory,
-          getCosmeticItems: () => COSMETIC_ITEMS,
-          getCosmeticLookup: () => COSMETIC_LOOKUP,
-          getCosmeticSlots: () => COSMETIC_SLOTS,
-          getEquippedCosmetics: () => equippedCosmetics,
-          writeExtraToPayload: (payload) => {
-            const gemsCtrl = getGemsController();
-            if (gemsCtrl && typeof gemsCtrl.writeToPayload === "function") {
-              gemsCtrl.writeToPayload(payload);
-            } else {
-              payload.gems = 0;
-            }
-          },
-          onRecordApplied: (record) => {
-            const gemsCtrl = getGemsController();
-            if (gemsCtrl && typeof gemsCtrl.readFromRecord === "function") {
-              gemsCtrl.readFromRecord(record || {});
-            }
-            updateGemsLabel();
-          },
-          onSaveError: () => {
-            setNetworkState("Inventory save error", true);
-          },
-          onReloadFromServer: () => {
-            refreshToolbar();
-          }
-        });
-        return inventoryController;
-      }
-
       function getGemsController() {
         if (gemsController) return gemsController;
         if (typeof gemsModule.createController !== "function") return null;
@@ -743,24 +654,6 @@
           getTreeGemMax: () => TREE_GEM_MAX
         });
         return rewardsController;
-      }
-
-      function getAntiCheatController() {
-        if (antiCheatController) return antiCheatController;
-        if (typeof antiCheatModule.createController !== "function") return null;
-        antiCheatController = antiCheatModule.createController({
-          getPlayerName: () => playerName,
-          getPlayerProfileId: () => playerProfileId,
-          getPlayerSessionId: () => playerSessionId,
-          getCurrentWorldId: () => currentWorldId,
-          getInWorld: () => inWorld,
-          getPlayer: () => player,
-          getPlayerRect: () => ({ w: PLAYER_W, h: PLAYER_H }),
-          getTileSize: () => TILE,
-          getEditReachTiles: () => getEditReachTiles(),
-          postLocalSystemChat
-        });
-        return antiCheatController;
       }
 
       let cameraX = 0;
@@ -943,9 +836,6 @@
       }
 
       function normalizeUsername(value) {
-        if (typeof stringUtilsModule.normalizeUsername === "function") {
-          return stringUtilsModule.normalizeUsername(value);
-        }
         return (value || "").trim().toLowerCase();
       }
 
@@ -1166,9 +1056,6 @@
       }
 
       function parseDurationToMs(input) {
-        if (typeof adminsModule.parseDurationToMs === "function") {
-          return adminsModule.parseDurationToMs(input);
-        }
         if (typeof adminModule.parseDurationToMs === "function") {
           return adminModule.parseDurationToMs(input);
         }
@@ -1183,9 +1070,6 @@
       }
 
       function formatRemainingMs(ms) {
-        if (typeof adminsModule.formatRemainingMs === "function") {
-          return adminsModule.formatRemainingMs(ms);
-        }
         if (typeof adminModule.formatRemainingMs === "function") {
           return adminModule.formatRemainingMs(ms);
         }
@@ -1230,9 +1114,6 @@
       }
 
       function normalizeBanRecord(record) {
-        if (typeof adminsModule.normalizeBanRecord === "function") {
-          return adminsModule.normalizeBanRecord(record);
-        }
         const value = record || {};
         const typeRaw = String(value.type || "").toLowerCase();
         const type = typeRaw === "permanent" ? "permanent" : "temporary";
@@ -1247,9 +1128,6 @@
       }
 
       function getBanStatus(record, nowMs) {
-        if (typeof adminsModule.getBanStatus === "function") {
-          return adminsModule.getBanStatus(record, nowMs);
-        }
         if (!record) return { active: false, expired: false, type: "temporary", remainingMs: 0, reason: "" };
         const normalized = normalizeBanRecord(record);
         if (normalized.type === "permanent") {
@@ -1286,9 +1164,6 @@
       }
 
       function escapeHtml(value) {
-        if (typeof stringUtilsModule.escapeHtml === "function") {
-          return stringUtilsModule.escapeHtml(value);
-        }
         return String(value)
           .replaceAll("&", "&amp;")
           .replaceAll("<", "&lt;")
@@ -1298,9 +1173,6 @@
       }
 
       function totalInventoryCount(inv) {
-        if (typeof adminsModule.totalInventoryCount === "function") {
-          return adminsModule.totalInventoryCount(inv, INVENTORY_IDS);
-        }
         if (!inv || typeof inv !== "object") return 0;
         let total = 0;
         for (const id of INVENTORY_IDS) {
@@ -2454,9 +2326,6 @@
       }
 
       function validateCredentials(username, password) {
-        if (typeof authModule.validateCredentials === "function") {
-          return authModule.validateCredentials(username, password);
-        }
         if (!/^[a-z0-9_]{3,20}$/.test(username)) {
           return "Username must be 3-20 chars: a-z, 0-9, _.";
         }
@@ -2552,46 +2421,51 @@
       }
 
       async function getAuthDb() {
-        const authCtrl = getAuthController();
-        if (authCtrl && typeof authCtrl.getAuthDb === "function") {
-          return authCtrl.getAuthDb();
-        }
-        if (typeof dbModule.getOrInitAuthDb === "function") {
-          return dbModule.getOrInitAuthDb({
-            network,
-            firebaseRef: (typeof firebase !== "undefined" ? firebase : window.firebase || null),
-            firebaseConfig: window.FIREBASE_CONFIG,
-            getFirebaseApiKey: window.getFirebaseApiKey
-          });
-        }
         if (!window.firebase) {
           throw new Error("Firebase SDK not loaded.");
         }
+
         const firebaseConfig = window.FIREBASE_CONFIG;
+
+        // If apiKey missing, try to fetch it at runtime
         if (firebaseConfig && !firebaseConfig.apiKey && typeof window.getFirebaseApiKey === "function") {
           try {
-            firebaseConfig.apiKey = await window.getFirebaseApiKey();
+            const fetched = await window.getFirebaseApiKey();
+
+            // Support BOTH formats:
+            // 1) new API: { ok: true, key: "..." }
+            // 2) old API: "..."
+            const apiKey =
+              (fetched && typeof fetched === "object" && fetched.ok && typeof fetched.key === "string" && fetched.key) ||
+              (typeof fetched === "string" && fetched.trim()) ||
+              null;
+
+            if (!apiKey) {
+              throw new Error("Invalid API key response format.");
+            }
+
+            firebaseConfig.apiKey = apiKey;
           } catch (error) {
-            throw new Error("Failed to fetch Firebase API key at runtime." + error.message);
+            throw new Error("Failed to fetch Firebase API key at runtime. " + (error?.message || error));
           }
         }
+
         if (!hasFirebaseConfig(firebaseConfig)) {
           throw new Error("Set firebase-config.js first.");
         }
+
         if (!firebase.apps.length) {
           firebase.initializeApp(firebaseConfig);
         }
+
         if (!network.authDb) {
           network.authDb = firebase.database();
         }
+
         return network.authDb;
       }
 
       async function reserveAccountSession(db, accountId, username) {
-        const authCtrl = getAuthController();
-        if (authCtrl && typeof authCtrl.reserveAccountSession === "function") {
-          return authCtrl.reserveAccountSession(db, accountId, username);
-        }
         const sessionRef = db.ref(BASE_PATH + "/account-sessions/" + accountId);
         const sessionId = "s_" + Math.random().toString(36).slice(2, 12);
         const startedAtLocal = Date.now();
@@ -2619,11 +2493,6 @@
       }
 
       function releaseAccountSession() {
-        const authCtrl = getAuthController();
-        if (authCtrl && typeof authCtrl.releaseAccountSession === "function") {
-          authCtrl.releaseAccountSession();
-          return;
-        }
         if (playerSessionRef) {
           playerSessionRef.remove().catch(() => {});
           if (playerName) {
@@ -2636,10 +2505,6 @@
       }
 
       async function createAccountAndLogin() {
-        const authCtrl = getAuthController();
-        if (authCtrl && typeof authCtrl.createAccountAndLogin === "function") {
-          return authCtrl.createAccountAndLogin();
-        }
         const username = normalizeUsername(authUsernameEl.value);
         const password = authPasswordEl.value || "";
         const validation = validateCredentials(username, password);
@@ -2680,10 +2545,6 @@
       }
 
       async function loginWithAccount() {
-        const authCtrl = getAuthController();
-        if (authCtrl && typeof authCtrl.loginWithAccount === "function") {
-          return authCtrl.loginWithAccount();
-        }
         const username = normalizeUsername(authUsernameEl.value);
         const password = authPasswordEl.value || "";
         const validation = validateCredentials(username, password);
@@ -2738,10 +2599,6 @@
       function onAuthSuccess(accountId, username) {
         playerProfileId = accountId;
         playerName = username;
-        const antiCheat = getAntiCheatController();
-        if (antiCheat && typeof antiCheat.onSessionStart === "function") {
-          antiCheat.onSessionStart();
-        }
         const gemsCtrl = getGemsController();
         if (gemsCtrl && typeof gemsCtrl.reset === "function") {
           gemsCtrl.reset();
@@ -2775,27 +2632,51 @@
       }
 
       function getInventoryStorageKey() {
-        const ctrl = getInventoryController();
-        return ctrl && typeof ctrl.getStorageKey === "function"
-          ? ctrl.getStorageKey()
-          : ("growtopia_inventory_" + (playerProfileId || "guest"));
+        return "growtopia_inventory_" + (playerProfileId || "guest");
       }
 
       function clampInventoryCount(value) {
-        const ctrl = getInventoryController();
-        return ctrl && typeof ctrl.clampCount === "function"
-          ? ctrl.clampCount(value)
-          : 0;
+        const n = Number(value);
+        const safe = Number.isFinite(n) ? Math.floor(n) : 0;
+        return Math.max(0, Math.min(INVENTORY_ITEM_LIMIT, safe));
       }
 
       function clampLocalInventoryAll() {
-        const ctrl = getInventoryController();
-        if (ctrl && typeof ctrl.clampAll === "function") ctrl.clampAll();
+        for (const id of INVENTORY_IDS) {
+          inventory[id] = clampInventoryCount(inventory[id]);
+        }
+        for (const item of COSMETIC_ITEMS) {
+          cosmeticInventory[item.id] = clampInventoryCount(cosmeticInventory[item.id]);
+        }
       }
 
       function applyInventoryFromRecord(record) {
-        const ctrl = getInventoryController();
-        if (ctrl && typeof ctrl.applyFromRecord === "function") ctrl.applyFromRecord(record);
+        for (const id of INVENTORY_IDS) {
+          const value = Number(record && record[id]);
+          inventory[id] = clampInventoryCount(value);
+        }
+        const itemRecord = record && record.cosmeticItems || {};
+        const legacyOwned = record && record.owned || {};
+        for (const item of COSMETIC_ITEMS) {
+          const nestedValue = Number(itemRecord[item.id]);
+          const topLevelValue = Number(record && record[item.id]);
+          const legacyHasOwned = Array.isArray(legacyOwned[item.slot]) && legacyOwned[item.slot].includes(item.id);
+          let finalValue = 0;
+          if (Number.isFinite(nestedValue)) finalValue = clampInventoryCount(nestedValue);
+          if (!finalValue && Number.isFinite(topLevelValue)) finalValue = clampInventoryCount(topLevelValue);
+          if (!finalValue && legacyHasOwned) finalValue = 1;
+          cosmeticInventory[item.id] = clampInventoryCount(finalValue);
+        }
+        const equippedRecord = record && record.equippedCosmetics || record && record.equipped || {};
+        for (const slot of COSMETIC_SLOTS) {
+          const id = String(equippedRecord[slot] || "");
+          equippedCosmetics[slot] = id && COSMETIC_LOOKUP[slot][id] && (cosmeticInventory[id] || 0) > 0 ? id : "";
+        }
+        const gemsCtrl = getGemsController();
+        if (gemsCtrl && typeof gemsCtrl.readFromRecord === "function") {
+          gemsCtrl.readFromRecord(record || {});
+        }
+        updateGemsLabel();
       }
 
       function normalizeRemoteEquippedCosmetics(raw) {
@@ -2808,8 +2689,28 @@
       }
 
       function buildInventoryPayload() {
-        const ctrl = getInventoryController();
-        return ctrl && typeof ctrl.buildPayload === "function" ? ctrl.buildPayload() : {};
+        clampLocalInventoryAll();
+        const payload = {};
+        for (const id of INVENTORY_IDS) {
+          payload[id] = clampInventoryCount(inventory[id]);
+        }
+        const itemPayload = {};
+        for (const item of COSMETIC_ITEMS) {
+          itemPayload[item.id] = clampInventoryCount(cosmeticInventory[item.id]);
+        }
+        payload.cosmeticItems = itemPayload;
+        payload.equippedCosmetics = {
+          clothes: equippedCosmetics.clothes || "",
+          wings: equippedCosmetics.wings || "",
+          swords: equippedCosmetics.swords || ""
+        };
+        const gemsCtrl = getGemsController();
+        if (gemsCtrl && typeof gemsCtrl.writeToPayload === "function") {
+          gemsCtrl.writeToPayload(payload);
+        } else {
+          payload.gems = 0;
+        }
+        return payload;
       }
 
       function updateGemsLabel() {
@@ -2827,23 +2728,42 @@
       }
 
       function loadInventoryFromLocal() {
-        const ctrl = getInventoryController();
-        return ctrl && typeof ctrl.loadFromLocal === "function" ? ctrl.loadFromLocal() : false;
+        try {
+          const raw = localStorage.getItem(getInventoryStorageKey());
+          if (!raw) return false;
+          const parsed = JSON.parse(raw);
+          applyInventoryFromRecord(parsed);
+          return true;
+        } catch (error) {
+          return false;
+        }
       }
 
       function saveInventoryToLocal() {
-        const ctrl = getInventoryController();
-        if (ctrl && typeof ctrl.saveToLocal === "function") ctrl.saveToLocal();
+        try {
+          localStorage.setItem(getInventoryStorageKey(), JSON.stringify(buildInventoryPayload()));
+        } catch (error) {
+          // ignore localStorage quota/write failures
+        }
       }
 
       function saveInventory() {
-        const ctrl = getInventoryController();
-        if (ctrl && typeof ctrl.saveToNetwork === "function") ctrl.saveToNetwork();
+        clampLocalInventoryAll();
+        saveInventoryToLocal();
+        if (!network.enabled || !network.inventoryRef) return;
+        network.inventoryRef.set(buildInventoryPayload()).catch(() => {
+          setNetworkState("Inventory save error", true);
+        });
       }
 
       function reloadMyInventoryFromServer() {
-        const ctrl = getInventoryController();
-        if (ctrl && typeof ctrl.reloadFromServer === "function") ctrl.reloadFromServer();
+        if (!network.enabled || !network.inventoryRef) return;
+        network.inventoryRef.once("value").then((snapshot) => {
+          if (!snapshot.exists()) return;
+          applyInventoryFromRecord(snapshot.val() || {});
+          saveInventoryToLocal();
+          refreshToolbar();
+        }).catch(() => {});
       }
 
       function getInitialWorldId() {
@@ -3311,10 +3231,6 @@
 
       function forceLogout(reason) {
         saveInventoryToLocal();
-        const antiCheat = getAntiCheatController();
-        if (antiCheat && typeof antiCheat.onSessionStart === "function") {
-          antiCheat.onSessionStart();
-        }
         if (inWorld) {
           sendSystemWorldMessage(playerName + " left the world.");
           logCameraEvent(
@@ -3414,10 +3330,6 @@
         const raw = chatInputEl.value || "";
         const trimmed = raw.trim();
         if (!trimmed) return;
-        const antiCheat = getAntiCheatController();
-        if (antiCheat && typeof antiCheat.onChatSend === "function") {
-          antiCheat.onChatSend(trimmed);
-        }
         suppressChatOpenUntilMs = performance.now() + 300;
         if (handleAdminChatCommand(trimmed)) {
           chatInputEl.value = "";
@@ -6346,10 +6258,6 @@
 
       function useActionAt(tx, ty) {
         if (shouldBlockActionForFreeze()) return;
-        const antiCheat = getAntiCheatController();
-        if (antiCheat && typeof antiCheat.onActionAttempt === "function") {
-          antiCheat.onActionAttempt({ tx, ty, action: "primary" });
-        }
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
         if (selectedId === TOOL_FIST) {
@@ -6368,10 +6276,6 @@
 
       function useSecondaryActionAt(tx, ty) {
         if (shouldBlockActionForFreeze()) return;
-        const antiCheat = getAntiCheatController();
-        if (antiCheat && typeof antiCheat.onActionAttempt === "function") {
-          antiCheat.onActionAttempt({ tx, ty, action: "secondary" });
-        }
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
         if (selectedId === TOOL_FIST) {
@@ -6397,9 +6301,6 @@
       }
 
       function hasFirebaseConfig(config) {
-        if (typeof dbModule.hasFirebaseConfig === "function") {
-          return dbModule.hasFirebaseConfig(config);
-        }
         return Boolean(config && config.apiKey && config.projectId && config.databaseURL);
       }
 
@@ -6781,13 +6682,97 @@
         if (blockSyncer && typeof blockSyncer.flush === "function") {
           blockSyncer.flush();
         }
-        if (typeof dbModule.detachWorldRuntimeListeners === "function") {
-          dbModule.detachWorldRuntimeListeners({
-            network,
-            handlers: network.handlers,
-            syncWorldsModule
-          });
-        } else if (typeof syncWorldsModule.detachWorldListeners === "function") {
+        if (network.lockRef && network.handlers.worldLock) {
+          network.lockRef.off("value", network.handlers.worldLock);
+        }
+        if (network.dropFeedRef && network.handlers.dropAdded) {
+          network.dropFeedRef.off("child_added", network.handlers.dropAdded);
+        }
+        if (network.dropsRef && network.handlers.dropChanged) {
+          network.dropsRef.off("child_changed", network.handlers.dropChanged);
+        }
+        if (network.dropsRef && network.handlers.dropRemoved) {
+          network.dropsRef.off("child_removed", network.handlers.dropRemoved);
+        }
+        if (network.hitsRef && network.handlers.hitAdded) {
+          network.hitsRef.off("child_added", network.handlers.hitAdded);
+        }
+        if (network.hitsRef && network.handlers.hitChanged) {
+          network.hitsRef.off("child_changed", network.handlers.hitChanged);
+        }
+        if (network.hitsRef && network.handlers.hitRemoved) {
+          network.hitsRef.off("child_removed", network.handlers.hitRemoved);
+        }
+        if (network.vendingRef && network.handlers.vendingAdded) {
+          network.vendingRef.off("child_added", network.handlers.vendingAdded);
+        }
+        if (network.vendingRef && network.handlers.vendingChanged) {
+          network.vendingRef.off("child_changed", network.handlers.vendingChanged);
+        }
+        if (network.vendingRef && network.handlers.vendingRemoved) {
+          network.vendingRef.off("child_removed", network.handlers.vendingRemoved);
+        }
+        if (network.signsRef && network.handlers.signAdded) {
+          network.signsRef.off("child_added", network.handlers.signAdded);
+        }
+        if (network.signsRef && network.handlers.signChanged) {
+          network.signsRef.off("child_changed", network.handlers.signChanged);
+        }
+        if (network.signsRef && network.handlers.signRemoved) {
+          network.signsRef.off("child_removed", network.handlers.signRemoved);
+        }
+        if (network.displaysRef && network.handlers.displayAdded) {
+          network.displaysRef.off("child_added", network.handlers.displayAdded);
+        }
+        if (network.displaysRef && network.handlers.displayChanged) {
+          network.displaysRef.off("child_changed", network.handlers.displayChanged);
+        }
+        if (network.displaysRef && network.handlers.displayRemoved) {
+          network.displaysRef.off("child_removed", network.handlers.displayRemoved);
+        }
+        if (network.doorsRef && network.handlers.doorAdded) {
+          network.doorsRef.off("child_added", network.handlers.doorAdded);
+        }
+        if (network.doorsRef && network.handlers.doorChanged) {
+          network.doorsRef.off("child_changed", network.handlers.doorChanged);
+        }
+        if (network.doorsRef && network.handlers.doorRemoved) {
+          network.doorsRef.off("child_removed", network.handlers.doorRemoved);
+        }
+        if (network.antiGravRef && network.handlers.antiGravAdded) {
+          network.antiGravRef.off("child_added", network.handlers.antiGravAdded);
+        }
+        if (network.antiGravRef && network.handlers.antiGravChanged) {
+          network.antiGravRef.off("child_changed", network.handlers.antiGravChanged);
+        }
+        if (network.antiGravRef && network.handlers.antiGravRemoved) {
+          network.antiGravRef.off("child_removed", network.handlers.antiGravRemoved);
+        }
+        if (network.plantsRef && network.handlers.plantAdded) {
+          network.plantsRef.off("child_added", network.handlers.plantAdded);
+        }
+        if (network.plantsRef && network.handlers.plantChanged) {
+          network.plantsRef.off("child_changed", network.handlers.plantChanged);
+        }
+        if (network.plantsRef && network.handlers.plantRemoved) {
+          network.plantsRef.off("child_removed", network.handlers.plantRemoved);
+        }
+        if (network.weatherRef && network.handlers.worldWeather) {
+          network.weatherRef.off("value", network.handlers.worldWeather);
+        }
+        if (network.camerasRef && network.handlers.cameraAdded) {
+          network.camerasRef.off("child_added", network.handlers.cameraAdded);
+        }
+        if (network.camerasRef && network.handlers.cameraChanged) {
+          network.camerasRef.off("child_changed", network.handlers.cameraChanged);
+        }
+        if (network.camerasRef && network.handlers.cameraRemoved) {
+          network.camerasRef.off("child_removed", network.handlers.cameraRemoved);
+        }
+        if (network.cameraLogsFeedRef && network.handlers.cameraLogAdded) {
+          network.cameraLogsFeedRef.off("child_added", network.handlers.cameraLogAdded);
+        }
+        if (typeof syncWorldsModule.detachWorldListeners === "function") {
           syncWorldsModule.detachWorldListeners(network, network.handlers, true);
         } else if (network.playerRef) {
           network.playerRef.remove().catch(() => {});
@@ -6795,9 +6780,64 @@
         if (blockSyncer && typeof blockSyncer.reset === "function") {
           blockSyncer.reset();
         }
-        if (typeof dbModule.clearWorldNetworkRefsAndHandlers === "function") {
-          dbModule.clearWorldNetworkRefsAndHandlers({ network });
-        }
+
+        network.playerRef = null;
+        network.playersRef = null;
+        network.blocksRef = null;
+        network.hitsRef = null;
+        network.dropsRef = null;
+        network.dropFeedRef = null;
+        network.vendingRef = null;
+        network.signsRef = null;
+        network.displaysRef = null;
+        network.doorsRef = null;
+        network.antiGravRef = null;
+        network.plantsRef = null;
+        network.weatherRef = null;
+        network.camerasRef = null;
+        network.cameraLogsRef = null;
+        network.cameraLogsFeedRef = null;
+        network.lockRef = null;
+        network.chatRef = null;
+        network.chatFeedRef = null;
+        network.handlers.players = null;
+        network.handlers.playerAdded = null;
+        network.handlers.playerChanged = null;
+        network.handlers.playerRemoved = null;
+        network.handlers.blockAdded = null;
+        network.handlers.blockChanged = null;
+        network.handlers.blockRemoved = null;
+        network.handlers.hitAdded = null;
+        network.handlers.hitChanged = null;
+        network.handlers.hitRemoved = null;
+        network.handlers.dropAdded = null;
+        network.handlers.dropChanged = null;
+        network.handlers.dropRemoved = null;
+        network.handlers.vendingAdded = null;
+        network.handlers.vendingChanged = null;
+        network.handlers.vendingRemoved = null;
+        network.handlers.signAdded = null;
+        network.handlers.signChanged = null;
+        network.handlers.signRemoved = null;
+        network.handlers.displayAdded = null;
+        network.handlers.displayChanged = null;
+        network.handlers.displayRemoved = null;
+        network.handlers.doorAdded = null;
+        network.handlers.doorChanged = null;
+        network.handlers.doorRemoved = null;
+        network.handlers.antiGravAdded = null;
+        network.handlers.antiGravChanged = null;
+        network.handlers.antiGravRemoved = null;
+        network.handlers.plantAdded = null;
+        network.handlers.plantChanged = null;
+        network.handlers.plantRemoved = null;
+        network.handlers.worldWeather = null;
+        network.handlers.cameraAdded = null;
+        network.handlers.cameraChanged = null;
+        network.handlers.cameraRemoved = null;
+        network.handlers.cameraLogAdded = null;
+        network.handlers.worldLock = null;
+        network.handlers.chatAdded = null;
         currentWorldLock = null;
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
@@ -6890,10 +6930,6 @@
         if (!network.enabled) {
           setInWorldState(true);
           currentWorldId = worldId;
-          const antiCheat = getAntiCheatController();
-          if (antiCheat && typeof antiCheat.onWorldSwitch === "function") {
-            antiCheat.onWorldSwitch(worldId);
-          }
           localStorage.setItem("growtopia_current_world", worldId);
           setCurrentWorldUI();
           resetForWorldChange();
@@ -6923,31 +6959,40 @@
         setInWorldState(true);
         detachCurrentWorldListeners();
         currentWorldId = worldId;
-        const antiCheat = getAntiCheatController();
-        if (antiCheat && typeof antiCheat.onWorldSwitch === "function") {
-          antiCheat.onWorldSwitch(worldId);
-        }
         localStorage.setItem("growtopia_current_world", worldId);
         setCurrentWorldUI();
         resetForWorldChange();
         writeWorldIndexMeta(worldId, createIfMissing);
         worldChatStartedAt = Date.now();
 
-        if (typeof dbModule.buildWorldRefs !== "function") {
-          setNetworkState("DB module missing", true);
-          return;
-        }
-        dbModule.buildWorldRefs({
-          network,
-          db: network.db,
-          basePath: BASE_PATH,
-          worldId,
-          worldChatStartedAt,
-          dropMaxPerWorld: DROP_MAX_PER_WORLD,
-          playerId,
-          syncWorldsModule,
-          syncHitsModule
-        });
+        const worldRefs = typeof syncWorldsModule.createWorldRefs === "function"
+          ? syncWorldsModule.createWorldRefs(network.db, BASE_PATH, worldId)
+          : null;
+        network.playersRef = worldRefs && worldRefs.playersRef ? worldRefs.playersRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/players");
+        network.blocksRef = worldRefs && worldRefs.blocksRef ? worldRefs.blocksRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/blocks");
+        network.hitsRef = typeof syncHitsModule.createWorldHitsRef === "function"
+          ? syncHitsModule.createWorldHitsRef(network.db, BASE_PATH, worldId)
+          : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/hits");
+        network.dropsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/drops");
+        network.dropFeedRef = network.dropsRef.limitToLast(DROP_MAX_PER_WORLD);
+        network.vendingRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/vending");
+        network.signsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/signs");
+        network.displaysRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/displays");
+        network.doorsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/doors");
+        network.antiGravRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/anti-gravity");
+        network.plantsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/plants");
+        network.weatherRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/weather");
+        network.camerasRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/cameras");
+        network.cameraLogsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/camera-logs");
+        network.cameraLogsFeedRef = network.cameraLogsRef.limitToLast(500);
+        network.lockRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/lock");
+        network.chatRef = worldRefs && worldRefs.chatRef ? worldRefs.chatRef : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/chat");
+        network.chatFeedRef = typeof syncWorldsModule.createChatFeed === "function"
+          ? syncWorldsModule.createChatFeed(network.chatRef, worldChatStartedAt, 100)
+          : (worldChatStartedAt > 0
+            ? network.chatRef.orderByChild("createdAt").startAt(worldChatStartedAt).limitToLast(100)
+            : network.chatRef.limitToLast(100));
+        network.playerRef = network.playersRef.child(playerId);
         network.handlers.worldLock = (snapshot) => {
           currentWorldLock = normalizeWorldLock(snapshot.val());
           if (worldLockModalEl && !worldLockModalEl.classList.contains("hidden")) {
@@ -6958,6 +7003,9 @@
             }
           }
         };
+        if (network.lockRef && network.handlers.worldLock) {
+          network.lockRef.on("value", network.handlers.worldLock);
+        }
 
         const applyBlockValue = (tx, ty, id) => {
           clearTileDamage(tx, ty);
@@ -7194,15 +7242,60 @@
             createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now()
           });
         };
-        if (typeof dbModule.attachWorldRuntimeListeners !== "function") {
-          setNetworkState("DB module missing", true);
-          return;
+        if (typeof syncWorldsModule.attachWorldListeners === "function") {
+          syncWorldsModule.attachWorldListeners(network, network.handlers);
         }
-        dbModule.attachWorldRuntimeListeners({
-          network,
-          handlers: network.handlers,
-          syncWorldsModule
-        });
+        if (network.vendingRef && network.handlers.vendingAdded) {
+          network.vendingRef.on("child_added", network.handlers.vendingAdded);
+          network.vendingRef.on("child_changed", network.handlers.vendingChanged);
+          network.vendingRef.on("child_removed", network.handlers.vendingRemoved);
+        }
+        if (network.dropFeedRef && network.handlers.dropAdded) {
+          network.dropFeedRef.on("child_added", network.handlers.dropAdded);
+          network.dropsRef.on("child_changed", network.handlers.dropChanged);
+          network.dropsRef.on("child_removed", network.handlers.dropRemoved);
+        }
+        if (network.hitsRef && network.handlers.hitAdded) {
+          network.hitsRef.on("child_added", network.handlers.hitAdded);
+          network.hitsRef.on("child_changed", network.handlers.hitChanged);
+          network.hitsRef.on("child_removed", network.handlers.hitRemoved);
+        }
+        if (network.signsRef && network.handlers.signAdded) {
+          network.signsRef.on("child_added", network.handlers.signAdded);
+          network.signsRef.on("child_changed", network.handlers.signChanged);
+          network.signsRef.on("child_removed", network.handlers.signRemoved);
+        }
+        if (network.displaysRef && network.handlers.displayAdded) {
+          network.displaysRef.on("child_added", network.handlers.displayAdded);
+          network.displaysRef.on("child_changed", network.handlers.displayChanged);
+          network.displaysRef.on("child_removed", network.handlers.displayRemoved);
+        }
+        if (network.doorsRef && network.handlers.doorAdded) {
+          network.doorsRef.on("child_added", network.handlers.doorAdded);
+          network.doorsRef.on("child_changed", network.handlers.doorChanged);
+          network.doorsRef.on("child_removed", network.handlers.doorRemoved);
+        }
+        if (network.antiGravRef && network.handlers.antiGravAdded) {
+          network.antiGravRef.on("child_added", network.handlers.antiGravAdded);
+          network.antiGravRef.on("child_changed", network.handlers.antiGravChanged);
+          network.antiGravRef.on("child_removed", network.handlers.antiGravRemoved);
+        }
+        if (network.plantsRef && network.handlers.plantAdded) {
+          network.plantsRef.on("child_added", network.handlers.plantAdded);
+          network.plantsRef.on("child_changed", network.handlers.plantChanged);
+          network.plantsRef.on("child_removed", network.handlers.plantRemoved);
+        }
+        if (network.weatherRef && network.handlers.worldWeather) {
+          network.weatherRef.on("value", network.handlers.worldWeather);
+        }
+        if (network.camerasRef && network.handlers.cameraAdded) {
+          network.camerasRef.on("child_added", network.handlers.cameraAdded);
+          network.camerasRef.on("child_changed", network.handlers.cameraChanged);
+          network.camerasRef.on("child_removed", network.handlers.cameraRemoved);
+        }
+        if (network.cameraLogsFeedRef && network.handlers.cameraLogAdded) {
+          network.cameraLogsFeedRef.on("child_added", network.handlers.cameraLogAdded);
+        }
         enforceSpawnStructureInWorldData();
         enforceSpawnStructureInDatabase();
         addClientLog("Joined world: " + worldId + ".");
@@ -8767,10 +8860,6 @@
         function tick() {
           if (inWorld) {
             updatePlayer();
-            const antiCheat = getAntiCheatController();
-            if (antiCheat && typeof antiCheat.onFrame === "function") {
-              antiCheat.onFrame();
-            }
             updateCamera();
             tickTileDamageDecay();
             updateWorldDrops();

@@ -23,71 +23,17 @@ window.GTModules.commands = {
       return true;
     }
     if (command === "/msg") {
-      const targetRef = (parts[1] || "").trim();
-      const msg = parts.slice(2).join(" ").trim();
-      if (!targetRef || !msg) {
-        c.postLocalSystemChat("Usage: /msg <player> <message>");
-        return true;
+      if (typeof c.handlePrivateMessageCommand === "function") {
+        return Boolean(c.handlePrivateMessageCommand(command, parts));
       }
-      if (!c.network || !c.network.enabled) {
-        c.postLocalSystemChat("Private messages need online mode.");
-        return true;
-      }
-      Promise.resolve()
-        .then(() => c.resolveAccountIdByUsernameFast(targetRef))
-        .then((resolvedId) => resolvedId || c.findAccountIdByUserRef(targetRef))
-        .then((accountId) => {
-          if (!accountId) {
-            c.postLocalSystemChat("Target account not found: " + targetRef);
-            return;
-          }
-          if (c.playerProfileId && accountId === c.playerProfileId) {
-            c.postLocalSystemChat("You cannot private message yourself.");
-            return;
-          }
-          return c.issuePrivateMessage(accountId, msg).then((ok) => {
-            if (!ok) {
-              c.postLocalSystemChat("Failed to send private message.");
-              return;
-            }
-            c.postLocalSystemChat("[PM to @" + targetRef + "] " + msg.slice(0, 160));
-          });
-        })
-        .catch(() => {
-          c.postLocalSystemChat("Failed to send private message.");
-        });
+      c.postLocalSystemChat("Private message module is unavailable.");
       return true;
     }
     if (command === "/r") {
-      const msg = parts.slice(1).join(" ").trim();
-      if (!msg) {
-        c.postLocalSystemChat("Usage: /r <message>");
-        return true;
+      if (typeof c.handlePrivateMessageCommand === "function") {
+        return Boolean(c.handlePrivateMessageCommand(command, parts));
       }
-      if (!c.network || !c.network.enabled) {
-        c.postLocalSystemChat("Private messages need online mode.");
-        return true;
-      }
-      const lastFrom = typeof c.getLastPrivateMessageFrom === "function" ? c.getLastPrivateMessageFrom() : null;
-      const accountId = lastFrom && lastFrom.accountId ? String(lastFrom.accountId) : "";
-      const username = lastFrom && lastFrom.username ? String(lastFrom.username) : "user";
-      if (!accountId) {
-        c.postLocalSystemChat("No one has PMed you yet.");
-        return true;
-      }
-      if (c.playerProfileId && accountId === c.playerProfileId) {
-        c.postLocalSystemChat("Cannot reply to yourself.");
-        return true;
-      }
-      c.issuePrivateMessage(accountId, msg).then((ok) => {
-        if (!ok) {
-          c.postLocalSystemChat("Failed to send private message.");
-          return;
-        }
-        c.postLocalSystemChat("[PM to @" + username + "] " + msg.slice(0, 160));
-      }).catch(() => {
-        c.postLocalSystemChat("Failed to send private message.");
-      });
+      c.postLocalSystemChat("Private message module is unavailable.");
       return true;
     }
     if (command === "/lock") {
