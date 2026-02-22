@@ -62,10 +62,13 @@ window.GTModules.discord = (function createDiscordModule() {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
         const candidates = [
+          parsed.key,
           parsed.webhookUrl,
           parsed.url,
           parsed.webhook,
-          parsed.data && parsed.data.webhookUrl
+          parsed.data && parsed.data.key,
+          parsed.data && parsed.data.webhookUrl,
+          parsed.data && parsed.data.url
         ];
         for (let i = 0; i < candidates.length; i++) {
           const value = String(candidates[i] || "").trim();
