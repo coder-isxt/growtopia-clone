@@ -8052,7 +8052,7 @@
         const handY = py + 19 + armSwing;
         const bladeW = 12;
         const bladeH = 8;
-        const baseAngle = 0.18;
+        const baseAngle = 0;
         const slash = Math.max(-1.2, Math.min(1.2, swing * 0.12));
         const angle = baseAngle + slash;
 
