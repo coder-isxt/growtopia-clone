@@ -5165,6 +5165,28 @@
         const ctrl = getPlantsController();
         if (!ctrl || typeof ctrl.drawTree !== "function") return;
         ctrl.drawTree(ctx, tx, ty, x, y, TILE);
+        const plant = getLocalTreePlant(tx, ty);
+        if (!plant || typeof ctrl.getGrowthState !== "function") return;
+        const growth = ctrl.getGrowthState(plant);
+        if (!growth || growth.mature) return;
+        const growMs = Math.max(1, Math.floor(Number(plant.growMs) || TREE_GROW_MS));
+        const plantedAt = Math.max(0, Math.floor(Number(plant.plantedAt) || 0));
+        const remainingMs = Math.max(0, (plantedAt + growMs) - Date.now());
+        const remainingSec = Math.max(1, Math.ceil(remainingMs / 1000));
+        const label = remainingSec + "s";
+        ctx.save();
+        ctx.font = "10px 'Trebuchet MS', sans-serif";
+        const w = Math.ceil(ctx.measureText(label).width) + 6;
+        const h = 12;
+        const bx = x + Math.floor((TILE - w) / 2);
+        const by = y + 2;
+        ctx.fillStyle = "rgba(8, 22, 34, 0.82)";
+        ctx.fillRect(bx, by, w, h);
+        ctx.strokeStyle = "rgba(255,255,255,0.28)";
+        ctx.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
+        ctx.fillStyle = "#f7fbff";
+        ctx.fillText(label, bx + 3, by + 9);
+        ctx.restore();
       }
 
       function drawCosmeticSprite(item, x, y, w, h, facing) {

@@ -200,9 +200,21 @@ window.GTModules.trade = (function () {
 
     function toggleAccept() {
       if (!tradeId || !tradeData || !db()) return;
-      const mine = me(); const accepted = !!(tradeData.acceptedBy && tradeData.acceptedBy[mine]);
-      db().ref(path("trades/" + tradeId + "/acceptedBy/" + mine)).set(!accepted).catch(() => {});
-      if (accepted) db().ref(path("trades/" + tradeId + "/confirmedBy/" + mine)).set(false).catch(() => {});
+      const mine = me();
+      db().ref(path("trades/" + tradeId)).transaction((raw) => {
+        const t = normTrade(raw);
+        if (!t || t.status !== "active" || !isMember(t)) return raw;
+        const a = t.initiator.accountId;
+        const b = t.target.accountId;
+        const acceptedBy = { ...(raw.acceptedBy || {}) };
+        acceptedBy[mine] = !Boolean(acceptedBy[mine]);
+        return {
+          ...(raw || {}),
+          acceptedBy,
+          confirmedBy: { ...(raw.confirmedBy || {}), [a]: false, [b]: false },
+          updatedAt: Date.now()
+        };
+      }).catch(() => {});
     }
 
     function cancelTrade() {
@@ -342,20 +354,11 @@ window.GTModules.trade = (function () {
       const myOffer = normOffer(tradeData.offers[mine]), his = normOffer(tradeData.offers[oid]);
       const aMe = !!tradeData.acceptedBy[mine], aHe = !!tradeData.acceptedBy[oid], bothA = aMe && aHe, cMe = !!tradeData.confirmedBy[mine];
       title.textContent = "Trade with @" + oname;
-      const amountMenuMarkup = pendingPick
-        ? "<div class='trade-amount-menu'>" +
-          "<div class='trade-amount-title'>Add " + esc(pendingPick.label) + " (max " + pendingPick.max + ")</div>" +
-          "<div class='trade-amount-row'>" +
-          "<input id='tradeAmountInput' type='number' min='1' step='1' value='1' max='" + pendingPick.max + "'>" +
-          "<button data-trade-act='amountadd'>Add</button>" +
-          "<button data-trade-act='amountcancel'>Cancel</button>" +
-          "</div>" +
-          "</div>"
-        : "";
+      const tradeNote = "<div class='trade-offer-empty'>Drag items from your inventory panel into \"Your Offer\". Drag offered items back to inventory to remove them.</div>";
       body.innerHTML = "<div class='trade-status'><span class='trade-chip " + (aMe ? "ready" : "wait") + "'>You: " + (aMe ? "Ready" : "Waiting") + "</span><span class='trade-chip " + (aHe ? "ready" : "wait") + "'>@" + esc(oname) + ": " + (aHe ? "Ready" : "Waiting") + "</span></div>" +
-        "<div class='trade-offer'><div class='trade-offer-title'>Your Inventory (click to add)</div><div class='trade-inventory-list'>" + inventoryEntriesHtml(myOffer) + "</div>" + amountMenuMarkup + "</div>" +
+        "<div class='trade-offer'><div class='trade-offer-title'>Inventory</div>" + tradeNote + "</div>" +
         "<div class='trade-top'><div class='trade-offer'><div class='trade-offer-title'>Your Offer</div><div class='trade-offer-list' data-trade-drop='my-offer'>" + offerRowsHtml(myOffer, true) + "</div></div><div class='trade-offer'><div class='trade-offer-title'>@" + esc(oname) + " Offer</div><div class='trade-offer-list'>" + offerRowsHtml(his, false) + "</div></div></div>";
-      actions.innerHTML = "<button data-trade-act='accept'>" + (aMe ? "Unaccept" : "Accept") + "</button><button data-trade-act='confirm' " + (bothA ? "" : "disabled") + ">" + (cMe ? "Confirmed" : "Confirm") + "</button><button data-trade-act='cancel'>Cancel Trade</button>";
+      actions.innerHTML = "<button data-trade-act='accept'>" + (aMe ? "Unaccept" : "Accept") + "</button><button data-trade-act='confirm' " + (bothA ? "" : "disabled") + ">" + (cMe ? "Confirmed" : "Confirm (Both)") + "</button><button data-trade-act='cancel'>Cancel Trade</button>";
       modal.classList.add("trade-modal-passive");
       modal.classList.remove("hidden");
     }
@@ -424,37 +427,6 @@ window.GTModules.trade = (function () {
         pbody.addEventListener("click", (e) => {
           const t = e.target; if (!(t instanceof HTMLElement)) return;
           const act = String(t.dataset.tradeAct || "");
-          if (act === "pick") {
-            const type = String(t.dataset.type || "block") === "cosmetic" ? "cosmetic" : "block";
-            const itemId = String(t.dataset.itemId || "");
-            const max = Math.max(1, Math.floor(Number(t.dataset.max) || 1));
-            const labelNode = t.querySelector("span");
-            const label = labelNode ? labelNode.textContent || itemId : itemId;
-            if (!itemId) return;
-            if (max <= 1) {
-              pendingPick = null;
-              applyOfferDelta(type, itemId, 1);
-              return;
-            }
-            pendingPick = { type, itemId, max, label };
-            renderPanel();
-            return;
-          }
-          if (act === "amountcancel") {
-            pendingPick = null;
-            renderPanel();
-            return;
-          }
-          if (act === "amountadd") {
-            if (!pendingPick) return;
-            const amountInput = pbody.querySelector("#tradeAmountInput");
-            if (!(amountInput instanceof HTMLInputElement)) return;
-            const qty = Math.max(1, Math.min(pendingPick.max, Math.floor(Number(amountInput.value) || 1)));
-            const pick = pendingPick;
-            pendingPick = null;
-            applyOfferDelta(pick.type, pick.itemId, qty);
-            return;
-          }
           if (act === "remove") {
             applyOfferDelta(String(t.dataset.type || "block") === "cosmetic" ? "cosmetic" : "block", String(t.dataset.itemId || ""), -1);
           }

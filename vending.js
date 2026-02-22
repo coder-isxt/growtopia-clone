@@ -185,7 +185,7 @@ window.GTModules.vending = (function createVendingModule() {
           '<label class="vending-field"><span>Quantity</span><input data-vending-input="packQty" type="number" min="1" step="1" value="' + bundleQty + '"></label>' +
           '<label class="vending-field"><span>Price (WL)</span><input data-vending-input="price" type="number" min="1" step="1" value="' + Math.max(1, vm.priceLocks || 1) + '"></label>' +
           '</div>' +
-          '<div class="vending-auto-stock-note">Stock auto-fills from all owned amount of selected item when you save.</div>' +
+          '<div class="vending-auto-stock-note">Stock auto-fills from all owned amount of selected item.</div>' +
           '</div>' +
           '<div class="vending-section vending-owner-buy">' +
           '<div class="vending-section-title">Buy</div>' +
