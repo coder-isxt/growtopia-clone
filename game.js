@@ -7756,21 +7756,45 @@
 
         setSpawnStructureTile(tx, ty);
         const nextTiles = getSpawnStructureTiles();
+        for (let clearY = 0; clearY < WORLD_H; clearY++) {
+          const row = world[clearY];
+          if (!Array.isArray(row)) continue;
+          for (let clearX = 0; clearX < WORLD_W; clearX++) {
+            if (row[clearX] === SPAWN_DOOR_ID && (clearX !== nextTiles.door.tx || clearY !== nextTiles.door.ty)) {
+              row[clearX] = 0;
+              clearTileDamage(clearX, clearY);
+            }
+          }
+        }
         world[nextTiles.door.ty][nextTiles.door.tx] = SPAWN_DOOR_ID;
         world[nextTiles.base.ty][nextTiles.base.tx] = SPAWN_BASE_ID;
         clearTileDamage(nextTiles.door.tx, nextTiles.door.ty);
         clearTileDamage(nextTiles.base.tx, nextTiles.base.ty);
         if (network.enabled && network.blocksRef) {
-          const updates = {};
-          for (let i = 0; i < staleDoorTiles.length; i++) {
-            const tile = staleDoorTiles[i];
-            updates[tile.tx + "_" + tile.ty] = null;
-          }
-          updates[nextTiles.door.tx + "_" + nextTiles.door.ty] = SPAWN_DOOR_ID;
-          updates[nextTiles.base.tx + "_" + nextTiles.base.ty] = SPAWN_BASE_ID;
-          network.blocksRef.update(updates).catch(() => {
-            setNetworkState("Network error", true);
-          });
+          const keepDoorKey = nextTiles.door.tx + "_" + nextTiles.door.ty;
+          const keepBaseKey = nextTiles.base.tx + "_" + nextTiles.base.ty;
+          const pushCleanup = () => {
+            network.blocksRef.once("value").then((snapshot) => {
+              const map = snapshot && snapshot.val ? (snapshot.val() || {}) : {};
+              const updates = {};
+              Object.keys(map).forEach((key) => {
+                if (key === keepDoorKey) return;
+                if (Math.floor(Number(map[key])) === SPAWN_DOOR_ID) {
+                  updates[key] = null;
+                }
+              });
+              updates[keepDoorKey] = SPAWN_DOOR_ID;
+              updates[keepBaseKey] = SPAWN_BASE_ID;
+              return network.blocksRef.update(updates);
+            }).catch(() => {
+              setNetworkState("Network error", true);
+            });
+          };
+          pushCleanup();
+          setTimeout(() => {
+            if (!inWorld || !network.enabled || !network.blocksRef) return;
+            pushCleanup();
+          }, 420);
         } else {
           for (let i = 0; i < staleDoorTiles.length; i++) {
             const tile = staleDoorTiles[i];
