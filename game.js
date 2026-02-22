@@ -1350,7 +1350,8 @@
       }
 
       function canActorAffectTarget(targetAccountId, targetRole) {
-        if (!targetAccountId || targetAccountId === playerProfileId) return false;
+        if (!targetAccountId) return false;
+        if (targetAccountId === playerProfileId) return true;
         const actorRank = getRoleRank(currentAdminRole);
         const targetRank = getRoleRank(targetRole);
         return actorRank > targetRank;
@@ -2808,8 +2809,13 @@
         const targetUsername = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || "";
         const targetRole = getAccountRole(accountId, targetUsername);
         const affectsTarget = action !== "tp";
+        const isSelfTarget = accountId === playerProfileId;
         if (!hasAdminPermission(action)) {
           postLocalSystemChat("Permission denied for action: " + action);
+          return false;
+        }
+        if (isSelfTarget && (action === "kick" || action === "tempban" || action === "permban")) {
+          postLocalSystemChat("You cannot use " + action + " on yourself.");
           return false;
         }
         if (affectsTarget && !canActorAffectTarget(accountId, targetRole)) {
@@ -8478,7 +8484,7 @@
         })).finally(() => {
           if (scanToken === ownedWorldScanToken) {
             ownedWorldScanInFlight = false;
-            if (!inWorld && hasRenderedMenuWorldList) {
+            if (!inWorld && !hasRenderedMenuWorldList) {
               refreshWorldButtons(null, true);
             }
           }
@@ -8489,7 +8495,7 @@
         if (Array.isArray(worldIds)) {
           knownWorldIds = Array.from(new Set(worldIds.filter(Boolean)));
         }
-        if (!inWorld && hasRenderedMenuWorldList && !force) {
+        if (!inWorld && hasRenderedMenuWorldList) {
           return;
         }
         const occupancyWorlds = Array.from(worldOccupancy.keys());
