@@ -5284,6 +5284,9 @@
       function drawVendingWorldLabel(tx, ty, x, y) {
         const label = getVendingWorldLabel(tx, ty);
         if (!label) return;
+        const playerTx = Math.floor((player.x + PLAYER_W / 2) / TILE);
+        const playerTy = Math.floor((player.y + PLAYER_H / 2) / TILE);
+        if (playerTx !== tx || playerTy !== ty) return;
         ctx.save();
         ctx.font = "10px 'Trebuchet MS', sans-serif";
         const maxWidth = 138;
