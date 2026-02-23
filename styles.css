@@ -3115,7 +3115,7 @@ body{
    ========================================= */
 
 :root{
-  --gt-topbar-offset: 112px;
+  --gt-topbar-offset: 118px;
 }
 
 /* reduce vertical spacing so canvas sits higher */
@@ -3127,6 +3127,11 @@ body{
 /* shrink HUD height */
 .hud{
   padding: 8px 12px !important;
+}
+
+/* pull game window up to match panels */
+.canvas-wrap, .menu-screen {
+  margin-top: 12px !important;
 }
 
 /* align panels below top bar */
