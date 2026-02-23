@@ -8048,19 +8048,30 @@
         if (!swordId) return;
         const item = COSMETIC_LOOKUP.swords[swordId];
         if (!item) return;
-        const facingSign = facing === 1 ? 1 : -1;
-        const swing = (Number(swordSwing) || 0) * facingSign;
-        const armSwing = Math.max(-4, Math.min(4, swing * 0.18));
-        const handX = facing === 1 ? (px + PLAYER_W - 3) : (px + 3);
-        let handY = py + 19 + armSwing;
+        
+        const pivotX = facing === 1 ? (px + PLAYER_W - 5 + 1.5) : (px + 2 + 1.5);
+        const pivotY = py + 13 + 1;
+        let handX, handY, angle;
+
         if (Number(hitStrength) > 0) {
-          handY += (Number(hitDirectionY) || 0) * 8 * Number(hitStrength);
+          const targetRotation = facing * (-Math.PI / 2 + (Number(hitDirectionY) || 0) * Math.PI / 4);
+          const rotation = targetRotation * Number(hitStrength);
+          handX = pivotX - Math.sin(rotation) * 7;
+          handY = pivotY + Math.cos(rotation) * 7;
+          angle = (Number(hitDirectionY) || 0) * (Math.PI / 4) * Number(hitStrength);
+        } else {
+          const facingSign = facing === 1 ? 1 : -1;
+          const swing = (Number(swordSwing) || 0) * facingSign;
+          const armSwing = Math.max(-4, Math.min(4, swing * 0.18));
+          handX = facing === 1 ? (px + PLAYER_W - 3) : (px + 3);
+          handY = py + 19 + armSwing;
+          const baseAngle = 0;
+          const slash = Math.max(-1.2, Math.min(1.2, swing * 0.12));
+          angle = baseAngle + slash;
         }
+        
         const bladeW = 12;
         const bladeH = 8;
-        const baseAngle = 0;
-        const slash = Math.max(-1.2, Math.min(1.2, swing * 0.12));
-        const angle = baseAngle + slash;
 
         ctx.save();
         ctx.translate(handX, handY);
@@ -8129,21 +8140,32 @@
             leftArmX += forward;
           }
         }
-        if (hitStrength > 0) {
-          const yOffset = hitDirectionY * 8 * hitStrength;
-          if (facing === 1) {
-            rightArmY += yOffset;
+
+        const drawArmRect = (x, y, isAttackArm) => {
+          if (hitStrength > 0 && isAttackArm) {
+            const pivotX = x + 1.5;
+            const pivotY = y + 1;
+            const targetRotation = facing * (-Math.PI / 2 + (hitDirectionY * Math.PI / 4));
+            const rotation = targetRotation * hitStrength;
+            ctx.save();
+            ctx.translate(pivotX, pivotY);
+            ctx.rotate(rotation);
+            ctx.translate(-pivotX, -pivotY);
+            fillChamferRect(x, y, 3, 8, skinColor);
+            if (hitMode === "fist" && hitStrength > 0.05) {
+              const fistY = y + 5;
+              const fistX = facing === 1 ? (x + 2) : (x - 2);
+              fillChamferRect(fistX, fistY, 3, 3, skinColor);
+            }
+            ctx.restore();
           } else {
-            leftArmY += yOffset;
+            fillChamferRect(x, y, 3, 8, skinColor);
           }
-        }
-        fillChamferRect(leftArmX, leftArmY, 3, 8, skinColor);
-        fillChamferRect(rightArmX, rightArmY, 3, 8, skinColor);
-        if (hitMode === "fist" && hitStrength > 0.05) {
-          const fistY = facing === 1 ? rightArmY + 5 : leftArmY + 5;
-          const fistX = facing === 1 ? (rightArmX + 2) : (leftArmX - 2);
-          fillChamferRect(fistX, fistY, 3, 3, skinColor);
-        }
+        };
+
+        drawArmRect(leftArmX, leftArmY, facing === -1);
+        drawArmRect(rightArmX, rightArmY, facing === 1);
+
         fillChamferRect(px + 6, leftLegY, 4, 7, skinColor);
         fillChamferRect(px + PLAYER_W - 10, rightLegY, 4, 7, skinColor);
 
