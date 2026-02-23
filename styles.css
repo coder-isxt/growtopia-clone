@@ -1,43 +1,23 @@
 :root {
-  /* ===== PixelBuild UI Theme (Modern Game) ===== */
-  --bg-1: #060912;
-  --bg-2: #0b1220;
-
-  /* Surfaces */
-  --panel: rgba(12, 18, 30, 0.88);
-  --panel-strong: rgba(8, 12, 22, 0.94);
-  --panel-soft: rgba(255, 255, 255, 0.06);
-
-  /* Brand / accents */
-  --accent: #22e6c5;        /* neon cyan */
-  --accent-2: #7c5cff;      /* arcane violet */
-  --gold: #ffd166;
-  --danger: #ff6b8a;
-
-  /* Text */
-  --text: #eaf2ff;
-  --muted: rgba(232, 242, 255, 0.72);
-
-  /* Borders / shadows */
-  --frame: rgba(130, 168, 214, 0.28);
-  --shadow-lg: 0 22px 52px rgba(0, 0, 0, 0.52);
-  --shadow-md: 0 12px 28px rgba(0, 0, 0, 0.40);
-
-  /* Radii */
-  --radius-lg: 18px;
+  --bg-1: #070d16;
+  --bg-2: #0d1622;
+  --panel: rgba(14, 22, 34, 0.92);
+  --panel-strong: rgba(9, 15, 26, 0.97);
+  --panel-soft: rgba(255, 255, 255, 0.05);
+  --accent: #2dd4bf;
+  --accent-2: #14b8a6;
+  --text: #e8f2ff;
+  --danger: #f87171;
+  --frame: rgba(103, 139, 183, 0.32);
+  --shadow-lg: 0 20px 46px rgba(0, 0, 0, 0.46);
+  --shadow-md: 0 10px 26px rgba(0, 0, 0, 0.36);
+  --radius-lg: 16px;
   --radius-md: 12px;
-
-  /* Layout (keep existing sizes) */
   --left-panel-w: 200px;
   --right-panel-w: 190px;
   --desktop-shell-pad: 6px;
   --desktop-side-gap: 6px;
-
-  /* FX */
-  --glow-accent: 0 0 0 1px rgba(34, 230, 197, 0.22), 0 0 18px rgba(34, 230, 197, 0.14);
-  --glow-violet: 0 0 0 1px rgba(124, 92, 255, 0.18), 0 0 18px rgba(124, 92, 255, 0.12);
 }
-
 
 * {
   box-sizing: border-box;
@@ -659,8 +639,8 @@ canvas {
   transform: translate(-50%, -50%);
   width: min(1500px, calc(100vw - 24px));
   height: min(940px, calc(100vh - 24px));
-  background: linear-gradient(180deg, rgba(11, 20, 32, 0.985), rgba(7, 14, 24, 0.99));
-  border: 1px solid rgba(82, 118, 164, 0.42);
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   overflow: hidden;
   z-index: 40;
@@ -672,9 +652,9 @@ canvas {
 .admin-header {
   display: grid;
   gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(103, 139, 183, 0.32);
-  background: linear-gradient(180deg, rgba(8, 16, 28, 0.88), rgba(6, 12, 20, 0.82));
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: #1e293b;
 }
 
 .admin-header-top {
@@ -747,7 +727,7 @@ canvas {
 }
 
 .admin-accounts {
-  padding: 10px;
+  padding: 20px;
   overflow: hidden;
   height: 100%;
   min-height: 0;
@@ -756,7 +736,7 @@ canvas {
 .admin-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(360px, 1fr);
-  gap: 12px;
+  gap: 20px;
   align-items: stretch;
   height: 100%;
   min-height: 0;
@@ -784,10 +764,11 @@ canvas {
 }
 
 .admin-summary {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 10px;
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 16px;
+  background: #1e293b;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   display: grid;
   gap: 8px;
 }
@@ -817,13 +798,13 @@ canvas {
 
 .admin-console {
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 12px;
+  padding: 16px;
 }
 
 .admin-console-grid {
   display: grid;
-  gap: 8px;
+  gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   align-items: center;
 }
@@ -831,7 +812,7 @@ canvas {
 .admin-console-grid input,
 .admin-console-grid select,
 .admin-console-grid button {
-  min-height: 32px;
+  min-height: 38px;
   border: 1px solid rgba(98, 141, 192, 0.5);
   background: rgba(8, 22, 34, 0.85);
   color: var(--text);
@@ -858,12 +839,19 @@ canvas {
 }
 
 .admin-row {
-  border: 1px solid rgba(103, 139, 183, 0.26);
-  border-radius: 14px;
-  padding: 11px;
-  background: linear-gradient(180deg, rgba(14, 24, 37, 0.72), rgba(9, 17, 28, 0.76));
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #1e293b;
   display: grid;
-  gap: 8px;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.admin-row:has(.admin-status.online) {
+  border-left: 3px solid var(--accent);
 }
 
 .admin-meta {
@@ -1124,16 +1112,13 @@ canvas {
 }
 
 .admin-audit {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 10px;
-  padding: 8px;
-  background: rgba(255, 255, 255, 0.04);
+  padding: 0;
 }
 
 .admin-sidepanels {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 10px;
+  gap: 20px;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
@@ -1146,10 +1131,15 @@ canvas {
 }
 
 .admin-card {
-  min-height: 220px;
-  max-height: 320px;
+  min-height: 260px;
+  max-height: 400px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
 .admin-card-header {
@@ -1157,12 +1147,13 @@ canvas {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 0;
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(180deg, rgba(14, 23, 37, 0.98), rgba(10, 18, 30, 0.92));
-  padding-bottom: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 12px 16px;
 }
 
 .admin-card-header button {
@@ -1180,8 +1171,8 @@ canvas {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  opacity: 0.85;
-  margin-bottom: 6px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .admin-audit-list {
@@ -1196,6 +1187,7 @@ canvas {
   scrollbar-width: thin;
   scrollbar-gutter: stable;
   scrollbar-color: rgba(52, 211, 202, 0.85) rgba(7, 17, 29, 0.58);
+  padding: 12px;
 }
 
 .admin-logs-list {
@@ -1210,6 +1202,7 @@ canvas {
   scrollbar-width: thin;
   scrollbar-gutter: stable;
   scrollbar-color: rgba(52, 211, 202, 0.85) rgba(7, 17, 29, 0.58);
+  padding: 12px;
 }
 .admin-anticheat-list {
   min-height: 0;
@@ -1223,6 +1216,7 @@ canvas {
   scrollbar-width: thin;
   scrollbar-gutter: stable;
   scrollbar-color: rgba(52, 211, 202, 0.85) rgba(7, 17, 29, 0.58);
+  padding: 12px;
 }
 
 .admin-audit-row {
@@ -2768,35 +2762,20 @@ button:focus-visible {
 .auth-card input,
 .menu-screen input,
 .chat-input-row input,
-.chat-input-row button,
 .admin-header input,
 #adminAuditActionFilter,
 .admin-role-select,
 .admin-ban-duration,
 .admin-ban-reason,
-.admin-give-block-filter,
-.admin-give-item-filter,
-.admin-give-title-filter,
 .admin-give-item-id,
 .admin-give-item-amount,
-.admin-give-title-id,
-.admin-give-title-amount,
 .admin-give-block,
 .admin-give-amount,
 .vending-field input,
 .sign-body textarea,
 .weather-fields input,
 .weather-fields select,
-.worldlock-add-row input,
-.admin-console-grid input,
-.admin-console-grid select,
-.trade-amount-row input,
-.admin-inventory-tools select,
-.admin-inventory-tools input,
-.worldlock-add-row input,
-.camera-fields input,
-.camera-fields select,
-.vending-field input {
+.worldlock-add-row input {
   border-color: rgba(140, 170, 210, 0.26);
   background: rgba(6, 10, 18, 0.78);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
@@ -2806,8 +2785,6 @@ button:focus-visible {
 .menu-screen input:focus,
 .chat-input-row input:focus,
 .admin-header input:focus,
-.chat-input-row button:focus,
-.mobile-controls button:focus,
 #adminAuditActionFilter:focus,
 .admin-role-select:focus,
 .admin-ban-duration:focus,
@@ -2825,15 +2802,7 @@ button:focus-visible {
 .sign-body textarea:focus,
 .weather-fields input:focus,
 .weather-fields select:focus,
-.worldlock-add-row input:focus,
-.admin-console-grid input:focus,
-.admin-console-grid select:focus,
-.trade-amount-row input:focus,
-.admin-inventory-tools select:focus,
-.admin-inventory-tools input:focus,
-.camera-fields input:focus,
-.camera-fields select:focus,
-.vending-field input:focus {
+.worldlock-add-row input:focus {
   border-color: rgba(34, 211, 238, 0.55);
   box-shadow: var(--glow-strong);
 }
@@ -2879,393 +2848,4 @@ button:focus-visible {
 canvas {
   outline: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-}
-
-
-/* =========================================================
-   Modern polish overrides (non-breaking, style-only)
-   ========================================================= */
-
-body {
-  background:
-    radial-gradient(900px 520px at 0% -10%, rgba(34, 230, 197, 0.16), transparent 62%),
-    radial-gradient(760px 460px at 105% 0%, rgba(124, 92, 255, 0.14), transparent 60%),
-    radial-gradient(900px 700px at 50% 120%, rgba(255, 209, 102, 0.10), transparent 55%),
-    linear-gradient(180deg, var(--bg-1), var(--bg-2) 56%, #0c1422);
-}
-
-::selection {
-  background: rgba(34, 230, 197, 0.28);
-  color: #ffffff;
-}
-
-/* Typography upgrades without changing layout sizes */
-h1, h2, h3, .menu-title, .updating-title, .announcement-title {
-  text-shadow: 0 1px 0 rgba(0,0,0,0.35);
-}
-.hint, .hud, .menu-screen, .chat-messages, .logs-messages {
-  color: rgba(234, 242, 255, 0.94);
-}
-
-/* Unified interactive styling */
-button,
-input,
-select,
-textarea {
-  -webkit-tap-highlight-color: transparent;
-}
-
-button {
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  border-radius: 12px;
-}
-
-button:not(:disabled) {
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.26);
-}
-
-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.32), var(--glow-accent);
-}
-
-button:active:not(:disabled) {
-  transform: translateY(0px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.26);
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-/* Make primary-looking buttons feel game-y */
-.hud button,
-.menu-screen button,
-.admin-header button,
-.admin-actions button,
-.admin-card-header button,
-.vending-header button,
-.vending-actions button,
-.trade-offer-row button,
-.trade-amount-row button,
-#tradePanelActions button,
-.worldlock-admin-row button,
-.logs-header button,
-.mobile-controls button,
-.chat-input-row button {
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.00)),
-    linear-gradient(180deg, rgba(18, 36, 56, 0.96), rgba(10, 20, 34, 0.96));
-  border-color: rgba(130, 168, 214, 0.36);
-}
-
-.hud button:hover,
-.menu-screen button:hover,
-.admin-header button:hover,
-.admin-actions button:hover,
-.admin-card-header button:hover,
-.vending-header button:hover,
-.vending-actions button:hover,
-.trade-offer-row button:hover,
-.trade-amount-row button:hover,
-#tradePanelActions button:hover,
-.worldlock-admin-row button:hover,
-.logs-header button:hover,
-.mobile-controls button:hover,
-.chat-input-row button:hover {
-  border-color: rgba(34, 230, 197, 0.72);
-}
-
-/* Gold-ish highlight buttons keep their identity but look better */
-#adminForceReloadBtn,
-.admin-actions button[data-admin-act="tempban"],
-.admin-actions button[data-admin-act="permban"],
-.trade-offer-row button,
-.trade-amount-row button,
-#tradePanelActions button[data-trade-act="cancel"] {
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.26), 0 0 0 1px rgba(255, 209, 102, 0.10) inset;
-}
-
-/* Inputs: cleaner glass, better placeholder */
-input,
-select,
-textarea {
-  border-radius: 10px;
-  border-color: rgba(130, 168, 214, 0.40);
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.00)),
-    rgba(6, 13, 23, 0.84);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
-}
-
-input::placeholder,
-textarea::placeholder {
-  color: rgba(234, 242, 255, 0.48);
-}
-
-input:focus,
-select:focus,
-textarea:focus,
-button:focus-visible {
-  outline: 2px solid rgba(34, 230, 197, 0.55);
-  outline-offset: 2px;
-  box-shadow: var(--glow-accent);
-}
-
-/* Panels/modals: subtle glass + border glow */
-.auth-screen,
-.menu-screen,
-.hud,
-.canvas-wrap,
-.chat-panel,
-.logs-panel,
-.vending-card,
-.sign-card,
-.camera-card,
-.weather-card,
-.trade-card,
-.admin-panel,
-.admin-inventory-card,
-.announcement-card,
-.updating-card {
-  border-color: rgba(130, 168, 214, 0.32);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(6px);
-}
-
-/* Inventory slots: more "tile" feel */
-.inventory-slot {
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.00)),
-    rgba(7, 14, 24, 0.78);
-  border-color: rgba(130, 168, 214, 0.30);
-}
-
-.inventory-slot:hover {
-  border-color: rgba(124, 92, 255, 0.55);
-  box-shadow: var(--glow-violet);
-}
-
-.inventory-slot.selected {
-  border-color: rgba(34, 230, 197, 0.90);
-  box-shadow: var(--glow-accent);
-}
-
-/* Chips / badges a bit punchier */
-.slot-count {
-  border-color: rgba(255, 255, 255, 0.20);
-  background: rgba(6, 12, 20, 0.88);
-  color: rgba(34, 230, 197, 0.92);
-}
-
-.world-group-title.owned,
-.world-chip.owned {
-  border-color: rgba(255, 209, 102, 0.55);
-}
-
-/* Scrollbars: slightly softer */
-.toolbar,
-.admin-list,
-.admin-audit-list,
-.admin-logs-list,
-.admin-anticheat-list,
-.chat-messages,
-.logs-messages,
-.vending-card,
-.trade-body {
-  scrollbar-color: rgba(34, 230, 197, 0.70) rgba(6, 18, 30, 0.45);
-}
-
-/* Canvas frame: subtle inner highlight */
-canvas {
-  outline: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
-}
-
-
-
-/* ===== Extra polish pass (menus) ===== */
-:root{
-  --accent-glow: rgba(34, 230, 197, 0.22);
-  --accent-glow-strong: rgba(34, 230, 197, 0.34);
-  --violet-glow: rgba(124, 92, 255, 0.22);
-  --text-shadow-soft: 0 2px 10px rgba(0,0,0,0.45);
-}
-
-/* Better default interactive feel (no layout changes) */
-button,
-input,
-select,
-textarea{
-  transition: background-color 140ms ease,
-              border-color 140ms ease,
-              box-shadow 140ms ease,
-              transform 90ms ease,
-              filter 140ms ease;
-}
-
-button:active{
-  transform: translateY(1px);
-}
-
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible{
-  outline: none;
-  box-shadow:
-    0 0 0 2px rgba(6, 9, 18, 0.75),
-    0 0 0 4px var(--accent-glow-strong);
-  border-color: rgba(34, 230, 197, 0.85) !important;
-}
-
-/* Inputs: more readable + game-y */
-.menu-screen input,
-.auth-card input,
-.trade-amount-row input,
-.vending-card input{
-  background: rgba(0,0,0,0.34) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-}
-
-.menu-screen input::placeholder,
-.auth-card input::placeholder{
-  color: rgba(232, 242, 255, 0.55);
-}
-
-/* Menus: richer panel with subtle pattern */
-.menu-screen{
-  position: relative;
-  overflow: hidden;
-  backdrop-filter: blur(7px);
-}
-
-.menu-screen::before{
-  content: "";
-  position: absolute;
-  inset: -2px;
-  pointer-events: none;
-  background:
-    radial-gradient(800px 360px at 15% 10%, rgba(34,230,197,0.16), transparent 55%),
-    radial-gradient(700px 340px at 85% 0%, rgba(124,92,255,0.14), transparent 56%),
-    radial-gradient(600px 320px at 50% 120%, rgba(255,209,102,0.08), transparent 60%),
-    linear-gradient(180deg, rgba(255,255,255,0.08), transparent 35%);
-  filter: saturate(1.05);
-}
-
-.menu-screen::after{
-  /* thin inner frame */
-  content:"";
-  position:absolute;
-  inset: 8px;
-  border-radius: calc(var(--radius-md) - 8px);
-  border: 1px solid rgba(255,255,255,0.06);
-  pointer-events:none;
-}
-
-.menu-card{
-  position: relative;
-  gap: 12px;
-}
-
-.menu-title{
-  text-shadow: var(--text-shadow-soft);
-  font-weight: 800;
-}
-
-/* Buttons: nicer depth + hover glow */
-.menu-screen button,
-.auth-card button,
-.hud button,
-.admin-header button,
-.admin-actions button,
-.admin-card-header button,
-.vending-header button,
-.vending-actions button,
-.trade-offer-row button,
-.trade-amount-row button,
-#tradePanelActions button,
-.worldlock-admin-row button{
-  box-shadow:
-    0 10px 18px rgba(0,0,0,0.28),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-}
-
-.menu-screen button:hover,
-.auth-card button:hover,
-.hud button:hover,
-.admin-header button:hover,
-.admin-actions button:hover,
-.admin-card-header button:hover,
-.vending-header button:hover,
-.vending-actions button:hover,
-.trade-offer-row button:hover,
-.trade-amount-row button:hover,
-#tradePanelActions button:hover,
-.worldlock-admin-row button:hover{
-  transform: translateY(-1px);
-  filter: brightness(1.05);
-  box-shadow:
-    0 14px 24px rgba(0,0,0,0.34),
-    0 0 0 1px var(--accent-glow) inset,
-    0 0 24px var(--accent-glow);
-}
-
-.menu-screen button:active,
-.auth-card button:active,
-.hud button:active,
-.admin-header button:active,
-.admin-actions button:active,
-.admin-card-header button:active,
-.vending-header button:active,
-.vending-actions button:active,
-.trade-offer-row button:active,
-.trade-amount-row button:active,
-#tradePanelActions button:active,
-.worldlock-admin-row button:active{
-  transform: translateY(0px);
-  filter: brightness(0.98);
-}
-
-/* World chips: more "pill" feel, better separation */
-.world-chip{
-  border-radius: 999px !important;
-  padding-left: 12px !important;
-  padding-right: 12px !important;
-}
-
-.world-group-title{
-  text-transform: uppercase;
-}
-
-/* Modal-like cards: slightly cleaner edges */
-.vending-card,
-.trade-card,
-.admin-card,
-.chat-panel,
-.logs-panel,
-.admin-panel{
-  box-shadow: var(--shadow-lg);
-}
-
-/* Scrollbars (WebKit) */
-*::-webkit-scrollbar{
-  width: 10px;
-  height: 10px;
-}
-*::-webkit-scrollbar-track{
-  background: rgba(255,255,255,0.04);
-}
-*::-webkit-scrollbar-thumb{
-  background: rgba(130,168,214,0.26);
-  border: 2px solid rgba(0,0,0,0.0);
-  border-radius: 999px;
-  background-clip: padding-box;
-}
-*::-webkit-scrollbar-thumb:hover{
-  background: rgba(34,230,197,0.30);
-  background-clip: padding-box;
 }
