@@ -40,13 +40,13 @@ window.GTModules.shop = (function createShopModule() {
       image: "./assets/blocks/special/lock_seed.png"
     },
     {
-      id: "cloth_tunic_basic",
+      id: "sun_shirt_basic",
       category: "Cosmetics",
-      name: "Cloth Tunic",
-      description: "Classic clothing piece.",
-      priceGems: 40,
+      name: "Sun Shirt",
+      description: "Piece of clothing for sun",
+      priceGems: 60,
       grants: { cosmetics: { cloth_tunic: 1 } },
-      image: "./assets/cosmetics/shirts/cloth_tunic.png"
+      image: "./assets/cosmetics/clothes/sun_shirt.png"
     },
     {
       id: "basic_gacha_pack",
