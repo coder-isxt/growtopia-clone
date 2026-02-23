@@ -2849,3 +2849,130 @@ canvas {
   outline: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 }
+
+
+
+
+/* ===========================
+   Growtopia-ish in-game overlay
+   (Gems + Chat button inside canvas)
+   Paste at end of file
+   =========================== */
+
+:root {
+  --gt-ui-bg: rgba(18, 12, 6, 0.78);
+  --gt-ui-bg-2: rgba(44, 27, 12, 0.72);
+  --gt-ui-border: rgba(255, 209, 102, 0.95);
+  --gt-ui-border-dark: rgba(92, 56, 20, 0.95);
+  --gt-ui-shadow: 0 6px 0 rgba(0, 0, 0, 0.35);
+  --gt-ui-text: #fff7d7;
+}
+
+.canvas-wrap {
+  position: relative; /* already true, but keep it explicit */
+}
+
+/* Wrapper for everything that sits ON TOP of the canvas */
+.game-overlay {
+  position: absolute;
+  inset: 8px;            /* padding from canvas-wrap edges */
+  pointer-events: none;  /* overlay doesn't block game clicks */
+  z-index: 25;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+/* Shared Growtopia-ish panel look */
+.gt-panel {
+  pointer-events: auto; /* panels/buttons should be clickable */
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 6px 10px;
+  border-radius: 8px;
+
+  border: 2px solid var(--gt-ui-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    var(--gt-ui-shadow);
+
+  background: linear-gradient(180deg, var(--gt-ui-bg), var(--gt-ui-bg-2));
+  color: var(--gt-ui-text);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+
+  /* slightly more “game UI” feel */
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+/* Top-left gem HUD */
+.gem-hud {
+  justify-self: start;
+  align-self: start;
+  min-width: 132px;
+}
+
+.gem-hud .gem-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid rgba(0,0,0,0.35);
+  background: linear-gradient(180deg, rgba(110, 231, 200, 0.95), rgba(45, 212, 191, 0.8));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+}
+
+.gem-hud .gem-label {
+  opacity: 0.9;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.gem-hud .gem-count {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 900;
+  color: #b8fff0;
+}
+
+/* Bottom-left chat button inside game window */
+.chat-in-game {
+  justify-self: start;
+  align-self: end;
+}
+
+.chat-in-game button {
+  pointer-events: auto;
+  border: 2px solid var(--gt-ui-border);
+  border-bottom-color: var(--gt-ui-border-dark);
+  border-right-color: var(--gt-ui-border-dark);
+
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.38), rgba(255, 153, 51, 0.22));
+  color: var(--gt-ui-text);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font: inherit;
+  font-weight: 900;
+
+  text-shadow: 0 2px 0 rgba(0,0,0,0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.25),
+    var(--gt-ui-shadow);
+
+  cursor: pointer;
+  transform: translateY(0);
+}
+
+.chat-in-game button:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.15),
+    0 3px 0 rgba(0,0,0,0.30);
+}
+
+/* Make chat panel feel like it belongs to the game more (optional) */
+.chat-panel {
+  border-radius: 10px;
+  box-shadow: 0 10px 0 rgba(0,0,0,0.25), var(--shadow-md);
+}
