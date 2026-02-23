@@ -21,6 +21,7 @@
       const mobileSecondaryBtn = document.getElementById("mobileSecondaryBtn");
       const mobileFistBtn = document.getElementById("mobileFistBtn");
       const mobileWrenchBtn = document.getElementById("mobileWrenchBtn");
+      const mobileInventoryBtn = document.getElementById("mobileInventoryBtn");
       const networkStateEl = document.getElementById("networkState");
       const gemsCountEl = document.getElementById("gemsCount");
       const onlineCountEl = document.getElementById("onlineCount");
@@ -1012,6 +1013,7 @@
       let suppressSpawnSafetyUntilMs = 0;
       let mobileLastTouchActionAt = 0;
       let mobileTouchActionMode = "primary";
+      let isMobileInventoryOpen = false;
       const touchControls = {
         left: false,
         right: false,
@@ -5004,9 +5006,11 @@
       function setInWorldState(nextValue) {
         inWorld = Boolean(nextValue);
         menuScreenEl.classList.toggle("hidden", inWorld);
-        toolbar.classList.toggle("hidden", !inWorld);
+        if (!inWorld || isCoarsePointer) {
+          isMobileInventoryOpen = false;
+        }
+        syncMobileOverlayVisibility();
         applyToolbarPosition();
-        mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
         chatToggleBtn.classList.toggle("hidden", !inWorld);
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
         respawnBtn.classList.toggle("hidden", !inWorld);
@@ -5101,10 +5105,20 @@
         chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
       }
 
+      function syncMobileOverlayVisibility() {
+        const showChatPanel = !gameShellEl.classList.contains("hidden") && (!isCoarsePointer || isChatOpen);
+        chatPanelEl.classList.toggle("hidden", !showChatPanel);
+        const showToolbar = inWorld && (!isCoarsePointer || isMobileInventoryOpen);
+        toolbar.classList.toggle("hidden", !showToolbar);
+        mobileControlsEl.classList.toggle("hidden", !(inWorld && isCoarsePointer));
+      }
+
       function setChatOpen(open) {
         isChatOpen = Boolean(open) && inWorld;
-        const showChatPanel = !gameShellEl.classList.contains("hidden");
-        chatPanelEl.classList.toggle("hidden", !showChatPanel);
+        if (isCoarsePointer && isChatOpen) {
+          isMobileInventoryOpen = false;
+        }
+        syncMobileOverlayVisibility();
         if (chatInputRowEl) {
           chatInputRowEl.classList.toggle("hidden", !isChatOpen);
         }
@@ -10929,7 +10943,11 @@
         enterWorldBtn.addEventListener("click", enterWorldFromInput);
         chatToggleBtn.addEventListener("click", () => {
           if (!inWorld) return;
-          setChatOpen(true);
+          if (isCoarsePointer) {
+            setChatOpen(!isChatOpen);
+          } else {
+            setChatOpen(true);
+          }
         });
         if (shopToggleBtn) {
           shopToggleBtn.addEventListener("click", () => {
@@ -12418,6 +12436,7 @@
         const selectedId = slotOrder[selectedSlot];
         if (mobileFistBtn) mobileFistBtn.classList.toggle("active", selectedId === TOOL_FIST);
         if (mobileWrenchBtn) mobileWrenchBtn.classList.toggle("active", selectedId === TOOL_WRENCH);
+        if (mobileInventoryBtn) mobileInventoryBtn.classList.toggle("active", isMobileInventoryOpen);
       }
 
       function bindMobileControls() {
@@ -12437,6 +12456,16 @@
         bindTapButton(mobileSecondaryBtn, () => setMobileTouchActionMode("secondary"));
         bindTapButton(mobileFistBtn, () => setSelectedToolSlotById(TOOL_FIST));
         bindTapButton(mobileWrenchBtn, () => setSelectedToolSlotById(TOOL_WRENCH));
+        bindTapButton(mobileInventoryBtn, () => {
+          if (!inWorld || !isCoarsePointer) return;
+          isMobileInventoryOpen = !isMobileInventoryOpen;
+          if (isMobileInventoryOpen) {
+            setChatOpen(false);
+          } else {
+            syncMobileOverlayVisibility();
+          }
+          updateMobileControlsUi();
+        });
         updateMobileControlsUi();
       }
 
@@ -12606,7 +12635,11 @@
         canvas.style.height = targetHeight + "px";
         ctx.imageSmoothingEnabled = false;
         ctx.textBaseline = "alphabetic";
-        mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
+        if (!isCoarsePointer) {
+          isMobileInventoryOpen = false;
+        }
+        syncMobileOverlayVisibility();
+        updateMobileControlsUi();
         setLayoutResizeHandlesVisible();
         applyDesktopPanelLayout(desktopLeftPanelWidth, desktopRightPanelWidth, false);
         syncDesktopVerticalBounds();
