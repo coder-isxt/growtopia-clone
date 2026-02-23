@@ -4003,7 +4003,7 @@
             questsState = normalizeQuestsState({});
           }
           refreshToolbar();
-          postDailyQuestStatus();
+          //postDailyQuestStatus();
           setInWorldState(false);
           refreshWorldButtons([currentWorldId]);
           updateOnlineCount();
