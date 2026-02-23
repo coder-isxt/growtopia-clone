@@ -147,9 +147,9 @@ window.GTModules.shop = (function createShopModule() {
       if (modalEl && cardEl) return;
       modalEl = document.createElement("div");
       modalEl.id = "shopModal";
-      modalEl.className = "shop-modal hidden";
+      modalEl.className = "vending-modal shop-modal hidden";
       modalEl.innerHTML =
-        "<div class='shop-card'>" +
+        "<div class='vending-card trade-card shop-card'>" +
           "<div class='shop-header'>" +
             "<strong id='shopTitle'>Gem Shop</strong>" +
             "<div class='shop-header-right'>" +
@@ -182,33 +182,7 @@ window.GTModules.shop = (function createShopModule() {
     function injectStyles() {
       if (styleInjected) return;
       styleInjected = true;
-      const style = document.createElement("style");
-      style.id = "shopStyles";
-      style.textContent =
-        ".shop-modal{position:fixed;inset:0;z-index:190;display:flex;align-items:center;justify-content:center;background:rgba(2,8,15,.74)}" +
-        ".shop-modal.hidden{display:none}" +
-        ".shop-card{width:min(920px,96vw);max-height:88vh;display:grid;grid-template-rows:auto minmax(0,1fr);background:linear-gradient(180deg,rgba(10,19,30,.985),rgba(6,12,21,.99));border:1px solid rgba(90,130,178,.46);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.58);overflow:hidden}" +
-        ".shop-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(90,130,178,.32)}" +
-        ".shop-header-right{display:flex;align-items:center;gap:8px}" +
-        ".shop-header-right button{min-height:32px;padding:0 12px;border-radius:8px;border:1px solid rgba(98,141,192,.56);background:linear-gradient(180deg,rgba(18,36,56,.95),rgba(10,22,38,.95));color:#eef6ff;cursor:pointer}" +
-        "#shopGemsLabel{font-size:13px;font-weight:700;color:#2dd4bf}" +
-        ".shop-content{display:grid;grid-template-columns:180px minmax(0,1fr);min-height:0}" +
-        ".shop-categories{display:flex;flex-direction:column;gap:8px;padding:12px;border-right:1px solid rgba(90,130,178,.24);overflow:auto}" +
-        ".shop-cat-btn{min-height:34px;padding:0 10px;text-align:left;border-radius:8px;border:1px solid rgba(98,141,192,.42);background:rgba(7,16,28,.72);color:#eef6ff;cursor:pointer}" +
-        ".shop-cat-btn.active{border-color:rgba(45,212,191,.74);background:rgba(20,184,166,.2)}" +
-        ".shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;padding:12px;overflow:auto}" +
-        ".shop-item{display:grid;gap:8px;padding:10px;border-radius:10px;border:1px solid rgba(98,141,192,.35);background:rgba(9,18,30,.7)}" +
-        ".shop-item-image{width:100%;height:64px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.2);border-radius:6px;overflow:hidden;margin-bottom:4px}" +
-        ".shop-item-image img{max-width:100%;max-height:100%;object-fit:contain}" +
-        ".shop-item h4{margin:0;font-size:14px;line-height:1.25;color:#f6fbff}" +
-        ".shop-item p{margin:0;font-size:12px;line-height:1.35;opacity:.86;color:#dbecff;min-height:32px}" +
-        ".shop-item .shop-grants{font-size:11px;line-height:1.3;opacity:.88;color:#cde8ff;word-break:break-word}" +
-        ".shop-item .shop-buy-row{display:flex;align-items:center;justify-content:space-between;gap:8px}" +
-        ".shop-price{font-weight:700;color:#fbbf24}" +
-        ".shop-buy{min-height:30px;padding:0 10px;border-radius:8px;border:1px solid rgba(45,212,191,.58);background:rgba(20,184,166,.2);color:#eafcff;cursor:pointer}" +
-        ".shop-buy:disabled{opacity:.45;cursor:not-allowed;background:rgba(255,255,255,.08)}" +
-        "@media (max-width:760px){.shop-content{grid-template-columns:1fr}.shop-categories{flex-direction:row;flex-wrap:wrap;border-right:none;border-bottom:1px solid rgba(255,255,255,.1)}}";
-      document.head.appendChild(style);
+      // Shop visuals are now handled by styles.css so all menus share one theme system.
     }
 
     function buildCategories(entries) {
