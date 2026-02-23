@@ -2238,6 +2238,7 @@
         const rows = filteredIds.map((accountId) => {
           const account = adminState.accounts[accountId] || {};
           const username = account.username || accountId;
+          const discordInfo = account.discordUsername ? ` (${account.discordUsername}:${account.discordId})` : "";
           const banStatus = getBanStatus(adminState.bans[accountId], nowMs);
           const banned = banStatus.active;
           const online = Boolean(adminState.sessions[accountId] && adminState.sessions[accountId].sessionId);
@@ -2251,7 +2252,7 @@
           return `
             <div class="admin-row" data-account-id="${escapeHtml(accountId)}">
               <div class="admin-meta">
-                <strong>@${escapeHtml(username)} <span class="admin-role role-${escapeHtml(role)}">${escapeHtml(role)}</span></strong>
+                <strong>@${escapeHtml(username)}${escapeHtml(discordInfo)} <span class="admin-role role-${escapeHtml(role)}">${escapeHtml(role)}</span></strong>
                 <div class="admin-status-row">
                   <span class="admin-status ${onlineStatusClass}">${online ? "Online" : "Offline"}</span>
                   <span class="admin-status ${banStatusClass}">${escapeHtml(banText)}</span>
@@ -7922,7 +7923,7 @@
         const wingImg = getCosmeticImage(item);
         if (wingImg) {
           const centerX = px + PLAYER_W / 2;
-          const centerY = py + 16.5;
+          const centerY = py + 17.5;
           const baseAngle = 0.2 + open * 0.34;
           const wingH = 19;
           const wingW = Math.max(10, Math.round(wingH * (wingImg.naturalWidth / Math.max(1, wingImg.naturalHeight))));
@@ -7946,7 +7947,7 @@
         }
         ctx.fillStyle = item.color;
         const centerX = px + PLAYER_W / 2;
-        const centerY = py + 16.5;
+        const centerY = py + 17.5;
         const forwardSign = facing === 1 ? 1 : -1;
         const drawWing = (sideSign) => {
           const dir = sideSign * forwardSign;
