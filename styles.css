@@ -552,7 +552,7 @@ canvas {
 .mobile-panels {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px;
 }
 
@@ -2621,7 +2621,7 @@ canvas {
     top: auto;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
     z-index: 78;
-    max-height: min(34vh, 280px);
+    max-height: min(52vh, 460px);
     padding: 7px;
     gap: 6px;
     height: auto;
@@ -2674,7 +2674,7 @@ canvas {
     width: auto;
     top: auto;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
-    height: min(30vh, 240px);
+    height: min(40vh, 320px);
     z-index: 79;
   }
 
@@ -2715,6 +2715,35 @@ canvas {
   .admin-panel {
     width: calc(100vw - 10px);
     max-height: 88vh;
+  }
+
+  /* Mobile modal readability + proper layer over control bar */
+  .vending-modal,
+  .admin-inventory-modal,
+  .shop-modal,
+  .updating-overlay,
+  .announcement-popup {
+    z-index: 220 !important;
+    padding: 6px;
+  }
+
+  .vending-card,
+  .trade-card,
+  .sign-card,
+  .camera-card,
+  .weather-card,
+  .admin-inventory-card,
+  .shop-card {
+    width: min(100vw - 12px, 980px) !important;
+    max-height: calc(100vh - 20px) !important;
+    border-radius: 10px !important;
+  }
+
+  .admin-panel {
+    width: calc(100vw - 12px) !important;
+    height: calc(100vh - 12px) !important;
+    max-height: calc(100vh - 12px) !important;
+    border-radius: 10px !important;
   }
 }
 

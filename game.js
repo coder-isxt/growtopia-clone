@@ -21,8 +21,10 @@
       const mobileSecondaryBtn = document.getElementById("mobileSecondaryBtn");
       const mobileFistBtn = document.getElementById("mobileFistBtn");
       const mobileWrenchBtn = document.getElementById("mobileWrenchBtn");
+      const mobilePlayModeBtn = document.getElementById("mobilePlayModeBtn");
       const mobileChatBtn = document.getElementById("mobileChatBtn");
       const mobileInventoryBtn = document.getElementById("mobileInventoryBtn");
+      const mobileExitBtn = document.getElementById("mobileExitBtn");
       const networkStateEl = document.getElementById("networkState");
       const gemsCountEl = document.getElementById("gemsCount");
       const onlineCountEl = document.getElementById("onlineCount");
@@ -455,6 +457,7 @@
       let lastHandledPrivateAnnouncementId = "";
       let announcementHideTimer = 0;
       let isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+      let isMobileUi = false;
       let isChatOpen = false;
       let suppressChatOpenUntilMs = 0;
       let isLogsOpen = false;
@@ -1015,6 +1018,7 @@
       let mobileLastTouchActionAt = 0;
       let mobileTouchActionMode = "primary";
       let isMobileInventoryOpen = false;
+      let mobilePlayModeEnabled = true;
       const touchControls = {
         left: false,
         right: false,
@@ -5007,7 +5011,7 @@
       function setInWorldState(nextValue) {
         inWorld = Boolean(nextValue);
         menuScreenEl.classList.toggle("hidden", inWorld);
-        if (!inWorld || isCoarsePointer) {
+        if (!inWorld || isMobileUi) {
           isMobileInventoryOpen = false;
         }
         syncMobileOverlayVisibility();
@@ -5019,6 +5023,9 @@
         respawnBtn.classList.toggle("hidden", !inWorld);
         exitWorldBtn.classList.toggle("hidden", !inWorld);
         if (inWorld) {
+          if (isMobileUi) {
+            mobilePlayModeEnabled = true;
+          }
           hasRenderedMenuWorldList = false;
           setChatOpen(false);
         } else {
@@ -5109,20 +5116,20 @@
       }
 
       function syncMobileOverlayVisibility() {
-        const showChatPanel = !gameShellEl.classList.contains("hidden") && (!isCoarsePointer || isChatOpen);
+        const showChatPanel = !gameShellEl.classList.contains("hidden") && (!isMobileUi || isChatOpen);
         chatPanelEl.classList.toggle("hidden", !showChatPanel);
-        const showToolbar = inWorld && (!isCoarsePointer || isMobileInventoryOpen);
+        const showToolbar = inWorld && (!isMobileUi || isMobileInventoryOpen);
         toolbar.classList.toggle("hidden", !showToolbar);
-        mobileControlsEl.classList.toggle("hidden", !(inWorld && isCoarsePointer));
+        mobileControlsEl.classList.toggle("hidden", !(inWorld && isMobileUi));
       }
 
       function syncMobilePlayModeClass() {
-        document.body.classList.toggle("mobile-world-active", Boolean(inWorld && isCoarsePointer));
+        document.body.classList.toggle("mobile-world-active", Boolean(inWorld && isMobileUi && mobilePlayModeEnabled));
       }
 
       function setChatOpen(open) {
         isChatOpen = Boolean(open) && inWorld;
-        if (isCoarsePointer && isChatOpen) {
+        if (isMobileUi && isChatOpen) {
           isMobileInventoryOpen = false;
         }
         syncMobileOverlayVisibility();
@@ -10952,7 +10959,7 @@
         enterWorldBtn.addEventListener("click", enterWorldFromInput);
         chatToggleBtn.addEventListener("click", () => {
           if (!inWorld) return;
-          if (isCoarsePointer) {
+          if (isMobileUi) {
             setChatOpen(!isChatOpen);
           } else {
             setChatOpen(true);
@@ -12445,6 +12452,7 @@
         const selectedId = slotOrder[selectedSlot];
         if (mobileFistBtn) mobileFistBtn.classList.toggle("active", selectedId === TOOL_FIST);
         if (mobileWrenchBtn) mobileWrenchBtn.classList.toggle("active", selectedId === TOOL_WRENCH);
+        if (mobilePlayModeBtn) mobilePlayModeBtn.classList.toggle("active", mobilePlayModeEnabled);
         if (mobileChatBtn) mobileChatBtn.classList.toggle("active", isChatOpen);
         if (mobileInventoryBtn) mobileInventoryBtn.classList.toggle("active", isMobileInventoryOpen);
       }
@@ -12466,12 +12474,18 @@
         bindTapButton(mobileSecondaryBtn, () => setMobileTouchActionMode("secondary"));
         bindTapButton(mobileFistBtn, () => setSelectedToolSlotById(TOOL_FIST));
         bindTapButton(mobileWrenchBtn, () => setSelectedToolSlotById(TOOL_WRENCH));
+        bindTapButton(mobilePlayModeBtn, () => {
+          if (!inWorld || !isMobileUi) return;
+          mobilePlayModeEnabled = !mobilePlayModeEnabled;
+          syncMobilePlayModeClass();
+          updateMobileControlsUi();
+        });
         bindTapButton(mobileChatBtn, () => {
-          if (!inWorld || !isCoarsePointer) return;
+          if (!inWorld || !isMobileUi) return;
           setChatOpen(!isChatOpen);
         });
         bindTapButton(mobileInventoryBtn, () => {
-          if (!inWorld || !isCoarsePointer) return;
+          if (!inWorld || !isMobileUi) return;
           isMobileInventoryOpen = !isMobileInventoryOpen;
           if (isMobileInventoryOpen) {
             setChatOpen(false);
@@ -12479,6 +12493,10 @@
             syncMobileOverlayVisibility();
           }
           updateMobileControlsUi();
+        });
+        bindTapButton(mobileExitBtn, () => {
+          if (!inWorld) return;
+          leaveCurrentWorld();
         });
         updateMobileControlsUi();
       }
@@ -12639,6 +12657,9 @@
         const wrap = canvas.parentElement;
         const rect = wrap.getBoundingClientRect();
         isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+        const hasTouch = (typeof navigator !== "undefined" && (Number(navigator.maxTouchPoints) > 0 || Number(navigator.msMaxTouchPoints) > 0)) || ("ontouchstart" in window);
+        const narrowViewport = (window.innerWidth || 0) <= 860;
+        isMobileUi = Boolean(narrowViewport && (isCoarsePointer || hasTouch));
         const measuredWidth = Math.floor(rect.width);
         const measuredHeight = Math.floor(rect.height);
         const targetWidth = Math.max(1, measuredWidth || canvas.clientWidth || canvas.width || 1);
@@ -12649,8 +12670,9 @@
         canvas.style.height = targetHeight + "px";
         ctx.imageSmoothingEnabled = false;
         ctx.textBaseline = "alphabetic";
-        if (!isCoarsePointer) {
+        if (!isMobileUi) {
           isMobileInventoryOpen = false;
+          mobilePlayModeEnabled = true;
         }
         syncMobileOverlayVisibility();
         syncMobilePlayModeClass();
@@ -12765,7 +12787,7 @@
           setChatOpen(false);
           return;
         }
-        if (inWorld && !isCoarsePointer && e.key === "Enter" && !e.shiftKey) {
+        if (inWorld && !isMobileUi && e.key === "Enter" && !e.shiftKey) {
           if (performance.now() < suppressChatOpenUntilMs) return;
           if (document.activeElement === chatInputEl) return;
           e.preventDefault();
@@ -12858,7 +12880,7 @@
         const touch = e.changedTouches[0];
         if (!touch) return;
         if (openWrenchMenuFromNameIcon(touch.clientX, touch.clientY)) return;
-        const mobileSecondary = isCoarsePointer && mobileTouchActionMode === "secondary";
+        const mobileSecondary = isMobileUi && mobileTouchActionMode === "secondary";
         isPointerDown = !mobileSecondary;
         const pos = worldFromClient(touch.clientX, touch.clientY);
         mouseWorld = pos;
