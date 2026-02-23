@@ -1029,6 +1029,7 @@
       let lastBlockHitAtMs = -9999;
       let lastHoldActionAtMs = -9999;
       let lastHoldActionTile = null;
+      let lastHitDirectionY = 0;
       let lastWaterSplashAtMs = -9999;
       let lastSpikeKillAtMs = -9999;
       let wasInWaterLastFrame = false;
@@ -8043,7 +8044,7 @@
         ctx.fillRect(px + 3, py - 2, PLAYER_W - 6, 2);
       }
 
-      function drawSword(px, py, swordId, facing, swordSwing) {
+      function drawSword(px, py, swordId, facing, swordSwing, hitDirectionY, hitStrength) {
         if (!swordId) return;
         const item = COSMETIC_LOOKUP.swords[swordId];
         if (!item) return;
@@ -8051,7 +8052,10 @@
         const swing = (Number(swordSwing) || 0) * facingSign;
         const armSwing = Math.max(-4, Math.min(4, swing * 0.18));
         const handX = facing === 1 ? (px + PLAYER_W - 3) : (px + 3);
-        const handY = py + 19 + armSwing;
+        let handY = py + 19 + armSwing;
+        if (Number(hitStrength) > 0) {
+          handY += (Number(hitDirectionY) || 0) * 8 * Number(hitStrength);
+        }
         const bladeW = 12;
         const bladeH = 8;
         const baseAngle = 0;
@@ -8096,8 +8100,9 @@
         const legSwing = Number(pose && pose.legSwing) || 0;
         const hitStrength = Math.max(0, Math.min(1, Number(pose && pose.hitStrength) || 0));
         const hitMode = String(pose && pose.hitMode || "");
-        const leftArmY = py + 13 + Math.round(-armSwing * 0.6);
-        const rightArmY = py + 13 + Math.round(armSwing * 0.6);
+        const hitDirectionY = Number(pose && pose.hitDirectionY) || 0;
+        let leftArmY = py + 13 + Math.round(-armSwing * 0.6);
+        let rightArmY = py + 13 + Math.round(armSwing * 0.6);
         const leftLegY = py + 23 + Math.round(-legSwing * 0.75);
         const rightLegY = py + 23 + Math.round(legSwing * 0.75);
         const faceTilt = facing === 1 ? 1 : -1;
@@ -8122,6 +8127,14 @@
             rightArmX += forward;
           } else {
             leftArmX += forward;
+          }
+        }
+        if (hitStrength > 0) {
+          const yOffset = hitDirectionY * 8 * hitStrength;
+          if (facing === 1) {
+            rightArmY += yOffset;
+          } else {
+            leftArmY += yOffset;
           }
         }
         fillChamferRect(leftArmX, leftArmY, 3, 8, skinColor);
@@ -8217,6 +8230,7 @@
           const hitEase = hitT * hitT * (3 - 2 * hitT);
           const facingSign = player.facing === 1 ? 1 : -1;
           pose.bodyTilt = (Number(pose.bodyTilt) || 0) + facingSign * (0.07 * hitEase);
+          pose.hitDirectionY = lastHitDirectionY;
           if (cosmetics.swords) {
             pose.hitMode = "sword";
             pose.hitStrength = hitEase;
@@ -8247,7 +8261,7 @@
         const localLook = getLocalLookVector();
         drawHumanoid(px, basePy, player.facing, "#263238", "#b98a78", "#0d0d0d", cosmetics.shirts, cosmetics.pants, cosmetics.shoes, cosmetics.hats, pose, localLook.x, localLook.y);
 
-        drawSword(px, basePy, cosmetics.swords, player.facing, pose.swordSwing || 0);
+        drawSword(px, basePy, cosmetics.swords, player.facing, pose.swordSwing || 0, pose.hitDirectionY, pose.hitStrength);
         ctx.restore();
         const titleDef = getEquippedTitleDef();
         const nameText = String(playerName || "Player").slice(0, 20);
@@ -8329,7 +8343,7 @@
           const remoteLook = getRemoteLookVector(other);
           drawHumanoid(px, basePy, other.facing || 1, "#2a75bb", "#b98a78", "#102338", cosmetics.shirts || "", cosmetics.pants || "", cosmetics.shoes || "", cosmetics.hats || "", pose, remoteLook.x, remoteLook.y);
 
-          drawSword(px, basePy, cosmetics.swords || "", other.facing || 1, pose.swordSwing || 0);
+          drawSword(px, basePy, cosmetics.swords || "", other.facing || 1, pose.swordSwing || 0, 0, 0);
           ctx.restore();
 
           const nameText = String(other.name || "Player").slice(0, 20);
@@ -9333,6 +9347,14 @@
           const playerCenterTileX = (player.x + PLAYER_W * 0.5) / TILE;
           if (Number.isFinite(playerCenterTileX) && tx !== Math.floor(playerCenterTileX)) {
             player.facing = tx >= playerCenterTileX ? 1 : -1;
+          }
+          const playerCenterTileY = (player.y + PLAYER_H * 0.5) / TILE;
+          if (ty < Math.floor(playerCenterTileY)) {
+            lastHitDirectionY = -1;
+          } else if (ty > Math.floor(playerCenterTileY)) {
+            lastHitDirectionY = 1;
+          } else {
+            lastHitDirectionY = 0;
           }
           lastHitAtMs = performance.now();
         }
