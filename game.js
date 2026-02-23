@@ -1027,6 +1027,8 @@
       let wasJumpHeld = false;
       let lastHitAtMs = -9999;
       let lastBlockHitAtMs = -9999;
+      let lastHoldActionAtMs = -9999;
+      let lastHoldActionTile = null;
       let lastWaterSplashAtMs = -9999;
       let lastSpikeKillAtMs = -9999;
       let wasInWaterLastFrame = false;
@@ -9043,7 +9045,6 @@
           const gemReward = Math.max(0, Math.floor(Number(harvest.gems) || 0));
           world[ty][tx] = 0;
           clearTileDamage(tx, ty);
-          syncTileDamageToNetwork(tx, ty, 0);
           saveTreePlant(tx, ty, null);
           syncBlock(tx, ty, 0);
           if (particleController && typeof particleController.emitBlockBreak === "function") {
@@ -9054,7 +9055,7 @@
           }
           addPlayerGems(gemReward, true);
           saveInventory(false);
-          refreshToolbar();
+          refreshToolbar(true);
           awardXp(15, "harvesting");
           applyAchievementEvent("tree_harvest", { count: 1 });
           applyQuestEvent("break_block", { count: 1 });
@@ -9086,7 +9087,6 @@
           return;
         }
         clearTileDamage(tx, ty);
-        syncTileDamageToNetwork(tx, ty, 0);
 
         if (id === SIGN_ID) {
           saveSignText(tx, ty, "");
@@ -9196,7 +9196,7 @@
           postLocalSystemChat("World unlocked.");
         }
         saveInventory(false);
-        refreshToolbar();
+        refreshToolbar(true);
         awardXp(5, "breaking blocks");
         applyQuestEvent("break_block", { count: 1 });
       }
@@ -12115,9 +12115,13 @@
       let lastInventorySignature = "";
 
       function getInventorySignature() {
-        // Creates a quick string to check if we have NEW items (which requires a full DOM rebuild)
+        // Creates a quick string to check if we have NEW items (which requires a full DOM rebuild).
+        // Use slotOrder for blocks (toolbar order) instead of full INVENTORY_IDS for fewer iterations.
         let sig = selectedSlot + ";";
-        for (const id of INVENTORY_IDS) if (inventory[id] > 0) sig += id + ",";
+        for (const id of slotOrder) {
+          if (id === TOOL_FIST || id === TOOL_WRENCH) sig += id + ",";
+          else if ((inventory[id] || 0) > 0) sig += id + ",";
+        }
         for (const item of COSMETIC_ITEMS) if (cosmeticInventory[item.id] > 0) sig += item.id + (equippedCosmetics[item.slot] === item.id ? "E" : "") + ",";
         sig += equippedTitleId;
         return sig;
@@ -12767,7 +12771,14 @@
               if (isPointerDown && !isChatOpen && !isAdminOpen) {
                 const selectedId = slotOrder[selectedSlot];
                 if (selectedId !== TOOL_WRENCH) {
-                  useActionAt(mouseWorld.tx, mouseWorld.ty);
+                  const sameTile = lastHoldActionTile && lastHoldActionTile.tx === mouseWorld.tx && lastHoldActionTile.ty === mouseWorld.ty;
+                  if (sameTile && (lastTickTs - lastHoldActionAtMs) < BLOCK_HIT_COOLDOWN_MS) {
+                    // Throttle: skip useActionAt until cooldown elapsed or tile changed
+                  } else {
+                    lastHoldActionTile = { tx: mouseWorld.tx, ty: mouseWorld.ty };
+                    lastHoldActionAtMs = lastTickTs;
+                    useActionAt(mouseWorld.tx, mouseWorld.ty);
+                  }
                 }
               }
               updatePlayer();
