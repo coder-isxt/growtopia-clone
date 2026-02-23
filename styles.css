@@ -2789,6 +2789,25 @@ canvas {
     max-height: calc(100vh - (env(safe-area-inset-bottom, 0px) + 220px)) !important;
     width: min(100vw - 12px, 760px) !important;
   }
+
+  /* Dedicated mobile drag+drop layout for trade/donation/chest passive modals */
+  body.mobile-passive-dnd .toolbar {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 64px) !important;
+    max-height: min(34vh, 250px) !important;
+    z-index: 225 !important;
+  }
+
+  body.mobile-passive-dnd .vending-modal.inventory-passive,
+  body.mobile-passive-dnd .vending-modal.trade-modal-passive {
+    padding-top: 6px !important;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 300px) !important;
+  }
+
+  body.mobile-passive-dnd .vending-modal.inventory-passive .vending-card,
+  body.mobile-passive-dnd .vending-modal.trade-modal-passive .trade-card {
+    max-height: calc(100vh - (env(safe-area-inset-bottom, 0px) + 320px)) !important;
+    width: min(100vw - 12px, 700px) !important;
+  }
 }
 
 @media (max-width: 860px) {

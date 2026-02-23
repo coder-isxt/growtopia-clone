@@ -5128,6 +5128,7 @@
           }
           return false;
         })();
+        document.body.classList.toggle("mobile-passive-dnd", Boolean(hasPassiveInventoryModalOpen));
         const showChatPanel = !gameShellEl.classList.contains("hidden") && (!isMobileUi || isChatOpen);
         chatPanelEl.classList.toggle("hidden", !showChatPanel);
         const showToolbar = inWorld && (!isMobileUi || isMobileInventoryOpen || hasPassiveInventoryModalOpen);
