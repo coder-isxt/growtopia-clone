@@ -12472,13 +12472,13 @@
       }
 
       function setLayoutResizeHandlesVisible() {
-        const desktopMode = !isCoarsePointer;
+        const desktopMode = (window.innerWidth || 0) >= 980;
         if (leftPanelResizeHandleEl) leftPanelResizeHandleEl.classList.toggle("hidden", !desktopMode);
         if (rightPanelResizeHandleEl) rightPanelResizeHandleEl.classList.toggle("hidden", !desktopMode);
       }
 
       function onLayoutResizeMove(event) {
-        if (!layoutResizeSide || isCoarsePointer) return;
+        if (!layoutResizeSide) return;
         const clientX = Number(event.clientX);
         if (!Number.isFinite(clientX)) return;
         const viewportWidth = Math.max(980, window.innerWidth || 0);
@@ -12505,10 +12505,17 @@
         const bindHandle = (handle, side) => {
           if (!handle) return;
           handle.addEventListener("pointerdown", (event) => {
-            if (isCoarsePointer) return;
             if (typeof event.button === "number" && event.button !== 0) return;
+            if ((window.innerWidth || 0) < 980) return;
             layoutResizeSide = side;
             document.body.classList.add("layout-resizing");
+            if (typeof handle.setPointerCapture === "function" && event.pointerId != null) {
+              try {
+                handle.setPointerCapture(event.pointerId);
+              } catch (error) {
+                // ignore pointer capture failures
+              }
+            }
             event.preventDefault();
           });
         };

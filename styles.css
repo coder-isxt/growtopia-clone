@@ -3100,7 +3100,7 @@ body{
 
 /* Unified top alignment for chat + inventory + game area */
 :root{
-  --gt-content-top: 106px;
+  --gt-content-top: var(--topbar-safe-offset);
 }
 
 @media (min-width: 980px){
@@ -3130,7 +3130,7 @@ body{
   /* Keep game/menu top aligned with side panels and nudge slightly upward */
   .canvas-wrap,
   .menu-screen{
-    margin-top: calc(var(--gt-content-top) - var(--topbar-safe-offset) - 2px) !important;
+    margin-top: 0 !important;
   }
 }
 
@@ -3140,4 +3140,3 @@ body{
   font-size:11px !important;
   opacity:.9;
 }
-
