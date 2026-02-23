@@ -7,10 +7,8 @@ window.GTModules.progression = (function createProgressionModule() {
   const BASE_XP_PER_LEVEL = 100;
   const XP_GROWTH_PER_LEVEL = 35;
   const TITLE_UNLOCKS = {
-    2: ["builder"],
-    5: ["trader"],
-    10: ["guardian"],
-    20: ["legend"]
+    3: ["novice"],
+    10: ["big"],
   };
 
   function toInt(value, fallback) {
