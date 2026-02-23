@@ -249,7 +249,9 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
         return;
       }
 
-      const dtMs = Math.max(1, now - lastPos.t);
+      // Clamp dt to avoid false flags when onFrame is called multiple times in quick succession
+      // (e.g. fixed-tick catchup loops) or when the timer resolution is very fine.
+      const dtMs = Math.max(16, now - lastPos.t);
       const dx = x - lastPos.x;
       const dy = y - lastPos.y;
       const dist = Math.hypot(dx, dy);
@@ -286,7 +288,7 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       const targetX = tx * tileSize + tileSize * 0.5;
       const targetY = ty * tileSize + tileSize * 0.5;
       const distTiles = Math.hypot(targetX - centerX, targetY - centerY) / tileSize;
-      if (distTiles > (reachTiles + 2.5)) {
+      if (distTiles > (reachTiles + 3.5)) {
         report("reach_anomaly", "warn", {
           distTiles: Number(distTiles.toFixed(2)),
           reachTiles: Number(reachTiles.toFixed(2)),

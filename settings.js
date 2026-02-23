@@ -32,6 +32,13 @@ window.GT_SETTINGS = {
   JUMP_VELOCITY: -4.8, // floaty jump arc
   JUMP_COOLDOWN_MS: 160,
 
+  // Anti-cheat thresholds (tuned for these movement settings)
+  AC_MAX_SPEED_PX_S: 900,
+  AC_TELEPORT_PX: 720,
+  AC_MAX_ACTIONS_PER_2S: 50,
+  AC_MAX_CHAT_PER_10S: 20,
+  AC_ALERT_COOLDOWN_MS: 15000,
+
   // Optional: explicit animated water frames (4 images)
   WATER_FRAME_PATHS: [
      "./assets/blocks/special/VESI_1.png",

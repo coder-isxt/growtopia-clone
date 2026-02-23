@@ -11639,7 +11639,15 @@
               const sev = (value.severity || "warn").toString().toLowerCase().slice(0, 16);
               const uname = (value.username || value.accountId || "unknown").toString().slice(0, 24);
               const worldId = (value.world || "").toString().slice(0, 24);
-              const detail = (value.details || "").toString().slice(0, 220);
+              let detailRaw = value.details;
+              if (detailRaw && typeof detailRaw === "object") {
+                try {
+                  detailRaw = JSON.stringify(detailRaw);
+                } catch (error) {
+                  detailRaw = String(detailRaw);
+                }
+              }
+              const detail = (detailRaw == null ? "" : String(detailRaw)).slice(0, 220);
               const text = "@" + uname + " | " + rule + (worldId ? (" | " + worldId) : "") + (detail ? (" | " + detail) : "");
               flattened.push({
                 text,
@@ -12764,9 +12772,6 @@
 
           let ticksRun = 0;
           while (tickAccumulatorMs >= FIXED_FRAME_MS && ticksRun < MAX_TICK_CATCHUP) {
-            if (antiCheatController && typeof antiCheatController.onFrame === "function") {
-              antiCheatController.onFrame();
-            }
             if (inWorld) {
               if (isPointerDown && !isChatOpen && !isAdminOpen) {
                 const selectedId = slotOrder[selectedSlot];
@@ -12794,6 +12799,10 @@
             ticksRun++;
           }
           if (ticksRun > 0) {
+            // Run anti-cheat once per rendered frame (not per fixed sub-tick) to avoid tiny dtMs false flags.
+            if (antiCheatController && typeof antiCheatController.onFrame === "function") {
+              antiCheatController.onFrame();
+            }
             render();
           }
           requestAnimationFrame(tick);
