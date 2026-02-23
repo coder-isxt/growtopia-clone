@@ -2703,8 +2703,7 @@ button:focus-visible {
 .announcement-card,
 .updating-card,
 .admin-panel,
-.logs-panel,
-.toolbar {
+.logs-panel {
   border-color: rgba(140, 170, 210, 0.24);
   background: linear-gradient(180deg, rgba(12, 18, 30, 0.88), rgba(8, 12, 20, 0.92));
   box-shadow: var(--shadow-md);
@@ -2837,15 +2836,6 @@ button:focus-visible {
 .admin-status.banned {
   border-color: rgba(251, 113, 133, 0.72);
   background: rgba(251, 113, 133, 0.14);
-}
-
-/* Scrollbars: cyan thumb instead of yellow (no size change) */
-.toolbar {
-  scrollbar-color: rgba(34, 211, 238, 0.78) rgba(6, 18, 30, 0.45);
-}
-.toolbar::-webkit-scrollbar-thumb {
-  background: rgba(34, 211, 238, 0.78);
-  border: 2px solid rgba(6, 18, 30, 0.45);
 }
 
 /* Canvas: a bit more “premium” without resizing */
@@ -3062,7 +3052,6 @@ body{
   border-bottom-color: rgba(92, 56, 20, 0.95) !important;
   border-right-color: rgba(92, 56, 20, 0.95) !important;
   box-shadow: 0 12px 0 rgba(0,0,0,0.30), 0 22px 60px rgba(0,0,0,0.55) !important;
-  top: var(--topbar-safe-offset) !important;
 }
 
 .chat-messages{
@@ -3108,63 +3097,6 @@ body{
 }
 
 
-/* =========================================
-   Growtopia UI FIXES:
-   1) Pull game window up
-   2) Push inventory + panels below top bar
-   ========================================= */
-
-:root{
-  --gt-topbar-offset: 118px;
-}
-
-/* reduce vertical spacing so canvas sits higher */
-.game-shell{
-  padding: 8px !important;
-  gap: 6px !important;
-}
-
-/* shrink HUD height */
-.hud{
-  padding: 8px 12px !important;
-}
-
-/* pull game window up to match panels */
-.canvas-wrap, .menu-screen {
-  margin-top: 12px !important;
-}
-
-/* align panels below top bar */
-.chat-panel,
-.logs-panel{
-  top: var(--gt-topbar-offset) !important;
-}
-
-/* right inventory / toolbar panel */
-@media (min-width:980px){
-  .toolbar{
-    top: var(--gt-topbar-offset) !important;
-    bottom: 6px !important;
-  }
-
-  .layout-resize-handle{
-    top: var(--gt-topbar-offset) !important;
-    bottom: 6px !important;
-  }
-}
-
-/* fix inventory passive modals */
-.vending-modal.inventory-passive{
-  padding-top: var(--gt-topbar-offset) !important;
-}
-
-/* small topbar text tighten */
-.gt-sub{
-  line-height:1.2 !important;
-  font-size:11px !important;
-  opacity:.9;
-}
-
 /* Unified top alignment for chat + inventory + game area */
 :root{
   --gt-content-top: 106px;
@@ -3175,11 +3107,23 @@ body{
   .toolbar,
   .layout-resize-handle{
     top: var(--gt-content-top) !important;
+    bottom: 6px !important;
   }
 
   .toolbar{
     position: fixed !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  .chat-panel{
+    top: var(--gt-content-top) !important;
     bottom: 6px !important;
+    height: auto !important;
+  }
+
+  .layout-resize-handle{
+    height: auto !important;
   }
 
   /* Keep game/menu top aligned with side panels and nudge slightly upward */
@@ -3188,3 +3132,11 @@ body{
     margin-top: calc(var(--gt-content-top) - var(--topbar-safe-offset) - 2px) !important;
   }
 }
+
+/* small topbar text tighten */
+.gt-sub{
+  line-height:1.2 !important;
+  font-size:11px !important;
+  opacity:.9;
+}
+
