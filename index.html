@@ -27,11 +27,11 @@
       <div class="hint">
         World: <span id="currentWorldLabel" class="world-tag">menu</span> |
         Action: Enter: Chat |
-        <span id="gemsCount">0 gems</span> |
+        <!-- <span id="gemsCount">0 gems</span> | -->
         <span id="networkState" class="danger">Offline</span> |
         <span id="onlineCount">1 world online</span> |
         <span id="totalOnlineCount">1 total online</span> |
-        <button id="chatToggleBtn" type="button" class="hidden">Chat</button>
+        <!-- <button id="chatToggleBtn" type="button" class="hidden">Chat</button> -->
         <button id="friendsToggleBtn" type="button">Friends</button>
         <button id="questsToggleBtn" type="button">Quests</button>
         <button id="achievementsToggleBtn" type="button">Achievements</button>
@@ -54,8 +54,25 @@
       </div>
     </div>
     <div id="canvasWrap" class="canvas-wrap hidden">
-      <canvas id="game" width="960" height="480" aria-label="Growtopia test game canvas"></canvas>
+  <canvas id="game" width="960" height="480" aria-label="Growtopia test game canvas"></canvas>
+
+  <!-- In-game UI overlay (Growtopia-like) -->
+  <div class="gt-game-overlay" aria-hidden="false">
+    <!-- Gems (top-left) -->
+    <div class="gt-panel gt-gem-hud">
+      <span class="gt-gem-icon" aria-hidden="true"></span>
+      <span class="gt-gem-label">GEMS</span>
+      <!-- KEEP SAME ID so game.js still updates it -->
+      <span id="gemsCount" class="gt-gem-count">0 gems</span>
     </div>
+
+    <!-- Chat button (bottom-left) -->
+    <div class="gt-panel gt-chat-hud">
+      <!-- KEEP SAME ID so game.js still toggles chat -->
+      <button id="chatToggleBtn" type="button" class="hidden">CHAT</button>
+    </div>
+  </div>
+</div>
     <div id="leftPanelResizeHandle" class="layout-resize-handle left-handle hidden" aria-label="Resize chat panel"></div>
     <div id="rightPanelResizeHandle" class="layout-resize-handle right-handle hidden" aria-label="Resize inventory panel"></div>
     <div id="chatPanel" class="chat-panel hidden">
