@@ -7936,7 +7936,7 @@
         const upStroke = Math.max(0, -flap);
         const downStroke = Math.max(0, flap);
         // Strong hinge-style flap: quick downstroke + lighter upstroke.
-        const flapStroke = (downStroke * 0.88) - (upStroke * 0.58);
+        const flapStroke = (downStroke * 1.2) - (upStroke * 0.8);
         const wingImg = getCosmeticImage(item);
         if (wingImg) {
           const centerX = px + PLAYER_W / 2;
@@ -7949,7 +7949,7 @@
           const useOffsetX = Number.isFinite(offsetX) ? offsetX : 3;
           const useOffsetY = Number.isFinite(offsetY) ? offsetY : 0;
           const drawWingSide = (sideSign) => {
-            const angle = (sideSign * baseAngle) - (sideSign * flapStroke);
+            const angle = (sideSign * baseAngle) - (sideSign * flapStroke * 1.2);
             ctx.save();
             ctx.translate(centerX + sideSign * (1.5 + useOffsetX), centerY + useOffsetY);
             ctx.rotate(angle);
