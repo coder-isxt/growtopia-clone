@@ -2851,111 +2851,253 @@ canvas {
 }
 
 
+/* =========================================================
+   Growtopia UI Pass
+   - Pixel-ish font + beveled gold/brown panels
+   - Top bar, buttons, menu, chat, toolbar
+   ========================================================= */
 
-
-/* ===========================
-   Growtopia-ish in-game overlay
-   Gems + Chat button inside canvas
-   =========================== */
-
-.canvas-wrap {
-  position: relative; /* required for overlay */
+:root{
+  --gt-brown-0:#070402;
+  --gt-brown-1:#160c06;
+  --gt-brown-2:#2b160a;
+  --gt-brown-3:#3a1f0d;
+  --gt-gold-1:#ffd166;
+  --gt-gold-2:#c47a2c;
+  --gt-cream:#fff7d7;
+  --gt-mint:#b8fff0;
+  --gt-shadow: 0 6px 0 rgba(0,0,0,0.35);
+  --gt-inner: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.25);
 }
 
-.gt-game-overlay {
-  position: absolute;
-  inset: 8px;
-  z-index: 50;
-  pointer-events: none; /* do not block gameplay clicks */
+/* Overall typography */
+body{
+  /* keep your base font for readability, but use pixel font for UI blocks */
+  background:
+    radial-gradient(1200px 800px at 50% -10%, rgba(255, 209, 102, 0.12), transparent 60%),
+    radial-gradient(900px 600px at 10% 10%, rgba(45, 212, 191, 0.10), transparent 55%),
+    linear-gradient(180deg, var(--gt-brown-0), #05070e 60%);
+}
+
+.gt-hud, .gt-hud button, .gt-hud .gt-pill, .gt-hud .gt-title{
+  font-family: "Press Start 2P", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+/* Top bar container (replaces the old hint line look) */
+.gt-hud{
+  background: linear-gradient(180deg, rgba(18, 12, 6, 0.85), rgba(44, 27, 12, 0.78)) !important;
+  border: 2px solid rgba(255, 209, 102, 0.85) !important;
+  border-bottom-color: rgba(92, 56, 20, 0.95) !important;
+  border-right-color: rgba(92, 56, 20, 0.95) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--gt-shadow) !important;
+  backdrop-filter: blur(2px);
+}
+
+.gt-topbar{
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 1.1fr 1fr 1.1fr;
+  gap: 10px;
+  align-items: center;
 }
 
-/* shared panel look */
-.gt-panel {
-  pointer-events: auto; /* panels/buttons still clickable */
+.gt-brand{
+  display: grid;
+  gap: 6px;
+}
+
+.gt-title{
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  color: var(--gt-cream);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.55);
+}
+
+.gt-sub{
+  font-size: 10px;
+  opacity: 0.95;
+  color: rgba(255, 247, 215, 0.88);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.45);
+}
+
+.gt-stats{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.gt-pill{
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-
-  padding: 6px 10px;
+  gap: 6px;
+  padding: 6px 8px;
   border-radius: 8px;
+  border: 2px solid rgba(255, 209, 102, 0.75);
+  border-bottom-color: rgba(92, 56, 20, 0.95);
+  border-right-color: rgba(92, 56, 20, 0.95);
+  background: linear-gradient(180deg, rgba(12, 7, 3, 0.40), rgba(43, 22, 10, 0.35));
+  color: var(--gt-cream);
+  box-shadow: var(--gt-inner);
+  font-size: 9px;
+}
 
+.gt-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: end;
+}
+
+/* GT-style buttons (applies to your topbar buttons + generally) */
+.gt-hud button,
+.menu-card button,
+.chat-panel button,
+.toolbar button{
+  border: 2px solid rgba(255, 209, 102, 0.85);
+  border-bottom-color: rgba(92, 56, 20, 0.95);
+  border-right-color: rgba(92, 56, 20, 0.95);
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.32), rgba(255, 153, 51, 0.18));
+  color: var(--gt-cream);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-weight: 900;
+  font-size: 10px;
+  text-shadow: 0 2px 0 rgba(0,0,0,0.55);
+  box-shadow: var(--gt-inner), var(--gt-shadow);
+  cursor: pointer;
+}
+
+.gt-hud button:active,
+.menu-card button:active,
+.chat-panel button:active,
+.toolbar button:active{
+  transform: translateY(2px);
+  box-shadow: var(--gt-inner), 0 3px 0 rgba(0,0,0,0.30);
+}
+
+/* Canvas frame (game window) */
+.canvas-wrap{
+  background: linear-gradient(180deg, rgba(18, 12, 6, 0.55), rgba(10, 6, 3, 0.40)) !important;
+  border: 2px solid rgba(255, 209, 102, 0.70) !important;
+  border-bottom-color: rgba(92, 56, 20, 0.90) !important;
+  border-right-color: rgba(92, 56, 20, 0.90) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 14px 40px rgba(0,0,0,0.55);
+  overflow: hidden;
+  position: relative;
+}
+
+/* In-game overlay (gems + chat inside canvas) */
+.gt-game-overlay{
+  position:absolute;
+  inset: 8px;
+  z-index: 50;
+  pointer-events:none;
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+}
+.gt-panel{
+  pointer-events:auto;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding: 7px 10px;
+  border-radius: 10px;
   border: 2px solid rgba(255, 209, 102, 0.95);
   border-bottom-color: rgba(92, 56, 20, 0.95);
   border-right-color: rgba(92, 56, 20, 0.95);
-
   background: linear-gradient(180deg, rgba(18, 12, 6, 0.78), rgba(44, 27, 12, 0.72));
-  color: #fff7d7;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
-
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
-    0 6px 0 rgba(0, 0, 0, 0.35);
-
-  font-weight: 900;
-  letter-spacing: 0.2px;
+  color: var(--gt-cream);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.55);
+  box-shadow: var(--gt-inner), var(--gt-shadow);
+  font-family: "Press Start 2P", system-ui, sans-serif;
+  font-size: 10px;
 }
-
-.gt-gem-hud {
-  justify-self: start;
-  align-self: start;
-  min-width: 150px;
-}
-
-.gt-gem-icon {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  border: 1px solid rgba(0,0,0,0.35);
-  background: linear-gradient(180deg, rgba(110, 231, 200, 0.95), rgba(45, 212, 191, 0.8));
+.gt-gem-hud{justify-self:start;align-self:start;min-width: 170px;}
+.gt-gem-icon{
+  width:16px;height:16px;border-radius:4px;
+  border:1px solid rgba(0,0,0,0.35);
+  background: linear-gradient(180deg, rgba(110,231,200,0.95), rgba(45,212,191,0.8));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
 }
+.gt-gem-label{opacity:0.9;}
+.gt-gem-count{margin-left:auto;color:var(--gt-mint);}
 
-.gt-gem-label {
-  font-size: 12px;
-  opacity: 0.9;
+.gt-chat-hud{justify-self:start;align-self:end;}
+#chatToggleBtn{
+  font-family: "Press Start 2P", system-ui, sans-serif;
 }
 
-.gt-gem-count {
-  margin-left: auto;
-  font-size: 14px;
-  color: #b8fff0;
+/* Menu screen (World Menu) */
+.menu-card{
+  background: linear-gradient(180deg, rgba(18, 12, 6, 0.86), rgba(44, 27, 12, 0.78)) !important;
+  border: 2px solid rgba(255, 209, 102, 0.85) !important;
+  border-bottom-color: rgba(92, 56, 20, 0.95) !important;
+  border-right-color: rgba(92, 56, 20, 0.95) !important;
+  box-shadow: var(--gt-shadow) !important;
 }
 
-/* chat button bottom-left */
-.gt-chat-hud {
-  justify-self: start;
-  align-self: end;
-}
-
-#chatToggleBtn {
-  pointer-events: auto;
-  border: 2px solid rgba(255, 209, 102, 0.95);
-  border-bottom-color: rgba(92, 56, 20, 0.95);
-  border-right-color: rgba(92, 56, 20, 0.95);
-
-  background: linear-gradient(180deg, rgba(255, 209, 102, 0.38), rgba(255, 153, 51, 0.22));
-  color: #fff7d7;
-
-  border-radius: 8px;
-  padding: 6px 12px;
-  font: inherit;
-  font-weight: 900;
-
+.menu-title{
+  font-family: "Press Start 2P", system-ui, sans-serif;
+  color: var(--gt-cream) !important;
   text-shadow: 0 2px 0 rgba(0,0,0,0.55);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.25),
-    0 6px 0 rgba(0,0,0,0.35);
-
-  cursor: pointer;
-  transform: translateY(0);
+  letter-spacing: 0.6px;
 }
 
-#chatToggleBtn:active {
-  transform: translateY(2px);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.15),
-    0 3px 0 rgba(0,0,0,0.30);
+/* World buttons: chunkier, GT-ish */
+.world-buttons button{
+  font-family: "Press Start 2P", system-ui, sans-serif;
+  font-size: 10px;
+}
+
+/* Chat panel */
+.chat-panel{
+  background: linear-gradient(180deg, rgba(18, 12, 6, 0.92), rgba(44, 27, 12, 0.86)) !important;
+  border: 2px solid rgba(255, 209, 102, 0.85) !important;
+  border-bottom-color: rgba(92, 56, 20, 0.95) !important;
+  border-right-color: rgba(92, 56, 20, 0.95) !important;
+  box-shadow: 0 12px 0 rgba(0,0,0,0.30), 0 22px 60px rgba(0,0,0,0.55) !important;
+}
+
+.chat-messages{
+  background: rgba(0,0,0,0.20);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 209, 102, 0.22);
+}
+
+.chat-input-row input{
+  border: 2px solid rgba(255, 209, 102, 0.60);
+  border-bottom-color: rgba(92, 56, 20, 0.80);
+  border-right-color: rgba(92, 56, 20, 0.80);
+  background: rgba(8, 5, 2, 0.55);
+  color: var(--gt-cream);
+  border-radius: 10px;
+}
+
+/* Toolbar (bottom strip) */
+.toolbar{
+  background: linear-gradient(180deg, rgba(18, 12, 6, 0.92), rgba(44, 27, 12, 0.86)) !important;
+  border: 2px solid rgba(255, 209, 102, 0.75) !important;
+  border-bottom-color: rgba(92, 56, 20, 0.95) !important;
+  border-right-color: rgba(92, 56, 20, 0.95) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--gt-shadow) !important;
+}
+
+/* Make existing "world-tag" read like GT label */
+.world-tag{
+  background: rgba(0,0,0,0.18) !important;
+  border: 2px solid rgba(255, 209, 102, 0.55) !important;
+  border-bottom-color: rgba(92, 56, 20, 0.85) !important;
+  border-right-color: rgba(92, 56, 20, 0.85) !important;
+  color: var(--gt-cream) !important;
+  font-family: "Press Start 2P", system-ui, sans-serif;
+  font-size: 9px;
+}
+
+/* Make the resize handles less “app-y” */
+.layout-resize-handle{
+  background: linear-gradient(180deg, rgba(255,209,102,0.18), rgba(92,56,20,0.10));
+  border-color: rgba(255, 209, 102, 0.25);
 }

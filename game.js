@@ -2238,7 +2238,7 @@
         const rows = filteredIds.map((accountId) => {
           const account = adminState.accounts[accountId] || {};
           const username = account.username || accountId;
-          const discordInfo = account.discordUsername ? ` (${account.discordUsername}:${account.discordId})` : "";
+          const discordInfo = account.discordUsername ? ` (@${account.discordUsername} | ${account.discordId})` : "";
           const banStatus = getBanStatus(adminState.bans[accountId], nowMs);
           const banned = banStatus.active;
           const online = Boolean(adminState.sessions[accountId] && adminState.sessions[accountId].sessionId);
