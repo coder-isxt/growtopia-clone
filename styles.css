@@ -3167,7 +3167,7 @@ body{
 
 /* Unified top alignment for chat + inventory + game area */
 :root{
-  --gt-content-top: 112px;
+  --gt-content-top: 106px;
 }
 
 @media (min-width: 980px){
@@ -3175,6 +3175,11 @@ body{
   .toolbar,
   .layout-resize-handle{
     top: var(--gt-content-top) !important;
+  }
+
+  .toolbar{
+    position: fixed !important;
+    bottom: 6px !important;
   }
 
   /* Keep game/menu top aligned with side panels and nudge slightly upward */
