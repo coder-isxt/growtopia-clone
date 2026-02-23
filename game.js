@@ -12699,11 +12699,11 @@
 
       canvas.addEventListener("mousedown", (e) => {
         if (!inWorld) return;
+        const pos = worldFromPointer(e);
+        mouseWorld = pos;
         if (e.button === 0) {
           if (openWrenchMenuFromNameIcon(e.clientX, e.clientY)) return;
           isPointerDown = true;
-          const pos = worldFromPointer(e);
-          mouseWorld = pos;
           useActionAt(pos.tx, pos.ty);
           return;
         }
