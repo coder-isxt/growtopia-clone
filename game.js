@@ -2312,6 +2312,7 @@
           ? `<div class="admin-audit admin-card">
             <div class="admin-card-header">
               <div class="admin-audit-title">Anti-Cheat</div>
+              <button data-admin-act="clearanticheat" ${hasAdminPermission("clear_logs") ? "" : "disabled"}>Clear</button>
             </div>
             <div class="admin-anticheat-list">${antiCheatRows || "<div class='admin-audit-row'>No anti-cheat logs yet.</div>"}</div>
           </div>`
@@ -2431,6 +2432,19 @@
         }
         if (action === "clearlogs") {
           clearLogsData();
+          return;
+        }
+        if (action === "clearanticheat") {
+          if (!network.db || !hasAdminPermission("clear_logs")) return;
+          network.db.ref(BASE_PATH + "/anti-cheat-logs").remove().then(() => {
+            antiCheatMessages.length = 0;
+            renderAdminPanel();
+            postLocalSystemChat("Anti-cheat logs cleared.");
+            logAdminAudit("Admin(panel) cleared anti-cheat logs.");
+            pushAdminAuditEntry("clear_logs", "", "target=anti-cheat");
+          }).catch(() => {
+            postLocalSystemChat("Failed to clear anti-cheat logs.");
+          });
           return;
         }
         if (action === "runconsole") {
