@@ -21,6 +21,7 @@
       const mobileSecondaryBtn = document.getElementById("mobileSecondaryBtn");
       const mobileFistBtn = document.getElementById("mobileFistBtn");
       const mobileWrenchBtn = document.getElementById("mobileWrenchBtn");
+      const mobileChatBtn = document.getElementById("mobileChatBtn");
       const mobileInventoryBtn = document.getElementById("mobileInventoryBtn");
       const networkStateEl = document.getElementById("networkState");
       const gemsCountEl = document.getElementById("gemsCount");
@@ -5010,6 +5011,8 @@
           isMobileInventoryOpen = false;
         }
         syncMobileOverlayVisibility();
+        syncMobilePlayModeClass();
+        updateMobileControlsUi();
         applyToolbarPosition();
         chatToggleBtn.classList.toggle("hidden", !inWorld);
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
@@ -5113,12 +5116,18 @@
         mobileControlsEl.classList.toggle("hidden", !(inWorld && isCoarsePointer));
       }
 
+      function syncMobilePlayModeClass() {
+        document.body.classList.toggle("mobile-world-active", Boolean(inWorld && isCoarsePointer));
+      }
+
       function setChatOpen(open) {
         isChatOpen = Boolean(open) && inWorld;
         if (isCoarsePointer && isChatOpen) {
           isMobileInventoryOpen = false;
         }
         syncMobileOverlayVisibility();
+        syncMobilePlayModeClass();
+        updateMobileControlsUi();
         if (chatInputRowEl) {
           chatInputRowEl.classList.toggle("hidden", !isChatOpen);
         }
@@ -12436,6 +12445,7 @@
         const selectedId = slotOrder[selectedSlot];
         if (mobileFistBtn) mobileFistBtn.classList.toggle("active", selectedId === TOOL_FIST);
         if (mobileWrenchBtn) mobileWrenchBtn.classList.toggle("active", selectedId === TOOL_WRENCH);
+        if (mobileChatBtn) mobileChatBtn.classList.toggle("active", isChatOpen);
         if (mobileInventoryBtn) mobileInventoryBtn.classList.toggle("active", isMobileInventoryOpen);
       }
 
@@ -12456,6 +12466,10 @@
         bindTapButton(mobileSecondaryBtn, () => setMobileTouchActionMode("secondary"));
         bindTapButton(mobileFistBtn, () => setSelectedToolSlotById(TOOL_FIST));
         bindTapButton(mobileWrenchBtn, () => setSelectedToolSlotById(TOOL_WRENCH));
+        bindTapButton(mobileChatBtn, () => {
+          if (!inWorld || !isCoarsePointer) return;
+          setChatOpen(!isChatOpen);
+        });
         bindTapButton(mobileInventoryBtn, () => {
           if (!inWorld || !isCoarsePointer) return;
           isMobileInventoryOpen = !isMobileInventoryOpen;
@@ -12639,6 +12653,7 @@
           isMobileInventoryOpen = false;
         }
         syncMobileOverlayVisibility();
+        syncMobilePlayModeClass();
         updateMobileControlsUi();
         setLayoutResizeHandlesVisible();
         applyDesktopPanelLayout(desktopLeftPanelWidth, desktopRightPanelWidth, false);
