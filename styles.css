@@ -3111,6 +3111,7 @@ body{
   }
 
   .toolbar{
+    top: var(--gt-content-top) !important;
     position: fixed !important;
     min-height: 0 !important;
     height: auto !important;
