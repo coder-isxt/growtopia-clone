@@ -2439,6 +2439,7 @@ canvas {
   }
 
   .toolbar {
+    top: var(--gt-content-top) !important;
     position: fixed;
     right: var(--desktop-shell-pad);
     top: 68px;
@@ -2543,7 +2544,6 @@ canvas {
   }
 
   .toolbar {
-    top: var(--gt-content-top) !important;
     padding: 7px;
     gap: 6px;
     max-height: min(52vh, 430px);
