@@ -12444,6 +12444,26 @@
         }
       }
 
+      function syncDesktopVerticalBounds() {
+        const desktopMode = (window.innerWidth || 0) >= 980;
+        if (!desktopMode) {
+          document.documentElement.style.removeProperty("--desktop-content-top");
+          document.documentElement.style.removeProperty("--desktop-content-bottom");
+          return;
+        }
+        let anchorEl = inWorld ? canvasWrapEl : menuScreenEl;
+        if (!anchorEl || anchorEl.classList.contains("hidden")) {
+          anchorEl = inWorld ? menuScreenEl : canvasWrapEl;
+        }
+        if (!anchorEl) return;
+        const rect = anchorEl.getBoundingClientRect();
+        if (!Number.isFinite(rect.top) || !Number.isFinite(rect.bottom) || rect.height <= 1) return;
+        const topPx = Math.max(0, Math.round(rect.top));
+        const bottomPx = Math.max(0, Math.round((window.innerHeight || 0) - rect.bottom));
+        document.documentElement.style.setProperty("--desktop-content-top", topPx + "px");
+        document.documentElement.style.setProperty("--desktop-content-bottom", bottomPx + "px");
+      }
+
       function persistDesktopPanelLayout() {
         try {
           localStorage.setItem(LAYOUT_PREFS_KEY, JSON.stringify({
@@ -12544,6 +12564,7 @@
         mobileControlsEl.classList.toggle("hidden", !inWorld || !isCoarsePointer);
         setLayoutResizeHandlesVisible();
         applyDesktopPanelLayout(desktopLeftPanelWidth, desktopRightPanelWidth, false);
+        syncDesktopVerticalBounds();
         applyToolbarPosition();
       }
 

@@ -3101,14 +3101,16 @@ body{
 /* Unified top alignment for chat + inventory + game area */
 :root{
   --gt-content-top: var(--topbar-safe-offset);
+  --desktop-content-top: var(--gt-content-top);
+  --desktop-content-bottom: 6px;
 }
 
 @media (min-width: 980px){
   .chat-panel,
   .toolbar,
   .layout-resize-handle{
-    top: var(--gt-content-top) !important;
-    bottom: 6px !important;
+    top: var(--desktop-content-top) !important;
+    bottom: var(--desktop-content-bottom) !important;
   }
 
   .toolbar{
@@ -3125,6 +3127,10 @@ body{
 
   .layout-resize-handle{
     height: auto !important;
+    width: 14px !important;
+    margin-left: -7px !important;
+    pointer-events: auto !important;
+    z-index: 60 !important;
   }
 
   /* Keep game/menu top aligned with side panels and nudge slightly upward */
