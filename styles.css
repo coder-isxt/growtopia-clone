@@ -1399,6 +1399,7 @@ canvas {
   pointer-events: none;
   align-items: flex-start;
   padding-top: 68px;
+  padding-top: var(--topbar-safe-offset) !important;
 }
 
 .vending-modal.inventory-passive .vending-card {
@@ -2232,6 +2233,7 @@ canvas {
   border-color: rgba(90, 130, 178, 0.42);
   background:
     linear-gradient(180deg, rgba(12, 20, 32, 0.96), rgba(8, 15, 25, 0.96));
+  margin-top: calc(var(--topbar-safe-offset) - 68px);
 }
 
 .auth-card input,
@@ -2664,6 +2666,8 @@ canvas {
   /* extra theme helpers (no layout impact) */
   --glow: 0 0 0 1px rgba(34, 211, 238, 0.22), 0 0 24px rgba(167, 139, 250, 0.14);
   --glow-strong: 0 0 0 1px rgba(34, 211, 238, 0.32), 0 0 34px rgba(34, 211, 238, 0.18);
+
+  --topbar-safe-offset: 110px; /* adjust if you change topbar height */
 }
 
 /* Background: more modern neon aura */
@@ -3058,6 +3062,7 @@ body{
   border-bottom-color: rgba(92, 56, 20, 0.95) !important;
   border-right-color: rgba(92, 56, 20, 0.95) !important;
   box-shadow: 0 12px 0 rgba(0,0,0,0.30), 0 22px 60px rgba(0,0,0,0.55) !important;
+  top: var(--topbar-safe-offset) !important;
 }
 
 .chat-messages{
