@@ -17,6 +17,10 @@
       const mobileLeftBtn = document.getElementById("mobileLeftBtn");
       const mobileRightBtn = document.getElementById("mobileRightBtn");
       const mobileJumpBtn = document.getElementById("mobileJumpBtn");
+      const mobilePrimaryBtn = document.getElementById("mobilePrimaryBtn");
+      const mobileSecondaryBtn = document.getElementById("mobileSecondaryBtn");
+      const mobileFistBtn = document.getElementById("mobileFistBtn");
+      const mobileWrenchBtn = document.getElementById("mobileWrenchBtn");
       const networkStateEl = document.getElementById("networkState");
       const gemsCountEl = document.getElementById("gemsCount");
       const onlineCountEl = document.getElementById("onlineCount");
@@ -1007,6 +1011,7 @@
       let lastFrozenHintAtMs = -9999;
       let suppressSpawnSafetyUntilMs = 0;
       let mobileLastTouchActionAt = 0;
+      let mobileTouchActionMode = "primary";
       const touchControls = {
         left: false,
         right: false,
@@ -12311,6 +12316,7 @@
         if (chestCtrl && typeof chestCtrl.isOpen === "function" && chestCtrl.isOpen()) {
           if (typeof chestCtrl.renderOpen === "function") chestCtrl.renderOpen();
         }
+        updateMobileControlsUi();
       }
 
       let toolbarRenderTimeout = 0;
@@ -12373,6 +12379,7 @@
       }
 
       function bindHoldButton(button, key) {
+        if (!button) return;
         const setOn = (event) => {
           event.preventDefault();
           touchControls[key] = true;
@@ -12389,10 +12396,48 @@
         button.addEventListener("mouseleave", setOff);
       }
 
+      function setMobileTouchActionMode(nextMode) {
+        mobileTouchActionMode = nextMode === "secondary" ? "secondary" : "primary";
+        updateMobileControlsUi();
+      }
+
+      function setSelectedToolSlotById(toolId) {
+        const targetIndex = slotOrder.indexOf(toolId);
+        if (targetIndex < 0) return;
+        if (selectedSlot !== targetIndex) {
+          selectedSlot = targetIndex;
+          refreshToolbar(true);
+        } else {
+          updateMobileControlsUi();
+        }
+      }
+
+      function updateMobileControlsUi() {
+        if (mobilePrimaryBtn) mobilePrimaryBtn.classList.toggle("active", mobileTouchActionMode === "primary");
+        if (mobileSecondaryBtn) mobileSecondaryBtn.classList.toggle("active", mobileTouchActionMode === "secondary");
+        const selectedId = slotOrder[selectedSlot];
+        if (mobileFistBtn) mobileFistBtn.classList.toggle("active", selectedId === TOOL_FIST);
+        if (mobileWrenchBtn) mobileWrenchBtn.classList.toggle("active", selectedId === TOOL_WRENCH);
+      }
+
       function bindMobileControls() {
+        const bindTapButton = (button, onTap) => {
+          if (!button || typeof onTap !== "function") return;
+          const run = (event) => {
+            event.preventDefault();
+            onTap();
+          };
+          button.addEventListener("touchstart", run, { passive: false });
+          button.addEventListener("click", run);
+        };
         bindHoldButton(mobileLeftBtn, "left");
         bindHoldButton(mobileRightBtn, "right");
         bindHoldButton(mobileJumpBtn, "jump");
+        bindTapButton(mobilePrimaryBtn, () => setMobileTouchActionMode("primary"));
+        bindTapButton(mobileSecondaryBtn, () => setMobileTouchActionMode("secondary"));
+        bindTapButton(mobileFistBtn, () => setSelectedToolSlotById(TOOL_FIST));
+        bindTapButton(mobileWrenchBtn, () => setSelectedToolSlotById(TOOL_WRENCH));
+        updateMobileControlsUi();
       }
 
       function applyToolbarPosition() {
@@ -12765,10 +12810,17 @@
         const touch = e.changedTouches[0];
         if (!touch) return;
         if (openWrenchMenuFromNameIcon(touch.clientX, touch.clientY)) return;
-        isPointerDown = true;
+        const mobileSecondary = isCoarsePointer && mobileTouchActionMode === "secondary";
+        isPointerDown = !mobileSecondary;
         const pos = worldFromClient(touch.clientX, touch.clientY);
         mouseWorld = pos;
-        useActionAt(pos.tx, pos.ty);
+        if (mobileSecondary) {
+          useSecondaryActionAt(pos.tx, pos.ty);
+          mobileLastTouchActionAt = performance.now();
+        } else {
+          useActionAt(pos.tx, pos.ty);
+          mobileLastTouchActionAt = performance.now();
+        }
       }, { passive: false });
 
       canvas.addEventListener("touchmove", (e) => {

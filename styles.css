@@ -495,31 +495,58 @@ canvas {
 }
 
 .mobile-controls {
-  background: var(--panel-strong);
-  border: 1px solid var(--frame);
-  border-radius: var(--radius-md);
-  padding: 8px;
-  display: flex;
-  justify-content: space-between;
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  z-index: 80;
+  background: linear-gradient(180deg, rgba(18, 12, 6, 0.92), rgba(44, 27, 12, 0.86));
+  border: 2px solid rgba(255, 209, 102, 0.72);
+  border-bottom-color: rgba(92, 56, 20, 0.95);
+  border-right-color: rgba(92, 56, 20, 0.95);
+  border-radius: 14px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
   gap: 8px;
+  backdrop-filter: blur(6px);
 }
 
 .mobile-controls button {
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: linear-gradient(180deg, rgba(255, 209, 102, 0.3), rgba(255, 189, 74, 0.18));
-  color: var(--text);
-  border-radius: 10px;
+  border: 2px solid rgba(255, 209, 102, 0.78);
+  border-bottom-color: rgba(92, 56, 20, 0.95);
+  border-right-color: rgba(92, 56, 20, 0.95);
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.28), rgba(255, 153, 51, 0.14));
+  color: #fff6e4;
+  border-radius: 12px;
   font: inherit;
-  min-height: 42px;
-  min-width: 78px;
-  padding: 8px 10px;
+  font-weight: 700;
+  min-height: 46px;
+  min-width: 0;
+  padding: 8px 9px;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mobile-controls button.active {
+  border-color: rgba(110, 231, 200, 0.95);
+  border-bottom-color: rgba(36, 111, 95, 0.95);
+  border-right-color: rgba(36, 111, 95, 0.95);
+  background: linear-gradient(180deg, rgba(110, 231, 200, 0.3), rgba(16, 185, 129, 0.16));
+  box-shadow: 0 0 0 1px rgba(110, 231, 200, 0.24) inset;
 }
 
 .mobile-move,
 .mobile-actions {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.mobile-move {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .chat-panel {
@@ -2492,6 +2519,7 @@ canvas {
     width: 100vw;
     height: 100vh;
     padding: 9px;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 128px);
     gap: 8px;
     grid-template-rows: auto 1fr auto;
   }
@@ -2568,14 +2596,16 @@ canvas {
   }
 
   .mobile-controls {
-    padding: 6px;
-    gap: 6px;
-    border-radius: 10px;
+    left: 6px;
+    right: 6px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 6px);
+    padding: 8px;
+    gap: 7px;
+    border-radius: 12px;
   }
 
   .mobile-controls button {
-    min-width: 64px;
-    min-height: 38px;
+    min-height: 42px;
     padding: 6px 8px;
     font-size: 12px;
   }
