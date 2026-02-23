@@ -1,30 +1,27 @@
 :root {
-  /* ===== PixelBuild UI Theme (Neon Ember) ===== */
+  /* ===== PixelBuild UI Theme (Modern Game) ===== */
+  --bg-1: #060912;
+  --bg-2: #0b1220;
 
-  /* Core backgrounds */
-  --bg-1: #070814;            /* deep indigo */
-  --bg-2: #0b1022;            /* midnight blue */
+  /* Surfaces */
+  --panel: rgba(12, 18, 30, 0.88);
+  --panel-strong: rgba(8, 12, 22, 0.94);
+  --panel-soft: rgba(255, 255, 255, 0.06);
 
-  /* Surfaces (glass) */
-  --panel: rgba(12, 16, 34, 0.86);
-  --panel-strong: rgba(7, 10, 22, 0.94);
-  --panel-soft: rgba(255, 255, 255, 0.055);
-
-  /* Accents */
-  --accent: #3df5ff;          /* electric aqua */
-  --accent-2: #ff43d1;        /* neon magenta */
-  --gold: #ffcc66;            /* warm highlight */
-  --danger: #ff4d6d;          /* rose red */
-  --success: #3dffb4;         /* mint */
+  /* Brand / accents */
+  --accent: #22e6c5;        /* neon cyan */
+  --accent-2: #7c5cff;      /* arcane violet */
+  --gold: #ffd166;
+  --danger: #ff6b8a;
 
   /* Text */
-  --text: #f2f6ff;
-  --muted: rgba(242, 246, 255, 0.72);
+  --text: #eaf2ff;
+  --muted: rgba(232, 242, 255, 0.72);
 
   /* Borders / shadows */
-  --frame: rgba(125, 170, 255, 0.24);
-  --shadow-lg: 0 22px 52px rgba(0, 0, 0, 0.55);
-  --shadow-md: 0 12px 28px rgba(0, 0, 0, 0.42);
+  --frame: rgba(130, 168, 214, 0.28);
+  --shadow-lg: 0 22px 52px rgba(0, 0, 0, 0.52);
+  --shadow-md: 0 12px 28px rgba(0, 0, 0, 0.40);
 
   /* Radii */
   --radius-lg: 18px;
@@ -34,7 +31,13 @@
   --left-panel-w: 200px;
   --right-panel-w: 190px;
   --desktop-shell-pad: 6px;
+  --desktop-side-gap: 6px;
+
+  /* FX */
+  --glow-accent: 0 0 0 1px rgba(34, 230, 197, 0.22), 0 0 18px rgba(34, 230, 197, 0.14);
+  --glow-violet: 0 0 0 1px rgba(124, 92, 255, 0.18), 0 0 18px rgba(124, 92, 255, 0.12);
 }
+
 
 * {
   box-sizing: border-box;
@@ -182,7 +185,7 @@ canvas {
   width: 100%;
   height: 100%;
   border-radius: 10px;
-  background: linear-gradient(#1b2c46, #13233a 42%, #0c1a2e);
+  background: linear-gradient(#4f7fa0, #3f6f92 42%, #315773);
   image-rendering: pixelated;
   cursor: crosshair;
   touch-action: none;
@@ -240,7 +243,7 @@ canvas {
 
 .inventory-section-head strong {
   font-size: 14px;
-  color: var(--gold);
+  color: #fff7d7;
   letter-spacing: 0.25px;
 }
 
@@ -296,7 +299,7 @@ canvas {
   background: rgba(6, 13, 23, 0.92);
   font-size: 10px;
   line-height: 15px;
-  color: var(--accent);
+  color: #8ff8e4;
   font-weight: 700;
   text-align: center;
   z-index: 6;
@@ -313,7 +316,7 @@ canvas {
   padding: 0 4px;
   border-radius: 8px;
   background: rgba(72, 194, 255, 0.32);
-  color: var(--text);
+  color: #dff6ff;
   font-size: 10px;
   line-height: 16px;
   text-align: center;
@@ -2197,7 +2200,7 @@ canvas {
   border-radius: 10px;
   background: linear-gradient(180deg, rgba(16, 31, 45, 0.96), rgba(9, 21, 33, 0.96));
   box-shadow: 0 10px 24px rgba(2, 10, 18, 0.42);
-  color: var(--text);
+  color: #eef8ff;
   padding: 8px 10px;
 }
 
@@ -2211,7 +2214,7 @@ canvas {
 .inventory-drag-ghost .drag-qty {
   margin-top: 4px;
   font-size: 11px;
-  color: var(--success);
+  color: #6ee7c8;
 }
 
 .hidden {
@@ -2262,7 +2265,7 @@ canvas {
 .worldlock-add-row input {
   border-color: rgba(88, 126, 172, 0.5);
   background: rgba(6, 13, 23, 0.86);
-  color: var(--text);
+  color: #e8f2ff;
 }
 
 .chat-row {
@@ -2644,41 +2647,29 @@ canvas {
    =========================== */
 
 :root {
-  /* ===== PixelBuild UI Theme (Neon Ember) ===== */
+  /* core surfaces */
+  --bg-1: #050812;
+  --bg-2: #070c18;
 
-  /* Core backgrounds */
-  --bg-1: #070814;            /* deep indigo */
-  --bg-2: #0b1022;            /* midnight blue */
-
-  /* Surfaces (glass) */
-  --panel: rgba(12, 16, 34, 0.86);
-  --panel-strong: rgba(7, 10, 22, 0.94);
+  /* panels (glass) */
+  --panel: rgba(12, 18, 30, 0.86);
+  --panel-strong: rgba(8, 12, 20, 0.92);
   --panel-soft: rgba(255, 255, 255, 0.055);
 
-  /* Accents */
-  --accent: #3df5ff;          /* electric aqua */
-  --accent-2: #ff43d1;        /* neon magenta */
-  --gold: #ffcc66;            /* warm highlight */
-  --danger: #ff4d6d;          /* rose red */
-  --success: #3dffb4;         /* mint */
+  /* accents (neo) */
+  --accent: #22d3ee;     /* cyan */
+  --accent-2: #a78bfa;   /* violet */
+  --danger: #fb7185;     /* rose */
+  --text: #eaf2ff;
 
-  /* Text */
-  --text: #f2f6ff;
-  --muted: rgba(242, 246, 255, 0.72);
+  /* frame + shadows */
+  --frame: rgba(140, 170, 210, 0.26);
+  --shadow-lg: 0 22px 60px rgba(0, 0, 0, 0.55);
+  --shadow-md: 0 12px 30px rgba(0, 0, 0, 0.42);
 
-  /* Borders / shadows */
-  --frame: rgba(125, 170, 255, 0.24);
-  --shadow-lg: 0 22px 52px rgba(0, 0, 0, 0.55);
-  --shadow-md: 0 12px 28px rgba(0, 0, 0, 0.42);
-
-  /* Radii */
-  --radius-lg: 18px;
-  --radius-md: 12px;
-
-  /* Layout (keep existing sizes) */
-  --left-panel-w: 200px;
-  --right-panel-w: 190px;
-  --desktop-shell-pad: 6px;
+  /* extra theme helpers (no layout impact) */
+  --glow: 0 0 0 1px rgba(34, 211, 238, 0.22), 0 0 24px rgba(167, 139, 250, 0.14);
+  --glow-strong: 0 0 0 1px rgba(34, 211, 238, 0.32), 0 0 34px rgba(34, 211, 238, 0.18);
 }
 
 /* Background: more modern neon aura */
@@ -2904,7 +2895,7 @@ body {
 }
 
 ::selection {
-  background: rgba(61, 245, 255, 0.28);
+  background: rgba(34, 230, 197, 0.28);
   color: #ffffff;
 }
 
@@ -3098,9 +3089,9 @@ canvas {
 
 /* ===== Extra polish pass (menus) ===== */
 :root{
-  --accent-glow: rgba(61, 245, 255, 0.22);
-  --accent-glow-strong: rgba(61, 245, 255, 0.34);
-  --violet-glow: rgba(255, 67, 209, 0.22);
+  --accent-glow: rgba(34, 230, 197, 0.22);
+  --accent-glow-strong: rgba(34, 230, 197, 0.34);
+  --violet-glow: rgba(124, 92, 255, 0.22);
   --text-shadow-soft: 0 2px 10px rgba(0,0,0,0.45);
 }
 
