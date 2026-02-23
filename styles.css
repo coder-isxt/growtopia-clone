@@ -3106,3 +3106,56 @@ body{
   background: linear-gradient(180deg, rgba(255,209,102,0.18), rgba(92,56,20,0.10));
   border-color: rgba(255, 209, 102, 0.25);
 }
+
+
+/* =========================================
+   Growtopia UI FIXES:
+   1) Pull game window up
+   2) Push inventory + panels below top bar
+   ========================================= */
+
+:root{
+  --gt-topbar-offset: 112px;
+}
+
+/* reduce vertical spacing so canvas sits higher */
+.game-shell{
+  padding: 8px !important;
+  gap: 6px !important;
+}
+
+/* shrink HUD height */
+.hud{
+  padding: 8px 12px !important;
+}
+
+/* align panels below top bar */
+.chat-panel,
+.logs-panel{
+  top: var(--gt-topbar-offset) !important;
+}
+
+/* right inventory / toolbar panel */
+@media (min-width:980px){
+  .toolbar{
+    top: var(--gt-topbar-offset) !important;
+    bottom: 6px !important;
+  }
+
+  .layout-resize-handle{
+    top: var(--gt-topbar-offset) !important;
+    bottom: 6px !important;
+  }
+}
+
+/* fix inventory passive modals */
+.vending-modal.inventory-passive{
+  padding-top: var(--gt-topbar-offset) !important;
+}
+
+/* small topbar text tighten */
+.gt-sub{
+  line-height:1.2 !important;
+  font-size:11px !important;
+  opacity:.9;
+}
