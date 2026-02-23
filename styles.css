@@ -3164,3 +3164,22 @@ body{
   font-size:11px !important;
   opacity:.9;
 }
+
+/* Unified top alignment for chat + inventory + game area */
+:root{
+  --gt-content-top: 112px;
+}
+
+@media (min-width: 980px){
+  .chat-panel,
+  .toolbar,
+  .layout-resize-handle{
+    top: var(--gt-content-top) !important;
+  }
+
+  /* Keep game/menu top aligned with side panels and nudge slightly upward */
+  .canvas-wrap,
+  .menu-screen{
+    margin-top: calc(var(--gt-content-top) - var(--topbar-safe-offset) - 2px) !important;
+  }
+}
