@@ -5116,9 +5116,21 @@
       }
 
       function syncMobileOverlayVisibility() {
+        const hasPassiveInventoryModalOpen = (() => {
+          if (!isMobileUi || !inWorld) return false;
+          const ids = ["vendingModal", "donationModal", "chestModal", "tradePanelModal"];
+          for (let i = 0; i < ids.length; i++) {
+            const el = document.getElementById(ids[i]);
+            if (!el || el.classList.contains("hidden")) continue;
+            if (el.classList.contains("inventory-passive") || el.classList.contains("trade-modal-passive")) {
+              return true;
+            }
+          }
+          return false;
+        })();
         const showChatPanel = !gameShellEl.classList.contains("hidden") && (!isMobileUi || isChatOpen);
         chatPanelEl.classList.toggle("hidden", !showChatPanel);
-        const showToolbar = inWorld && (!isMobileUi || isMobileInventoryOpen);
+        const showToolbar = inWorld && (!isMobileUi || isMobileInventoryOpen || hasPassiveInventoryModalOpen);
         toolbar.classList.toggle("hidden", !showToolbar);
         mobileControlsEl.classList.toggle("hidden", !(inWorld && isMobileUi));
       }
