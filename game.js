@@ -12748,7 +12748,7 @@
           questsState = normalizeQuestsState({});
         }
         refreshToolbar();
-        postDailyQuestStatus();
+        //postDailyQuestStatus();
         bindMobileControls();
         setInWorldState(false);
         refreshWorldButtons([currentWorldId]);
