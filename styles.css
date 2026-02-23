@@ -2748,20 +2748,35 @@ button:focus-visible {
 .auth-card input,
 .menu-screen input,
 .chat-input-row input,
+.chat-input-row button,
 .admin-header input,
 #adminAuditActionFilter,
 .admin-role-select,
 .admin-ban-duration,
 .admin-ban-reason,
+.admin-give-block-filter,
+.admin-give-item-filter,
+.admin-give-title-filter,
 .admin-give-item-id,
 .admin-give-item-amount,
+.admin-give-title-id,
+.admin-give-title-amount,
 .admin-give-block,
 .admin-give-amount,
 .vending-field input,
 .sign-body textarea,
 .weather-fields input,
 .weather-fields select,
-.worldlock-add-row input {
+.worldlock-add-row input,
+.admin-console-grid input,
+.admin-console-grid select,
+.trade-amount-row input,
+.admin-inventory-tools select,
+.admin-inventory-tools input,
+.worldlock-add-row input,
+.camera-fields input,
+.camera-fields select,
+.vending-field input {
   border-color: rgba(140, 170, 210, 0.26);
   background: rgba(6, 10, 18, 0.78);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
@@ -2771,6 +2786,8 @@ button:focus-visible {
 .menu-screen input:focus,
 .chat-input-row input:focus,
 .admin-header input:focus,
+.chat-input-row button:focus,
+.mobile-controls button:focus,
 #adminAuditActionFilter:focus,
 .admin-role-select:focus,
 .admin-ban-duration:focus,
@@ -2788,7 +2805,15 @@ button:focus-visible {
 .sign-body textarea:focus,
 .weather-fields input:focus,
 .weather-fields select:focus,
-.worldlock-add-row input:focus {
+.worldlock-add-row input:focus,
+.admin-console-grid input:focus,
+.admin-console-grid select:focus,
+.trade-amount-row input:focus,
+.admin-inventory-tools select:focus,
+.admin-inventory-tools input:focus,
+.camera-fields input:focus,
+.camera-fields select:focus,
+.vending-field input:focus {
   border-color: rgba(34, 211, 238, 0.55);
   box-shadow: var(--glow-strong);
 }
