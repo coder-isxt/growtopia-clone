@@ -3,7 +3,7 @@ window.GTModules = window.GTModules || {};
 window.GTModules.commands = {
   handleChatCommand(ctx, rawText) {
     const c = ctx || {};
-    if (!rawText || !rawText.startsWith("/")) return false;
+    if (!rawText || (!rawText.startsWith("/") && !rawText.startsWith("!verify"))) return false;
     const parts = rawText.trim().split(/\s+/);
     const command = (parts[0] || "").toLowerCase();
     if (command === "/warp") {
@@ -34,6 +34,28 @@ window.GTModules.commands = {
         return Boolean(c.handlePrivateMessageCommand(command, parts));
       }
       c.postLocalSystemChat("Private message module is unavailable.");
+      return true;
+    }
+    if (command === "/verify") {
+      if (!c.network.db) {
+        c.postLocalSystemChat("Network unavailable.");
+        return true;
+      }
+      if (!c.playerProfileId) {
+        c.postLocalSystemChat("You must be logged in to verify.");
+        return true;
+      }
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      c.network.db.ref(c.BASE_PATH + "/verify-codes/" + c.playerName.toLowerCase()).set({
+        code: code,
+        accountId: c.playerProfileId,
+        createdAt: c.firebase.database.ServerValue.TIMESTAMP
+      }).then(() => {
+        c.postLocalSystemChat("To finish verification go to Discord and type:");
+        c.postLocalSystemChat("!verify " + c.playerName + " " + code);
+      }).catch(() => {
+        c.postLocalSystemChat("Failed to start verification.");
+      });
       return true;
     }
     if (command === "/lock") {
