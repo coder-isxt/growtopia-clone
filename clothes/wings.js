@@ -6,5 +6,6 @@ window.GTCosmeticCatalog.wings = [
   { id: "black_outline_wings", name: "Black Outline Wings", color: "#ffffff", icon: "BOW", faIcon: "fa-solid fa-leaf", rarity: "epic", doubleJump: true, image: "wings/black_outline_wings.png", offsetX: 2, offsetY: 0 },
   { id: "golden_evil_wings", name: "Golden Evil Wings", color: "#ffffff", icon: "GEW", faIcon: "fa-solid fa-leaf", rarity: "epic", doubleJump: true, image: "wings/golden_evil.png", offsetX: 5, offsetY: 0 },
   { id: "pink_baby_angels", name: "Pink Baby Angel Wings", color: "#ffffff", icon: "PBAW", faIcon: "fa-solid fa-leaf", rarity: "epic", doubleJump: true, image: "wings/pink_baby_angels.png", offsetX: 5, offsetY: 0 },
-  { id: "admin_wings", name: "Admin Wings", color: "#ffffff", icon: "AW", faIcon: "fa-solid fa-leaf", rarity: "mythic", doubleJump: true, image: "wings/admin_wings.png", offsetX: 4, offsetY: -2 }
+  { id: "admin_wings", name: "Admin Wings", color: "#ffffff", icon: "AW", faIcon: "fa-solid fa-leaf", rarity: "mythic", doubleJump: true, image: "wings/admin_wings.png", offsetX: 4, offsetY: -2 },
+  { id: "golden_angel_wings", name: "Golden Angel Wings", color: "#e7b852", icon: "GAW", faIcon: "fa-solid fa-leaf", rarity: "legendary", doubleJump: true, image: "wings/golden_angel.png", offsetX: 4, offsetY: -3 },
 ];
