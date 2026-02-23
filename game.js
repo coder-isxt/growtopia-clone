@@ -7922,7 +7922,7 @@
         const wingImg = getCosmeticImage(item);
         if (wingImg) {
           const centerX = px + PLAYER_W / 2;
-          const centerY = py + 14.5;
+          const centerY = py + 12.5;
           const baseAngle = 0.2 + open * 0.34;
           const wingH = 19;
           const wingW = Math.max(10, Math.round(wingH * (wingImg.naturalWidth / Math.max(1, wingImg.naturalHeight))));
@@ -7946,7 +7946,7 @@
         }
         ctx.fillStyle = item.color;
         const centerX = px + PLAYER_W / 2;
-        const centerY = py + 14.5;
+        const centerY = py + 12.5;
         const forwardSign = facing === 1 ? 1 : -1;
         const drawWing = (sideSign) => {
           const dir = sideSign * forwardSign;
