@@ -45,6 +45,8 @@ window.GTModules.commands = {
         c.postLocalSystemChat("You must be logged in to verify.");
         return true;
       }
+      if(c.discordUsername !== "")
+        return true;
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       c.network.db.ref(c.BASE_PATH + "/verify-codes/" + c.playerName.toLowerCase()).set({
         code: code,
