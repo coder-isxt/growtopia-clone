@@ -591,6 +591,20 @@ canvas {
   font-weight: 700;
 }
 
+.chat-title-rainbow {
+  background: linear-gradient(90deg, #ff5f7a, #ffd166, #63d39b, #70a8ff, #c084fc, #ff5f7a);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  animation: chatTitleRainbow 3s linear infinite;
+}
+
+@keyframes chatTitleRainbow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+
 .chat-input-row {
   padding: 6px;
   border-top: 1px solid rgba(255, 255, 255, 0.16);

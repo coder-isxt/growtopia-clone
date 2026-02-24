@@ -35,6 +35,7 @@
       const enterWorldBtn = document.getElementById("enterWorldBtn");
       const chatToggleBtn = document.getElementById("chatToggleBtn");
       const friendsToggleBtn = document.getElementById("friendsToggleBtn");
+      const titlesToggleBtn = document.getElementById("titlesToggleBtn");
       const questsToggleBtn = document.getElementById("questsToggleBtn");
       const achievementsToggleBtn = document.getElementById("achievementsToggleBtn");
       const shopToggleBtn = document.getElementById("shopToggleBtn");
@@ -102,6 +103,11 @@
       const friendsBodyEl = document.getElementById("friendsBody");
       const friendsActionsEl = document.getElementById("friendsActions");
       const friendsCloseBtn = document.getElementById("friendsCloseBtn");
+      const titlesModalEl = document.getElementById("titlesModal");
+      const titlesTitleEl = document.getElementById("titlesTitle");
+      const titlesBodyEl = document.getElementById("titlesBody");
+      const titlesActionsEl = document.getElementById("titlesActions");
+      const titlesCloseBtn = document.getElementById("titlesCloseBtn");
       const achievementsModalEl = document.getElementById("achievementsModal");
       const achievementsTitleEl = document.getElementById("achievementsTitle");
       const achievementsBodyEl = document.getElementById("achievementsBody");
@@ -1766,7 +1772,7 @@
           adminState.inventories[accountId].titleItems = {};
         }
         const safeTitleId = String(titleId || "");
-        adminState.inventories[accountId].titleItems[safeTitleId] = Math.max(0, Math.floor(Number(nextValue) || 0));
+        adminState.inventories[accountId].titleItems[safeTitleId] = clampTitleUnlocked(nextValue);
       }
 
       function adjustLocalInventoryBlockCount(accountId, blockId, delta) {
@@ -2218,6 +2224,7 @@
           ctrl.closeAll();
         }
         closeAchievementsMenu();
+        closeTitlesMenu();
       }
 
       function renderAdminPanel() {
@@ -3007,13 +3014,13 @@
           const titleId = String(itemSelect.value || "").trim();
           if (!titleId || !TITLE_LOOKUP[titleId]) return;
           network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/titleItems/" + titleId).transaction((current) => {
-            const now = Math.max(0, Math.floor(Number(current) || 0));
-            return Math.max(0, now + delta);
+            if (delta > 0) return 1;
+            return 0;
           }).then((result) => {
-            const next = Math.max(0, Math.floor(Number(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0) || 0));
+            const next = clampTitleUnlocked(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0);
             setLocalInventoryTitleCount(accountId, titleId, next);
-            logAdminAudit("Admin(inventory-modal) " + (delta > 0 ? "added " : "removed ") + "title " + titleId + " x" + amount + " for @" + username + ".");
-            pushAdminAuditEntry(delta > 0 ? "inventory_add" : "inventory_remove", accountId, "title=" + titleId + " amount=" + amount);
+            logAdminAudit("Admin(inventory-modal) " + (delta > 0 ? "unlocked " : "removed ") + "title " + titleId + " for @" + username + ".");
+            pushAdminAuditEntry(delta > 0 ? "inventory_add" : "inventory_remove", accountId, "title=" + titleId + " unlocked=" + next);
             syncAdminPanelAfterInventoryChange(accountId);
           }).catch(() => {
             postLocalSystemChat("Failed to update title.");
@@ -3255,16 +3262,14 @@
           postLocalSystemChat("Usage: " + (removeMode ? "/removetitle" : "/givetitle") + " <user> <title_id> <amount>");
           return false;
         }
-        const delta = removeMode ? -amountSafe : amountSafe;
         network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/titleItems/" + titleIdSafe).transaction((current) => {
-          const next = (Number(current) || 0) + delta;
-          return Math.max(0, next);
+          return removeMode ? 0 : 1;
         }).then((result) => {
-          const next = Math.max(0, Math.floor(Number(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0) || 0));
+          const next = clampTitleUnlocked(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0);
           setLocalInventoryTitleCount(accountId, titleIdSafe, next);
           const target = targetLabel || targetUsername || accountId;
-          logAdminAudit("Admin(" + sourceTag + ") " + (removeMode ? "removed title " : "gave title ") + titleIdSafe + " x" + amountSafe + " " + (removeMode ? "from" : "to") + " @" + target + ".");
-          pushAdminAuditEntry(removeMode ? "removetitle" : "givetitle", accountId, "title=" + titleIdSafe + " amount=" + amountSafe);
+          logAdminAudit("Admin(" + sourceTag + ") " + (removeMode ? "removed title " : "unlocked title ") + titleIdSafe + " " + (removeMode ? "from" : "to") + " @" + target + ".");
+          pushAdminAuditEntry(removeMode ? "removetitle" : "givetitle", accountId, "title=" + titleIdSafe + " unlocked=" + next);
           syncAdminPanelAfterInventoryChange(accountId);
         }).catch(() => {
           postLocalSystemChat("Failed to update title.");
@@ -4464,6 +4469,49 @@
         if (questsModalEl) questsModalEl.classList.remove("hidden");
       }
 
+      function renderTitlesMenu() {
+        if (!titlesBodyEl || !titlesActionsEl || !titlesTitleEl) return;
+        const unlocked = [];
+        for (const title of TITLE_CATALOG) {
+          if ((titleInventory[title.id] || 0) <= 0) continue;
+          unlocked.push(title);
+        }
+        titlesTitleEl.textContent = "Titles (" + unlocked.length + "/" + TITLE_CATALOG.length + ")";
+        if (!unlocked.length) {
+          titlesBodyEl.innerHTML = "<div class='vending-empty'>No titles unlocked yet.</div>";
+          titlesActionsEl.innerHTML = "<button type='button' data-title-act='close'>Close</button>";
+          return;
+        }
+        const rows = [];
+        for (let i = 0; i < unlocked.length; i++) {
+          const title = unlocked[i];
+          const equipped = equippedTitleId === title.id;
+          const previewName = formatTitleWithUsername(title.name || title.id, playerName || "Player");
+          rows.push(
+            "<div class='vending-section'>" +
+              "<div class='vending-stat-grid'>" +
+                "<div class='vending-stat'><span>Title</span><strong style='color:" + escapeHtml(title.color || "#8fb4ff") + ";'>" + escapeHtml(previewName) + "</strong></div>" +
+                "<div class='vending-stat'><span>Status</span><strong>" + (equipped ? "Equipped" : "Unlocked") + "</strong></div>" +
+              "</div>" +
+              "<div class='vending-actions' style='justify-content:flex-start;'>" +
+                "<button type='button' data-title-equip='" + escapeHtml(title.id) + "'>" + (equipped ? "Unequip" : "Equip") + "</button>" +
+              "</div>" +
+            "</div>"
+          );
+        }
+        titlesBodyEl.innerHTML = rows.join("");
+        titlesActionsEl.innerHTML = "<button type='button' data-title-act='close'>Close</button>";
+      }
+
+      function closeTitlesMenu() {
+        if (titlesModalEl) titlesModalEl.classList.add("hidden");
+      }
+
+      function openTitlesMenu() {
+        renderTitlesMenu();
+        if (titlesModalEl) titlesModalEl.classList.remove("hidden");
+      }
+
       function getQuestsStorageKey() {
         return "growtopia_quests_" + (playerProfileId || "guest");
       }
@@ -4544,9 +4592,10 @@
         }
         const titleId = String(rewards.titleId || "").trim();
         if (titleId && TITLE_LOOKUP[titleId]) {
-          const amount = Math.max(1, Math.floor(Number(rewards.titleAmount) || 1));
-          titleInventory[titleId] = clampInventoryCount((titleInventory[titleId] || 0) + amount);
-          changed = true;
+          if ((titleInventory[titleId] || 0) <= 0) {
+            titleInventory[titleId] = 1;
+            changed = true;
+          }
         }
         if (changed) {
           saveInventory();
@@ -4637,6 +4686,10 @@
         return Math.max(0, Math.min(INVENTORY_ITEM_LIMIT, safe));
       }
 
+      function clampTitleUnlocked(value) {
+        return Number(value) > 0 ? 1 : 0;
+      }
+
       function autoConvertWorldLocksInInventory() {
         const wl = Math.max(0, Math.floor(Number(inventory[WORLD_LOCK_ID]) || 0));
         if (wl < 300) return false;
@@ -4666,7 +4719,7 @@
           }
         }
         for (const title of TITLE_CATALOG) {
-          titleInventory[title.id] = clampInventoryCount(titleInventory[title.id]);
+          titleInventory[title.id] = clampTitleUnlocked(titleInventory[title.id]);
         }
       }
 
@@ -4682,6 +4735,33 @@
         return id ? (TITLE_LOOKUP[id] || null) : null;
       }
 
+      function formatTitleWithUsername(titleText, username) {
+        const template = String(titleText || "");
+        if (!template) return "";
+        const uname = String(username || "Player").slice(0, 16);
+        return template.replace(/\{username\}/gi, uname);
+      }
+
+      function normalizeTitleStyle(styleRaw) {
+        const style = styleRaw && typeof styleRaw === "object" ? styleRaw : {};
+        return {
+          bold: Boolean(style.bold),
+          glow: Boolean(style.glow),
+          rainbow: Boolean(style.rainbow),
+          glowColor: String(style.glowColor || "").trim().slice(0, 24)
+        };
+      }
+
+      function getTitleStyleById(titleId) {
+        const def = getTitleDef(titleId);
+        return normalizeTitleStyle(def && def.style);
+      }
+
+      function getRainbowTitleColor(nowMs) {
+        const t = (Number(nowMs) || performance.now()) * 0.12;
+        return "hsl(" + (Math.floor(t) % 360) + " 95% 66%)";
+      }
+
       function getEquippedTitleDef() {
         const def = getTitleDef(equippedTitleId);
         if (!def) return null;
@@ -4694,7 +4774,7 @@
         if (!def) return { id: "", name: "", color: "" };
         return {
           id: def.id,
-          name: def.name,
+          name: formatTitleWithUsername(def.name, playerName),
           color: def.color || "#8fb4ff"
         };
       }
@@ -4724,10 +4804,10 @@
           const nestedValue = Number(titleRecord[title.id]);
           const topLevelValue = Number(record && record[title.id]);
           let finalValue = 0;
-          if (Number.isFinite(nestedValue)) finalValue = clampInventoryCount(nestedValue);
-          if (!finalValue && Number.isFinite(topLevelValue)) finalValue = clampInventoryCount(topLevelValue);
+          if (Number.isFinite(nestedValue)) finalValue = clampTitleUnlocked(nestedValue);
+          if (!finalValue && Number.isFinite(topLevelValue)) finalValue = clampTitleUnlocked(topLevelValue);
           if (!finalValue && title.defaultUnlocked) finalValue = 1;
-          titleInventory[title.id] = clampInventoryCount(finalValue);
+          titleInventory[title.id] = clampTitleUnlocked(finalValue);
         }
         ensureDefaultTitleUnlocked();
         const equippedTitleRaw = String(record && record.equippedTitle || "");
@@ -4772,7 +4852,7 @@
         }
         const titlePayload = {};
         for (const title of TITLE_CATALOG) {
-          titlePayload[title.id] = clampInventoryCount(titleInventory[title.id]);
+          titlePayload[title.id] = clampTitleUnlocked(titleInventory[title.id]);
         }
         payload.titleItems = titlePayload;
         payload.equippedTitle = getEquippedTitlePayload().id || "";
@@ -5152,6 +5232,7 @@
           stopInventoryDrag();
           setChatOpen(false);
           closeAchievementsMenu();
+          closeTitlesMenu();
           closeVendingModal();
           closeDonationModal();
           closeChestModal();
@@ -5209,15 +5290,28 @@
           const sessionLabel = sessionTag ? " #" + sessionTag : "";
           const titleId = String(message.titleId || "").trim();
           const fallbackTitle = getTitleDef(titleId);
-          const titleName = String(message.titleName || (fallbackTitle && fallbackTitle.name) || "").trim().slice(0, 24);
+          const rawTitleName = String(message.titleName || (fallbackTitle && fallbackTitle.name) || "").trim();
+          const titleName = formatTitleWithUsername(rawTitleName, name).slice(0, 24);
           const titleColor = String(message.titleColor || (fallbackTitle && fallbackTitle.color) || "#8fb4ff").trim().slice(0, 24);
+          const titleStyle = getTitleStyleById(titleId);
           const prefix = document.createElement("span");
           prefix.textContent = (time ? "[" + time + "] " : "");
           row.appendChild(prefix);
           if (titleName) {
             const titleEl = document.createElement("span");
             titleEl.className = "chat-title";
-            titleEl.style.color = titleColor || "#8fb4ff";
+            if (titleStyle.rainbow) {
+              titleEl.classList.add("chat-title-rainbow");
+            } else {
+              titleEl.style.color = titleColor || "#8fb4ff";
+            }
+            if (titleStyle.bold) {
+              titleEl.style.fontWeight = "800";
+            }
+            if (titleStyle.glow) {
+              const glowColor = titleStyle.glowColor || titleColor || "#8fb4ff";
+              titleEl.style.textShadow = "0 0 6px " + glowColor + ", 0 0 12px " + glowColor;
+            }
             titleEl.textContent = "[" + titleName + "] ";
             row.appendChild(titleEl);
           }
@@ -5625,6 +5719,7 @@
         setChatOpen(false);
         hideAnnouncementPopup();
         closeAchievementsMenu();
+        closeTitlesMenu();
         const shopCtrl = getShopController();
         if (shopCtrl && typeof shopCtrl.closeModal === "function") {
           shopCtrl.closeModal();
@@ -5864,8 +5959,9 @@
         const id = String(titleId || "").trim();
         const qty = Math.max(0, Math.floor(Number(amount) || 0));
         if (!id || !qty || !TITLE_LOOKUP[id]) return 0;
-        titleInventory[id] = clampInventoryCount((titleInventory[id] || 0) + qty);
-        return qty;
+        if ((titleInventory[id] || 0) > 0) return 0;
+        titleInventory[id] = 1;
+        return 1;
       }
 
       function resolveGachaBreak(blockId, tx, ty) {
@@ -8464,14 +8560,29 @@
         const nameText = String(playerName || "Player").slice(0, 20);
         const nameY = basePy - 8;
         ctx.font = PLAYER_NAME_FONT;
-        const titleText = titleDef ? ("[" + titleDef.name + "] ") : "";
+        const localTitleName = titleDef ? formatTitleWithUsername(titleDef.name, nameText) : "";
+        const titleText = localTitleName ? ("[" + localTitleName + "] ") : "";
+        const localTitleStyle = normalizeTitleStyle(titleDef && titleDef.style);
         const titleWidth = titleText ? ctx.measureText(titleText).width : 0;
         const nameWidth = ctx.measureText(nameText).width;
         const totalWidth = titleWidth + nameWidth;
         let cursorX = Math.round(px + PLAYER_W / 2 - totalWidth / 2);
         if (titleDef) {
-          ctx.fillStyle = titleDef.color || "#8fb4ff";
+          const titleColor = localTitleStyle.rainbow
+            ? getRainbowTitleColor(nowMs)
+            : (titleDef.color || "#8fb4ff");
+          ctx.fillStyle = titleColor;
+          if (localTitleStyle.bold) {
+            ctx.font = "bold " + PLAYER_NAME_FONT;
+          }
+          if (localTitleStyle.glow) {
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = localTitleStyle.glowColor || titleColor;
+          }
           ctx.fillText(titleText, cursorX, nameY);
+          ctx.shadowBlur = 0;
+          ctx.shadowColor = "transparent";
+          ctx.font = PLAYER_NAME_FONT;
           cursorX += titleWidth;
         }
         ctx.fillStyle = "#f3fbff";
@@ -8546,8 +8657,10 @@
           const nameText = String(other.name || "Player").slice(0, 20);
           const titleRaw = other && other.title && typeof other.title === "object" ? other.title : {};
           const fallbackTitle = getTitleDef(titleRaw.id || "");
-          const titleName = String(titleRaw.name || (fallbackTitle && fallbackTitle.name) || "").slice(0, 24);
+          const rawRemoteTitle = String(titleRaw.name || (fallbackTitle && fallbackTitle.name) || "");
+          const titleName = formatTitleWithUsername(rawRemoteTitle, nameText).slice(0, 24);
           const titleColor = String(titleRaw.color || (fallbackTitle && fallbackTitle.color) || "#8fb4ff").slice(0, 24);
+          const remoteTitleStyle = normalizeTitleStyle(fallbackTitle && fallbackTitle.style);
           const nameY = basePy - 8;
           ctx.font = PLAYER_NAME_FONT;
           const titleText = titleName ? ("[" + titleName + "] ") : "";
@@ -8557,8 +8670,21 @@
           const nameX = Math.round(px + PLAYER_W / 2 - totalWidth / 2);
           let cursorX = nameX;
           if (titleName) {
-            ctx.fillStyle = titleColor || "#8fb4ff";
+            const styledColor = remoteTitleStyle.rainbow
+              ? getRainbowTitleColor(nowMs)
+              : (titleColor || "#8fb4ff");
+            ctx.fillStyle = styledColor;
+            if (remoteTitleStyle.bold) {
+              ctx.font = "bold " + PLAYER_NAME_FONT;
+            }
+            if (remoteTitleStyle.glow) {
+              ctx.shadowBlur = 8;
+              ctx.shadowColor = remoteTitleStyle.glowColor || styledColor;
+            }
             ctx.fillText(titleText, cursorX, nameY);
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = "transparent";
+            ctx.font = PLAYER_NAME_FONT;
             cursorX += titleWidth;
           }
           ctx.fillStyle = "#f3fbff";
@@ -11203,6 +11329,11 @@
             openQuestsMenu();
           });
         }
+        if (titlesToggleBtn) {
+          titlesToggleBtn.addEventListener("click", () => {
+            openTitlesMenu();
+          });
+        }
         if (achievementsCloseBtn) {
           achievementsCloseBtn.addEventListener("click", () => {
             closeAchievementsMenu();
@@ -11211,6 +11342,11 @@
         if (questsCloseBtn) {
           questsCloseBtn.addEventListener("click", () => {
             closeQuestsMenu();
+          });
+        }
+        if (titlesCloseBtn) {
+          titlesCloseBtn.addEventListener("click", () => {
+            closeTitlesMenu();
           });
         }
         if (achievementsModalEl) {
@@ -11236,6 +11372,13 @@
             }
           });
         }
+        if (titlesModalEl) {
+          titlesModalEl.addEventListener("click", (event) => {
+            if (event.target === titlesModalEl) {
+              closeTitlesMenu();
+            }
+          });
+        }
         if (questsActionsEl) {
           questsActionsEl.addEventListener("click", (event) => {
             const target = event.target;
@@ -11243,6 +11386,25 @@
             if (String(target.dataset.questAct || "") === "close") {
               closeQuestsMenu();
             }
+          });
+        }
+        if (titlesActionsEl) {
+          titlesActionsEl.addEventListener("click", (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            if (String(target.dataset.titleAct || "") === "close") {
+              closeTitlesMenu();
+            }
+          });
+        }
+        if (titlesBodyEl) {
+          titlesBodyEl.addEventListener("click", (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            const titleId = String(target.dataset.titleEquip || "").trim();
+            if (!titleId) return;
+            equipTitle(titleId);
+            renderTitlesMenu();
           });
         }
         adminToggleBtn.addEventListener("click", () => {
@@ -12587,37 +12749,6 @@
           }
           toolbar.appendChild(cosmeticSection.section);
         }
-        const titleEntries = [];
-        for (const title of TITLE_CATALOG) {
-          const count = Math.max(0, Number(titleInventory[title.id]) || 0);
-          if (count <= 0) continue;
-          titleEntries.push({ ...title, count });
-        }
-        if (titleEntries.length > 0) {
-          const titleSection = createInventorySection("Titles", equippedTitleId ? "1 equipped" : "None equipped");
-          for (const title of titleEntries) {
-            const equipped = equippedTitleId === title.id;
-            const slotEl = createInventorySlot({
-              selected: equipped,
-              variant: "inventory-slot-cosmetic",
-              title: "Title | " + title.name + " | x" + title.count,
-              color: title.color || "#8fb4ff",
-              iconClass: "icon-cosmetic",
-              faIconClass: "fa-solid fa-tag",
-              imageSrc: "",
-              iconLabel: title.name.slice(0, 2).toUpperCase(),
-              name: title.name,
-              countText: "x" + title.count,
-              badgeText: equipped ? "E" : "",
-              getDragEntry: null,
-              onClick: () => {
-                equipTitle(title.id);
-              }
-            });
-            titleSection.grid.appendChild(slotEl);
-          }
-          toolbar.appendChild(titleSection.section);
-        }
         const donationCtrl = getDonationController();
         if (donationCtrl && typeof donationCtrl.isOpen === "function" && donationCtrl.isOpen()) {
           if (typeof donationCtrl.renderOpen === "function") donationCtrl.renderOpen();
@@ -12625,6 +12756,9 @@
         const chestCtrl = getChestController();
         if (chestCtrl && typeof chestCtrl.isOpen === "function" && chestCtrl.isOpen()) {
           if (typeof chestCtrl.renderOpen === "function") chestCtrl.renderOpen();
+        }
+        if (titlesModalEl && !titlesModalEl.classList.contains("hidden")) {
+          renderTitlesMenu();
         }
         updateMobileControlsUi();
       }
@@ -13040,6 +13174,11 @@
         if (e.key === "Escape" && achievementsModalEl && !achievementsModalEl.classList.contains("hidden")) {
           e.preventDefault();
           closeAchievementsMenu();
+          return;
+        }
+        if (e.key === "Escape" && titlesModalEl && !titlesModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeTitlesMenu();
           return;
         }
         const tradePanelEl = document.getElementById("tradePanelModal");
