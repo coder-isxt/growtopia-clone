@@ -111,9 +111,15 @@ window.GTModules = window.GTModules || {};
       return Math.floor(safe / 10) + (safe % 10);
     }
 
+    function getRemeFromRoll(roll) {
+      const r = Math.max(0, Math.floor(Number(roll) || 0));
+      if (r === 19 || r === 28) return 0;
+      return sumDigits(r);
+    }
+
     function evaluateSpin(def, playerRoll, houseRoll, bet) {
-      const playerReme = sumDigits(playerRoll);
-      const houseReme = sumDigits(houseRoll);
+      const playerReme = getRemeFromRoll(playerRoll);
+      const houseReme = getRemeFromRoll(houseRoll);
       const triple = def.tripleWinRolls.has(playerRoll);
       const tie = playerReme === houseReme;
       let multiplier = 0;
@@ -251,7 +257,7 @@ window.GTModules = window.GTModules || {};
       };
       const beforeBank = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
       const afterBetBank = beforeBank + result.bet;
-      const payout = Math.max(0, Math.min(result.payoutWanted, afterBetBank));
+      const payout = Math.max(0, Math.floor(Number(result.payoutWanted) || 0));
       const nextStats = normalizeStats(current.stats);
       nextStats.plays += 1;
       nextStats.totalBet += result.bet;
@@ -275,16 +281,13 @@ window.GTModules = window.GTModules || {};
       return { next, payout };
     }
 
-    function getOutcomeMessage(result, payout, hadPayoutCap) {
+    function getOutcomeMessage(result, payout) {
       const playerText = "You " + result.playerRoll + " (" + result.playerReme + ")";
       const houseText = "House " + result.houseRoll + " (" + result.houseReme + ")";
       if (result.outcome === "triple") {
         return playerText + " vs " + houseText + ": TRIPLE. Won " + payout + " WL.";
       }
       if (result.outcome === "win") {
-        if (hadPayoutCap) {
-          return playerText + " vs " + houseText + ": WIN, but machine had limited bank. Paid " + payout + " WL.";
-        }
         return playerText + " vs " + houseText + ": WIN. Won " + payout + " WL.";
       }
       if (result.tie) {
@@ -331,7 +334,7 @@ window.GTModules = window.GTModules || {};
         const current = getLocal(tx, ty) || machine;
         const beforeBank = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
         const afterBetBank = beforeBank + bet;
-        const payout = Math.max(0, Math.min(result.payoutWanted, afterBetBank));
+        const payout = Math.max(0, Math.floor(Number(result.payoutWanted) || 0));
         inventory[worldLockId] = Math.max(0, haveLocal - bet + payout);
         const nextStats = normalizeStats(current.stats);
         nextStats.plays += 1;
@@ -355,7 +358,7 @@ window.GTModules = window.GTModules || {};
         if (typeof opts.saveInventory === "function") opts.saveInventory();
         if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
         renderModal(tx, ty, nextMachine);
-        post(getOutcomeMessage(result, payout, payout < result.payoutWanted));
+        post(getOutcomeMessage(result, payout));
       };
 
       if (!network || !network.enabled || !network.db || !basePath || !profileId) {
@@ -408,7 +411,7 @@ window.GTModules = window.GTModules || {};
         if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
         const latest = getLocal(tx, ty) || machine;
         renderModal(tx, ty, latest);
-        post(getOutcomeMessage(result, done.payout, done.payout < result.payoutWanted));
+        post(getOutcomeMessage(result, done.payout));
       }).catch(() => {
         post("Spin failed.");
       });

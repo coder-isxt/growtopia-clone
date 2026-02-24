@@ -762,6 +762,12 @@
           return Math.floor(v / 10) + (v % 10);
         }
 
+        function getRemeFromRoll(roll) {
+          const r = Math.max(0, Math.floor(Number(roll) || 0));
+          if (r === 19 || r === 28) return 0;
+          return sumDigits(r);
+        }
+
         function canCollect(machine) {
           const pid = String(get("getPlayerProfileId", "") || "");
           return Boolean(machine && pid && machine.ownerAccountId === pid);
@@ -838,8 +844,8 @@
           }
           const playerRoll = Math.floor(Math.random() * 38);
           const houseRoll = Math.floor(Math.random() * 38);
-          const playerReme = sumDigits(playerRoll);
-          const houseReme = sumDigits(houseRoll);
+          const playerReme = getRemeFromRoll(playerRoll);
+          const houseReme = getRemeFromRoll(houseRoll);
           const triple = playerRoll === 0 || playerRoll === 19 || playerRoll === 28;
           const tie = playerReme === houseReme;
           let mult = 0;
@@ -855,7 +861,7 @@
           const beforeBank = Math.max(0, Math.floor(Number(m.earningsLocks) || 0));
           const afterBetBank = beforeBank + bet;
           const payoutWanted = Math.max(0, Math.floor(bet * mult));
-          const payout = Math.max(0, Math.min(payoutWanted, afterBetBank));
+          const payout = payoutWanted;
           inv[worldLockId] = Math.max(0, Math.floor(have - bet + payout));
           if (typeof opts.saveInventory === "function") opts.saveInventory();
           if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
