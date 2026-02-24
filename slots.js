@@ -82,7 +82,7 @@ window.GTModules = window.GTModules || {};
       collect: 3
     },
     multiplierValues: [1, 2, 3],
-    multiplierWeights: [85,25,10,5],
+    multiplierWeights: [85,10,5],
     bombValues: [8, 12, 16, 20, 25, 30],
     bombWeights: [26, 22, 18, 14, 12, 8],
     jackpotValues: [80, 120, 180],
