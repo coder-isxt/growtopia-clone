@@ -940,6 +940,7 @@ window.GTModules = window.GTModules || {};
                 "<div class='vending-auto-stock-note'>Tie = lose. Special player rolls 0, 19, 28 give 3x.</div>" +
                 "<div class='vending-auto-stock-note'>If house rolls 0, 19, 28 or 37, player auto-loses.</div>")))) +
           "<div class='vending-auto-stock-note'>All lost bets go into machine bank. Wins are paid from machine bank.</div>" +
+          (def.id === "slots_v2" ? "<div class='vending-auto-stock-note'>Scatter 3+ can award free spins. Bonus symbols can trigger mining bonus.</div>" : "") +
           "<div class='vending-auto-stock-note'>Required bank >= " + coverageMult + "x bet. With 12 WL bank, max bet is " + Math.floor(12 / coverageMult) + " WL.</div>" +
           (blockedByMobileSlots ? "<div class='vending-auto-stock-note'>Slots v2 is desktop-only. Use PC/tablet desktop mode to play.</div>" : "") +
           (blockedByRolling ? "<div class='vending-auto-stock-note'>Reels are rolling...</div>" : "") +
@@ -948,7 +949,7 @@ window.GTModules = window.GTModules || {};
         "</div>" +
         slotsV2ResultHtml +
         blackjackStateHtml +
-        (def.id === "blackjack"
+        (def.id === "blackjack" || def.id === "slots_v2"
           ? ""
           : ("<div class='vending-section'>" +
               "<div class='vending-section-title'>Last Result</div>" +

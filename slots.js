@@ -260,9 +260,9 @@ window.GTModules = window.GTModules || {};
     };
   }
 
-  function spinV2(bet) {
-    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
-    const grid = buildGridV2();
+  function evaluateV2Grid(grid, safeBet, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const safeGrid = Array.isArray(grid) ? grid : buildGridV2();
     const paylineCount = PAYLINES_V2.length;
     const betPerLine = safeBet / paylineCount;
     let totalMultiplier = 0;
@@ -270,16 +270,16 @@ window.GTModules = window.GTModules || {};
     let scatterCount = 0;
     let bonusCount = 0;
 
-    for (let r = 0; r < grid.length; r++) {
-      for (let c = 0; c < grid[r].length; c++) {
-        const id = String(grid[r][c] && grid[r][c].id || "");
+    for (let r = 0; r < safeGrid.length; r++) {
+      for (let c = 0; c < safeGrid[r].length; c++) {
+        const id = String(safeGrid[r][c] && safeGrid[r][c].id || "");
         if (id === "scatter") scatterCount += 1;
         if (id === "bonus") bonusCount += 1;
       }
     }
 
     for (let i = 0; i < PAYLINES_V2.length; i++) {
-      const line = getLineSymbols(grid, PAYLINES_V2[i]);
+      const line = getLineSymbols(safeGrid, PAYLINES_V2[i]);
       const evalLine = evaluatePayline(line, betPerLine);
       if (evalLine.multiplier > 0) {
         totalMultiplier += evalLine.multiplier / paylineCount;
@@ -287,14 +287,14 @@ window.GTModules = window.GTModules || {};
       }
     }
 
-    if (scatterCount >= 3) {
+    if (scatterCount >= 3 && opts.allowScatterPayout !== false) {
       const scatterMult = scatterCount >= 5 ? 10 : (scatterCount === 4 ? 5 : 2);
       totalMultiplier += scatterMult;
       lineWins.push("SCATTER x" + scatterCount + " (" + scatterMult + "x)");
     }
 
     let bonus = null;
-    if (bonusCount >= 3) {
+    if (bonusCount >= 3 && opts.allowBonus !== false) {
       bonus = runMiningBonus(safeBet);
     }
 
@@ -315,9 +315,7 @@ window.GTModules = window.GTModules || {};
       : "";
 
     return {
-      gameId: "slots_v2",
-      bet: safeBet,
-      reels: gridToTextRows(grid), // 3 row strings, csv by reel
+      reels: gridToTextRows(safeGrid), // 3 row strings, csv by reel
       multiplier: finalMultiplier,
       payoutWanted,
       outcome,
@@ -326,6 +324,62 @@ window.GTModules = window.GTModules || {};
       lineWins,
       scatterCount,
       bonusTriggered: Boolean(bonus && bonus.triggered)
+    };
+  }
+
+  function spinV2(bet) {
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    const baseGrid = buildGridV2();
+    const base = evaluateV2Grid(baseGrid, safeBet, { allowScatterPayout: true, allowBonus: true });
+    const allLineWins = Array.isArray(base.lineWins) ? base.lineWins.slice(0, 14) : [];
+    const summaryParts = [String(base.summary || "No winning paylines")];
+
+    let freeSpinsAwarded = 0;
+    if (base.scatterCount >= 3) {
+      freeSpinsAwarded = base.scatterCount >= 5 ? 8 : (base.scatterCount === 4 ? 5 : 3);
+      allLineWins.push("FREE SPINS x" + freeSpinsAwarded);
+      summaryParts.push("Free spins awarded: " + freeSpinsAwarded);
+    }
+
+    let freeSpinPayout = 0;
+    let freeSpinsPlayed = 0;
+    for (let i = 0; i < freeSpinsAwarded; i++) {
+      const fsGrid = buildGridV2();
+      const fs = evaluateV2Grid(fsGrid, safeBet, { allowScatterPayout: true, allowBonus: true });
+      const fsPayout = Math.max(0, Math.floor(Number(fs.payoutWanted) || 0));
+      freeSpinPayout += fsPayout;
+      freeSpinsPlayed += 1;
+      if (fs.lineWins && fs.lineWins.length) {
+        for (let li = 0; li < fs.lineWins.length && allLineWins.length < 18; li++) {
+          allLineWins.push("FS" + (i + 1) + " " + fs.lineWins[li]);
+        }
+      }
+    }
+    if (freeSpinsPlayed > 0) {
+      summaryParts.push("Free spins paid " + freeSpinPayout + " WL.");
+    }
+
+    const uncapped = Math.max(0, Math.floor(Number(base.payoutWanted) || 0) + freeSpinPayout);
+    const cap = safeBet * Math.max(1, Math.floor(Number(GAME_DEFS.slots_v2.maxPayoutMultiplier) || 50));
+    const payoutWanted = Math.max(0, Math.min(cap, uncapped));
+    const finalMultiplier = safeBet > 0 ? Number((payoutWanted / safeBet).toFixed(2)) : 0;
+    const outcome = finalMultiplier >= 20 ? "jackpot" : (finalMultiplier > 0 ? "win" : "lose");
+
+    return {
+      gameId: "slots_v2",
+      bet: safeBet,
+      reels: base.reels,
+      multiplier: finalMultiplier,
+      payoutWanted,
+      outcome,
+      summary: summaryParts.join(" | ").slice(0, 220),
+      paylines: base.paylines,
+      lineWins: allLineWins.slice(0, 18),
+      scatterCount: base.scatterCount,
+      bonusTriggered: Boolean(base.bonusTriggered),
+      freeSpinsAwarded,
+      freeSpinsPlayed,
+      freeSpinPayout
     };
   }
 
@@ -342,4 +396,3 @@ window.GTModules = window.GTModules || {};
 
   window.GTModules.slots = api;
 })();
-
