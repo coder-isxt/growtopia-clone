@@ -284,6 +284,13 @@ window.GTModules = window.GTModules || {};
       return labels + " (" + Math.max(0, Math.floor(Number(total) || 0)) + ")";
     }
 
+    function parseSlotsReelsText(value) {
+      const raw = String(value || "");
+      const parts = raw.split("|").map((s) => String(s || "").trim()).filter(Boolean);
+      if (!parts.length) return ["?", "?", "?"];
+      return [parts[0] || "?", parts[1] || "?", parts[2] || "?"];
+    }
+
     function sanitizeCardList(cards) {
       const arr = Array.isArray(cards) ? cards : [];
       const out = [];
@@ -696,6 +703,18 @@ window.GTModules = window.GTModules || {};
       const activeHand = (roundActive && round && round.hands[activeHandIndex]) ? round.hands[activeHandIndex] : null;
       const canSplit = Boolean(canActRound && activeHand && !activeHand.done && canSplitHand(activeHand) && round.hands.length === 1);
       const canDouble = Boolean(canActRound && activeHand && !activeHand.done && !activeHand.doubled && Array.isArray(activeHand.cards) && activeHand.cards.length === 2);
+      const slotsReels = parseSlotsReelsText(stats.lastSlotsText);
+      const slotsStateHtml = def.id === "slots"
+        ? ("<div class='vending-section'>" +
+            "<div class='vending-section-title'>Current Reels</div>" +
+            "<div class='vending-stat-grid'>" +
+              "<div class='vending-stat'><span>Reel 1</span><strong>" + esc(slotsReels[0]) + "</strong></div>" +
+              "<div class='vending-stat'><span>Reel 2</span><strong>" + esc(slotsReels[1]) + "</strong></div>" +
+              "<div class='vending-stat'><span>Reel 3</span><strong>" + esc(slotsReels[2]) + "</strong></div>" +
+              "<div class='vending-stat'><span>Last Note</span><strong>" + esc(stats.lastSlotsSummary || "-") + "</strong></div>" +
+            "</div>" +
+          "</div>")
+        : "";
       let blackjackStateHtml = "";
       if (def.id === "blackjack") {
         if (round) {
@@ -810,6 +829,7 @@ window.GTModules = window.GTModules || {};
           (spectating ? "<div class='vending-auto-stock-note'>Spectating live: read-only.</div>" : "") +
           (blockedByActiveUser && !spectating ? "<div class='vending-auto-stock-note'>Machine is currently in use by @" + esc(m.inUseName || "another player") + ".</div>" : "") +
         "</div>" +
+        slotsStateHtml +
         blackjackStateHtml +
         (def.id === "blackjack"
           ? ""
