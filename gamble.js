@@ -9,13 +9,15 @@ window.GTModules = window.GTModules || {};
       maxRoll: 37,
       minBet: 1,
       maxBet: 300,
-      tripleWinRolls: new Set([0, 19, 28])
+      tripleWinRolls: new Set([0, 19, 28]),
+      houseAutoLoseRolls: new Set([0, 19, 28, 37])
     }
   };
 
   function createController(options) {
     const opts = options || {};
     const machines = new Map();
+    const lastBetByTile = new Map();
     let modalCtx = null;
     let modalBound = false;
 
@@ -113,18 +115,22 @@ window.GTModules = window.GTModules || {};
 
     function getRemeFromRoll(roll) {
       const r = Math.max(0, Math.floor(Number(roll) || 0));
-      if (r === 19 || r === 28) return 0;
+      if (r === 19 || r === 28 || r === 37) return 0;
       return sumDigits(r);
     }
 
     function evaluateSpin(def, playerRoll, houseRoll, bet) {
       const playerReme = getRemeFromRoll(playerRoll);
       const houseReme = getRemeFromRoll(houseRoll);
+      const houseAutoLose = Boolean(def.houseAutoLoseRolls && def.houseAutoLoseRolls.has(houseRoll));
       const triple = def.tripleWinRolls.has(playerRoll);
       const tie = playerReme === houseReme;
       let multiplier = 0;
       let outcome = "lose";
-      if (triple) {
+      if (houseAutoLose) {
+        multiplier = 0;
+        outcome = "house_roll";
+      } else if (triple) {
         multiplier = 3;
         outcome = "triple";
       } else if (!tie && playerReme > houseReme) {
@@ -137,6 +143,7 @@ window.GTModules = window.GTModules || {};
         houseRoll,
         playerReme,
         houseReme,
+        houseAutoLose,
         tie,
         multiplier,
         payoutWanted: Math.max(0, Math.floor((Number(bet) || 0) * multiplier)),
@@ -179,6 +186,16 @@ window.GTModules = window.GTModules || {};
       const bank = Math.max(0, Math.floor(Number(m.earningsLocks) || 0));
       const maxBetByBank = getMaxBetByBank(bank, def);
       const canSpin = maxBetByBank >= def.minBet;
+      const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
+      const inventory = get("getInventory", {}) || {};
+      const playerLocks = Math.max(0, Math.floor(Number(inventory[worldLockId]) || 0));
+      const maxBetByPlayer = Math.max(0, Math.min(def.maxBet, playerLocks));
+      const maxBetEffective = Math.max(0, Math.min(maxBetByBank, maxBetByPlayer));
+      const tileKey = getTileKey(tx, ty);
+      const rememberedBet = Math.max(def.minBet, Math.floor(Number(lastBetByTile.get(tileKey)) || def.minBet));
+      const displayBet = canSpin
+        ? Math.max(def.minBet, Math.min(maxBetByBank, rememberedBet))
+        : def.minBet;
 
       els.title.textContent = "Gambling Machine (" + tx + "," + ty + ")";
       els.body.innerHTML =
@@ -196,10 +213,12 @@ window.GTModules = window.GTModules || {};
         "<div class='vending-section'>" +
           "<div class='vending-section-title'>Play (Player vs House)</div>" +
           "<div class='vending-field-grid'>" +
-            "<label class='vending-field'><span>Bet (World Locks)</span><input data-gamble-input='bet' type='number' min='" + def.minBet + "' max='" + (canSpin ? maxBetByBank : def.minBet) + "' step='1' value='" + (canSpin ? Math.min(1, maxBetByBank) : 1) + "'" + (canSpin ? "" : " disabled") + "></label>" +
+            "<label class='vending-field'><span>Bet (World Locks)</span><input data-gamble-input='bet' type='number' min='" + def.minBet + "' max='" + (canSpin ? maxBetByBank : def.minBet) + "' step='1' value='" + displayBet + "'" + (canSpin ? "" : " disabled") + "></label>" +
+            "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='maxbet'" + ((canSpin && maxBetEffective > 0) ? "" : " disabled") + ">Apply Max Bet</button></div>" +
           "</div>" +
           "<div class='vending-auto-stock-note'>No number selection. You roll vs house roll (0-37). Higher reme wins.</div>" +
-          "<div class='vending-auto-stock-note'>Tie = lose. Special rolls 0, 19, 28 give 3x.</div>" +
+          "<div class='vending-auto-stock-note'>Tie = lose. Special player rolls 0, 19, 28 give 3x.</div>" +
+          "<div class='vending-auto-stock-note'>If house rolls 0, 19, 28 or 37, player auto-loses.</div>" +
           "<div class='vending-auto-stock-note'>All lost bets go into machine bank. Wins are paid from machine bank.</div>" +
           "<div class='vending-auto-stock-note'>Required bank >= 3x bet. With 12 WL bank, max bet is 4 WL.</div>" +
         "</div>" +
@@ -301,6 +320,9 @@ window.GTModules = window.GTModules || {};
     function getOutcomeMessage(result, payout) {
       const playerText = "You " + result.playerRoll + " (" + result.playerReme + ")";
       const houseText = "House " + result.houseRoll + " (" + result.houseReme + ")";
+      if (result.outcome === "house_roll") {
+        return playerText + " vs " + houseText + ": HOUSE SPECIAL ROLL. Auto-lose " + result.bet + " WL.";
+      }
       if (result.outcome === "triple") {
         return playerText + " vs " + houseText + ": TRIPLE. Won " + payout + " WL.";
       }
@@ -336,6 +358,7 @@ window.GTModules = window.GTModules || {};
         return;
       }
       const bet = Math.max(def.minBet, Math.min(maxBetByBank, Math.floor(Number(betInput && betInput.value) || 0)));
+      lastBetByTile.set(getTileKey(tx, ty), bet);
       const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
       const inventory = get("getInventory", {}) || {};
       const haveLocal = Math.max(0, Math.floor(Number(inventory[worldLockId]) || 0));
@@ -591,6 +614,31 @@ window.GTModules = window.GTModules || {};
       if (!(target instanceof HTMLElement)) return;
       const action = String(target.dataset.gambleAct || "").trim();
       if (!action) return;
+      if (action === "maxbet") {
+        if (!modalCtx) return;
+        const tx = Math.floor(Number(modalCtx.tx));
+        const ty = Math.floor(Number(modalCtx.ty));
+        const machine = getLocal(tx, ty);
+        const def = MACHINE_DEFS[(machine && machine.type) || "reme_roulette"] || MACHINE_DEFS.reme_roulette;
+        const bank = Math.max(0, Math.floor(Number(machine && machine.earningsLocks) || 0));
+        const byBank = getMaxBetByBank(bank, def);
+        const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
+        const inventory = get("getInventory", {}) || {};
+        const byPlayer = Math.max(0, Math.min(def.maxBet, Math.floor(Number(inventory[worldLockId]) || 0)));
+        const effective = Math.max(0, Math.min(byBank, byPlayer));
+        const els = getModalEls();
+        const betInput = els.body ? els.body.querySelector("[data-gamble-input='bet']") : null;
+        const nextBet = Math.max(def.minBet, effective || def.minBet);
+        if (betInput) {
+          const minBet = Math.max(1, Math.floor(Number(def.minBet) || 1));
+          const maxBet = Math.max(minBet, Math.floor(Number(byBank) || minBet));
+          betInput.min = String(minBet);
+          betInput.max = String(maxBet);
+          betInput.value = String(Math.max(minBet, Math.min(maxBet, nextBet)));
+        }
+        lastBetByTile.set(getTileKey(tx, ty), nextBet);
+        return;
+      }
       if (action === "close") {
         closeModal();
         return;
