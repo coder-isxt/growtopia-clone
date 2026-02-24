@@ -73,7 +73,7 @@ window.GTModules = window.GTModules || {};
     addChanceDecay: 0.015,
     maxSpins: 64,
     coinValues: [2, 3, 5, 15, 20, 25, 40, 50],
-    coinWeights: [40, 25, 15, 8, 6, 3, 2, 1],
+    coinWeights: [60, 20, 7, 6, 4, 1, 1, 1],
     specialWeights: {
       coin: 82,
       multiplier: 7,
