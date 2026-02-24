@@ -1234,21 +1234,23 @@ window.GTModules = window.GTModules || {};
       //     ? (spinTag + gameLabel + " " + reels + ": LOSE.")
       //     : (gameLabel + " " + reels + ": LOSE. Lost " + result.bet + " WL.");
       // }
-      const playerText = "You " + result.playerRoll + " (" + result.playerReme + ")";
-      const houseText = "House " + result.houseRoll + " (" + result.houseReme + ")";
-      if (result.outcome === "house_roll") {
-        return playerText + " vs " + houseText + ": HOUSE SPECIAL ROLL. Auto-lose " + result.bet + " WL.";
+      if (result.gameType === "reme_roulette") {
+        const playerText = "You " + result.playerRoll + " (" + result.playerReme + ")";
+        const houseText = "House " + result.houseRoll + " (" + result.houseReme + ")";
+        if (result.outcome === "house_roll") {
+          return playerText + " vs " + houseText + ": HOUSE SPECIAL ROLL. Auto-lose " + result.bet + " WL.";
+        }
+        if (result.outcome === "triple") {
+          return playerText + " vs " + houseText + ": TRIPLE. Won " + payout + " WL.";
+        }
+        if (result.outcome === "win") {
+          return playerText + " vs " + houseText + ": WIN. Won " + payout + " WL.";
+        }
+        if (result.tie) {
+          return playerText + " vs " + houseText + ": TIE = LOSE. Lost " + result.bet + " WL.";
+        }
+        return playerText + " vs " + houseText + ": LOSE. Lost " + result.bet + " WL.";
       }
-      if (result.outcome === "triple") {
-        return playerText + " vs " + houseText + ": TRIPLE. Won " + payout + " WL.";
-      }
-      if (result.outcome === "win") {
-        return playerText + " vs " + houseText + ": WIN. Won " + payout + " WL.";
-      }
-      if (result.tie) {
-        return playerText + " vs " + houseText + ": TIE = LOSE. Lost " + result.bet + " WL.";
-      }
-      return playerText + " vs " + houseText + ": LOSE. Lost " + result.bet + " WL.";
     }
 
     function getBlackjackResultFromResolvedRound(round) {
