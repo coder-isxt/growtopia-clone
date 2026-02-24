@@ -72,8 +72,8 @@ window.GTModules = window.GTModules || {};
     addChance: 0.38,
     addChanceDecay: 0.015,
     maxSpins: 64,
-    coinValues: [5, 10, 15, 20, 25, 40, 50],
-    coinWeights: [40, 26, 16, 10, 5, 2, 1],
+    coinValues: [2, 3, 5, 15, 20, 25, 40, 50],
+    coinWeights: [40, 26, 20, 4, 3, 2, 1, 1],
     specialWeights: {
       coin: 82,
       multiplier: 7,
@@ -252,7 +252,7 @@ window.GTModules = window.GTModules || {};
     const board = new Array(totalSlots).fill(null);
     const frames = [];
 
-    function captureFrame(respins) {
+    function captureFrame(respins, teaseCount) {
       const cells = [];
       for (let i = 0; i < board.length; i++) {
         const cell = board[i];
@@ -270,10 +270,24 @@ window.GTModules = window.GTModules || {};
           cells.push("C" + Math.max(1, Math.floor(Number(cell.mult) || 1)));
         }
       }
+      const tease = [];
+      const teaseN = Math.max(0, Math.floor(Number(teaseCount) || 0));
+      if (teaseN > 0) {
+        const open = [];
+        for (let i = 0; i < board.length; i++) {
+          if (!board[i]) open.push(i);
+        }
+        while (open.length && tease.length < teaseN) {
+          const pick = Math.floor(Math.random() * open.length);
+          tease.push(open[pick]);
+          open.splice(pick, 1);
+        }
+      }
       frames.push({
         respins: Math.max(0, Math.floor(Number(respins) || 0)),
         filled: locked.length,
-        cells
+        cells,
+        tease
       });
     }
 
@@ -342,6 +356,7 @@ window.GTModules = window.GTModules || {};
       if (Math.random() < chance) {
         const left = totalSlots - locked.length;
         const addCount = Math.max(1, Math.min(left, Math.random() < 0.22 ? 2 : 1));
+        captureFrame(respins, Math.max(1, Math.min(4, left)));
         for (let a = 0; a < addCount; a++) {
           if (locked.length >= totalSlots) break;
           const s = pickBonusSymbol();
@@ -351,6 +366,7 @@ window.GTModules = window.GTModules || {};
         respins = Math.max(1, Math.floor(Number(safe.respins) || 3));
         captureFrame(respins);
       } else {
+        captureFrame(respins, Math.max(1, Math.min(3, totalSlots - locked.length)));
         respins -= 1;
         captureFrame(respins);
       }

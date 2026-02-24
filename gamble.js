@@ -860,12 +860,14 @@ window.GTModules = window.GTModules || {};
       const bonusRows = Math.max(1, Math.floor(Number(bonusReplay && bonusReplay.rows) || 3));
       const bonusReels = Math.max(1, Math.floor(Number(bonusReplay && bonusReplay.reels) || 5));
       const bonusStartedAt = Math.max(0, Math.floor(Number(modalCtx && modalCtx.slotsV2BonusStartedAt) || 0));
-      const bonusStepMs = 320;
+      const bonusStepMs = 360;
       const bonusIdx = bonusFrames.length
         ? Math.min(bonusFrames.length - 1, Math.max(0, Math.floor((now - bonusStartedAt) / bonusStepMs)))
         : -1;
       const bonusActive = bonusIdx >= 0 && bonusIdx < (bonusFrames.length - 1) && bonusStartedAt > 0;
       const activeBonusFrame = bonusIdx >= 0 ? bonusFrames[bonusIdx] : null;
+      const prevBonusFrame = (bonusIdx > 0) ? bonusFrames[bonusIdx - 1] : null;
+      const bonusHitFrame = Boolean(activeBonusFrame && prevBonusFrame && Number(activeBonusFrame.filled) > Number(prevBonusFrame.filled));
       let slotsCols = Math.max(1, Number(def.reels) || 5);
       for (let r = 0; r < slotsRows.length; r++) {
         slotsCols = Math.max(slotsCols, (slotsRows[r] && slotsRows[r].length) || 0);
@@ -927,16 +929,19 @@ window.GTModules = window.GTModules || {};
             slotsV2BoardHtml +
             (activeBonusFrame
               ? ("<div class='vending-section-title' style='margin-top:10px;'>Hold &amp; Spin Bonus</div>" +
-                "<div class='slotsv2-board slotsv2-" + (bonusActive ? "idle rolling" : (stats.lastMultiplier > 0 ? "win" : "idle")) + "' style='--slots-cols:" + bonusReels + ";'>" +
+                "<div class='slotsv2-board slotsv2-" + (bonusActive ? "idle rolling" : (stats.lastMultiplier > 0 ? "win" : "idle")) + (bonusHitFrame ? " slotsv2-bonus-hit" : "") + "' style='--slots-cols:" + bonusReels + ";'>" +
                   (function buildBonusReplayBoard() {
                     let html = "";
+                    const teaseList = (activeBonusFrame && Array.isArray(activeBonusFrame.tease)) ? activeBonusFrame.tease : [];
                     for (let c = 0; c < bonusReels; c++) {
                       html += "<div class='slotsv2-reel'>";
                       for (let r = 0; r < bonusRows; r++) {
                         const idx = (r * bonusReels) + c;
                         const tok = (activeBonusFrame.cells && activeBonusFrame.cells[idx]) ? String(activeBonusFrame.cells[idx]) : ".";
-                        const cls = getBonusCellClass(tok);
-                        html += "<div class='slotsv2-cell " + cls + "'><span class='slotsv2-glyph'>" + esc(tok === "." ? " " : tok) + "</span><span class='slotsv2-token'>" + esc(tok === "." ? "-" : tok) + "</span></div>";
+                        const teasing = tok === "." && teaseList.indexOf(idx) >= 0;
+                        const cls = getBonusCellClass(teasing ? "C?" : tok);
+                        const showTok = teasing ? "C?" : tok;
+                        html += "<div class='slotsv2-cell " + cls + (teasing ? " tease" : "") + "'><span class='slotsv2-glyph'>" + esc(showTok === "." ? " " : showTok) + "</span><span class='slotsv2-token'>" + esc(showTok === "." ? "-" : showTok) + "</span></div>";
                       }
                       html += "</div>";
                     }
@@ -950,7 +955,7 @@ window.GTModules = window.GTModules || {};
               : "") +
             "<div class='bj-banner " + (isRollingSlotsV2 ? "bj-banner-info" : ("bj-banner-" + getOutcomeTone(stats.lastOutcome))) + "'>" +
               ((isRollingSlotsV2 || bonusActive)
-                ? "Rolling..."
+                ? (bonusActive ? "Hold & Spin in progress..." : "Rolling...")
                 : ("Result: " + esc(stats.lastSlotsSummary || "-") + " | Payout: " + esc(stats.lastMultiplier > 0 ? (stats.lastMultiplier + "x") : "-"))) +
             "</div>" +
           "</div>")
@@ -1528,12 +1533,12 @@ window.GTModules = window.GTModules || {};
       const profileId = String(get("getPlayerProfileId", "") || "");
       const profileName = String(get("getPlayerName", "") || "").slice(0, 20);
       const firebaseRef = get("getFirebase", null);
-      const scheduleSlotsBonusReplay = () => {
-        if (!modalCtx || modalCtx.tx !== tx || modalCtx.ty !== ty) return;
-        const replay = modalCtx.slotsV2Bonus;
-        const frames = replay && Array.isArray(replay.frames) ? replay.frames : [];
-        const stepMs = 320;
-        if (!frames.length) return;
+        const scheduleSlotsBonusReplay = () => {
+          if (!modalCtx || modalCtx.tx !== tx || modalCtx.ty !== ty) return;
+          const replay = modalCtx.slotsV2Bonus;
+          const frames = replay && Array.isArray(replay.frames) ? replay.frames : [];
+          const stepMs = 360;
+          if (!frames.length) return;
         for (let i = 1; i <= frames.length; i++) {
           setTimeout(() => {
             if (!modalCtx || modalCtx.tx !== tx || modalCtx.ty !== ty) return;
