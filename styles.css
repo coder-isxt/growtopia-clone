@@ -1466,6 +1466,11 @@ canvas {
   padding: 12px;
 }
 
+#gambleModal .vending-card {
+  width: min(1120px, 98vw);
+  max-height: min(92vh, 940px);
+}
+
 .vending-header {
   display: flex;
   justify-content: space-between;
@@ -2289,6 +2294,10 @@ canvas {
   box-shadow: inset 0 0 16px rgba(255, 178, 64, 0.16);
 }
 
+.slotsv2-board.rolling {
+  box-shadow: inset 0 0 28px rgba(255, 178, 64, 0.3), 0 0 22px rgba(132, 97, 255, 0.25);
+}
+
 .slotsv2-reel {
   display: grid;
   grid-template-rows: repeat(3, 1fr);
@@ -2297,6 +2306,10 @@ canvas {
   border: 1px solid rgba(155, 118, 255, 0.42);
   border-radius: 10px;
   background: linear-gradient(180deg, rgba(33, 16, 61, 0.85), rgba(19, 11, 37, 0.9));
+}
+
+.slotsv2-board.rolling .slotsv2-reel {
+  animation: slotsReelRoll 0.2s linear infinite;
 }
 
 .slotsv2-cell {
@@ -2309,6 +2322,10 @@ canvas {
   border: 1px solid rgba(255, 211, 121, 0.4);
   border-radius: 10px;
   background: linear-gradient(180deg, rgba(38, 26, 74, 0.95), rgba(26, 17, 50, 0.95));
+}
+
+.slotsv2-board.rolling .slotsv2-cell {
+  filter: saturate(1.25) blur(0.2px);
 }
 
 .slotsv2-glyph {
@@ -2379,6 +2396,12 @@ canvas {
   0% { transform: scale(1); filter: brightness(1); }
   50% { transform: scale(1.01); filter: brightness(1.18); }
   100% { transform: scale(1); filter: brightness(1); }
+}
+
+@keyframes slotsReelRoll {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-2px); }
+  100% { transform: translateY(0px); }
 }
 
 .bj-hand-list {

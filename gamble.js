@@ -317,6 +317,20 @@ window.GTModules = window.GTModules || {};
       return raw.split("|").map((s) => String(s || "").trim()).filter(Boolean).slice(0, 8);
     }
 
+    function buildRollingSlotsRows(cols, seed) {
+      const symbols = ["GEM", "PICK", "MINER", "GOLD", "DYN", "WILD", "SCAT", "BONUS"];
+      const safeCols = Math.max(5, Math.floor(Number(cols) || 5));
+      const safeSeed = Math.max(0, Math.floor(Number(seed) || 0));
+      const out = [[], [], []];
+      for (let c = 0; c < safeCols; c++) {
+        const base = (safeSeed + c * 17) % symbols.length;
+        out[0][c] = symbols[(base + 1) % symbols.length];
+        out[1][c] = symbols[(base + 3) % symbols.length];
+        out[2][c] = symbols[(base + 5) % symbols.length];
+      }
+      return out;
+    }
+
     function normalizeSlotsToken(value) {
       return String(value || "").trim().toUpperCase();
     }
@@ -736,13 +750,19 @@ window.GTModules = window.GTModules || {};
       const canManageAdvanced = canManageMachineAdvanced(m);
       const isMobileUi = Boolean(get("getIsMobileUi", false));
       const spectating = Boolean(spectatingMode);
+      const now = Date.now();
+      const rollingUntil = (modalCtx && modalCtx.tx === tx && modalCtx.ty === ty)
+        ? Math.max(0, Math.floor(Number(modalCtx.rollingUntil) || 0))
+        : 0;
+      const isRollingSlotsV2 = Boolean(def.id === "slots_v2" && rollingUntil > now);
       const bank = Math.max(0, Math.floor(Number(m.earningsLocks) || 0));
       const machineMaxCap = getMachineMaxBetCap(m, def);
       const maxBetByBank = getMaxBetByBank(bank, def, machineMaxCap);
       const canSpin = maxBetByBank >= def.minBet;
       const blockedByActiveUser = isUsedByOther(m);
       const blockedByMobileSlots = Boolean(def.id === "slots_v2" && isMobileUi);
-      const canPlayNow = canSpin && !blockedByActiveUser && !spectating && !blockedByMobileSlots;
+      const blockedByRolling = isRollingSlotsV2;
+      const canPlayNow = canSpin && !blockedByActiveUser && !spectating && !blockedByMobileSlots && !blockedByRolling;
       const inventory = get("getInventory", {}) || {};
       const playerLocks = getTotalLocks(inventory);
       const maxBetByPlayer = Math.max(0, Math.min(machineMaxCap, playerLocks));
@@ -763,7 +783,10 @@ window.GTModules = window.GTModules || {};
       const activeHand = (roundActive && round && round.hands[activeHandIndex]) ? round.hands[activeHandIndex] : null;
       const canSplit = Boolean(canActRound && activeHand && !activeHand.done && canSplitHand(activeHand) && round.hands.length === 1);
       const canDouble = Boolean(canActRound && activeHand && !activeHand.done && !activeHand.doubled && Array.isArray(activeHand.cards) && activeHand.cards.length === 2);
-      const slotsRows = parseSlotsRows(stats.lastSlotsText);
+      const realSlotsRows = parseSlotsRows(stats.lastSlotsText);
+      const slotsRows = isRollingSlotsV2
+        ? buildRollingSlotsRows(Math.max(5, (realSlotsRows[0] && realSlotsRows[0].length) || 5), Math.floor(now / 80))
+        : realSlotsRows;
       const slotsLines = parseSlotsLines(stats.lastSlotsLines);
       const slotsCols = Math.max(5, (slotsRows[0] && slotsRows[0].length) || 0, (slotsRows[1] && slotsRows[1].length) || 0, (slotsRows[2] && slotsRows[2].length) || 0);
       let slotsV2BoardHtml = "";
@@ -789,20 +812,17 @@ window.GTModules = window.GTModules || {};
           ? slotsLines.map((line) => "<span class='slotsv2-line-badge'>" + esc(line) + "</span>").join("")
           : "<span class='slotsv2-line-badge muted'>No winning lines</span>";
         slotsV2BoardHtml =
-          "<div class='slotsv2-board " + winStateClass + "'>" + slotsV2BoardHtml + "</div>" +
+          "<div class='slotsv2-board " + winStateClass + (isRollingSlotsV2 ? " rolling" : "") + "'>" + slotsV2BoardHtml + "</div>" +
           "<div class='slotsv2-lines'>" + lineBadges + "</div>";
       }
       const slotsV2ResultHtml = def.id === "slots_v2"
         ? ("<div class='vending-section'>" +
             "<div class='vending-section-title'>Slots v2 Board</div>" +
             slotsV2BoardHtml +
-            "<div class='vending-stat-grid'>" +
-              "<div class='vending-stat'><span>Row 1</span><strong>" + esc((slotsRows[0] || ["-", "-", "-", "-", "-"]).join(" | ")) + "</strong></div>" +
-              "<div class='vending-stat'><span>Row 2</span><strong>" + esc((slotsRows[1] || ["-", "-", "-", "-", "-"]).join(" | ")) + "</strong></div>" +
-              "<div class='vending-stat'><span>Row 3</span><strong>" + esc((slotsRows[2] || ["-", "-", "-", "-", "-"]).join(" | ")) + "</strong></div>" +
-              "<div class='vending-stat'><span>Payout</span><strong>" + (stats.lastMultiplier > 0 ? esc((stats.lastMultiplier + "x")) : "-") + "</strong></div>" +
-              "<div class='vending-stat'><span>Winning Lines</span><strong>" + esc(slotsLines.length ? slotsLines.join(" | ") : "-") + "</strong></div>" +
-              "<div class='vending-stat'><span>Result</span><strong>" + esc(stats.lastSlotsSummary || "-") + "</strong></div>" +
+            "<div class='bj-banner bj-banner-" + getOutcomeTone(stats.lastOutcome) + "'>" +
+              (isRollingSlotsV2
+                ? "Rolling..."
+                : ("Result: " + esc(stats.lastSlotsSummary || "-") + " | Payout: " + esc(stats.lastMultiplier > 0 ? (stats.lastMultiplier + "x") : "-"))) +
             "</div>" +
           "</div>")
         : "";
@@ -922,6 +942,7 @@ window.GTModules = window.GTModules || {};
           "<div class='vending-auto-stock-note'>All lost bets go into machine bank. Wins are paid from machine bank.</div>" +
           "<div class='vending-auto-stock-note'>Required bank >= " + coverageMult + "x bet. With 12 WL bank, max bet is " + Math.floor(12 / coverageMult) + " WL.</div>" +
           (blockedByMobileSlots ? "<div class='vending-auto-stock-note'>Slots v2 is desktop-only. Use PC/tablet desktop mode to play.</div>" : "") +
+          (blockedByRolling ? "<div class='vending-auto-stock-note'>Reels are rolling...</div>" : "") +
           (spectating ? "<div class='vending-auto-stock-note'>Spectating live: read-only.</div>" : "") +
           (blockedByActiveUser && !spectating ? "<div class='vending-auto-stock-note'>Machine is currently in use by @" + esc(m.inUseName || "another player") + ".</div>" : "") +
         "</div>" +
@@ -969,7 +990,7 @@ window.GTModules = window.GTModules || {};
           "<button data-gamble-act='close'>Close</button>";
       }
 
-      modalCtx = { tx, ty, spectating };
+      modalCtx = { tx, ty, spectating, rollingUntil };
       els.modal.classList.remove("hidden");
     }
 
@@ -1321,6 +1342,23 @@ window.GTModules = window.GTModules || {};
       if (def.id === "slots_v2" && isMobileUi) {
         post("Slots v2 is desktop-only.");
         return;
+      }
+      if (def.id === "slots_v2") {
+        const rollingUntil = Date.now() + 1100;
+        modalCtx = { ...(modalCtx || {}), tx, ty, spectating: Boolean(modalCtx && modalCtx.spectating), rollingUntil };
+        renderOpen();
+        for (let i = 1; i <= 6; i++) {
+          setTimeout(() => {
+            if (!modalCtx) return;
+            if (modalCtx.tx !== tx || modalCtx.ty !== ty) return;
+            renderOpen();
+          }, i * 140);
+        }
+        setTimeout(() => {
+          if (!modalCtx) return;
+          if (modalCtx.tx !== tx || modalCtx.ty !== ty) return;
+          renderOpen();
+        }, 1150);
       }
       const els = getModalEls();
       const betInput = els.body ? els.body.querySelector("[data-gamble-input='bet']") : null;
