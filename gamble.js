@@ -833,7 +833,7 @@ window.GTModules = window.GTModules || {};
         ? Math.max(def.minBet, Math.min(maxBetByBank, rememberedBet))
         : def.minBet;
       const coverageMult = Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || 3));
-      const buyBonusX = 5;
+      const buyBonusX = 10;
       const buyBonusCostPreview = Math.max(def.minBet, displayBet) * buyBonusX;
       const selfAccountId = getSelfAccountId();
       const round = def.id === "blackjack" ? normalizeBlackjackRound(m.blackjackRound) : null;
@@ -877,6 +877,17 @@ window.GTModules = window.GTModules || {};
       const slotsRowsCount = Math.max(1, Number(def.rows) || slotsRows.length || 3);
       let slotsV2BoardHtml = "";
       if (def.id === "slots_v2") {
+        const winCellMap = {};
+        if (!isRollingSlotsV2 && slotsLineIds.length) {
+          for (let i = 0; i < slotsLineIds.length; i++) {
+            const basePattern = SLOTS_V2_RENDER_PAYLINES[Math.max(0, slotsLineIds[i] - 1)];
+            if (!basePattern) continue;
+            const pattern = normalizeSlotsPayline(basePattern, slotsCols, slotsRowsCount);
+            for (let c2 = 0; c2 < pattern.length; c2++) {
+              winCellMap[String(c2) + "_" + String(pattern[c2])] = true;
+            }
+          }
+        }
         const winStateClass = isRollingSlotsV2
           ? "slotsv2-idle"
           : (stats.lastOutcome === "jackpot"
@@ -887,8 +898,9 @@ window.GTModules = window.GTModules || {};
           for (let r = 0; r < slotsRowsCount; r++) {
             const tok = (slotsRows[r] && slotsRows[r][c]) || "?";
             const cls = getSlotsSymbolClass(tok);
+            const hit = Boolean(winCellMap[String(c) + "_" + String(r)]);
             slotsV2BoardHtml +=
-              "<div class='slotsv2-cell " + cls + "'><span class='slotsv2-glyph'>" + esc(getSlotsSymbolLabel(tok)) + "</span><span class='slotsv2-token'>" + esc(normalizeSlotsToken(tok) || "?") + "</span></div>";
+              "<div class='slotsv2-cell " + cls + (hit ? " hit" : "") + "'><span class='slotsv2-glyph'>" + esc(getSlotsSymbolLabel(tok)) + "</span><span class='slotsv2-token'>" + esc(normalizeSlotsToken(tok) || "?") + "</span></div>";
           }
           slotsV2BoardHtml += "</div>";
         }
@@ -925,6 +937,9 @@ window.GTModules = window.GTModules || {};
           "<div class='slotsv2-board " + winStateClass + (isRollingSlotsV2 ? " rolling" : "") + "' style='--slots-cols:" + slotsCols + ";'>" + slotsV2BoardHtml + "</div>" +
           "<div class='slotsv2-lines'>" + lineBadges + "</div>";
       }
+      const slotsV2OutcomeClass = stats.lastOutcome === "jackpot"
+        ? "slotsv2-outcome-jackpot"
+        : (stats.lastOutcome === "win" ? "slotsv2-outcome-win" : "slotsv2-outcome-lose");
       const slotsV2ResultHtml = def.id === "slots_v2"
         ? ("<div class='vending-section'>" +
             "<div class='vending-section-title'>Slots v2 Board</div>" +
@@ -960,6 +975,9 @@ window.GTModules = window.GTModules || {};
                 ? (bonusActive ? "Hold & Spin in progress..." : "Rolling...")
                 : ("Result: " + esc(stats.lastSlotsSummary || "-") + " | Payout: " + esc(stats.lastMultiplier > 0 ? (stats.lastMultiplier + "x") : "-"))) +
             "</div>" +
+            ((!isRollingSlotsV2 && !bonusActive && (stats.lastOutcome === "win" || stats.lastOutcome === "jackpot"))
+              ? ("<div class='slotsv2-winfx " + slotsV2OutcomeClass + "'><span></span><span></span><span></span><span></span><span></span><span></span></div>")
+              : "") +
           "</div>")
         : "";
       let blackjackStateHtml = "";
@@ -1064,7 +1082,7 @@ window.GTModules = window.GTModules || {};
           "</div>" +
           (def.id === "slots_v2"
             ? ("<div class='vending-field-grid'>" +
-                "<label class='vending-field'><span>Buy Bonus (" + buyBonusCostPreview + " WL)</span><input type='text' value='5x bet (fixed)' disabled></label>" +
+                "<label class='vending-field'><span>Buy Bonus (" + buyBonusCostPreview + " WL)</span><input type='text' value='10x bet (fixed)' disabled></label>" +
                 "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='buybonus'" + (canPlayNow ? "" : " disabled") + ">Buy Bonus</button></div>" +
               "</div>")
             : "") +

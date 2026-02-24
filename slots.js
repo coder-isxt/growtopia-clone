@@ -509,7 +509,7 @@ window.GTModules = window.GTModules || {};
   function spinV2(bet, options) {
     const opts = options && typeof options === "object" ? options : {};
     const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
-    const buyX = 5;
+    const buyX = 10;
     const boughtBonus = String(opts.mode || "").toLowerCase() === "buybonus";
     const wager = safeBet * (boughtBonus ? buyX : 1);
     const baseGrid = buildGridV2();
@@ -534,7 +534,7 @@ window.GTModules = window.GTModules || {};
       boughtBonusView = bonusRound && bonusRound.bonusView ? bonusRound.bonusView : null;
       allLineWins.length = 0;
       allLineIds.length = 0;
-      allLineWins.push("BUY BONUS x5 (5x bet)");
+      allLineWins.push("BUY BONUS x10 (10x bet)");
       summaryParts.length = 0;
       summaryParts.push("Bought bonus for " + wager + " WL.");
       if (boughtBonusSummary) summaryParts.push(boughtBonusSummary);
