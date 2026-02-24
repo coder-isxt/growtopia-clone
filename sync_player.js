@@ -77,6 +77,7 @@ window.GTModules.syncPlayer = (function createSyncPlayerModule() {
   function buildPayload(input) {
     const data = input || {};
     const rawTitle = data && data.title && typeof data.title === "object" ? data.title : {};
+    const rawTitleStyle = rawTitle && rawTitle.style && typeof rawTitle.style === "object" ? rawTitle.style : {};
     const rawProgression = data && data.progression && typeof data.progression === "object" ? data.progression : {};
     const rawAchievements = data && data.achievements && typeof data.achievements === "object" ? data.achievements : {};
     return {
@@ -96,7 +97,13 @@ window.GTModules.syncPlayer = (function createSyncPlayerModule() {
       title: {
         id: String(rawTitle.id || "").slice(0, 32),
         name: String(rawTitle.name || "").slice(0, 24),
-        color: String(rawTitle.color || "").slice(0, 24)
+        color: String(rawTitle.color || "").slice(0, 24),
+        style: {
+          bold: Boolean(rawTitleStyle.bold),
+          glow: Boolean(rawTitleStyle.glow),
+          rainbow: Boolean(rawTitleStyle.rainbow),
+          glowColor: String(rawTitleStyle.glowColor || "").slice(0, 24)
+        }
       },
       progression: {
         xp: Math.max(0, toInt(rawProgression.xp, 0)),

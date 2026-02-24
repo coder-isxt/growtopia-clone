@@ -4491,7 +4491,7 @@
             "<div class='vending-section'>" +
               "<div class='vending-stat-grid'>" +
                 "<div class='vending-stat'><span>Title</span><strong style='color:" + escapeHtml(title.color || "#8fb4ff") + ";'>" + escapeHtml(previewName) + "</strong></div>" +
-                "<div class='vending-stat'><span>Status</span><strong>" + (equipped ? "Equipped" : "Unlocked") + "</strong></div>" +
+                //"<div class='vending-stat'><span>Status</span><strong>" + (equipped ? "Equipped" : "Unlocked") + "</strong></div>" +
               "</div>" +
               "<div class='vending-actions' style='justify-content:flex-start;'>" +
                 "<button type='button' data-title-equip='" + escapeHtml(title.id) + "'>" + (equipped ? "Unequip" : "Equip") + "</button>" +
@@ -4757,6 +4757,13 @@
         return normalizeTitleStyle(def && def.style);
       }
 
+      function shouldShowNameAlongsideTitle(titleText, username) {
+        const safeTitle = String(titleText || "").trim().toLowerCase();
+        const safeUser = String(username || "").trim().toLowerCase();
+        if (!safeTitle || !safeUser) return true;
+        return !safeTitle.includes(safeUser);
+      }
+
       function getRainbowTitleColor(nowMs) {
         const t = (Number(nowMs) || performance.now()) * 0.12;
         return "hsl(" + (Math.floor(t) % 360) + " 95% 66%)";
@@ -4771,11 +4778,12 @@
 
       function getEquippedTitlePayload() {
         const def = getEquippedTitleDef();
-        if (!def) return { id: "", name: "", color: "" };
+        if (!def) return { id: "", name: "", color: "", style: normalizeTitleStyle(null) };
         return {
           id: def.id,
           name: formatTitleWithUsername(def.name, playerName),
-          color: def.color || "#8fb4ff"
+          color: def.color || "#8fb4ff",
+          style: normalizeTitleStyle(def.style)
         };
       }
 
@@ -5293,7 +5301,12 @@
           const rawTitleName = String(message.titleName || (fallbackTitle && fallbackTitle.name) || "").trim();
           const titleName = formatTitleWithUsername(rawTitleName, name).slice(0, 24);
           const titleColor = String(message.titleColor || (fallbackTitle && fallbackTitle.color) || "#8fb4ff").trim().slice(0, 24);
-          const titleStyle = getTitleStyleById(titleId);
+          const titleStyle = normalizeTitleStyle(
+            (message.titleStyle && typeof message.titleStyle === "object")
+              ? message.titleStyle
+              : (fallbackTitle && fallbackTitle.style)
+          );
+          const showNameLabel = shouldShowNameAlongsideTitle(titleName, name);
           const prefix = document.createElement("span");
           prefix.textContent = (time ? "[" + time + "] " : "");
           row.appendChild(prefix);
@@ -5315,9 +5328,15 @@
             titleEl.textContent = "[" + titleName + "] ";
             row.appendChild(titleEl);
           }
-          const nameEl = document.createElement("span");
-          nameEl.textContent = name + sessionLabel + ": ";
-          row.appendChild(nameEl);
+          if (showNameLabel) {
+            const nameEl = document.createElement("span");
+            nameEl.textContent = name + sessionLabel + ": ";
+            row.appendChild(nameEl);
+          } else {
+            const sepEl = document.createElement("span");
+            sepEl.textContent = ": ";
+            row.appendChild(sepEl);
+          }
           const textEl = document.createElement("span");
           textEl.textContent = (message.text || "");
           row.appendChild(textEl);
@@ -5792,6 +5811,7 @@
             titleId: titlePayload.id || "",
             titleName: titlePayload.name || "",
             titleColor: titlePayload.color || "",
+            titleStyle: titlePayload.style || normalizeTitleStyle(null),
             text,
             createdAt: Date.now()
           });
@@ -5812,6 +5832,7 @@
             titleId: titlePayload.id || "",
             titleName: titlePayload.name || "",
             titleColor: titlePayload.color || "",
+            titleStyle: titlePayload.style || normalizeTitleStyle(null),
             text,
             createdAt: firebase.database.ServerValue.TIMESTAMP
           }).catch(() => {
@@ -8561,10 +8582,11 @@
         const nameY = basePy - 8;
         ctx.font = PLAYER_NAME_FONT;
         const localTitleName = titleDef ? formatTitleWithUsername(titleDef.name, nameText) : "";
+        const showLocalName = shouldShowNameAlongsideTitle(localTitleName, nameText);
         const titleText = localTitleName ? ("[" + localTitleName + "] ") : "";
         const localTitleStyle = normalizeTitleStyle(titleDef && titleDef.style);
         const titleWidth = titleText ? ctx.measureText(titleText).width : 0;
-        const nameWidth = ctx.measureText(nameText).width;
+        const nameWidth = showLocalName ? ctx.measureText(nameText).width : 0;
         const totalWidth = titleWidth + nameWidth;
         let cursorX = Math.round(px + PLAYER_W / 2 - totalWidth / 2);
         if (titleDef) {
@@ -8585,10 +8607,12 @@
           ctx.font = PLAYER_NAME_FONT;
           cursorX += titleWidth;
         }
-        ctx.fillStyle = "#f3fbff";
-        ctx.fillText(nameText, cursorX, nameY);
+        if (showLocalName) {
+          ctx.fillStyle = "#f3fbff";
+          ctx.fillText(nameText, cursorX, nameY);
+        }
         if (slotOrder[selectedSlot] === TOOL_WRENCH) {
-          const textWidth = (cursorX - (Math.round(px + PLAYER_W / 2 - totalWidth / 2))) + ctx.measureText(nameText).width;
+          const textWidth = (cursorX - (Math.round(px + PLAYER_W / 2 - totalWidth / 2))) + nameWidth;
           const iconSize = 22 / cameraZoom;
           const iconX = Math.round(px + PLAYER_W / 2 - totalWidth / 2) + textWidth + (6 / cameraZoom);
           const iconY = nameY - (4 / cameraZoom) - (iconSize / 2);
@@ -8660,12 +8684,17 @@
           const rawRemoteTitle = String(titleRaw.name || (fallbackTitle && fallbackTitle.name) || "");
           const titleName = formatTitleWithUsername(rawRemoteTitle, nameText).slice(0, 24);
           const titleColor = String(titleRaw.color || (fallbackTitle && fallbackTitle.color) || "#8fb4ff").slice(0, 24);
-          const remoteTitleStyle = normalizeTitleStyle(fallbackTitle && fallbackTitle.style);
+          const remoteTitleStyle = normalizeTitleStyle(
+            (titleRaw.style && typeof titleRaw.style === "object")
+              ? titleRaw.style
+              : (fallbackTitle && fallbackTitle.style)
+          );
+          const showRemoteName = shouldShowNameAlongsideTitle(titleName, nameText);
           const nameY = basePy - 8;
           ctx.font = PLAYER_NAME_FONT;
           const titleText = titleName ? ("[" + titleName + "] ") : "";
           const titleWidth = titleText ? ctx.measureText(titleText).width : 0;
-          const nameWidth = ctx.measureText(nameText).width;
+          const nameWidth = showRemoteName ? ctx.measureText(nameText).width : 0;
           const totalWidth = titleWidth + nameWidth;
           const nameX = Math.round(px + PLAYER_W / 2 - totalWidth / 2);
           let cursorX = nameX;
@@ -8687,10 +8716,12 @@
             ctx.font = PLAYER_NAME_FONT;
             cursorX += titleWidth;
           }
-          ctx.fillStyle = "#f3fbff";
-          ctx.fillText(nameText, cursorX, nameY);
+          if (showRemoteName) {
+            ctx.fillStyle = "#f3fbff";
+            ctx.fillText(nameText, cursorX, nameY);
+          }
           if (wrenchSelected && other.accountId) {
-            const textWidth = (cursorX - nameX) + ctx.measureText(nameText).width;
+            const textWidth = (cursorX - nameX) + nameWidth;
             const iconSize = 22 / cameraZoom;
             const iconX = Math.round(nameX + textWidth + (6 / cameraZoom));
             const iconY = nameY - (4 / cameraZoom) - (iconSize / 2);

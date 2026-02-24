@@ -108,10 +108,17 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
     const onPlayerHit = typeof opts.onPlayerHit === "function" ? opts.onPlayerHit : () => {};
     const normalizeTitle = (value) => {
       const raw = value && typeof value === "object" ? value : {};
+      const rawStyle = raw.style && typeof raw.style === "object" ? raw.style : {};
       return {
         id: String(raw.id || "").slice(0, 32),
         name: String(raw.name || "").slice(0, 24),
-        color: String(raw.color || "").slice(0, 24)
+        color: String(raw.color || "").slice(0, 24),
+        style: {
+          bold: Boolean(rawStyle.bold),
+          glow: Boolean(rawStyle.glow),
+          rainbow: Boolean(rawStyle.rainbow),
+          glowColor: String(rawStyle.glowColor || "").slice(0, 24)
+        }
       };
     };
     const setRemotePlayer = (id, p) => {
@@ -184,6 +191,7 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
     };
     handlers.chatAdded = (snapshot) => {
       const value = snapshot.val() || {};
+      const rawTitleStyle = value.titleStyle && typeof value.titleStyle === "object" ? value.titleStyle : {};
       addChatMessage({
         name: (value.name || "Guest").toString().slice(0, 16),
         playerId: (value.playerId || "").toString(),
@@ -191,6 +199,12 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
         titleId: (value.titleId || "").toString().slice(0, 32),
         titleName: (value.titleName || "").toString().slice(0, 24),
         titleColor: (value.titleColor || "").toString().slice(0, 24),
+        titleStyle: {
+          bold: Boolean(rawTitleStyle.bold),
+          glow: Boolean(rawTitleStyle.glow),
+          rainbow: Boolean(rawTitleStyle.rainbow),
+          glowColor: String(rawTitleStyle.glowColor || "").slice(0, 24)
+        },
         text: (value.text || "").toString().slice(0, 120),
         createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now()
       });
