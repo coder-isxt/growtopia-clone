@@ -92,9 +92,15 @@ window.GTModules = window.GTModules || {};
       const normalized = normalizeRecord(value);
       if (!normalized) {
         machines.delete(key);
+        if (modalCtx && modalCtx.tx === tx && modalCtx.ty === ty) {
+          closeModal();
+        }
         return;
       }
       machines.set(key, normalized);
+      if (modalCtx && modalCtx.tx === tx && modalCtx.ty === ty) {
+        renderOpen();
+      }
     }
 
     function getLocal(tx, ty) {
@@ -1779,6 +1785,12 @@ window.GTModules = window.GTModules || {};
     function renderOpen() {
       if (!isOpen() || !modalCtx) return;
       const machine = getLocal(modalCtx.tx, modalCtx.ty);
+      if (!machine) {
+        closeModal();
+        return;
+      }
+      const shouldSpectate = isUsedByOther(machine);
+      modalCtx.spectating = Boolean(shouldSpectate);
       renderModal(modalCtx.tx, modalCtx.ty, machine, Boolean(modalCtx.spectating));
     }
 
