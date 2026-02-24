@@ -12,7 +12,7 @@ window.GTModules = window.GTModules || {};
       minBet: 1,
       maxBet: 300,
       maxPayoutMultiplier: 3,
-      tripleWinRolls: new Set([0, 19, 28]),
+      tripleWinRolls: new Set([0, 19, 28, 37]),
       houseAutoLoseRolls: new Set([0, 19, 28, 37])
     },
     blackjack: {
@@ -72,10 +72,13 @@ window.GTModules = window.GTModules || {};
       const typeId = String(value.type || "reme_roulette");
       const def = MACHINE_DEFS[typeId] || MACHINE_DEFS.reme_roulette;
       const blackjackRound = normalizeBlackjackRound(value.blackjackRound);
+      const maxBetRaw = Math.floor(Number(value.maxBet));
+      const maxBet = Math.max(def.minBet, Math.min(def.maxBet, Number.isFinite(maxBetRaw) ? maxBetRaw : def.maxBet));
       return {
         ownerAccountId: String(value.ownerAccountId || ""),
         ownerName: String(value.ownerName || "").slice(0, 20),
         type: def.id,
+        maxBet,
         earningsLocks: Math.max(0, Math.floor(Number(value.earningsLocks) || 0)),
         inUseAccountId: String(value.inUseAccountId || ""),
         inUseSessionId: String(value.inUseSessionId || ""),
@@ -369,6 +372,23 @@ window.GTModules = window.GTModules || {};
       return Boolean(machine && pid && machine.ownerAccountId === pid);
     }
 
+    function canEditMachineMaxBet(machine) {
+      if (!canCollect(machine)) return false;
+      const isLocked = Boolean(get("isWorldLocked", false));
+      if (!isLocked) return true;
+      const isOwner = Boolean(get("isWorldLockOwner", false));
+      if (isOwner) return true;
+      const isAdmin = Boolean(get("isWorldLockAdmin", false));
+      if (isAdmin) return false;
+      return true;
+    }
+
+    function canBreakAt(tx, ty) {
+      const machine = getLocal(tx, ty);
+      if (!machine) return false;
+      return canCollect(machine);
+    }
+
     function getCurrencyIds() {
       const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
       const obsidianLockId = Math.max(0, Math.floor(Number(get("getObsidianLockId", 0)) || 0));
@@ -540,11 +560,19 @@ window.GTModules = window.GTModules || {};
       }).catch(() => {});
     }
 
-    function getMaxBetByBank(bank, def) {
+    function getMachineMaxBetCap(machine, def) {
+      const safeDef = def || MACHINE_DEFS.reme_roulette;
+      const raw = Math.floor(Number(machine && machine.maxBet));
+      const fallback = Math.floor(Number(safeDef.maxBet) || 300);
+      return Math.max(safeDef.minBet, Math.min(safeDef.maxBet, Number.isFinite(raw) ? raw : fallback));
+    }
+
+    function getMaxBetByBank(bank, def, maxCap) {
       const safeBank = Math.max(0, Math.floor(Number(bank) || 0));
       const coverage = Math.max(1, Math.floor(Number(def && def.maxPayoutMultiplier) || 3));
       const byBank = Math.floor(safeBank / coverage);
-      return Math.max(0, Math.min(Math.max(1, Math.floor(Number(def && def.maxBet) || 300)), byBank));
+      const cap = Math.max(1, Math.floor(Number(maxCap) || Math.floor(Number(def && def.maxBet) || 300)));
+      return Math.max(0, Math.min(cap, byBank));
     }
 
     function getOutcomeLabel(outcome) {
@@ -579,16 +607,17 @@ window.GTModules = window.GTModules || {};
       const def = MACHINE_DEFS[m.type] || MACHINE_DEFS.reme_roulette;
       const stats = normalizeStats(m.stats);
       const ownerLabel = m.ownerName || "owner";
-      const ownerView = canCollect(m);
+      const canEditMaxBet = canEditMachineMaxBet(m);
       const spectating = Boolean(spectatingMode);
       const bank = Math.max(0, Math.floor(Number(m.earningsLocks) || 0));
-      const maxBetByBank = getMaxBetByBank(bank, def);
+      const machineMaxCap = getMachineMaxBetCap(m, def);
+      const maxBetByBank = getMaxBetByBank(bank, def, machineMaxCap);
       const canSpin = maxBetByBank >= def.minBet;
       const blockedByActiveUser = isUsedByOther(m);
       const canPlayNow = canSpin && !blockedByActiveUser && !spectating;
       const inventory = get("getInventory", {}) || {};
       const playerLocks = getTotalLocks(inventory);
-      const maxBetByPlayer = Math.max(0, Math.min(def.maxBet, playerLocks));
+      const maxBetByPlayer = Math.max(0, Math.min(machineMaxCap, playerLocks));
       const maxBetEffective = Math.max(0, Math.min(maxBetByBank, maxBetByPlayer));
       const tileKey = getTileKey(tx, ty);
       const rememberedBet = Math.max(def.minBet, Math.floor(Number(lastBetByTile.get(tileKey)) || def.minBet));
@@ -680,19 +709,12 @@ window.GTModules = window.GTModules || {};
             // "<div class='vending-stat'><span>Total Paid Out</span><strong>" + stats.totalPayout + " WL</strong></div>" +
           "</div>" +
         "</div>" +
-        (ownerView
+        (canEditMaxBet
           ? ("<div class='vending-section'>" +
               "<div class='vending-section-title'>Machine Settings</div>" +
               "<div class='vending-field-grid'>" +
-                "<label class='vending-field'><span>Game</span>" +
-                  "<select data-gamble-input='type'>" +
-                    Object.keys(MACHINE_DEFS).map((id) => {
-                      const row = MACHINE_DEFS[id];
-                      return "<option value='" + esc(row.id) + "'" + (row.id === def.id ? " selected" : "") + ">" + esc(row.name) + "</option>";
-                    }).join("") +
-                  "</select>" +
-                "</label>" +
-                "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='settype'>Save Game</button></div>" +
+                "<label class='vending-field'><span>Max Bet</span><input data-gamble-input='maxbet' type='number' min='" + def.minBet + "' max='" + def.maxBet + "' step='1' value='" + machineMaxCap + "'></label>" +
+                "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='setmax'>Save Max Bet</button></div>" +
               "</div>" +
             "</div>")
           : "") +
@@ -729,40 +751,18 @@ window.GTModules = window.GTModules || {};
               "</div>" +
             "</div>"));
 
-      if (ownerView) {
-        if (def.id === "blackjack" && roundActive) {
-          els.actions.innerHTML =
-            "<button data-gamble-act='spin' disabled>Deal</button>" +
-            "<button data-gamble-act='bj-hit'" + (canActRound ? "" : " disabled") + ">Hit</button>" +
-            "<button data-gamble-act='bj-stand'" + (canActRound ? "" : " disabled") + ">Stand</button>" +
-            "<button data-gamble-act='bj-double'" + (canDouble ? "" : " disabled") + ">Double</button>" +
-            "<button data-gamble-act='bj-split'" + (canSplit ? "" : " disabled") + ">Split</button>" +
-            "<input data-gamble-input='refill' type='number' min='1' step='1' value='1' style='max-width:120px;'>" +
-            "<button data-gamble-act='refill'>Refill</button>" +
-            "<button data-gamble-act='collect'" + (m.earningsLocks > 0 ? "" : " disabled") + ">Collect Earnings</button>" +
-            "<button data-gamble-act='close'>Close</button>";
-        } else {
-          els.actions.innerHTML =
-            "<button data-gamble-act='spin'" + (canPlayNow && !roundActive ? "" : " disabled") + ">" + (def.id === "blackjack" ? "Deal" : "Spin") + "</button>" +
-            "<input data-gamble-input='refill' type='number' min='1' step='1' value='1' style='max-width:120px;'>" +
-            "<button data-gamble-act='refill'>Refill</button>" +
-            "<button data-gamble-act='collect'" + (m.earningsLocks > 0 ? "" : " disabled") + ">Collect Earnings</button>" +
-            "<button data-gamble-act='close'>Close</button>";
-        }
+      if (def.id === "blackjack" && roundActive) {
+        els.actions.innerHTML =
+          "<button data-gamble-act='spin' disabled>Deal</button>" +
+          "<button data-gamble-act='bj-hit'" + (canActRound ? "" : " disabled") + ">Hit</button>" +
+          "<button data-gamble-act='bj-stand'" + (canActRound ? "" : " disabled") + ">Stand</button>" +
+          "<button data-gamble-act='bj-double'" + (canDouble ? "" : " disabled") + ">Double</button>" +
+          "<button data-gamble-act='bj-split'" + (canSplit ? "" : " disabled") + ">Split</button>" +
+          "<button data-gamble-act='close'>Close</button>";
       } else {
-        if (def.id === "blackjack" && roundActive) {
-          els.actions.innerHTML =
-            "<button data-gamble-act='spin' disabled>Deal</button>" +
-            "<button data-gamble-act='bj-hit'" + (canActRound ? "" : " disabled") + ">Hit</button>" +
-            "<button data-gamble-act='bj-stand'" + (canActRound ? "" : " disabled") + ">Stand</button>" +
-            "<button data-gamble-act='bj-double'" + (canDouble ? "" : " disabled") + ">Double</button>" +
-            "<button data-gamble-act='bj-split'" + (canSplit ? "" : " disabled") + ">Split</button>" +
-            "<button data-gamble-act='close'>Close</button>";
-        } else {
-          els.actions.innerHTML =
-            "<button data-gamble-act='spin'" + (canPlayNow && !roundActive ? "" : " disabled") + ">" + (def.id === "blackjack" ? "Deal" : "Spin") + "</button>" +
-            "<button data-gamble-act='close'>Close</button>";
-        }
+        els.actions.innerHTML =
+          "<button data-gamble-act='spin'" + (canPlayNow && !roundActive ? "" : " disabled") + ">" + (def.id === "blackjack" ? "Deal" : "Spin") + "</button>" +
+          "<button data-gamble-act='close'>Close</button>";
       }
 
       modalCtx = { tx, ty, spectating };
@@ -791,6 +791,7 @@ window.GTModules = window.GTModules || {};
           ownerAccountId: profileId,
           ownerName: profileName,
           type: "reme_roulette",
+          maxBet: MACHINE_DEFS.reme_roulette.maxBet,
           earningsLocks: 0,
           stats: normalizeStats({}),
           updatedAt: firebaseRef && firebaseRef.database ? firebaseRef.database.ServerValue.TIMESTAMP : Date.now()
@@ -829,6 +830,7 @@ window.GTModules = window.GTModules || {};
         ownerAccountId: current.ownerAccountId,
         ownerName: current.ownerName,
         type: current.type || "reme_roulette",
+        maxBet: current.maxBet,
         earningsLocks: nextBank,
         stats: nextStats,
         updatedAt: firebaseRef && firebaseRef.database ? firebaseRef.database.ServerValue.TIMESTAMP : Date.now()
@@ -1099,9 +1101,9 @@ window.GTModules = window.GTModules || {};
       const els = getModalEls();
       const betInput = els.body ? els.body.querySelector("[data-gamble-input='bet']") : null;
       const bankLocal = Math.max(0, Math.floor(Number(machine.earningsLocks) || 0));
-      const maxBetByBank = getMaxBetByBank(bankLocal, def);
+      const maxBetByBank = getMaxBetByBank(bankLocal, def, getMachineMaxBetCap(machine, def));
       if (maxBetByBank < def.minBet) {
-        post("Machine bank is too low. Owner must refill.");
+        post("Machine bank is too low.");
         return;
       }
       const bet = Math.max(def.minBet, Math.min(maxBetByBank, Math.floor(Number(betInput && betInput.value) || 0)));
@@ -1130,7 +1132,7 @@ window.GTModules = window.GTModules || {};
           const current = getLocal(tx, ty) || machine;
           const start = startBlackjackRoundSnapshot(current, bet, profileId, profileName);
           if (!start || !start.next) {
-            post("Machine bank changed. Max bet is now " + getMaxBetByBank(Math.max(0, Math.floor(Number(current.earningsLocks) || 0)), def) + " WL.");
+            post("Machine bank changed. Max bet is now " + getMaxBetByBank(Math.max(0, Math.floor(Number(current.earningsLocks) || 0)), def, getMachineMaxBetCap(current, def)) + " WL.");
             renderModal(tx, ty, current);
             return;
           }
@@ -1235,7 +1237,7 @@ window.GTModules = window.GTModules || {};
         const beforeBank = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
         const needsCoverage = bet * Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || 3));
         if (beforeBank < needsCoverage) {
-          post("Machine bank changed. Max bet is now " + getMaxBetByBank(beforeBank, def) + " WL.");
+          post("Machine bank changed. Max bet is now " + getMaxBetByBank(beforeBank, def, getMachineMaxBetCap(current, def)) + " WL.");
           renderModal(tx, ty, current);
           return;
         }
@@ -1454,187 +1456,37 @@ window.GTModules = window.GTModules || {};
       });
     }
 
-    function refillBank() {
+    function setMachineMaxBet() {
       if (!modalCtx) return;
       const tx = Math.floor(Number(modalCtx.tx));
       const ty = Math.floor(Number(modalCtx.ty));
       const post = opts.postLocalSystemChat || (() => {});
       const machine = getLocal(tx, ty);
       if (!machine || !canCollect(machine)) {
-        post("Only the machine owner can refill.");
+        post("Only the machine owner can change max bet.");
         return;
       }
+      if (!canEditMachineMaxBet(machine)) {
+        post("World admins cannot change max bet. Only world owner + machine owner can.");
+        return;
+      }
+      const def = MACHINE_DEFS[machine.type] || MACHINE_DEFS.reme_roulette;
       const els = getModalEls();
-      const refillInput = els.actions ? els.actions.querySelector("[data-gamble-input='refill']") : null;
-      const amount = Math.max(1, Math.floor(Number(refillInput && refillInput.value) || 0));
-      const inventory = get("getInventory", {}) || {};
-      const haveLocal = getTotalLocks(inventory);
-      if (haveLocal < amount) {
-        post("Not enough WL to refill. Need " + amount + ".");
-        return;
-      }
-      const network = get("getNetwork", null);
-      const basePath = String(get("getBasePath", "") || "");
-      const profileId = String(get("getPlayerProfileId", "") || "");
-      if (!network || !network.enabled || !network.db || !basePath || !profileId) {
-        setCanonicalLocks(inventory, haveLocal - amount);
-        const nextMachine = { ...machine, earningsLocks: Math.max(0, Math.floor(Number(machine.earningsLocks) || 0) + amount), updatedAt: Date.now() };
-        setLocal(tx, ty, nextMachine);
-        if (typeof opts.saveInventory === "function") opts.saveInventory();
-        if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
-        renderModal(tx, ty, nextMachine);
-        post("Refilled machine by " + amount + " WL.");
-        return;
-      }
-      const lockRef = network.db.ref(basePath + "/player-inventories/" + profileId);
-      const machineRef = getMachineRef(tx, ty);
-      if (!machineRef) return;
-      lockRef.transaction((currentRaw) => {
-        const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
-        const have = getTotalLocks(current);
-        if (have < amount) return;
-        setCanonicalLocks(current, have - amount);
-        return current;
-      }).then((deductTxn) => {
-        if (!deductTxn.committed) {
-          post("Not enough WL to refill.");
-          return Promise.resolve(false);
-        }
-        return machineRef.transaction((currentRaw) => {
-          const current = normalizeRecord(currentRaw) || machine;
-          if (!canCollect(current)) return currentRaw;
-          return {
-            ...current,
-            earningsLocks: Math.max(0, Math.floor(Number(current.earningsLocks) || 0) + amount),
-            updatedAt: Date.now()
-          };
-        }).then((machineTxn) => {
-          if (!machineTxn || !machineTxn.committed) {
-            lockRef.transaction((currentRaw) => {
-              const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
-              addLocksLocal(current, amount);
-              return current;
-            }).catch(() => {});
-            post("Refill failed.");
-            return false;
-          }
-          const raw = machineTxn.snapshot && typeof machineTxn.snapshot.val === "function" ? machineTxn.snapshot.val() : null;
-          setLocal(tx, ty, raw);
-          if (typeof opts.saveInventory === "function") opts.saveInventory();
-          if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
-          renderModal(tx, ty, getLocal(tx, ty));
-          post("Refilled machine by " + amount + " WL.");
-          return true;
-        });
-      }).catch(() => {
-        post("Refill failed.");
-      });
-    }
-
-    function collectEarnings() {
-      if (!modalCtx) return;
-      const tx = Math.floor(Number(modalCtx.tx));
-      const ty = Math.floor(Number(modalCtx.ty));
-      const post = opts.postLocalSystemChat || (() => {});
-      const machine = getLocal(tx, ty);
-      if (!machine || !canCollect(machine)) {
-        post("Only the machine owner can collect earnings.");
-        return;
-      }
-      const amountLocal = Math.max(0, Math.floor(Number(machine.earningsLocks) || 0));
-      if (amountLocal <= 0) {
-        post("No earnings to collect.");
-        return;
-      }
-      const inventory = get("getInventory", {}) || {};
-      const network = get("getNetwork", null);
-      const basePath = String(get("getBasePath", "") || "");
-      const profileId = String(get("getPlayerProfileId", "") || "");
-
-      if (!network || !network.enabled || !network.db || !basePath || !profileId) {
-        addLocksLocal(inventory, amountLocal);
-        const nextMachine = { ...machine, earningsLocks: 0, updatedAt: Date.now() };
-        setLocal(tx, ty, nextMachine);
-        if (typeof opts.saveInventory === "function") opts.saveInventory();
-        if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
-        renderModal(tx, ty, nextMachine);
-        post("Collected " + amountLocal + " WL from machine.");
-        return;
-      }
-
-      const machineRef = getMachineRef(tx, ty);
-      if (!machineRef) return;
-      let collected = 0;
-      machineRef.transaction((currentRaw) => {
-        const current = normalizeRecord(currentRaw);
-        if (!current) return currentRaw;
-        if (!canCollect(current)) return currentRaw;
-        collected = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
-        if (collected <= 0) return currentRaw;
-        return {
-          ...current,
-          earningsLocks: 0,
-          updatedAt: Date.now()
-        };
-      }).then((machineTxn) => {
-        if (!machineTxn || !machineTxn.committed || collected <= 0) {
-          post("No earnings to collect.");
-          return null;
-        }
-        const raw = machineTxn.snapshot && typeof machineTxn.snapshot.val === "function" ? machineTxn.snapshot.val() : null;
-        setLocal(tx, ty, raw);
-        return network.db.ref(basePath + "/player-inventories/" + profileId).transaction((currentRaw) => {
-          const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
-          addLocksLocal(current, collected);
-          return current;
-        }).then(() => ({ collected }));
-      }).then((done) => {
-        if (!done) return;
-        if (typeof opts.saveInventory === "function") opts.saveInventory();
-        if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
-        renderModal(tx, ty, getLocal(tx, ty));
-        post("Collected " + done.collected + " WL from machine.");
-      }).catch(() => {
-        post("Failed to collect earnings.");
-      });
-    }
-
-    function setMachineType() {
-      if (!modalCtx) return;
-      const tx = Math.floor(Number(modalCtx.tx));
-      const ty = Math.floor(Number(modalCtx.ty));
-      const post = opts.postLocalSystemChat || (() => {});
-      const machine = getLocal(tx, ty);
-      if (!machine || !canCollect(machine)) {
-        post("Only the machine owner can change game type.");
-        return;
-      }
-      const els = getModalEls();
-      const typeInput = els.body ? els.body.querySelector("[data-gamble-input='type']") : null;
-      const nextTypeRaw = typeInput instanceof HTMLSelectElement ? typeInput.value : "";
-      const nextDef = MACHINE_DEFS[String(nextTypeRaw || "").trim()] || null;
-      if (!nextDef) {
-        post("Invalid game type.");
-        return;
-      }
-      if (nextDef.id === machine.type) {
-        post("Machine already uses " + nextDef.name + ".");
-        return;
-      }
+      const maxBetInput = els.body ? els.body.querySelector("[data-gamble-input='maxbet']") : null;
+      const requestedMax = Math.floor(Number(maxBetInput && maxBetInput.value));
+      const nextMax = Math.max(def.minBet, Math.min(def.maxBet, Number.isFinite(requestedMax) ? requestedMax : def.maxBet));
       const network = get("getNetwork", null);
       const basePath = String(get("getBasePath", "") || "");
       const profileId = String(get("getPlayerProfileId", "") || "");
       if (!network || !network.enabled || !network.db || !basePath || !profileId) {
         const nextMachine = {
           ...machine,
-          type: nextDef.id,
-          blackjackRound: null,
-          stats: normalizeStats({}),
+          maxBet: nextMax,
           updatedAt: Date.now()
         };
         setLocal(tx, ty, nextMachine);
         renderModal(tx, ty, nextMachine);
-        post("Machine game set to " + nextDef.name + ".");
+        post("Machine max bet set to " + nextMax + " WL.");
         return;
       }
       const machineRef = getMachineRef(tx, ty);
@@ -1644,22 +1496,20 @@ window.GTModules = window.GTModules || {};
         if (!canCollect(current)) return currentRaw;
         return {
           ...current,
-          type: nextDef.id,
-          blackjackRound: null,
-          stats: normalizeStats({}),
+          maxBet: nextMax,
           updatedAt: Date.now()
         };
       }).then((result) => {
         if (!result || !result.committed) {
-          post("Failed to change game type.");
+          post("Failed to set max bet.");
           return;
         }
         const raw = result.snapshot && typeof result.snapshot.val === "function" ? result.snapshot.val() : null;
         setLocal(tx, ty, raw);
         renderModal(tx, ty, getLocal(tx, ty));
-        post("Machine game set to " + nextDef.name + ".");
+        post("Machine max bet set to " + nextMax + " WL.");
       }).catch(() => {
-        post("Failed to change game type.");
+        post("Failed to set max bet.");
       });
     }
 
@@ -1680,9 +1530,9 @@ window.GTModules = window.GTModules || {};
         const machine = getLocal(tx, ty);
         const def = MACHINE_DEFS[(machine && machine.type) || "reme_roulette"] || MACHINE_DEFS.reme_roulette;
         const bank = Math.max(0, Math.floor(Number(machine && machine.earningsLocks) || 0));
-        const byBank = getMaxBetByBank(bank, def);
+        const byBank = getMaxBetByBank(bank, def, getMachineMaxBetCap(machine, def));
         const inventory = get("getInventory", {}) || {};
-        const byPlayer = Math.max(0, Math.min(def.maxBet, getTotalLocks(inventory)));
+        const byPlayer = Math.max(0, Math.min(getMachineMaxBetCap(machine, def), getTotalLocks(inventory)));
         const effective = Math.max(0, Math.min(byBank, byPlayer));
         const els = getModalEls();
         const betInput = els.body ? els.body.querySelector("[data-gamble-input='bet']") : null;
@@ -1721,16 +1571,8 @@ window.GTModules = window.GTModules || {};
         performBlackjackAction("split");
         return;
       }
-      if (action === "collect") {
-        collectEarnings();
-        return;
-      }
-      if (action === "refill") {
-        refillBank();
-        return;
-      }
-      if (action === "settype") {
-        setMachineType();
+      if (action === "setmax") {
+        setMachineMaxBet();
       }
     }
 
@@ -1815,6 +1657,7 @@ window.GTModules = window.GTModules || {};
         ownerAccountId: String(get("getPlayerProfileId", "") || ""),
         ownerName: String(get("getPlayerName", "") || "").slice(0, 20),
         type: "reme_roulette",
+        maxBet: MACHINE_DEFS.reme_roulette.maxBet,
         earningsLocks: 0,
         stats: normalizeStats({}),
         updatedAt: Date.now()
@@ -1832,6 +1675,10 @@ window.GTModules = window.GTModules || {};
     function claimOnBreak(tx, ty) {
       const post = opts.postLocalSystemChat || (() => {});
       const machine = getLocal(tx, ty);
+      if (machine && !canCollect(machine)) {
+        post("Only the machine owner can break this gambling machine.");
+        return;
+      }
       const localBank = Math.max(0, Math.floor(Number(machine && machine.earningsLocks) || 0));
       const inventory = get("getInventory", {}) || {};
       const network = get("getNetwork", null);
@@ -1873,6 +1720,7 @@ window.GTModules = window.GTModules || {};
       let claimed = 0;
       machineRef.transaction((currentRaw) => {
         const current = normalizeRecord(currentRaw);
+        if (current && !canCollect(current)) return currentRaw;
         if (!current) return null;
         claimed = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
         return null; // remove machine node on successful claim
@@ -1915,6 +1763,7 @@ window.GTModules = window.GTModules || {};
       seedOwner,
       onPlaced,
       onBroken,
+      canBreakAt,
       claimOnBreak
     };
   }

@@ -723,6 +723,9 @@
           getGambleId: () => GAMBLE_ID,
           getWorldLockId: () => WORLD_LOCK_ID,
           getObsidianLockId: () => OBSIDIAN_LOCK_ID,
+          isWorldLocked: () => isWorldLocked(),
+          isWorldLockOwner: () => isWorldLockOwner(),
+          isWorldLockAdmin: () => isWorldLockAdmin(),
           clampInventoryCount,
           saveInventory,
           refreshToolbar,
@@ -9574,6 +9577,10 @@
         }
         if (id === GAMBLE_ID) {
           const gambleCtrl = getGambleController();
+          if (gambleCtrl && typeof gambleCtrl.canBreakAt === "function" && !gambleCtrl.canBreakAt(tx, ty)) {
+            postLocalSystemChat("Only the machine owner can break this gambling machine.");
+            return;
+          }
           if (gambleCtrl && typeof gambleCtrl.claimOnBreak === "function") {
             gambleCtrl.claimOnBreak(tx, ty);
           } else {
