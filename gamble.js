@@ -71,6 +71,7 @@ window.GTModules = window.GTModules || {};
       if (!value || typeof value !== "object") return null;
       const typeId = String(value.type || "reme_roulette");
       const def = MACHINE_DEFS[typeId] || MACHINE_DEFS.reme_roulette;
+      const blackjackRound = normalizeBlackjackRound(value.blackjackRound);
       return {
         ownerAccountId: String(value.ownerAccountId || ""),
         ownerName: String(value.ownerName || "").slice(0, 20),
@@ -81,6 +82,7 @@ window.GTModules = window.GTModules || {};
         inUseName: String(value.inUseName || "").slice(0, 20),
         inUseAt: Math.max(0, Math.floor(Number(value.inUseAt) || 0)),
         stats: normalizeStats(value.stats),
+        blackjackRound: def.id === "blackjack" ? blackjackRound : null,
         updatedAt: Number(value.updatedAt) || 0
       };
     }
@@ -192,7 +194,7 @@ window.GTModules = window.GTModules || {};
       return String(c);
     }
 
-    function scoreHand(cards) {
+    function scoreHandDetail(cards) {
       const arr = Array.isArray(cards) ? cards : [];
       let total = 0;
       let aces = 0;
@@ -205,80 +207,154 @@ window.GTModules = window.GTModules || {};
         total -= 10;
         aces -= 1;
       }
-      return total;
+      return {
+        total,
+        isBlackjack: arr.length === 2 && total === 21
+      };
     }
 
-    function formatHand(cards, total) {
+    function scoreHand(cards) {
+      return scoreHandDetail(cards).total;
+    }
+
+    function formatHand(cards, total, hideSecondCard) {
       const arr = Array.isArray(cards) ? cards : [];
-      const labels = arr.map((c) => getCardLabel(c)).join(" ");
+      const labels = arr.map((c, i) => (hideSecondCard && i === 1 ? "?" : getCardLabel(c))).join(" ");
       return labels + " (" + Math.max(0, Math.floor(Number(total) || 0)) + ")";
     }
 
-    function evaluateBlackjackRound(def, bet) {
-      const playerCards = [drawCard(), drawCard()];
-      const houseCards = [drawCard(), drawCard()];
-      let playerTotal = scoreHand(playerCards);
-      let houseTotal = scoreHand(houseCards);
-      const playerNatural = playerCards.length === 2 && playerTotal === 21;
-      const houseNatural = houseCards.length === 2 && houseTotal === 21;
-      let outcome = "lose";
-      let multiplier = 0;
-      let push = false;
-
-      if (playerNatural || houseNatural) {
-        if (playerNatural && houseNatural) {
-          outcome = "push";
-          multiplier = 1;
-          push = true;
-        } else if (playerNatural) {
-          outcome = "blackjack";
-          multiplier = 3;
-        } else {
-          outcome = "lose";
-          multiplier = 0;
-        }
-      } else {
-        while (playerTotal < 17) {
-          playerCards.push(drawCard());
-          playerTotal = scoreHand(playerCards);
-        }
-        if (playerTotal > 21) {
-          outcome = "lose";
-          multiplier = 0;
-        } else {
-          while (houseTotal < 17) {
-            houseCards.push(drawCard());
-            houseTotal = scoreHand(houseCards);
-          }
-          if (houseTotal > 21 || playerTotal > houseTotal) {
-            outcome = "win";
-            multiplier = 2;
-          } else if (houseTotal === playerTotal) {
-            outcome = "push";
-            multiplier = 1;
-            push = true;
-          } else {
-            outcome = "lose";
-            multiplier = 0;
-          }
-        }
+    function sanitizeCardList(cards) {
+      const arr = Array.isArray(cards) ? cards : [];
+      const out = [];
+      for (let i = 0; i < arr.length; i++) {
+        out.push(Math.max(1, Math.min(13, Math.floor(Number(arr[i]) || 1))));
       }
+      return out;
+    }
 
-      const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    function normalizeBlackjackRound(value) {
+      if (!value || typeof value !== "object") return null;
+      const handsRaw = Array.isArray(value.hands) ? value.hands : [];
+      if (!handsRaw.length) return null;
+      const hands = handsRaw.map((handRaw) => {
+        const handCards = sanitizeCardList(handRaw && handRaw.cards);
+        return {
+          cards: handCards,
+          bet: Math.max(1, Math.floor(Number(handRaw && handRaw.bet) || 1)),
+          fromSplit: Boolean(handRaw && handRaw.fromSplit),
+          doubled: Boolean(handRaw && handRaw.doubled),
+          done: Boolean(handRaw && handRaw.done),
+          outcome: String(handRaw && handRaw.outcome || "").slice(0, 16),
+          payout: Math.max(0, Math.floor(Number(handRaw && handRaw.payout) || 0))
+        };
+      });
       return {
-        bet: safeBet,
-        multiplier,
-        payoutWanted: Math.max(0, Math.floor(safeBet * multiplier)),
-        outcome,
-        tie: push,
-        playerRoll: playerTotal,
-        houseRoll: houseTotal,
-        playerReme: 0,
-        houseReme: 0,
-        playerTotal,
-        houseTotal,
-        playerHandText: formatHand(playerCards, playerTotal),
-        houseHandText: formatHand(houseCards, houseTotal)
+        active: Boolean(value.active),
+        playerAccountId: String(value.playerAccountId || ""),
+        playerName: String(value.playerName || "").slice(0, 20),
+        startedAt: Math.max(0, Math.floor(Number(value.startedAt) || 0)),
+        dealerCards: sanitizeCardList(value.dealerCards),
+        hands,
+        activeHand: Math.max(0, Math.floor(Number(value.activeHand) || 0)),
+        dealerDone: Boolean(value.dealerDone),
+        resolved: Boolean(value.resolved),
+        aggregateOutcome: String(value.aggregateOutcome || "").slice(0, 16),
+        totalPayout: Math.max(0, Math.floor(Number(value.totalPayout) || 0)),
+        summary: String(value.summary || "").slice(0, 220)
+      };
+    }
+
+    function getBlackjackCoverageRequired(round) {
+      const r = normalizeBlackjackRound(round);
+      if (!r) return 0;
+      let totalBet = 0;
+      for (let i = 0; i < r.hands.length; i++) {
+        totalBet += Math.max(1, Math.floor(Number(r.hands[i].bet) || 1));
+      }
+      return totalBet * 3;
+    }
+
+    function firstOpenBlackjackHand(round) {
+      const r = normalizeBlackjackRound(round);
+      if (!r) return -1;
+      for (let i = 0; i < r.hands.length; i++) {
+        if (!r.hands[i].done) return i;
+      }
+      return -1;
+    }
+
+    function canSplitHand(hand) {
+      if (!hand || !Array.isArray(hand.cards) || hand.cards.length !== 2) return false;
+      return getCardValue(hand.cards[0]) === getCardValue(hand.cards[1]);
+    }
+
+    function finishBlackjackRound(round) {
+      const r = normalizeBlackjackRound(round);
+      if (!r) return null;
+      const dealerCards = sanitizeCardList(r.dealerCards);
+      while (scoreHand(dealerCards) < 17) {
+        dealerCards.push(drawCard());
+      }
+      const dealerScore = scoreHandDetail(dealerCards);
+      const dealerBust = dealerScore.total > 21;
+      const dealerBlackjack = dealerScore.isBlackjack;
+      let totalPayout = 0;
+      let summaryWins = 0;
+      let summaryPush = 0;
+      const outHands = r.hands.map((hand) => {
+        const detail = scoreHandDetail(hand.cards);
+        const bet = Math.max(1, Math.floor(Number(hand.bet) || 1));
+        let payout = 0;
+        let outcome = "lose";
+        if (detail.total > 21) {
+          payout = 0;
+          outcome = "bust";
+        } else if (detail.isBlackjack && !hand.fromSplit && !dealerBlackjack) {
+          payout = Math.max(0, Math.floor(bet * 2.5));
+          outcome = "blackjack";
+          summaryWins += 1;
+        } else if (dealerBust) {
+          payout = bet * 2;
+          outcome = "win";
+          summaryWins += 1;
+        } else if (dealerBlackjack && !(detail.isBlackjack && !hand.fromSplit)) {
+          payout = 0;
+          outcome = "lose";
+        } else if (detail.total > dealerScore.total) {
+          payout = bet * 2;
+          outcome = "win";
+          summaryWins += 1;
+        } else if (detail.total === dealerScore.total) {
+          payout = bet;
+          outcome = "push";
+          summaryPush += 1;
+        } else {
+          payout = 0;
+          outcome = "lose";
+        }
+        totalPayout += payout;
+        return {
+          ...hand,
+          done: true,
+          outcome,
+          payout
+        };
+      });
+      const aggregateOutcome = summaryWins > 0
+        ? (outHands.some((h) => h.outcome === "blackjack") ? "blackjack" : "win")
+        : (summaryPush > 0 ? "push" : "lose");
+      return {
+        ...r,
+        active: false,
+        dealerCards,
+        dealerDone: true,
+        resolved: true,
+        activeHand: -1,
+        hands: outHands,
+        totalPayout,
+        summary: "Dealer " + formatHand(dealerCards, dealerScore.total, false) + ".",
+        aggregateOutcome,
+        dealerTotal: dealerScore.total
       };
     }
 
@@ -505,6 +581,55 @@ window.GTModules = window.GTModules || {};
         ? Math.max(def.minBet, Math.min(maxBetByBank, rememberedBet))
         : def.minBet;
       const coverageMult = Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || 3));
+      const selfAccountId = getSelfAccountId();
+      const round = def.id === "blackjack" ? normalizeBlackjackRound(m.blackjackRound) : null;
+      const roundActive = Boolean(round && round.active && !round.resolved);
+      const roundPlayer = roundActive && round ? round.playerAccountId : "";
+      const isRoundPlayer = Boolean(roundActive && roundPlayer && roundPlayer === selfAccountId);
+      const canActRound = roundActive && isRoundPlayer && !spectating;
+      const activeHandIndex = roundActive && round ? Math.max(0, Math.floor(Number(round.activeHand) || 0)) : -1;
+      const activeHand = (roundActive && round && round.hands[activeHandIndex]) ? round.hands[activeHandIndex] : null;
+      const canSplit = Boolean(canActRound && activeHand && !activeHand.done && canSplitHand(activeHand) && round.hands.length === 1);
+      const canDouble = Boolean(canActRound && activeHand && !activeHand.done && !activeHand.doubled && Array.isArray(activeHand.cards) && activeHand.cards.length === 2);
+      let blackjackStateHtml = "";
+      if (def.id === "blackjack") {
+        if (round) {
+          const dealerTotalShown = roundActive
+            ? scoreHand([round.dealerCards[0] || 1])
+            : scoreHand(round.dealerCards);
+          const dealerText = formatHand(round.dealerCards, dealerTotalShown, roundActive);
+          let handsHtml = "";
+          for (let i = 0; i < round.hands.length; i++) {
+            const hand = round.hands[i];
+            const handTotal = scoreHand(hand.cards);
+            const handTitle = "Hand " + (i + 1) + (i === activeHandIndex && roundActive ? " (active)" : "");
+            const tag = hand.done ? (hand.outcome ? getOutcomeLabel(hand.outcome) : "DONE") : "PLAY";
+            handsHtml +=
+              "<div class='vending-stat'>" +
+                "<span>" + esc(handTitle) + "</span>" +
+                "<strong>" + esc(formatHand(hand.cards, handTotal, false)) + " | Bet " + hand.bet + " WL | " + esc(tag) + "</strong>" +
+              "</div>";
+          }
+          blackjackStateHtml =
+            "<div class='vending-section'>" +
+              "<div class='vending-section-title'>Blackjack Round</div>" +
+              "<div class='vending-stat-grid'>" +
+                "<div class='vending-stat'><span>Player</span><strong>@" + esc(round.playerName || "player") + "</strong></div>" +
+                "<div class='vending-stat'><span>Dealer</span><strong>" + esc(dealerText) + "</strong></div>" +
+                handsHtml +
+              "</div>" +
+              (roundActive
+                ? "<div class='vending-auto-stock-note'>" + (isRoundPlayer ? "Your turn." : "Live game in progress. Spectating.") + "</div>"
+                : (round.summary ? "<div class='vending-auto-stock-note'>" + esc(round.summary) + "</div>" : "")) +
+            "</div>";
+        } else {
+          blackjackStateHtml =
+            "<div class='vending-section'>" +
+              "<div class='vending-section-title'>Blackjack Round</div>" +
+              "<div class='vending-auto-stock-note'>No active round. Deal to start.</div>" +
+            "</div>";
+        }
+      }
 
       els.title.textContent = "Gambling Machine";
       els.body.innerHTML =
@@ -540,12 +665,12 @@ window.GTModules = window.GTModules || {};
         "<div class='vending-section'>" +
           "<div class='vending-section-title'>Play (" + (def.id === "blackjack" ? "Blackjack" : "Player vs House") + ")</div>" +
           "<div class='vending-field-grid'>" +
-            "<label class='vending-field'><span>Bet (World Locks)</span><input data-gamble-input='bet' type='number' min='" + def.minBet + "' max='" + (canSpin ? maxBetByBank : def.minBet) + "' step='1' value='" + displayBet + "'" + (canPlayNow ? "" : " disabled") + "></label>" +
-            "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='maxbet'" + ((canPlayNow && maxBetEffective > 0) ? "" : " disabled") + ">Apply Max Bet</button></div>" +
+            "<label class='vending-field'><span>Bet (World Locks)</span><input data-gamble-input='bet' type='number' min='" + def.minBet + "' max='" + (canSpin ? maxBetByBank : def.minBet) + "' step='1' value='" + displayBet + "'" + (canPlayNow && !roundActive ? "" : " disabled") + "></label>" +
+            "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='maxbet'" + ((canPlayNow && maxBetEffective > 0 && !roundActive) ? "" : " disabled") + ">Apply Max Bet</button></div>" +
           "</div>" +
           (def.id === "blackjack"
-            ? ("<div class='vending-auto-stock-note'>Auto blackjack round: both sides draw, then hit until 17.</div>" +
-              "<div class='vending-auto-stock-note'>Blackjack pays 3x, normal win pays 2x, push returns bet.</div>")
+            ? ("<div class='vending-auto-stock-note'>You: Hit, Stand, Double, Split. Dealer hits to 17+ and stands on 17.</div>" +
+              "<div class='vending-auto-stock-note'>Blackjack pays 3:2 (floor), win pays 2x, push returns bet.</div>")
             : ("<div class='vending-auto-stock-note'>No number selection. You roll vs house roll (0-37). Higher reme wins.</div>" +
               "<div class='vending-auto-stock-note'>Tie = lose. Special player rolls 0, 19, 28 give 3x.</div>" +
               "<div class='vending-auto-stock-note'>If house rolls 0, 19, 28 or 37, player auto-loses.</div>")) +
@@ -554,6 +679,7 @@ window.GTModules = window.GTModules || {};
           (spectating ? "<div class='vending-auto-stock-note'>Spectating live: read-only.</div>" : "") +
           (blockedByActiveUser && !spectating ? "<div class='vending-auto-stock-note'>Machine is currently in use by @" + esc(m.inUseName || "another player") + ".</div>" : "") +
         "</div>" +
+        blackjackStateHtml +
         "<div class='vending-section'>" +
           "<div class='vending-section-title'>Last Result</div>" +
           "<div class='vending-stat-grid'>" +
@@ -565,16 +691,39 @@ window.GTModules = window.GTModules || {};
         "</div>";
 
       if (ownerView) {
-        els.actions.innerHTML =
-          "<button data-gamble-act='spin'" + (canPlayNow ? "" : " disabled") + ">" + (def.id === "blackjack" ? "Deal" : "Spin") + "</button>" +
-          "<input data-gamble-input='refill' type='number' min='1' step='1' value='1' style='max-width:120px;'>" +
-          "<button data-gamble-act='refill'>Refill</button>" +
-          "<button data-gamble-act='collect'" + (m.earningsLocks > 0 ? "" : " disabled") + ">Collect Earnings</button>" +
-          "<button data-gamble-act='close'>Close</button>";
+        if (def.id === "blackjack" && roundActive) {
+          els.actions.innerHTML =
+            "<button data-gamble-act='spin' disabled>Deal</button>" +
+            "<button data-gamble-act='bj-hit'" + (canActRound ? "" : " disabled") + ">Hit</button>" +
+            "<button data-gamble-act='bj-stand'" + (canActRound ? "" : " disabled") + ">Stand</button>" +
+            "<button data-gamble-act='bj-double'" + (canDouble ? "" : " disabled") + ">Double</button>" +
+            "<button data-gamble-act='bj-split'" + (canSplit ? "" : " disabled") + ">Split</button>" +
+            "<input data-gamble-input='refill' type='number' min='1' step='1' value='1' style='max-width:120px;'>" +
+            "<button data-gamble-act='refill'>Refill</button>" +
+            "<button data-gamble-act='collect'" + (m.earningsLocks > 0 ? "" : " disabled") + ">Collect Earnings</button>" +
+            "<button data-gamble-act='close'>Close</button>";
+        } else {
+          els.actions.innerHTML =
+            "<button data-gamble-act='spin'" + (canPlayNow && !roundActive ? "" : " disabled") + ">" + (def.id === "blackjack" ? "Deal" : "Spin") + "</button>" +
+            "<input data-gamble-input='refill' type='number' min='1' step='1' value='1' style='max-width:120px;'>" +
+            "<button data-gamble-act='refill'>Refill</button>" +
+            "<button data-gamble-act='collect'" + (m.earningsLocks > 0 ? "" : " disabled") + ">Collect Earnings</button>" +
+            "<button data-gamble-act='close'>Close</button>";
+        }
       } else {
-        els.actions.innerHTML =
-          "<button data-gamble-act='spin'" + (canPlayNow ? "" : " disabled") + ">" + (def.id === "blackjack" ? "Deal" : "Spin") + "</button>" +
-          "<button data-gamble-act='close'>Close</button>";
+        if (def.id === "blackjack" && roundActive) {
+          els.actions.innerHTML =
+            "<button data-gamble-act='spin' disabled>Deal</button>" +
+            "<button data-gamble-act='bj-hit'" + (canActRound ? "" : " disabled") + ">Hit</button>" +
+            "<button data-gamble-act='bj-stand'" + (canActRound ? "" : " disabled") + ">Stand</button>" +
+            "<button data-gamble-act='bj-double'" + (canDouble ? "" : " disabled") + ">Double</button>" +
+            "<button data-gamble-act='bj-split'" + (canSplit ? "" : " disabled") + ">Split</button>" +
+            "<button data-gamble-act='close'>Close</button>";
+        } else {
+          els.actions.innerHTML =
+            "<button data-gamble-act='spin'" + (canPlayNow && !roundActive ? "" : " disabled") + ">" + (def.id === "blackjack" ? "Deal" : "Spin") + "</button>" +
+            "<button data-gamble-act='close'>Close</button>";
+        }
       }
 
       modalCtx = { tx, ty, spectating };
@@ -650,11 +799,11 @@ window.GTModules = window.GTModules || {};
 
     function getOutcomeMessage(result, payout) {
       if (result.gameType === "blackjack") {
-        const base = "You " + result.playerTotal + " vs House " + result.houseTotal + ": ";
-        if (result.outcome === "blackjack") return base + "BLACKJACK. Won " + payout + " WL.";
-        if (result.outcome === "win") return base + "WIN. Won " + payout + " WL.";
-        if (result.outcome === "push") return base + "PUSH. Bet returned (" + payout + " WL).";
-        return base + "LOSE. Lost " + result.bet + " WL.";
+        if (result.summaryText) return result.summaryText;
+        if (result.outcome === "blackjack") return "BLACKJACK. Won " + payout + " WL.";
+        if (result.outcome === "win") return "WIN. Won " + payout + " WL.";
+        if (result.outcome === "push") return "PUSH. Bet returned (" + payout + " WL).";
+        return "LOSE. Lost " + result.bet + " WL.";
       }
       const playerText = "You " + result.playerRoll + " (" + result.playerReme + ")";
       const houseText = "House " + result.houseRoll + " (" + result.houseReme + ")";
@@ -671,6 +820,227 @@ window.GTModules = window.GTModules || {};
         return playerText + " vs " + houseText + ": TIE = LOSE. Lost " + result.bet + " WL.";
       }
       return playerText + " vs " + houseText + ": LOSE. Lost " + result.bet + " WL.";
+    }
+
+    function getBlackjackResultFromResolvedRound(round) {
+      const r = normalizeBlackjackRound(round);
+      if (!r) return null;
+      const dealerTotal = scoreHand(r.dealerCards);
+      let bestPlayer = 0;
+      let totalBet = 0;
+      for (let i = 0; i < r.hands.length; i++) {
+        const hand = r.hands[i];
+        const total = scoreHand(hand.cards);
+        if (total <= 21 && total > bestPlayer) bestPlayer = total;
+        totalBet += Math.max(1, Math.floor(Number(hand.bet) || 1));
+      }
+      const payout = Math.max(0, Math.floor(Number(r.totalPayout) || 0));
+      const totalHands = r.hands.length;
+      const winHands = r.hands.filter((h) => h.outcome === "win" || h.outcome === "blackjack").length;
+      const pushHands = r.hands.filter((h) => h.outcome === "push").length;
+      const loseHands = Math.max(0, totalHands - winHands - pushHands);
+      return {
+        gameType: "blackjack",
+        bet: totalBet,
+        payoutWanted: payout,
+        payout,
+        outcome: r.aggregateOutcome || (payout > totalBet ? "win" : (payout === totalBet ? "push" : "lose")),
+        playerRoll: bestPlayer,
+        houseRoll: dealerTotal,
+        playerReme: 0,
+        houseReme: 0,
+        multiplier: totalBet > 0 ? Number((payout / totalBet).toFixed(2)) : 0,
+        summaryText: "Dealer " + dealerTotal + ". Hands: " + winHands + "W/" + pushHands + "P/" + loseHands + "L. Payout " + payout + " WL."
+      };
+    }
+
+    function startBlackjackRoundSnapshot(currentRaw, bet, playerId, playerName) {
+      const current = normalizeRecord(currentRaw) || {
+        ownerAccountId: String(get("getPlayerProfileId", "") || ""),
+        ownerName: String(get("getPlayerName", "") || "").slice(0, 20),
+        type: "blackjack",
+        earningsLocks: 0,
+        stats: normalizeStats({}),
+        updatedAt: 0
+      };
+      const def = MACHINE_DEFS.blackjack;
+      const beforeBank = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
+      const safeBet = Math.max(def.minBet, Math.floor(Number(bet) || def.minBet));
+      if (beforeBank < safeBet * 3) return null;
+      const existing = normalizeBlackjackRound(current.blackjackRound);
+      if (existing && existing.active && !existing.resolved) return null;
+      const playerCards = [drawCard(), drawCard()];
+      const dealerCards = [drawCard(), drawCard()];
+      const round = normalizeBlackjackRound({
+        active: true,
+        playerAccountId: String(playerId || ""),
+        playerName: String(playerName || "").slice(0, 20),
+        startedAt: Date.now(),
+        dealerCards,
+        hands: [{
+          cards: playerCards,
+          bet: safeBet,
+          fromSplit: false,
+          doubled: false,
+          done: false
+        }],
+        activeHand: 0,
+        dealerDone: false,
+        resolved: false,
+        totalPayout: 0
+      });
+      const openingHand = round && round.hands[0] ? round.hands[0] : null;
+      if (!round || !openingHand) return null;
+      const playerOpening = scoreHandDetail(openingHand.cards);
+      const dealerOpening = scoreHandDetail(round.dealerCards);
+      let finalRound = round;
+      if (playerOpening.isBlackjack || dealerOpening.isBlackjack) {
+        openingHand.done = true;
+        finalRound = finishBlackjackRound(round);
+      }
+      const resolved = Boolean(finalRound && finalRound.resolved);
+      const resolvedResult = resolved ? getBlackjackResultFromResolvedRound(finalRound) : null;
+      const resolvedPayout = Math.max(0, Math.floor(Number(resolvedResult && resolvedResult.payout) || 0));
+      const nextStats = normalizeStats(current.stats);
+      if (resolved && resolvedResult) {
+        nextStats.plays += 1;
+        nextStats.totalBet += resolvedResult.bet;
+        nextStats.totalPayout += resolvedPayout;
+        nextStats.lastPlayerRoll = resolvedResult.playerRoll;
+        nextStats.lastHouseRoll = resolvedResult.houseRoll;
+        nextStats.lastPlayerReme = 0;
+        nextStats.lastHouseReme = 0;
+        nextStats.lastMultiplier = resolvedResult.multiplier;
+        nextStats.lastOutcome = resolvedResult.outcome;
+        nextStats.lastPlayerName = String(playerName || "").slice(0, 20);
+        nextStats.lastAt = Date.now();
+      }
+      return {
+        next: {
+          ...current,
+          type: "blackjack",
+          earningsLocks: Math.max(0, beforeBank + safeBet - resolvedPayout),
+          blackjackRound: finalRound,
+          stats: nextStats,
+          updatedAt: Date.now()
+        },
+        bet: safeBet,
+        resolved,
+        result: resolvedResult,
+        payout: resolvedPayout
+      };
+    }
+
+    function applyBlackjackActionToMachine(currentRaw, action, actorAccountId) {
+      const current = normalizeRecord(currentRaw);
+      if (!current || current.type !== "blackjack") return { kind: "error", code: "invalid_machine" };
+      const round = normalizeBlackjackRound(current.blackjackRound);
+      if (!round || !round.active || round.resolved) return { kind: "error", code: "no_round" };
+      if (round.playerAccountId !== actorAccountId) return { kind: "error", code: "not_your_round" };
+      const handIndex = Math.max(0, Math.floor(Number(round.activeHand) || 0));
+      const hand = round.hands[handIndex];
+      if (!hand || hand.done) return { kind: "error", code: "hand_done" };
+
+      const nextRound = normalizeBlackjackRound(round);
+      if (!nextRound) return { kind: "error", code: "invalid_round" };
+      const nextHand = nextRound.hands[handIndex];
+      let extraBet = 0;
+
+      if (action === "hit") {
+        nextHand.cards.push(drawCard());
+        const detail = scoreHandDetail(nextHand.cards);
+        if (detail.total >= 21) nextHand.done = true;
+      } else if (action === "stand") {
+        nextHand.done = true;
+      } else if (action === "double") {
+        if (nextHand.doubled || nextHand.cards.length !== 2) return { kind: "error", code: "cannot_double" };
+        nextHand.bet = Math.max(1, Math.floor(Number(nextHand.bet) || 1)) * 2;
+        nextHand.doubled = true;
+        extraBet = Math.max(1, Math.floor(Number(nextHand.bet) || 1) / 2);
+        nextHand.cards.push(drawCard());
+        nextHand.done = true;
+      } else if (action === "split") {
+        if (nextRound.hands.length !== 1 || !canSplitHand(nextHand)) return { kind: "error", code: "cannot_split" };
+        const c1 = nextHand.cards[0];
+        const c2 = nextHand.cards[1];
+        const handBet = Math.max(1, Math.floor(Number(nextHand.bet) || 1));
+        extraBet = handBet;
+        nextRound.hands = [
+          {
+            cards: [c1, drawCard()],
+            bet: handBet,
+            fromSplit: true,
+            doubled: false,
+            done: false,
+            outcome: "",
+            payout: 0
+          },
+          {
+            cards: [c2, drawCard()],
+            bet: handBet,
+            fromSplit: true,
+            doubled: false,
+            done: false,
+            outcome: "",
+            payout: 0
+          }
+        ];
+        nextRound.activeHand = 0;
+      } else {
+        return { kind: "error", code: "invalid_action" };
+      }
+
+      if (extraBet > 0) {
+        const currentBank = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
+        if ((currentBank + extraBet) < getBlackjackCoverageRequired(nextRound)) {
+          return { kind: "error", code: "bank_coverage" };
+        }
+      }
+
+      const nextOpen = firstOpenBlackjackHand(nextRound);
+      if (nextOpen >= 0) {
+        nextRound.activeHand = nextOpen;
+        return {
+          kind: "in_progress",
+          next: {
+            ...current,
+            blackjackRound: nextRound,
+            earningsLocks: Math.max(0, Math.floor(Number(current.earningsLocks) || 0) + extraBet),
+            updatedAt: Date.now()
+          },
+          extraBet
+        };
+      }
+
+      const resolvedRound = finishBlackjackRound(nextRound);
+      const payout = Math.max(0, Math.floor(Number(resolvedRound && resolvedRound.totalPayout) || 0));
+      const nextStats = normalizeStats(current.stats);
+      const result = getBlackjackResultFromResolvedRound(resolvedRound);
+      nextStats.plays += 1;
+      nextStats.totalBet += (result ? result.bet : 0);
+      nextStats.totalPayout += payout;
+      nextStats.lastPlayerRoll = result ? result.playerRoll : 0;
+      nextStats.lastHouseRoll = result ? result.houseRoll : 0;
+      nextStats.lastPlayerReme = 0;
+      nextStats.lastHouseReme = 0;
+      nextStats.lastMultiplier = result ? result.multiplier : 0;
+      nextStats.lastOutcome = result ? result.outcome : "lose";
+      nextStats.lastPlayerName = round.playerName || "";
+      nextStats.lastAt = Date.now();
+
+      return {
+        kind: "resolved",
+        next: {
+          ...current,
+          blackjackRound: resolvedRound,
+          earningsLocks: Math.max(0, Math.floor(Number(current.earningsLocks) || 0) + extraBet - payout),
+          stats: nextStats,
+          updatedAt: Date.now()
+        },
+        extraBet,
+        payout,
+        result
+      };
     }
 
     function spin() {
@@ -704,19 +1074,122 @@ window.GTModules = window.GTModules || {};
         return;
       }
 
-      const result = def.id === "blackjack"
-        ? evaluateBlackjackRound(def, bet)
-        : (() => {
-            const playerRoll = Math.floor(Math.random() * (def.maxRoll - def.minRoll + 1)) + def.minRoll;
-            const houseRoll = Math.floor(Math.random() * (def.maxRoll - def.minRoll + 1)) + def.minRoll;
-            return evaluateSpin(def, playerRoll, houseRoll, bet);
-          })();
-      result.gameType = def.id;
       const network = get("getNetwork", null);
       const basePath = String(get("getBasePath", "") || "");
       const profileId = String(get("getPlayerProfileId", "") || "");
       const profileName = String(get("getPlayerName", "") || "").slice(0, 20);
       const firebaseRef = get("getFirebase", null);
+
+      if (def.id === "blackjack") {
+        const existingRound = normalizeBlackjackRound(machine.blackjackRound);
+        if (existingRound && existingRound.active && !existingRound.resolved) {
+          post("Blackjack round already in progress.");
+          renderModal(tx, ty, machine, Boolean(modalCtx && modalCtx.spectating));
+          return;
+        }
+        const finalizeLocalStart = () => {
+          const current = getLocal(tx, ty) || machine;
+          const start = startBlackjackRoundSnapshot(current, bet, profileId, profileName);
+          if (!start || !start.next) {
+            post("Machine bank changed. Max bet is now " + getMaxBetByBank(Math.max(0, Math.floor(Number(current.earningsLocks) || 0)), def) + " WL.");
+            renderModal(tx, ty, current);
+            return;
+          }
+          if (!spendLocksLocal(inventory, start.bet)) {
+            post("Not enough World Locks.");
+            return;
+          }
+          setLocal(tx, ty, start.next);
+          if (typeof opts.saveInventory === "function") opts.saveInventory();
+          if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+          renderModal(tx, ty, start.next);
+          const startedRound = normalizeBlackjackRound(start.next.blackjackRound);
+          if (startedRound && startedRound.resolved) {
+            const payout = Math.max(0, Math.floor(Number(start.payout) || 0));
+            if (payout > 0) addLocksLocal(inventory, payout);
+            const result = start.result || getBlackjackResultFromResolvedRound(startedRound);
+            post(getOutcomeMessage(result || { gameType: "blackjack", bet: start.bet, outcome: "lose" }, payout));
+            if (typeof opts.saveInventory === "function") opts.saveInventory();
+            if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+          } else {
+            post("Blackjack round started. Choose Hit, Stand, Double or Split.");
+          }
+        };
+
+        if (!network || !network.enabled || !network.db || !basePath || !profileId) {
+          finalizeLocalStart();
+          return;
+        }
+        const lockRefBj = network.db.ref(basePath + "/player-inventories/" + profileId);
+        const machineRefBj = getMachineRef(tx, ty);
+        if (!machineRefBj) {
+          finalizeLocalStart();
+          return;
+        }
+        lockRefBj.transaction((currentRaw) => {
+          const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+          const have = getTotalLocks(current);
+          if (have < bet) return;
+          setCanonicalLocks(current, have - bet);
+          return current;
+        }).then((deductTxn) => {
+          if (!deductTxn || !deductTxn.committed) {
+            post("Not enough World Locks.");
+            return null;
+          }
+          return machineRefBj.transaction((currentRaw) => {
+            const update = startBlackjackRoundSnapshot(currentRaw, bet, profileId, profileName);
+            if (!update || !update.next) return;
+            return update.next;
+          }).then((machineTxn) => {
+            if (!machineTxn || !machineTxn.committed) {
+              lockRefBj.transaction((currentRaw) => {
+                const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+                addLocksLocal(current, bet);
+                return current;
+              }).catch(() => {});
+              post("Failed to start blackjack.");
+              return null;
+            }
+            const raw = machineTxn.snapshot && typeof machineTxn.snapshot.val === "function" ? machineTxn.snapshot.val() : null;
+            setLocal(tx, ty, raw);
+            if (typeof opts.saveInventory === "function") opts.saveInventory();
+            if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+            renderModal(tx, ty, getLocal(tx, ty));
+            const startedRound = normalizeBlackjackRound(raw && raw.blackjackRound);
+            if (startedRound && startedRound.resolved) {
+              const result = getBlackjackResultFromResolvedRound(startedRound);
+              const payout = result ? result.payout : 0;
+              if (payout > 0) {
+                return lockRefBj.transaction((currentRaw) => {
+                  const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+                  addLocksLocal(current, payout);
+                  return current;
+                }).then(() => {
+                  if (typeof opts.saveInventory === "function") opts.saveInventory();
+                  if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+                  post(getOutcomeMessage(result || { gameType: "blackjack", bet, outcome: "lose" }, payout));
+                  return true;
+                });
+              }
+              post(getOutcomeMessage(result || { gameType: "blackjack", bet, outcome: "lose" }, 0));
+              return true;
+            }
+            post("Blackjack round started. Choose Hit, Stand, Double or Split.");
+            return true;
+          });
+        }).catch(() => {
+          post("Failed to start blackjack.");
+        });
+        return;
+      }
+
+      const result = (() => {
+        const playerRoll = Math.floor(Math.random() * (def.maxRoll - def.minRoll + 1)) + def.minRoll;
+        const houseRoll = Math.floor(Math.random() * (def.maxRoll - def.minRoll + 1)) + def.minRoll;
+        return evaluateSpin(def, playerRoll, houseRoll, bet);
+      })();
+      result.gameType = def.id;
 
       const finalizeLocal = () => {
         const current = getLocal(tx, ty) || machine;
@@ -819,6 +1292,126 @@ window.GTModules = window.GTModules || {};
         post(getOutcomeMessage(result, done.payout));
       }).catch(() => {
         post("Spin failed.");
+      });
+    }
+
+    function performBlackjackAction(action) {
+      if (!modalCtx) return;
+      const tx = Math.floor(Number(modalCtx.tx));
+      const ty = Math.floor(Number(modalCtx.ty));
+      const post = opts.postLocalSystemChat || (() => {});
+      const machine = getLocal(tx, ty);
+      if (!machine || String(machine.type || "") !== "blackjack") {
+        post("Blackjack is not active on this machine.");
+        return;
+      }
+      const profileId = String(get("getPlayerProfileId", "") || "");
+      const inventory = get("getInventory", {}) || {};
+      const network = get("getNetwork", null);
+      const basePath = String(get("getBasePath", "") || "");
+
+      const applyLocal = () => {
+        const current = getLocal(tx, ty) || machine;
+        const preview = applyBlackjackActionToMachine(current, action, profileId);
+        if (!preview || preview.kind === "error") {
+          post("Action not allowed.");
+          renderModal(tx, ty, current, Boolean(modalCtx && modalCtx.spectating));
+          return;
+        }
+        const extra = Math.max(0, Math.floor(Number(preview.extraBet) || 0));
+        if (extra > 0 && !spendLocksLocal(inventory, extra)) {
+          post("Not enough WL for " + action + ".");
+          return;
+        }
+        setLocal(tx, ty, preview.next);
+        if (preview.kind === "resolved" && preview.payout > 0) {
+          addLocksLocal(inventory, preview.payout);
+          post(getOutcomeMessage(preview.result || { gameType: "blackjack", bet: 0, outcome: "lose" }, preview.payout));
+        }
+        if (typeof opts.saveInventory === "function") opts.saveInventory();
+        if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+        renderModal(tx, ty, preview.next, Boolean(modalCtx && modalCtx.spectating));
+      };
+
+      if (!network || !network.enabled || !network.db || !basePath || !profileId) {
+        applyLocal();
+        return;
+      }
+
+      const lockRef = network.db.ref(basePath + "/player-inventories/" + profileId);
+      const machineRef = getMachineRef(tx, ty);
+      if (!machineRef) {
+        applyLocal();
+        return;
+      }
+      const localPreview = applyBlackjackActionToMachine(machine, action, profileId);
+      if (!localPreview || localPreview.kind === "error") {
+        post("Action not allowed.");
+        return;
+      }
+      const extraExpected = Math.max(0, Math.floor(Number(localPreview.extraBet) || 0));
+      if (extraExpected > 0 && getTotalLocks(inventory) < extraExpected) {
+        post("Not enough WL for " + action + ".");
+        return;
+      }
+      const deductPromise = extraExpected > 0
+        ? lockRef.transaction((currentRaw) => {
+            const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+            if (!spendLocksLocal(current, extraExpected)) return;
+            return current;
+          })
+        : Promise.resolve({ committed: true });
+
+      let liveResult = null;
+      deductPromise.then((deductTxn) => {
+        if (!deductTxn || !deductTxn.committed) {
+          post("Not enough WL for " + action + ".");
+          return null;
+        }
+        return machineRef.transaction((currentRaw) => {
+          const preview = applyBlackjackActionToMachine(currentRaw, action, profileId);
+          if (!preview || preview.kind === "error") return;
+          const liveExtra = Math.max(0, Math.floor(Number(preview.extraBet) || 0));
+          if (liveExtra !== extraExpected) return;
+          liveResult = preview;
+          return preview.next;
+        });
+      }).then((machineTxn) => {
+        if (!machineTxn || !machineTxn.committed || !liveResult) {
+          if (extraExpected > 0) {
+            lockRef.transaction((currentRaw) => {
+              const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+              addLocksLocal(current, extraExpected);
+              return current;
+            }).catch(() => {});
+          }
+          post("Action failed.");
+          return null;
+        }
+        const raw = machineTxn.snapshot && typeof machineTxn.snapshot.val === "function" ? machineTxn.snapshot.val() : null;
+        setLocal(tx, ty, raw);
+        if (liveResult.kind === "resolved") {
+          const payout = Math.max(0, Math.floor(Number(liveResult.payout) || 0));
+          if (payout > 0) {
+            return lockRef.transaction((currentRaw) => {
+              const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+              addLocksLocal(current, payout);
+              return current;
+            }).then(() => ({ payout }));
+          }
+        }
+        return { payout: 0 };
+      }).then((finalize) => {
+        if (!finalize) return;
+        if (typeof opts.saveInventory === "function") opts.saveInventory();
+        if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+        const latest = getLocal(tx, ty) || machine;
+        renderModal(tx, ty, latest, Boolean(modalCtx && modalCtx.spectating));
+        if (liveResult && liveResult.kind === "resolved") {
+          post(getOutcomeMessage(liveResult.result || { gameType: "blackjack", bet: 0, outcome: "lose" }, finalize.payout));
+        }
+      }).catch(() => {
+        post("Action failed.");
       });
     }
 
@@ -996,6 +1589,7 @@ window.GTModules = window.GTModules || {};
         const nextMachine = {
           ...machine,
           type: nextDef.id,
+          blackjackRound: null,
           stats: normalizeStats({}),
           updatedAt: Date.now()
         };
@@ -1012,6 +1606,7 @@ window.GTModules = window.GTModules || {};
         return {
           ...current,
           type: nextDef.id,
+          blackjackRound: null,
           stats: normalizeStats({}),
           updatedAt: Date.now()
         };
@@ -1069,6 +1664,22 @@ window.GTModules = window.GTModules || {};
       }
       if (action === "spin") {
         spin();
+        return;
+      }
+      if (action === "bj-hit") {
+        performBlackjackAction("hit");
+        return;
+      }
+      if (action === "bj-stand") {
+        performBlackjackAction("stand");
+        return;
+      }
+      if (action === "bj-double") {
+        performBlackjackAction("double");
+        return;
+      }
+      if (action === "bj-split") {
+        performBlackjackAction("split");
         return;
       }
       if (action === "collect") {
