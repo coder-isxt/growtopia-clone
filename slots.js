@@ -21,6 +21,16 @@ window.GTModules = window.GTModules || {};
       rtp: 0.96,
       volatility: "medium-high",
       layout: { reels: 5, rows: 3 }
+    },
+    slots_v3: {
+      id: "slots_v3",
+      name: "Slots v3",
+      minBet: 1,
+      maxBet: 30000,
+      maxPayoutMultiplier: 100,
+      rtp: 0.96,
+      volatility: "high",
+      layout: { reels: 5, rows: 4 }
     }
   };
 
@@ -41,6 +51,16 @@ window.GTModules = window.GTModules || {};
     { id: "wild", icon: "WILD", weight: 9 },
     { id: "scatter", icon: "SCAT", weight: 4 },
     { id: "bonus", icon: "BONUS", weight: 2 }
+  ];
+
+  const SYMBOLS_V3 = [
+    { id: "ruby", icon: "RUBY", weight: 28 },
+    { id: "emerald", icon: "EMER", weight: 26 },
+    { id: "skull", icon: "SKULL", weight: 16 },
+    { id: "reaper", icon: "REAPR", weight: 12 },
+    { id: "blood", icon: "BLOOD", weight: 9 },
+    { id: "wild", icon: "WILD", weight: 8 },
+    { id: "scatter", icon: "SCAT", weight: 4 }
   ];
 
   const V2_ROWS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v2.layout.rows) || 3));
@@ -88,6 +108,26 @@ window.GTModules = window.GTModules || {};
     jackpotValues: [80, 120, 180],
     jackpotWeights: [65, 25, 10],
     fullScreenBonus: 200
+  };
+
+  const V3_ROWS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v3.layout.rows) || 3));
+  const V3_REELS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v3.layout.reels) || 5));
+  const PAYLINES_V3 = PAYLINES_V2.slice(0, 10);
+  const PAYTABLE_V3 = {
+    ruby: { 3: 2, 4: 4, 5: 7 },
+    emerald: { 3: 2, 4: 5, 5: 8 },
+    skull: { 3: 4, 4: 9, 5: 16 },
+    reaper: { 3: 6, 4: 14, 5: 26 },
+    blood: { 3: 10, 4: 22, 5: 45 }
+  };
+  const BONUS_V3 = {
+    initialFreeSpins: 8,
+    extraSpinsOnScatter: 2,
+    winMultMin: 2,
+    winMultMax: 4,
+    featureWildChance: 0.18,
+    featureUpgradeChance: 0.12,
+    maxFeatureSpins: 40
   };
 
   function cloneDef(row) {
@@ -569,9 +609,173 @@ window.GTModules = window.GTModules || {};
     };
   }
 
+  function buildGridV3(extraWildChance) {
+    const rows = V3_ROWS;
+    const cols = V3_REELS;
+    const grid = [];
+    const wildChance = Math.max(0, Math.min(0.7, Number(extraWildChance) || 0));
+    for (let r = 0; r < rows; r++) grid[r] = [];
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows; r++) {
+        if (Math.random() < wildChance) {
+          grid[r][c] = { id: "wild", icon: "WILD" };
+        } else {
+          grid[r][c] = pickWeighted(SYMBOLS_V3);
+        }
+      }
+    }
+    return grid;
+  }
+
+  function evaluatePaylineV3(line) {
+    let base = "";
+    for (let i = 0; i < line.length; i++) {
+      const id = String(line[i] && line[i].id || "");
+      if (id && id !== "wild" && id !== "scatter") {
+        base = id;
+        break;
+      }
+    }
+    if (!base) return { mult: 0, text: "", count: 0 };
+    let count = 0;
+    for (let i = 0; i < line.length; i++) {
+      const id = String(line[i] && line[i].id || "");
+      if (id === base || id === "wild") count += 1;
+      else break;
+    }
+    if (count < 3) return { mult: 0, text: "", count };
+    const row = PAYTABLE_V3[base] || {};
+    const mult = Math.max(0, Number(row[count]) || 0);
+    if (mult <= 0) return { mult: 0, text: "", count };
+    return {
+      mult,
+      count,
+      text: base.toUpperCase() + " x" + count + " (" + mult + "x line)"
+    };
+  }
+
+  function evaluateGridV3(grid, opts) {
+    const options = opts && typeof opts === "object" ? opts : {};
+    const payUpgrade = Math.max(0, Number(options.payUpgrade) || 0);
+    const cols = (grid[0] && grid[0].length) || V3_REELS;
+    const paylines = PAYLINES_V3.map((p) => normalizePattern(p, cols));
+    let scatterCount = 0;
+    for (let r = 0; r < grid.length; r++) {
+      for (let c = 0; c < grid[r].length; c++) {
+        if (String(grid[r][c] && grid[r][c].id || "") === "scatter") scatterCount += 1;
+      }
+    }
+    let totalMult = 0;
+    const lineWins = [];
+    const lineIds = [];
+    for (let i = 0; i < paylines.length; i++) {
+      const line = getLineSymbols(grid, paylines[i]);
+      const row = evaluatePaylineV3(line);
+      if (row.mult > 0) {
+        const up = row.mult + payUpgrade;
+        totalMult += up / paylines.length;
+        lineWins.push("L" + (i + 1) + " " + row.text.replace("(" + row.mult + "x line)", "(" + up + "x line)"));
+        lineIds.push(i + 1);
+      }
+    }
+    if (scatterCount >= 3 && options.allowScatterPay !== false) {
+      const scat = scatterCount >= 5 ? 25 : (scatterCount === 4 ? 8 : 3);
+      totalMult += scat;
+      lineWins.push("SCATTER x" + scatterCount + " (" + scat + "x)");
+    }
+    return {
+      reels: gridToTextRows(grid),
+      lineWins,
+      lineIds,
+      scatterCount,
+      baseMultiplier: totalMult
+    };
+  }
+
+  function runFreeSpinsV3(safeBet, triggerScatters) {
+    const start = BONUS_V3;
+    let spinsLeft = Math.max(1, Math.floor(Number(start.initialFreeSpins) || 8));
+    let played = 0;
+    let totalPayout = 0;
+    let growthMult = 1;
+    let wildBoost = 0;
+    let payUpgrade = 0;
+    const timeline = [];
+    const trigger = Math.max(3, Math.floor(Number(triggerScatters) || 3));
+    if (trigger > 3) spinsLeft += (trigger - 3);
+    while (spinsLeft > 0 && played < start.maxFeatureSpins) {
+      spinsLeft -= 1;
+      played += 1;
+      const grid = buildGridV3(wildBoost);
+      const spinEval = evaluateGridV3(grid, { payUpgrade, allowScatterPay: true });
+      const scat = spinEval.scatterCount;
+      if (scat >= 3) spinsLeft += Math.max(0, Math.floor(Number(start.extraSpinsOnScatter) || 2));
+      if (spinEval.baseMultiplier > 0) {
+        const stepMult = Math.max(start.winMultMin, Math.floor(Math.random() * (start.winMultMax - start.winMultMin + 1)) + start.winMultMin);
+        const payout = Math.max(0, Math.floor(safeBet * spinEval.baseMultiplier * growthMult * stepMult));
+        totalPayout += payout;
+        growthMult += 0.15;
+        timeline.push("FS" + played + ": " + Math.floor(spinEval.baseMultiplier * growthMult * stepMult) + "x");
+      } else {
+        timeline.push("FS" + played + ": miss");
+      }
+      if (Math.random() < start.featureWildChance) {
+        wildBoost = Math.min(0.45, wildBoost + 0.04);
+        timeline.push("+wild");
+      }
+      if (Math.random() < start.featureUpgradeChance) {
+        payUpgrade = Math.min(20, payUpgrade + 1);
+        timeline.push("+pay");
+      }
+    }
+    return {
+      spinsPlayed: played,
+      payout: totalPayout,
+      summary: "Free spins " + played + " | Growth x" + growthMult.toFixed(2) + " | Upgrades +" + payUpgrade,
+      timeline: timeline.slice(0, 24)
+    };
+  }
+
+  function spinV3(bet) {
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    const baseGrid = buildGridV3(0);
+    const base = evaluateGridV3(baseGrid, { payUpgrade: 0, allowScatterPay: true });
+    let payout = Math.max(0, Math.floor(safeBet * Math.max(0, base.baseMultiplier)));
+    const summaryParts = [];
+    if (base.lineWins.length) summaryParts.push(base.lineWins.slice(0, 2).join(" | "));
+    let fs = null;
+    if (base.scatterCount >= 3) {
+      fs = runFreeSpinsV3(safeBet, base.scatterCount);
+      payout += Math.max(0, Math.floor(Number(fs.payout) || 0));
+      summaryParts.push("BONUS TRIGGERED");
+      summaryParts.push(fs.summary);
+    }
+    const cap = safeBet * Math.max(1, Math.floor(Number(GAME_DEFS.slots_v3.maxPayoutMultiplier) || 5000));
+    payout = Math.max(0, Math.min(cap, payout));
+    const mult = safeBet > 0 ? Number((payout / safeBet).toFixed(2)) : 0;
+    const outcome = mult >= 100 ? "jackpot" : (mult > 0 ? "win" : "lose");
+    const lines = base.lineWins.slice(0, 12);
+    if (fs && fs.timeline && fs.timeline.length) lines.push("FS: " + fs.timeline.slice(0, 6).join(" / "));
+    return {
+      gameId: "slots_v3",
+      bet: safeBet,
+      reels: base.reels,
+      multiplier: mult,
+      payoutWanted: payout,
+      outcome,
+      summary: (summaryParts.join(" | ") || "No winning paylines").slice(0, 220),
+      paylines: PAYLINES_V3.length,
+      lineIds: base.lineIds.slice(0, 12),
+      lineWins: lines.slice(0, 18),
+      scatterCount: base.scatterCount,
+      bonusTriggered: Boolean(fs)
+    };
+  }
+
   function spin(gameId, bet, options) {
     const id = String(gameId || "slots").trim().toLowerCase();
     if (id === "slots_v2") return spinV2(bet, options);
+    if (id === "slots_v3") return spinV3(bet, options);
     return spinV1(bet);
   }
 
