@@ -527,6 +527,7 @@
       let hasSeenAdminRoleSnapshot = false;
       const adminCommandLastUsedAt = new Map();
       const chatMessages = [];
+      const recentChatFingerprintAt = new Map();
       const logsMessages = [];
       const antiCheatMessages = [];
       const CHAT_BUBBLE_FULL_MS = 5000;
@@ -3955,6 +3956,7 @@
         playerSessionId = sessionId;
         playerSessionStartedAt = startedAtLocal;
         chatMessages.length = 0;
+        recentChatFingerprintAt.clear();
         renderChatMessages();
         addClientLog("Session created for @" + username + " (" + sessionId + ").", accountId, username, sessionId);
       }
@@ -4505,7 +4507,7 @@
           }
           if (style.glow) {
             const glowColor = escapeHtml(style.glowColor || title.color || "#8fb4ff");
-            previewStyle.push("text-shadow:0 0 6px " + glowColor + ",0 0 12px " + glowColor);
+            previewStyle.push("text-shadow:0 0 10px " + glowColor + ",0 0 16px " + glowColor);
           }
           rows.push(
             "<div class='vending-section'>" +
@@ -5343,7 +5345,7 @@
             }
             if (titleStyle.glow) {
               const glowColor = titleStyle.glowColor || titleColor || "#8fb4ff";
-              titleEl.style.textShadow = "0 0 6px " + glowColor + ", 0 0 12px " + glowColor;
+              titleEl.style.textShadow = "0 0 10px " + glowColor + ", 0 0 16px " + glowColor;
             }
             titleEl.textContent = "[" + titleName + "] ";
             row.appendChild(titleEl);
@@ -5792,6 +5794,27 @@
 
       function addChatMessage(message) {
         if (!message || !message.text) return;
+        const name = String(message.name || "");
+        const player = String(message.playerId || "");
+        const session = String(message.sessionId || "");
+        const title = String(message.titleId || "");
+        const text = String(message.text || "");
+        const createdAt = Number(message.createdAt) || Date.now();
+        const finger = [name, player, session, title, text].join("|");
+        const nowMs = Date.now();
+        const lastAt = Number(recentChatFingerprintAt.get(finger) || 0);
+        const createdDiff = Math.abs(createdAt - lastAt);
+        const nearDuplicate = lastAt > 0 && (createdDiff <= 2500 || Math.abs(nowMs - lastAt) <= 2500);
+        if (nearDuplicate) return;
+        recentChatFingerprintAt.set(finger, createdAt || nowMs);
+        if (recentChatFingerprintAt.size > 300) {
+          const cutoff = nowMs - 15000;
+          for (const [k, t] of recentChatFingerprintAt) {
+            if (Number(t) < cutoff) {
+              recentChatFingerprintAt.delete(k);
+            }
+          }
+        }
         chatMessages.push(message);
         if (chatMessages.length > 100) {
           chatMessages.shift();
@@ -8618,7 +8641,7 @@
             ctx.font = "bold " + PLAYER_NAME_FONT;
           }
           if (localTitleStyle.glow) {
-            ctx.shadowBlur = 8;
+            ctx.shadowBlur = 10;
             ctx.shadowColor = localTitleStyle.glowColor || titleColor;
           }
           ctx.fillText(titleText, cursorX, nameY);
@@ -8727,7 +8750,7 @@
               ctx.font = "bold " + PLAYER_NAME_FONT;
             }
             if (remoteTitleStyle.glow) {
-              ctx.shadowBlur = 8;
+              ctx.shadowBlur = 10;
               ctx.shadowColor = remoteTitleStyle.glowColor || styledColor;
             }
             ctx.fillText(titleText, cursorX, nameY);
