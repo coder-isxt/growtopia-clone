@@ -317,6 +317,38 @@ window.GTModules = window.GTModules || {};
       return raw.split("|").map((s) => String(s || "").trim()).filter(Boolean).slice(0, 8);
     }
 
+    function normalizeSlotsToken(value) {
+      return String(value || "").trim().toUpperCase();
+    }
+
+    function getSlotsSymbolLabel(token) {
+      const key = normalizeSlotsToken(token);
+      if (key === "GEM") return "GEM";
+      if (key === "PICK") return "PICK";
+      if (key === "MINER") return "MINER";
+      if (key === "GOLD") return "GOLD";
+      if (key === "DYN") return "DYN";
+      if (key === "WILD") return "WILD";
+      if (key === "SCAT") return "SCAT";
+      if (key === "BONUS") return "BONUS";
+      if (key === "SEVEN" || key === "7") return "7";
+      if (key === "BAR") return "BAR";
+      if (key === "CHERRY") return "CHERRY";
+      if (key === "LEMON") return "LEMON";
+      if (key === "BELL") return "BELL";
+      return key || "?";
+    }
+
+    function getSlotsSymbolClass(token) {
+      const key = normalizeSlotsToken(token);
+      if (key === "WILD") return "wild";
+      if (key === "SCAT") return "scatter";
+      if (key === "BONUS") return "bonus";
+      if (key === "DYN") return "dynamite";
+      if (key === "GEM") return "gem";
+      return "normal";
+    }
+
     function sanitizeCardList(cards) {
       const arr = Array.isArray(cards) ? cards : [];
       const out = [];
@@ -733,9 +765,37 @@ window.GTModules = window.GTModules || {};
       const canDouble = Boolean(canActRound && activeHand && !activeHand.done && !activeHand.doubled && Array.isArray(activeHand.cards) && activeHand.cards.length === 2);
       const slotsRows = parseSlotsRows(stats.lastSlotsText);
       const slotsLines = parseSlotsLines(stats.lastSlotsLines);
+      const slotsCols = Math.max(5, (slotsRows[0] && slotsRows[0].length) || 0, (slotsRows[1] && slotsRows[1].length) || 0, (slotsRows[2] && slotsRows[2].length) || 0);
+      let slotsV2BoardHtml = "";
+      if (def.id === "slots_v2") {
+        const winStateClass = stats.lastOutcome === "jackpot"
+          ? "slotsv2-jackpot"
+          : ((stats.lastOutcome === "win" && stats.lastMultiplier > 0) ? "slotsv2-win" : "slotsv2-idle");
+        for (let c = 0; c < slotsCols; c++) {
+          const t1 = (slotsRows[0] && slotsRows[0][c]) || "?";
+          const t2 = (slotsRows[1] && slotsRows[1][c]) || "?";
+          const t3 = (slotsRows[2] && slotsRows[2][c]) || "?";
+          const cls1 = getSlotsSymbolClass(t1);
+          const cls2 = getSlotsSymbolClass(t2);
+          const cls3 = getSlotsSymbolClass(t3);
+          slotsV2BoardHtml +=
+            "<div class='slotsv2-reel'>" +
+              "<div class='slotsv2-cell " + cls1 + "'><span class='slotsv2-glyph'>" + esc(getSlotsSymbolLabel(t1)) + "</span><span class='slotsv2-token'>" + esc(normalizeSlotsToken(t1) || "?") + "</span></div>" +
+              "<div class='slotsv2-cell " + cls2 + "'><span class='slotsv2-glyph'>" + esc(getSlotsSymbolLabel(t2)) + "</span><span class='slotsv2-token'>" + esc(normalizeSlotsToken(t2) || "?") + "</span></div>" +
+              "<div class='slotsv2-cell " + cls3 + "'><span class='slotsv2-glyph'>" + esc(getSlotsSymbolLabel(t3)) + "</span><span class='slotsv2-token'>" + esc(normalizeSlotsToken(t3) || "?") + "</span></div>" +
+            "</div>";
+        }
+        const lineBadges = slotsLines.length
+          ? slotsLines.map((line) => "<span class='slotsv2-line-badge'>" + esc(line) + "</span>").join("")
+          : "<span class='slotsv2-line-badge muted'>No winning lines</span>";
+        slotsV2BoardHtml =
+          "<div class='slotsv2-board " + winStateClass + "'>" + slotsV2BoardHtml + "</div>" +
+          "<div class='slotsv2-lines'>" + lineBadges + "</div>";
+      }
       const slotsV2ResultHtml = def.id === "slots_v2"
         ? ("<div class='vending-section'>" +
             "<div class='vending-section-title'>Slots v2 Board</div>" +
+            slotsV2BoardHtml +
             "<div class='vending-stat-grid'>" +
               "<div class='vending-stat'><span>Row 1</span><strong>" + esc((slotsRows[0] || ["-", "-", "-", "-", "-"]).join(" | ")) + "</strong></div>" +
               "<div class='vending-stat'><span>Row 2</span><strong>" + esc((slotsRows[1] || ["-", "-", "-", "-", "-"]).join(" | ")) + "</strong></div>" +
