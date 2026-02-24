@@ -199,6 +199,12 @@
       const signModule = modules.sign || {};
       const gambleModule = modules.gamble || {};
 
+      function resolveGambleModule() {
+        const live = window.GTModules && window.GTModules.gamble;
+        if (live && typeof live === "object") return live;
+        return gambleModule && typeof gambleModule === "object" ? gambleModule : {};
+      }
+
       const SETTINGS = window.GT_SETTINGS || {};
       const TILE = Number(SETTINGS.TILE_SIZE) || 32;
       const WORLD_W = Number(SETTINGS.WORLD_WIDTH_TILES) || 140;
@@ -664,8 +670,9 @@
 
       function getGambleController() {
         if (gambleController) return gambleController;
-        if (typeof gambleModule.createController !== "function") return null;
-        gambleController = gambleModule.createController({
+        const liveGambleModule = resolveGambleModule();
+        if (typeof liveGambleModule.createController !== "function") return null;
+        gambleController = liveGambleModule.createController({
           getNetwork: () => network,
           getBasePath: () => BASE_PATH,
           getCurrentWorldId: () => currentWorldId,
@@ -1954,7 +1961,13 @@
         if (tileId !== GAMBLE_ID) return;
         const ctrl = getGambleController();
         if (!ctrl || typeof ctrl.openModal !== "function") {
-          postLocalSystemChat("Gamble module not loaded. Use force reload / Ctrl+F5.");
+          const gm = resolveGambleModule();
+          const hasModule = gm && typeof gm === "object";
+          const hasFactory = hasModule && typeof gm.createController === "function";
+          postLocalSystemChat(
+            "Gamble unavailable (module:" + (hasModule ? "yes" : "no") +
+            ", factory:" + (hasFactory ? "yes" : "no") + "). Use force reload."
+          );
           return;
         }
         if (ctrl && typeof ctrl.openModal === "function") {
