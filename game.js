@@ -768,6 +768,11 @@
           return sumDigits(r);
         }
 
+        function getMaxBetByBank(bank) {
+          const safeBank = Math.max(0, Math.floor(Number(bank) || 0));
+          return Math.max(0, Math.min(300, Math.floor(safeBank / 3)));
+        }
+
         function canCollect(machine) {
           const pid = String(get("getPlayerProfileId", "") || "");
           return Boolean(machine && pid && machine.ownerAccountId === pid);
@@ -789,13 +794,17 @@
           const m = machine || getLocal(tx, ty) || normalize({});
           const stats = m.stats || {};
           const ownerView = canCollect(m);
+          const bank = Math.max(0, Math.floor(Number(m.earningsLocks) || 0));
+          const maxBetByBank = getMaxBetByBank(bank);
+          const canSpin = maxBetByBank >= 1;
           els.title.textContent = "Gambling Machine (" + tx + "," + ty + ")";
           els.body.innerHTML =
             "<div class='vending-section'>" +
               "<div class='vending-stat-grid'>" +
                 "<div class='vending-stat'><span>Type</span><strong>Reme Roulette (Player vs House)</strong></div>" +
                 "<div class='vending-stat'><span>Owner</span><strong>@" + (m.ownerName || "owner") + "</strong></div>" +
-                "<div class='vending-stat'><span>Machine Bank</span><strong>" + Math.max(0, Math.floor(Number(m.earningsLocks) || 0)) + " WL</strong></div>" +
+                "<div class='vending-stat'><span>Machine Bank</span><strong>" + bank + " WL</strong></div>" +
+                "<div class='vending-stat'><span>Max Bet</span><strong>" + (canSpin ? maxBetByBank : 0) + " WL</strong></div>" +
                 "<div class='vending-stat'><span>Plays</span><strong>" + (stats.plays || 0) + "</strong></div>" +
                 "<div class='vending-stat'><span>Total Bet In</span><strong>" + (stats.totalBet || 0) + " WL</strong></div>" +
                 "<div class='vending-stat'><span>Total Paid Out</span><strong>" + (stats.totalPayout || 0) + " WL</strong></div>" +
@@ -804,10 +813,10 @@
             "<div class='vending-section'>" +
               "<div class='vending-section-title'>Play (Player vs House)</div>" +
               "<div class='vending-field-grid'>" +
-                "<label class='vending-field'><span>Bet (World Locks)</span><input data-gamble-input='bet' type='number' min='1' max='300' step='1' value='1'></label>" +
+                "<label class='vending-field'><span>Bet (World Locks)</span><input data-gamble-input='bet' type='number' min='1' max='" + (canSpin ? maxBetByBank : 1) + "' step='1' value='1'" + (canSpin ? "" : " disabled") + "></label>" +
               "</div>" +
               "<div class='vending-auto-stock-note'>No number selection. You roll vs house roll (0-37). Higher reme wins.</div>" +
-              "<div class='vending-auto-stock-note'>Tie = lose. 0/19/28 = 3x. All bets go to machine bank.</div>" +
+              "<div class='vending-auto-stock-note'>Tie = lose. 0/19/28 = 3x. All lost bets go to machine bank.</div>" +
             "</div>" +
             "<div class='vending-section'>" +
               "<div class='vending-section-title'>Last Result</div>" +
@@ -819,9 +828,9 @@
               "</div>" +
             "</div>";
           if (ownerView) {
-            els.actions.innerHTML = "<button data-gamble-act='spin'>Spin</button><button data-gamble-act='collect'" + (m.earningsLocks > 0 ? "" : " disabled") + ">Collect Earnings</button><button data-gamble-act='close'>Close</button>";
+            els.actions.innerHTML = "<button data-gamble-act='spin'" + (canSpin ? "" : " disabled") + ">Spin</button><input data-gamble-input='refill' type='number' min='1' step='1' value='1' style='max-width:120px;'><button data-gamble-act='refill'>Refill</button><button data-gamble-act='collect'" + (m.earningsLocks > 0 ? "" : " disabled") + ">Collect Earnings</button><button data-gamble-act='close'>Close</button>";
           } else {
-            els.actions.innerHTML = "<button data-gamble-act='spin'>Spin</button><button data-gamble-act='close'>Close</button>";
+            els.actions.innerHTML = "<button data-gamble-act='spin'" + (canSpin ? "" : " disabled") + ">Spin</button><button data-gamble-act='close'>Close</button>";
           }
           modalCtx = { tx, ty };
           els.modal.classList.remove("hidden");
@@ -833,7 +842,12 @@
           const ty = Math.floor(Number(modalCtx.ty));
           const els = getEls();
           const betInput = els.body ? els.body.querySelector("[data-gamble-input='bet']") : null;
-          const bet = Math.max(1, Math.min(300, Math.floor(Number(betInput && betInput.value) || 0)));
+          const maxBetByBank = getMaxBetByBank((getLocal(tx, ty) || normalize({})).earningsLocks);
+          if (maxBetByBank < 1) {
+            post("Machine bank is too low. Owner must refill.");
+            return;
+          }
+          const bet = Math.max(1, Math.min(maxBetByBank, Math.floor(Number(betInput && betInput.value) || 0)));
           const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
           const inv = get("getInventory", {}) || {};
           const post = opts.postLocalSystemChat || (() => {});
@@ -859,7 +873,11 @@
           }
           const m = getLocal(tx, ty) || normalize({});
           const beforeBank = Math.max(0, Math.floor(Number(m.earningsLocks) || 0));
-          const afterBetBank = beforeBank + bet;
+          if (beforeBank < (bet * 3)) {
+            post("Machine bank changed. Max bet is now " + getMaxBetByBank(beforeBank) + " WL.");
+            renderModal(tx, ty, m);
+            return;
+          }
           const payoutWanted = Math.max(0, Math.floor(bet * mult));
           const payout = payoutWanted;
           inv[worldLockId] = Math.max(0, Math.floor(have - bet + payout));
@@ -870,7 +888,9 @@
             ...m,
             ownerAccountId: m.ownerAccountId || String(get("getPlayerProfileId", "") || ""),
             ownerName: m.ownerName || String(get("getPlayerName", "") || "").slice(0, 20),
-            earningsLocks: Math.max(0, afterBetBank - payout),
+            earningsLocks: outcome === "lose"
+              ? (beforeBank + bet)
+              : Math.max(0, beforeBank - payout),
             stats: {
               plays: Math.max(0, Math.floor(Number(stats.plays) || 0)) + 1,
               totalBet: Math.max(0, Math.floor(Number(stats.totalBet) || 0)) + bet,
@@ -938,6 +958,47 @@
           renderModal(tx, ty, next);
         }
 
+        function refill() {
+          if (!modalCtx) return;
+          const tx = Math.floor(Number(modalCtx.tx));
+          const ty = Math.floor(Number(modalCtx.ty));
+          const machine = getLocal(tx, ty) || normalize({});
+          const post = opts.postLocalSystemChat || (() => {});
+          if (!canCollect(machine)) {
+            post("Only owner can refill machine.");
+            return;
+          }
+          const els = getEls();
+          const refillInput = els.actions ? els.actions.querySelector("[data-gamble-input='refill']") : null;
+          const amount = Math.max(1, Math.floor(Number(refillInput && refillInput.value) || 0));
+          const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
+          const inv = get("getInventory", {}) || {};
+          const have = Math.max(0, Math.floor(Number(inv[worldLockId]) || 0));
+          if (have < amount) {
+            post("Not enough WL to refill. Need " + amount + ".");
+            return;
+          }
+          inv[worldLockId] = have - amount;
+          const next = {
+            ...machine,
+            earningsLocks: Math.max(0, Math.floor(Number(machine.earningsLocks) || 0) + amount),
+            updatedAt: Date.now()
+          };
+          setLocal(tx, ty, next);
+          if (typeof opts.saveInventory === "function") opts.saveInventory();
+          if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+          const network = get("getNetwork", null);
+          const basePath = String(get("getBasePath", "") || "");
+          const worldId = String(get("getCurrentWorldId", "") || "");
+          const profileId = String(get("getPlayerProfileId", "") || "");
+          if (network && network.enabled && network.db && basePath && worldId && profileId) {
+            network.db.ref(basePath + "/worlds/" + worldId + "/gamble-machines/" + getTileKey(tx, ty)).set(next).catch(() => {});
+            network.db.ref(basePath + "/player-inventories/" + profileId + "/" + worldLockId).set(inv[worldLockId]).catch(() => {});
+          }
+          post("Refilled machine by " + amount + " WL.");
+          renderModal(tx, ty, next);
+        }
+
         function bindModalEvents() {
           if (modalBound) return;
           modalBound = true;
@@ -956,6 +1017,7 @@
               if (act === "close") closeModal();
               if (act === "spin") spin();
               if (act === "collect") collect();
+              if (act === "refill") refill();
             });
           }
         }
