@@ -527,7 +527,8 @@ window.GTModules = window.GTModules || {};
     const uncapped = Math.max(0, (boughtBonus ? boughtBonusPayout : Math.floor(Number(base.payoutWanted) || 0)));
     const cap = wager * Math.max(1, Math.floor(Number(GAME_DEFS.slots_v2.maxPayoutMultiplier) || 50));
     const payoutWanted = Math.max(0, Math.min(cap, uncapped));
-    const finalMultiplier = wager > 0 ? Number((payoutWanted / wager).toFixed(2)) : 0;
+    const multiplierBase = boughtBonus ? safeBet : wager;
+    const finalMultiplier = multiplierBase > 0 ? Number((payoutWanted / multiplierBase).toFixed(2)) : 0;
     const outcome = finalMultiplier >= 20 ? "jackpot" : (finalMultiplier > 0 ? "win" : "lose");
 
     return {
