@@ -833,6 +833,8 @@ window.GTModules = window.GTModules || {};
         ? Math.max(def.minBet, Math.min(maxBetByBank, rememberedBet))
         : def.minBet;
       const coverageMult = Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || 3));
+      const buyBonusX = 5;
+      const buyBonusCostPreview = Math.max(def.minBet, displayBet) * buyBonusX;
       const selfAccountId = getSelfAccountId();
       const round = def.id === "blackjack" ? normalizeBlackjackRound(m.blackjackRound) : null;
       const roundActive = Boolean(round && round.active && !round.resolved);
@@ -1062,7 +1064,7 @@ window.GTModules = window.GTModules || {};
           "</div>" +
           (def.id === "slots_v2"
             ? ("<div class='vending-field-grid'>" +
-                "<label class='vending-field'><span>Buy Bonus ("+ effectiveBet * buyX +")</span><input type='text' value='10x bet (fixed)' disabled></label>" +
+                "<label class='vending-field'><span>Buy Bonus (" + buyBonusCostPreview + " WL)</span><input type='text' value='5x bet (fixed)' disabled></label>" +
                 "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='buybonus'" + (canPlayNow ? "" : " disabled") + ">Buy Bonus</button></div>" +
               "</div>")
             : "") +
