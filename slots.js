@@ -67,6 +67,29 @@ window.GTModules = window.GTModules || {};
     dynamite: { 3: 8, 4: 16, 5: 28 }
   };
 
+  const BONUS_V2 = {
+    respins: 3,
+    addChance: 0.38,
+    addChanceDecay: 0.015,
+    maxSpins: 64,
+    coinValues: [5, 10, 15, 20, 25, 40, 50],
+    coinWeights: [40, 26, 16, 10, 5, 2, 1],
+    specialWeights: {
+      coin: 82,
+      multiplier: 7,
+      bomb: 6,
+      jackpot: 2,
+      collect: 3
+    },
+    multiplierValues: [2, 3],
+    multiplierWeights: [80, 20],
+    bombValues: [8, 12, 16, 20, 25, 30],
+    bombWeights: [26, 22, 18, 14, 12, 8],
+    jackpotValues: [80, 120, 180],
+    jackpotWeights: [65, 25, 10],
+    fullScreenBonus: 200
+  };
+
   function cloneDef(row) {
     const def = row || GAME_DEFS.slots;
     return {
@@ -221,58 +244,127 @@ window.GTModules = window.GTModules || {};
   }
 
   function runMiningBonus(safeBet) {
-    const tiles = [
-      { kind: "coins", mult: 2 },
-      { kind: "coins", mult: 3 },
-      { kind: "coins", mult: 4 },
-      { kind: "coins", mult: 5 },
-      { kind: "coins", mult: 6 },
-      { kind: "mult", mult: 2 },
-      { kind: "mult", mult: 3 },
-      { kind: "jackpot", mult: 10 },
-      { kind: "dynamite", mult: 0 }
-    ];
-    for (let i = tiles.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const t = tiles[i];
-      tiles[i] = tiles[j];
-      tiles[j] = t;
+    const safe = BONUS_V2;
+    const totalSlots = Math.max(1, V2_ROWS * V2_REELS);
+    const trigger = Math.max(3, Math.min(totalSlots, Math.floor(Number(safeBet && safeBet.triggerCount) || 3)));
+    const bet = Math.max(1, Math.floor(Number(safeBet && safeBet.bet) || 1));
+    const locked = [];
+
+    function pickFrom(values, weights) {
+      const arr = Array.isArray(values) ? values : [];
+      const w = Array.isArray(weights) ? weights : [];
+      if (!arr.length) return 0;
+      let total = 0;
+      for (let i = 0; i < arr.length; i++) total += Math.max(1, Math.floor(Number(w[i]) || 1));
+      let roll = Math.floor(Math.random() * Math.max(1, total));
+      for (let i = 0; i < arr.length; i++) {
+        roll -= Math.max(1, Math.floor(Number(w[i]) || 1));
+        if (roll < 0) return arr[i];
+      }
+      return arr[0];
     }
-    const picks = [tiles[0], tiles[1], tiles[2]];
-    let extraMultiplier = 0;
-    let chainMultiplier = 1;
-    let hitDynamite = false;
-    let hitJackpot = false;
-    for (let i = 0; i < picks.length; i++) {
-      const p = picks[i];
-      if (p.kind === "dynamite") hitDynamite = true;
-      if (p.kind === "jackpot") {
-        hitJackpot = true;
-        extraMultiplier += p.mult;
-      } else if (p.kind === "mult") {
-        chainMultiplier *= p.mult;
+
+    function pickBonusSymbol() {
+      const bag = [
+        { id: "coin", weight: safe.specialWeights.coin },
+        { id: "multiplier", weight: safe.specialWeights.multiplier },
+        { id: "bomb", weight: safe.specialWeights.bomb },
+        { id: "jackpot", weight: safe.specialWeights.jackpot },
+        { id: "collect", weight: safe.specialWeights.collect }
+      ];
+      const row = pickWeighted(bag);
+      const id = String(row && row.id || "coin");
+      if (id === "coin") {
+        return { id: "coin", mult: Math.max(1, Number(pickFrom(safe.coinValues, safe.coinWeights)) || 5) };
+      }
+      if (id === "multiplier") {
+        return { id: "multiplier", mult: Math.max(2, Number(pickFrom(safe.multiplierValues, safe.multiplierWeights)) || 2) };
+      }
+      if (id === "bomb") {
+        return { id: "bomb", mult: Math.max(1, Number(pickFrom(safe.bombValues, safe.bombWeights)) || 8) };
+      }
+      if (id === "jackpot") {
+        return { id: "jackpot", mult: Math.max(10, Number(pickFrom(safe.jackpotValues, safe.jackpotWeights)) || 80) };
+      }
+      return { id: "collect", mult: 0 };
+    }
+
+    for (let i = 0; i < trigger && locked.length < totalSlots; i++) {
+      locked.push({ id: "coin", mult: Math.max(1, Number(pickFrom(safe.coinValues, safe.coinWeights)) || 5) });
+    }
+
+    let respins = Math.max(1, Math.floor(Number(safe.respins) || 3));
+    let spins = 0;
+    while (respins > 0 && locked.length < totalSlots && spins < safe.maxSpins) {
+      spins += 1;
+      const chance = Math.max(0.08, Number(safe.addChance) - (spins * Number(safe.addChanceDecay || 0)));
+      if (Math.random() < chance) {
+        const left = totalSlots - locked.length;
+        const addCount = Math.max(1, Math.min(left, Math.random() < 0.22 ? 2 : 1));
+        for (let a = 0; a < addCount; a++) {
+          if (locked.length >= totalSlots) break;
+          locked.push(pickBonusSymbol());
+        }
+        respins = Math.max(1, Math.floor(Number(safe.respins) || 3));
       } else {
-        extraMultiplier += p.mult;
+        respins -= 1;
       }
     }
-    if (hitDynamite) {
-      return {
-        triggered: true,
-        payout: 0,
-        multiplier: 0,
-        summary: "Bonus dynamite exploded. Bonus payout lost.",
-        picks: picks.map((p) => p.kind.toUpperCase())
-      };
+
+    let coinMult = 0;
+    let multiplierMult = 1;
+    let bombMult = 0;
+    let jackpotMult = 0;
+    let collectCount = 0;
+    const labelList = [];
+    for (let i = 0; i < locked.length; i++) {
+      const s = locked[i];
+      const id = String(s && s.id || "coin");
+      const mult = Math.max(0, Number(s && s.mult) || 0);
+      if (id === "coin") {
+        coinMult += mult;
+        labelList.push("C" + mult);
+      } else if (id === "multiplier") {
+        multiplierMult *= Math.max(2, mult);
+        labelList.push("M" + Math.max(2, mult));
+      } else if (id === "bomb") {
+        bombMult += mult;
+        labelList.push("B" + mult);
+      } else if (id === "jackpot") {
+        jackpotMult += mult;
+        labelList.push("J" + mult);
+      } else {
+        collectCount += 1;
+        labelList.push("COL");
+      }
     }
-    const totalMult = Math.max(0, extraMultiplier * chainMultiplier);
+
+    const collectMult = collectCount > 0 ? (coinMult * collectCount) : 0;
+    const fullScreen = locked.length >= totalSlots;
+    const fullScreenMult = fullScreen ? Math.max(0, Number(safe.fullScreenBonus) || 0) : 0;
+    const preMul = Math.max(0, coinMult + bombMult + jackpotMult + collectMult + fullScreenMult);
+    const totalMult = Math.max(0, preMul * Math.max(1, multiplierMult));
+    const payout = Math.max(0, Math.floor(bet * totalMult));
+    const summary =
+      "Hold&Spin " + totalMult + "x (" +
+      locked.length + "/" + totalSlots +
+      ", coin " + coinMult +
+      ", mult x" + multiplierMult +
+      (bombMult > 0 ? (", bomb " + bombMult) : "") +
+      (jackpotMult > 0 ? (", jackpot " + jackpotMult) : "") +
+      (collectMult > 0 ? (", collect " + collectMult) : "") +
+      (fullScreen ? ", FULL" : "") +
+      ")";
+
     return {
       triggered: true,
-      payout: Math.max(0, Math.floor(safeBet * totalMult)),
+      payout,
       multiplier: totalMult,
-      summary: hitJackpot
-        ? ("Mining jackpot bonus " + totalMult + "x")
-        : ("Mining bonus " + totalMult + "x"),
-      picks: picks.map((p) => p.kind.toUpperCase())
+      summary,
+      picks: labelList.slice(0, 24),
+      filled: locked.length,
+      totalSlots,
+      fullScreen
     };
   }
 
@@ -315,7 +407,7 @@ window.GTModules = window.GTModules || {};
 
     let bonus = null;
     if (bonusCount >= 3 && opts.allowBonus !== false) {
-      bonus = runMiningBonus(safeBet);
+      bonus = runMiningBonus({ bet: safeBet, triggerCount: bonusCount });
     }
 
     const basePayout = Math.max(0, Math.floor(safeBet * totalMultiplier));
@@ -377,27 +469,10 @@ window.GTModules = window.GTModules || {};
       summaryParts.push("Free spins awarded: " + freeSpinsAwarded);
     }
 
-    let freeSpinPayout = 0;
-    let freeSpinsPlayed = 0;
-    for (let i = 0; i < freeSpinsAwarded; i++) {
-      const fsGrid = buildGridV2();
-      const fs = evaluateV2Grid(fsGrid, safeBet, { allowScatterPayout: true, allowBonus: true });
-      const fsPayout = Math.max(0, Math.floor(Number(fs.payoutWanted) || 0));
-      freeSpinPayout += fsPayout;
-      freeSpinsPlayed += 1;
-      if (Array.isArray(fs.lineIds)) {
-        for (let li = 0; li < fs.lineIds.length && allLineIds.length < 12; li++) {
-          allLineIds.push(fs.lineIds[li]);
-        }
-      }
-      if (fs.lineWins && fs.lineWins.length) {
-        for (let li = 0; li < fs.lineWins.length && allLineWins.length < 18; li++) {
-          allLineWins.push("FS" + (i + 1) + " " + fs.lineWins[li]);
-        }
-      }
-    }
-    if (freeSpinsPlayed > 0) {
-      summaryParts.push("Free spins paid " + freeSpinPayout + " WL.");
+    const freeSpinPayout = 0;
+    const freeSpinsPlayed = 0;
+    if (freeSpinsAwarded > 0) {
+      summaryParts.push("Use your free spins manually.");
     }
 
     const uncapped = Math.max(0, Math.floor(Number(base.payoutWanted) || 0) + freeSpinPayout);
