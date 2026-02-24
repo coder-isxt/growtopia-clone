@@ -662,10 +662,279 @@
         return chestController;
       }
 
+      function createFallbackGambleController(options) {
+        const opts = options || {};
+        const machines = new Map();
+        let modalCtx = null;
+        let modalBound = false;
+
+        function get(k, fallback) {
+          const fn = opts[k];
+          if (typeof fn === "function") return fn();
+          return fallback;
+        }
+
+        function getTileKey(tx, ty) {
+          return String(tx) + "_" + String(ty);
+        }
+
+        function normalize(value) {
+          const row = value && typeof value === "object" ? value : {};
+          const stats = row.stats && typeof row.stats === "object" ? row.stats : {};
+          return {
+            ownerAccountId: String(row.ownerAccountId || ""),
+            ownerName: String(row.ownerName || "").slice(0, 20),
+            type: "reme_roulette",
+            stats: {
+              plays: Math.max(0, Math.floor(Number(stats.plays) || 0)),
+              totalBet: Math.max(0, Math.floor(Number(stats.totalBet) || 0)),
+              totalPayout: Math.max(0, Math.floor(Number(stats.totalPayout) || 0)),
+              lastRoll: Math.max(0, Math.floor(Number(stats.lastRoll) || 0)),
+              lastReme: Math.max(0, Math.floor(Number(stats.lastReme) || 0)),
+              lastTarget: Math.max(0, Math.floor(Number(stats.lastTarget) || 0)),
+              lastOutcome: String(stats.lastOutcome || "").slice(0, 16)
+            },
+            updatedAt: Number(row.updatedAt) || 0
+          };
+        }
+
+        function setLocal(tx, ty, value) {
+          const key = getTileKey(tx, ty);
+          if (!value || typeof value !== "object") {
+            machines.delete(key);
+            return;
+          }
+          machines.set(key, normalize(value));
+        }
+
+        function getLocal(tx, ty) {
+          return machines.get(getTileKey(tx, ty)) || null;
+        }
+
+        function clearAll() {
+          machines.clear();
+          modalCtx = null;
+          const modal = get("getGambleModalEl", null);
+          if (modal) modal.classList.add("hidden");
+        }
+
+        function getEls() {
+          return {
+            modal: get("getGambleModalEl", null),
+            title: get("getGambleTitleEl", null),
+            body: get("getGambleBodyEl", null),
+            actions: get("getGambleActionsEl", null),
+            closeBtn: get("getGambleCloseBtnEl", null)
+          };
+        }
+
+        function closeModal() {
+          modalCtx = null;
+          const els = getEls();
+          if (els.modal) els.modal.classList.add("hidden");
+        }
+
+        function sumDigits(n) {
+          const v = Math.max(0, Math.floor(Number(n) || 0));
+          return Math.floor(v / 10) + (v % 10);
+        }
+
+        function renderModal(tx, ty, machine) {
+          const els = getEls();
+          if (!els.modal || !els.title || !els.body || !els.actions) {
+            const post = opts.postLocalSystemChat || (() => {});
+            post("Gamble modal UI is missing in index.html.");
+            return;
+          }
+          const m = machine || getLocal(tx, ty) || normalize({});
+          const stats = m.stats || {};
+          els.title.textContent = "Gambling Machine (" + tx + "," + ty + ")";
+          els.body.innerHTML =
+            "<div class='vending-section'>" +
+              "<div class='vending-stat-grid'>" +
+                "<div class='vending-stat'><span>Type</span><strong>Reme Roulette (0-37)</strong></div>" +
+                "<div class='vending-stat'><span>Owner</span><strong>@" + (m.ownerName || "owner") + "</strong></div>" +
+                "<div class='vending-stat'><span>Plays</span><strong>" + (stats.plays || 0) + "</strong></div>" +
+                "<div class='vending-stat'><span>Total Bet</span><strong>" + (stats.totalBet || 0) + " WL</strong></div>" +
+                "<div class='vending-stat'><span>Total Paid</span><strong>" + (stats.totalPayout || 0) + " WL</strong></div>" +
+              "</div>" +
+            "</div>" +
+            "<div class='vending-section'>" +
+              "<div class='vending-section-title'>Play</div>" +
+              "<div class='vending-field-grid'>" +
+                "<label class='vending-field'><span>Pick Number (Reme)</span><select data-gamble-input='target'>" +
+                  "<option value='0'>0</option><option value='1'>1</option><option value='2'>2</option><option value='3'>3</option><option value='4'>4</option>" +
+                  "<option value='5'>5</option><option value='6'>6</option><option value='7'>7</option><option value='8'>8</option><option value='9'>9</option>" +
+                "</select></label>" +
+                "<label class='vending-field'><span>Bet (World Locks)</span><input data-gamble-input='bet' type='number' min='1' max='300' step='1' value='1'></label>" +
+              "</div>" +
+              "<div class='vending-auto-stock-note'>Reme = sum of digits (26 => 8). Tie = lose. 0/19/28 = 3x.</div>" +
+            "</div>";
+          els.actions.innerHTML = "<button data-gamble-act='spin'>Spin</button><button data-gamble-act='close'>Close</button>";
+          modalCtx = { tx, ty };
+          els.modal.classList.remove("hidden");
+        }
+
+        function spin() {
+          if (!modalCtx) return;
+          const tx = Math.floor(Number(modalCtx.tx));
+          const ty = Math.floor(Number(modalCtx.ty));
+          const els = getEls();
+          const targetInput = els.body ? els.body.querySelector("[data-gamble-input='target']") : null;
+          const betInput = els.body ? els.body.querySelector("[data-gamble-input='bet']") : null;
+          const target = Math.max(0, Math.min(9, Math.floor(Number(targetInput && targetInput.value) || 0)));
+          const bet = Math.max(1, Math.min(300, Math.floor(Number(betInput && betInput.value) || 0)));
+          const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
+          const inv = get("getInventory", {}) || {};
+          const post = opts.postLocalSystemChat || (() => {});
+          const have = Math.max(0, Math.floor(Number(inv[worldLockId]) || 0));
+          if (have < bet) {
+            post("Not enough World Locks. Need " + bet + ".");
+            return;
+          }
+          const roll = Math.floor(Math.random() * 38);
+          const reme = sumDigits(roll);
+          const triple = roll === 0 || roll === 19 || roll === 28;
+          const tie = !triple && reme > 9;
+          let mult = 0;
+          let outcome = "lose";
+          if (triple) {
+            mult = 3;
+            outcome = "triple";
+          } else if (!tie && reme === target) {
+            mult = 2;
+            outcome = "win";
+          }
+          const payout = Math.max(0, Math.floor(bet * mult));
+          inv[worldLockId] = Math.max(0, Math.floor(have - bet + payout));
+          if (typeof opts.saveInventory === "function") opts.saveInventory();
+          if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+
+          const m = getLocal(tx, ty) || normalize({});
+          const stats = m.stats || {};
+          const next = {
+            ...m,
+            ownerAccountId: m.ownerAccountId || String(get("getPlayerProfileId", "") || ""),
+            ownerName: m.ownerName || String(get("getPlayerName", "") || "").slice(0, 20),
+            stats: {
+              plays: Math.max(0, Math.floor(Number(stats.plays) || 0)) + 1,
+              totalBet: Math.max(0, Math.floor(Number(stats.totalBet) || 0)) + bet,
+              totalPayout: Math.max(0, Math.floor(Number(stats.totalPayout) || 0)) + payout,
+              lastRoll: roll,
+              lastReme: reme,
+              lastTarget: target,
+              lastOutcome: outcome
+            },
+            updatedAt: Date.now()
+          };
+          setLocal(tx, ty, next);
+
+          const network = get("getNetwork", null);
+          const basePath = String(get("getBasePath", "") || "");
+          const worldId = String(get("getCurrentWorldId", "") || "");
+          const profileId = String(get("getPlayerProfileId", "") || "");
+          if (network && network.enabled && network.db && basePath && worldId && profileId) {
+            network.db.ref(basePath + "/worlds/" + worldId + "/gamble-machines/" + getTileKey(tx, ty)).set(next).catch(() => {});
+            network.db.ref(basePath + "/player-inventories/" + profileId + "/" + worldLockId).set(inv[worldLockId]).catch(() => {});
+          }
+
+          if (outcome === "triple") post("Roll " + roll + " hit 3x. You won " + payout + " WL.");
+          else if (outcome === "win") post("Roll " + roll + " (reme " + reme + ") matched " + target + ". You won " + payout + " WL.");
+          else if (tie) post("Roll " + roll + " produced reme " + reme + " (tie). Tie = lose.");
+          else post("Roll " + roll + " (reme " + reme + ") missed " + target + ". You lost " + bet + " WL.");
+          renderModal(tx, ty, next);
+        }
+
+        function bindModalEvents() {
+          if (modalBound) return;
+          modalBound = true;
+          const els = getEls();
+          if (els.closeBtn) els.closeBtn.addEventListener("click", closeModal);
+          if (els.modal) {
+            els.modal.addEventListener("click", (event) => {
+              if (event.target === els.modal) closeModal();
+            });
+          }
+          if (els.actions) {
+            els.actions.addEventListener("click", (event) => {
+              const target = event.target;
+              if (!(target instanceof HTMLElement)) return;
+              const act = String(target.dataset.gambleAct || "");
+              if (act === "close") closeModal();
+              if (act === "spin") spin();
+            });
+          }
+        }
+
+        function openModal(tx, ty) {
+          if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
+          if (!getLocal(tx, ty)) onPlaced(tx, ty);
+          renderModal(tx, ty, getLocal(tx, ty));
+        }
+
+        function isOpen() {
+          const modal = get("getGambleModalEl", null);
+          return Boolean(modalCtx && modal && !modal.classList.contains("hidden"));
+        }
+
+        function renderOpen() {
+          if (!isOpen() || !modalCtx) return;
+          renderModal(modalCtx.tx, modalCtx.ty, getLocal(modalCtx.tx, modalCtx.ty));
+        }
+
+        function interact(tx, ty) {
+          const world = get("getWorld", null);
+          const gambleId = Math.max(0, Math.floor(Number(get("getGambleId", 0)) || 0));
+          if (!world || !world[ty] || world[ty][tx] !== gambleId) return;
+          openModal(tx, ty);
+        }
+
+        function onPlaced(tx, ty) {
+          const pid = String(get("getPlayerProfileId", "") || "");
+          const name = String(get("getPlayerName", "") || "").slice(0, 20);
+          const row = normalize({
+            ownerAccountId: pid,
+            ownerName: name,
+            type: "reme_roulette",
+            stats: {},
+            updatedAt: Date.now()
+          });
+          setLocal(tx, ty, row);
+          const network = get("getNetwork", null);
+          const basePath = String(get("getBasePath", "") || "");
+          const worldId = String(get("getCurrentWorldId", "") || "");
+          if (network && network.enabled && network.db && basePath && worldId) {
+            network.db.ref(basePath + "/worlds/" + worldId + "/gamble-machines/" + getTileKey(tx, ty)).set(row).catch(() => {});
+          }
+        }
+
+        function onBroken(tx, ty) {
+          setLocal(tx, ty, null);
+          if (modalCtx && modalCtx.tx === tx && modalCtx.ty === ty) closeModal();
+        }
+
+        return {
+          bindModalEvents,
+          normalizeRecord: normalize,
+          setLocal,
+          getLocal,
+          clearAll,
+          closeModal,
+          openModal,
+          isOpen,
+          renderOpen,
+          interact,
+          onPlaced,
+          onBroken
+        };
+      }
+
       function getGambleController() {
         if (gambleController) return gambleController;
-        if (typeof gambleModule.createController !== "function") return null;
-        gambleController = gambleModule.createController({
+        const factory = typeof gambleModule.createController === "function"
+          ? gambleModule.createController
+          : createFallbackGambleController;
+        gambleController = factory({
           getNetwork: () => network,
           getBasePath: () => BASE_PATH,
           getCurrentWorldId: () => currentWorldId,
