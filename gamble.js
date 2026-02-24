@@ -435,6 +435,13 @@ window.GTModules = window.GTModules || {};
       return true;
     }
 
+    function canManageMachineAdvanced(machine) {
+      if (!canCollect(machine)) return false;
+      const isLocked = Boolean(get("isWorldLocked", false));
+      if (!isLocked) return true;
+      return Boolean(get("isWorldLockOwner", false));
+    }
+
     function canBreakAt(tx, ty) {
       const machine = getLocal(tx, ty);
       if (!machine) return false;
@@ -661,6 +668,7 @@ window.GTModules = window.GTModules || {};
       const stats = normalizeStats(m.stats);
       const ownerLabel = m.ownerName || "owner";
       const canEditMaxBet = canEditMachineMaxBet(m);
+      const canManageAdvanced = canManageMachineAdvanced(m);
       const spectating = Boolean(spectatingMode);
       const bank = Math.max(0, Math.floor(Number(m.earningsLocks) || 0));
       const machineMaxCap = getMachineMaxBetCap(m, def);
@@ -768,6 +776,17 @@ window.GTModules = window.GTModules || {};
               "<div class='vending-field-grid'>" +
                 "<label class='vending-field'><span>Max Bet</span><input data-gamble-input='maxbet' type='number' min='" + def.minBet + "' max='" + def.maxBet + "' step='1' value='" + machineMaxCap + "'></label>" +
                 "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='setmax'>Save Max Bet</button></div>" +
+                (canManageAdvanced
+                  ? ("<label class='vending-field'><span>Game</span>" +
+                      "<select data-gamble-input='type'>" +
+                        Object.keys(MACHINE_DEFS).map((id) => {
+                          const row = MACHINE_DEFS[id];
+                          return "<option value='" + esc(row.id) + "'" + (row.id === def.id ? " selected" : "") + ">" + esc(row.name) + "</option>";
+                        }).join("") +
+                      "</select>" +
+                    "</label>" +
+                    "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='settype'>Save Game</button></div>")
+                  : "") +
               "</div>" +
             "</div>")
           : "") +
@@ -817,10 +836,20 @@ window.GTModules = window.GTModules || {};
           "<button data-gamble-act='bj-stand'" + (canActRound ? "" : " disabled") + ">Stand</button>" +
           "<button data-gamble-act='bj-double'" + (canDouble ? "" : " disabled") + ">Double</button>" +
           "<button data-gamble-act='bj-split'" + (canSplit ? "" : " disabled") + ">Split</button>" +
+          (canManageAdvanced
+            ? ("<input data-gamble-input='refill' type='number' min='1' step='1' value='1' style='max-width:120px;'>" +
+              "<button data-gamble-act='refill'>Refill</button>" +
+              "<button data-gamble-act='collect'" + (m.earningsLocks > 0 ? "" : " disabled") + ">Collect</button>")
+            : "") +
           "<button data-gamble-act='close'>Close</button>";
       } else {
         els.actions.innerHTML =
           "<button data-gamble-act='spin'" + (canPlayNow && !roundActive ? "" : " disabled") + ">" + (def.id === "blackjack" ? "Deal" : "Spin") + "</button>" +
+          (canManageAdvanced
+            ? ("<input data-gamble-input='refill' type='number' min='1' step='1' value='1' style='max-width:120px;'>" +
+              "<button data-gamble-act='refill'>Refill</button>" +
+              "<button data-gamble-act='collect'" + (m.earningsLocks > 0 ? "" : " disabled") + ">Collect</button>")
+            : "") +
           "<button data-gamble-act='close'>Close</button>";
       }
 
@@ -1589,6 +1618,217 @@ window.GTModules = window.GTModules || {};
       });
     }
 
+    function refillBank() {
+      if (!modalCtx) return;
+      const tx = Math.floor(Number(modalCtx.tx));
+      const ty = Math.floor(Number(modalCtx.ty));
+      const post = opts.postLocalSystemChat || (() => {});
+      const machine = getLocal(tx, ty);
+      if (!machine || !canManageMachineAdvanced(machine)) {
+        post("Only world owner + machine owner can refill.");
+        return;
+      }
+      const els = getModalEls();
+      const refillInput = els.actions ? els.actions.querySelector("[data-gamble-input='refill']") : null;
+      const amount = Math.max(1, Math.floor(Number(refillInput && refillInput.value) || 0));
+      const inventory = get("getInventory", {}) || {};
+      const haveLocal = getTotalLocks(inventory);
+      if (haveLocal < amount) {
+        post("Not enough WL to refill. Need " + amount + ".");
+        return;
+      }
+      const network = get("getNetwork", null);
+      const basePath = String(get("getBasePath", "") || "");
+      const profileId = String(get("getPlayerProfileId", "") || "");
+      if (!network || !network.enabled || !network.db || !basePath || !profileId) {
+        setCanonicalLocks(inventory, haveLocal - amount);
+        const nextMachine = { ...machine, earningsLocks: Math.max(0, Math.floor(Number(machine.earningsLocks) || 0) + amount), updatedAt: Date.now() };
+        setLocal(tx, ty, nextMachine);
+        if (typeof opts.saveInventory === "function") opts.saveInventory();
+        if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+        renderModal(tx, ty, nextMachine);
+        post("Refilled machine by " + amount + " WL.");
+        return;
+      }
+      const lockRef = network.db.ref(basePath + "/player-inventories/" + profileId);
+      const machineRef = getMachineRef(tx, ty);
+      if (!machineRef) return;
+      lockRef.transaction((currentRaw) => {
+        const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+        const have = getTotalLocks(current);
+        if (have < amount) return;
+        setCanonicalLocks(current, have - amount);
+        return current;
+      }).then((deductTxn) => {
+        if (!deductTxn || !deductTxn.committed) {
+          post("Not enough WL to refill.");
+          return Promise.resolve(false);
+        }
+        return machineRef.transaction((currentRaw) => {
+          const current = normalizeRecord(currentRaw) || machine;
+          if (!canManageMachineAdvanced(current)) return currentRaw;
+          return {
+            ...current,
+            earningsLocks: Math.max(0, Math.floor(Number(current.earningsLocks) || 0) + amount),
+            updatedAt: Date.now()
+          };
+        }).then((machineTxn) => {
+          if (!machineTxn || !machineTxn.committed) {
+            lockRef.transaction((currentRaw) => {
+              const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+              addLocksLocal(current, amount);
+              return current;
+            }).catch(() => {});
+            post("Refill failed.");
+            return false;
+          }
+          const raw = machineTxn.snapshot && typeof machineTxn.snapshot.val === "function" ? machineTxn.snapshot.val() : null;
+          setLocal(tx, ty, raw);
+          if (typeof opts.saveInventory === "function") opts.saveInventory();
+          if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+          renderModal(tx, ty, getLocal(tx, ty));
+          post("Refilled machine by " + amount + " WL.");
+          return true;
+        });
+      }).catch(() => {
+        post("Refill failed.");
+      });
+    }
+
+    function collectEarnings() {
+      if (!modalCtx) return;
+      const tx = Math.floor(Number(modalCtx.tx));
+      const ty = Math.floor(Number(modalCtx.ty));
+      const post = opts.postLocalSystemChat || (() => {});
+      const machine = getLocal(tx, ty);
+      if (!machine || !canManageMachineAdvanced(machine)) {
+        post("Only world owner + machine owner can collect.");
+        return;
+      }
+      const amountLocal = Math.max(0, Math.floor(Number(machine.earningsLocks) || 0));
+      if (amountLocal <= 0) {
+        post("No earnings to collect.");
+        return;
+      }
+      const inventory = get("getInventory", {}) || {};
+      const network = get("getNetwork", null);
+      const basePath = String(get("getBasePath", "") || "");
+      const profileId = String(get("getPlayerProfileId", "") || "");
+
+      if (!network || !network.enabled || !network.db || !basePath || !profileId) {
+        addLocksLocal(inventory, amountLocal);
+        const nextMachine = { ...machine, earningsLocks: 0, updatedAt: Date.now() };
+        setLocal(tx, ty, nextMachine);
+        if (typeof opts.saveInventory === "function") opts.saveInventory();
+        if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+        renderModal(tx, ty, nextMachine);
+        post("Collected " + amountLocal + " WL from machine.");
+        return;
+      }
+
+      const machineRef = getMachineRef(tx, ty);
+      if (!machineRef) return;
+      let collected = 0;
+      machineRef.transaction((currentRaw) => {
+        const current = normalizeRecord(currentRaw);
+        if (!current) return currentRaw;
+        if (!canManageMachineAdvanced(current)) return currentRaw;
+        collected = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
+        if (collected <= 0) return currentRaw;
+        return {
+          ...current,
+          earningsLocks: 0,
+          updatedAt: Date.now()
+        };
+      }).then((machineTxn) => {
+        if (!machineTxn || !machineTxn.committed || collected <= 0) {
+          post("No earnings to collect.");
+          return null;
+        }
+        const raw = machineTxn.snapshot && typeof machineTxn.snapshot.val === "function" ? machineTxn.snapshot.val() : null;
+        setLocal(tx, ty, raw);
+        return network.db.ref(basePath + "/player-inventories/" + profileId).transaction((currentRaw) => {
+          const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+          addLocksLocal(current, collected);
+          return current;
+        }).then(() => ({ collected }));
+      }).then((done) => {
+        if (!done) return;
+        if (typeof opts.saveInventory === "function") opts.saveInventory();
+        if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+        renderModal(tx, ty, getLocal(tx, ty));
+        post("Collected " + done.collected + " WL from machine.");
+      }).catch(() => {
+        post("Failed to collect earnings.");
+      });
+    }
+
+    function setMachineType() {
+      if (!modalCtx) return;
+      const tx = Math.floor(Number(modalCtx.tx));
+      const ty = Math.floor(Number(modalCtx.ty));
+      const post = opts.postLocalSystemChat || (() => {});
+      const machine = getLocal(tx, ty);
+      if (!machine || !canManageMachineAdvanced(machine)) {
+        post("Only world owner + machine owner can change game type.");
+        return;
+      }
+      const els = getModalEls();
+      const typeInput = els.body ? els.body.querySelector("[data-gamble-input='type']") : null;
+      const nextTypeRaw = typeInput instanceof HTMLSelectElement ? typeInput.value : "";
+      const nextDef = MACHINE_DEFS[String(nextTypeRaw || "").trim()] || null;
+      if (!nextDef) {
+        post("Invalid game type.");
+        return;
+      }
+      if (nextDef.id === machine.type) {
+        post("Machine already uses " + nextDef.name + ".");
+        return;
+      }
+      const network = get("getNetwork", null);
+      const basePath = String(get("getBasePath", "") || "");
+      const profileId = String(get("getPlayerProfileId", "") || "");
+      if (!network || !network.enabled || !network.db || !basePath || !profileId) {
+        const nextMachine = {
+          ...machine,
+          type: nextDef.id,
+          maxBet: Math.max(nextDef.minBet, Math.min(nextDef.maxBet, Math.floor(Number(machine.maxBet) || nextDef.maxBet))),
+          blackjackRound: null,
+          stats: normalizeStats({}),
+          updatedAt: Date.now()
+        };
+        setLocal(tx, ty, nextMachine);
+        renderModal(tx, ty, nextMachine);
+        post("Machine game set to " + nextDef.name + ".");
+        return;
+      }
+      const machineRef = getMachineRef(tx, ty);
+      if (!machineRef) return;
+      machineRef.transaction((currentRaw) => {
+        const current = normalizeRecord(currentRaw) || machine;
+        if (!canManageMachineAdvanced(current)) return currentRaw;
+        return {
+          ...current,
+          type: nextDef.id,
+          maxBet: Math.max(nextDef.minBet, Math.min(nextDef.maxBet, Math.floor(Number(current.maxBet) || nextDef.maxBet))),
+          blackjackRound: null,
+          stats: normalizeStats({}),
+          updatedAt: Date.now()
+        };
+      }).then((result) => {
+        if (!result || !result.committed) {
+          post("Failed to change game type.");
+          return;
+        }
+        const raw = result.snapshot && typeof result.snapshot.val === "function" ? result.snapshot.val() : null;
+        setLocal(tx, ty, raw);
+        renderModal(tx, ty, getLocal(tx, ty));
+        post("Machine game set to " + nextDef.name + ".");
+      }).catch(() => {
+        post("Failed to change game type.");
+      });
+    }
+
     function handleActionClick(event) {
       const target = event && event.target;
       if (!(target instanceof HTMLElement)) return;
@@ -1645,6 +1885,18 @@ window.GTModules = window.GTModules || {};
       }
       if (action === "bj-split") {
         performBlackjackAction("split");
+        return;
+      }
+      if (action === "collect") {
+        collectEarnings();
+        return;
+      }
+      if (action === "refill") {
+        refillBank();
+        return;
+      }
+      if (action === "settype") {
+        setMachineType();
         return;
       }
       if (action === "setmax") {
