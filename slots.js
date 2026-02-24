@@ -73,7 +73,7 @@ window.GTModules = window.GTModules || {};
     addChanceDecay: 0.015,
     maxSpins: 64,
     coinValues: [2, 3, 5, 15, 20, 25, 40, 50],
-    coinWeights: [40, 26, 20, 4, 3, 2, 1, 1],
+    coinWeights: [40, 25, 15, 8, 6, 3, 2, 1],
     specialWeights: {
       coin: 82,
       multiplier: 7,
@@ -81,8 +81,8 @@ window.GTModules = window.GTModules || {};
       jackpot: 2,
       collect: 3
     },
-    multiplierValues: [1.2, 1.5, 2, 3],
-    multiplierWeights: [60,25,10,5],
+    multiplierValues: [1, 2, 3],
+    multiplierWeights: [85,25,10,5],
     bombValues: [8, 12, 16, 20, 25, 30],
     bombWeights: [26, 22, 18, 14, 12, 8],
     jackpotValues: [80, 120, 180],

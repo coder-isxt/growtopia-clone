@@ -1805,11 +1805,32 @@ window.GTModules = window.GTModules || {};
           return Promise.resolve(null);
         }
         let payout = 0;
+        let spinAbortReason = "";
         return machineRef.transaction((currentRaw) => {
-          const update = updateMachineAfterSpin(currentRaw, result, profileName, firebaseRef);
-          if (!update) return;
-          payout = update.payout;
-          return update.next;
+          try {
+            const current = normalizeRecord(currentRaw);
+            if (!current) {
+              spinAbortReason = "Machine state unavailable.";
+              return;
+            }
+            const currentDef = MACHINE_DEFS[current.type] || MACHINE_DEFS.reme_roulette;
+            const beforeBank = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
+            const needsCoverage = Math.max(1, Math.floor(Number(result.coverageBet) || 1)) * Math.max(1, Math.floor(Number(currentDef.maxPayoutMultiplier) || 3));
+            if (beforeBank < needsCoverage) {
+              spinAbortReason = "Machine bank changed. Need " + needsCoverage + " WL coverage, has " + beforeBank + ".";
+              return;
+            }
+            const update = updateMachineAfterSpin(currentRaw, result, profileName, firebaseRef);
+            if (!update) {
+              spinAbortReason = "Machine update rejected.";
+              return;
+            }
+            payout = update.payout;
+            return update.next;
+          } catch (err) {
+            spinAbortReason = "Machine spin error: " + String(err && err.message ? err.message : err);
+            return;
+          }
         }).then((machineTxn) => {
           if (!machineTxn || !machineTxn.committed) {
             lockRef.transaction((currentRaw) => {
@@ -1817,7 +1838,7 @@ window.GTModules = window.GTModules || {};
               addLocksLocal(current, wager);
               return current;
             }).catch(() => {});
-            post("Spin failed.");
+            post(spinAbortReason || "Spin failed.");
             return null;
           }
           const raw = machineTxn.snapshot && typeof machineTxn.snapshot.val === "function" ? machineTxn.snapshot.val() : null;
