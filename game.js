@@ -433,6 +433,7 @@
       let gameBootstrapped = false;
       let pendingTeleportSelf = null;
       let lastHandledTeleportCommandId = "";
+      let hasSeenInitialTeleportCommandSnapshot = false;
       let lastHandledReachCommandId = "";
       let lastPrivateMessageFrom = null;
       let worldJoinRequestToken = 0;
@@ -5553,6 +5554,7 @@
           msgCtrl.resetSession();
         }
         lastHandledTeleportCommandId = "";
+        hasSeenInitialTeleportCommandSnapshot = false;
         lastHandledReachCommandId = "";
         lastHandledFreezeCommandId = "";
         lastHandledGodModeCommandId = "";
@@ -11588,6 +11590,7 @@
         }
 
         try {
+          hasSeenInitialTeleportCommandSnapshot = false;
           network.db = await getAuthDb();
           network.enabled = true;
           hasSeenAdminRoleSnapshot = false;
@@ -11705,9 +11708,27 @@
           };
           network.handlers.myCommand = (snapshot) => {
             const value = snapshot.val();
-            if (!value || !value.id) return;
-            if (value.id === lastHandledTeleportCommandId) return;
-            lastHandledTeleportCommandId = value.id;
+            if (!value || !value.id) {
+              if (!hasSeenInitialTeleportCommandSnapshot) {
+                hasSeenInitialTeleportCommandSnapshot = true;
+              }
+              return;
+            }
+            const commandId = String(value.id || "");
+            const issuedAt = Number(value.issuedAt || value.createdAt) || 0;
+            if (!hasSeenInitialTeleportCommandSnapshot) {
+              hasSeenInitialTeleportCommandSnapshot = true;
+              if (!issuedAt || (playerSessionStartedAt > 0 && issuedAt <= playerSessionStartedAt)) {
+                lastHandledTeleportCommandId = commandId;
+                return;
+              }
+            }
+            if (commandId === lastHandledTeleportCommandId) return;
+            if (issuedAt > 0 && playerSessionStartedAt > 0 && issuedAt <= playerSessionStartedAt) {
+              lastHandledTeleportCommandId = commandId;
+              return;
+            }
+            lastHandledTeleportCommandId = commandId;
             applySelfTeleport(value.world, value.x, value.y);
           };
           network.handlers.myReach = (snapshot) => {
