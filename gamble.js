@@ -1765,7 +1765,11 @@ window.GTModules = window.GTModules || {};
           };
           scheduleSlotsBonusReplay();
         }
-        renderModal(tx, ty, nextMachine);
+        try {
+          renderModal(tx, ty, nextMachine);
+        } catch (renderErr) {
+          post("Spin render error: " + String(renderErr && renderErr.message ? renderErr.message : renderErr));
+        }
         const outcomeMsg = getOutcomeMessage(result, payout);
         if (outcomeMsg) post(outcomeMsg);
         if (payout > 0) {
@@ -1861,7 +1865,11 @@ window.GTModules = window.GTModules || {};
           };
           scheduleSlotsBonusReplay();
         }
-        renderModal(tx, ty, latest);
+        try {
+          renderModal(tx, ty, latest);
+        } catch (renderErr) {
+          post("Spin render error: " + String(renderErr && renderErr.message ? renderErr.message : renderErr));
+        }
         const outcomeMsg = getOutcomeMessage(result, done.payout);
         if (outcomeMsg) post(outcomeMsg);
         if (done.payout > 0) {
@@ -1886,8 +1894,8 @@ window.GTModules = window.GTModules || {};
             } catch (_) {}
           }, Math.max(0, delayMs));
         }
-      }).catch(() => {
-        post("Spin failed.");
+      }).catch((err) => {
+        post("Spin failed: " + String(err && err.message ? err.message : err || "unknown"));
       });
     }
 
