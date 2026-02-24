@@ -1784,6 +1784,78 @@ window.GTModules = window.GTModules || {};
       setLocal(tx, ty, null);
     }
 
+    function claimOnBreak(tx, ty) {
+      const post = opts.postLocalSystemChat || (() => {});
+      const machine = getLocal(tx, ty);
+      const localBank = Math.max(0, Math.floor(Number(machine && machine.earningsLocks) || 0));
+      const inventory = get("getInventory", {}) || {};
+      const network = get("getNetwork", null);
+      const basePath = String(get("getBasePath", "") || "");
+      const profileId = String(get("getPlayerProfileId", "") || "");
+
+      const closeAndClear = () => {
+        if (modalCtx && modalCtx.tx === tx && modalCtx.ty === ty) {
+          closeModal();
+        } else {
+          setLocal(tx, ty, null);
+        }
+      };
+
+      if (!network || !network.enabled || !network.db || !basePath || !profileId) {
+        if (localBank > 0) {
+          addLocksLocal(inventory, localBank);
+          if (typeof opts.saveInventory === "function") opts.saveInventory();
+          if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+          post("Collected " + localBank + " WL from gambling machine.");
+        }
+        closeAndClear();
+        return;
+      }
+
+      const machineRef = getMachineRef(tx, ty);
+      if (!machineRef) {
+        if (localBank > 0) {
+          addLocksLocal(inventory, localBank);
+          if (typeof opts.saveInventory === "function") opts.saveInventory();
+          if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+          post("Collected " + localBank + " WL from gambling machine.");
+        }
+        closeAndClear();
+        return;
+      }
+
+      const invRef = network.db.ref(basePath + "/player-inventories/" + profileId);
+      let claimed = 0;
+      machineRef.transaction((currentRaw) => {
+        const current = normalizeRecord(currentRaw);
+        if (!current) return null;
+        claimed = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
+        return null; // remove machine node on successful claim
+      }).then((txn) => {
+        if (!txn || !txn.committed) {
+          closeAndClear();
+          return null;
+        }
+        if (claimed <= 0) {
+          closeAndClear();
+          return null;
+        }
+        return invRef.transaction((currentRaw) => {
+          const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+          addLocksLocal(current, claimed);
+          return current;
+        }).then(() => ({ claimed }));
+      }).then((done) => {
+        closeAndClear();
+        if (!done) return;
+        if (typeof opts.saveInventory === "function") opts.saveInventory();
+        if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+        post("Collected " + done.claimed + " WL from gambling machine.");
+      }).catch(() => {
+        closeAndClear();
+      });
+    }
+
     return {
       bindModalEvents,
       normalizeRecord,
@@ -1797,7 +1869,8 @@ window.GTModules = window.GTModules || {};
       interact,
       seedOwner,
       onPlaced,
-      onBroken
+      onBroken,
+      claimOnBreak
     };
   }
 

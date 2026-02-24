@@ -328,6 +328,14 @@
         ? seedsModule.createSeedRegistry(baseBlockDefs, { growMs: TREE_GROW_MS })
         : { defs: {}, config: {} };
       const blockDefs = { ...baseBlockDefs, ...(seedRegistry.defs || {}) };
+      const LOCK_BLOCK_IDS = (() => {
+        const ids = Object.values(blockDefs)
+          .filter((def) => def && def.worldLock === true)
+          .map((def) => Number(def.id))
+          .filter((id) => Number.isInteger(id) && id > 0);
+        return ids.length ? ids : [WORLD_LOCK_ID];
+      })();
+      const LOCK_BLOCK_ID_SET = new Set(LOCK_BLOCK_IDS);
       const PLANT_SEED_CONFIG = seedRegistry && seedRegistry.config && typeof seedRegistry.config === "object"
         ? seedRegistry.config
         : {};
@@ -5948,7 +5956,7 @@
         if (def.unbreakable || id === SPAWN_DOOR_ID || id === SPAWN_BASE_ID) return Infinity;
         const configured = Math.floor(Number(def.durability) || 0);
         if (configured > 0) return configured;
-        if (id === WORLD_LOCK_ID) return 8;
+        if (isWorldLockBlockId(id)) return 8;
         if (id === VENDING_ID || id === CAMERA_ID || id === WEATHER_MACHINE_ID) return 6;
         if (id === SPAWN_BASE_ID) return Infinity;
         if (def.stair || def.oneWay || def.liquid || id === SIGN_ID) return 2;
@@ -6778,6 +6786,8 @@
         if (!value || typeof value !== "object") return null;
         const ownerAccountId = (value.ownerAccountId || "").toString();
         if (!ownerAccountId) return null;
+        const lockBlockIdRaw = Math.floor(Number(value.lockBlockId));
+        const lockBlockId = LOCK_BLOCK_ID_SET.has(lockBlockIdRaw) ? lockBlockIdRaw : WORLD_LOCK_ID;
         const adminsRaw = value.admins && typeof value.admins === "object" ? value.admins : {};
         const admins = {};
         for (const [accountId, entry] of Object.entries(adminsRaw)) {
@@ -6811,6 +6821,7 @@
         return {
           ownerAccountId,
           ownerName: (value.ownerName || "").toString(),
+          lockBlockId,
           tx: Number.isInteger(value.tx) ? value.tx : Number(value.tx) || 0,
           ty: Number.isInteger(value.ty) ? value.ty : Number(value.ty) || 0,
           createdAt: typeof value.createdAt === "number" ? value.createdAt : 0,
@@ -6852,6 +6863,15 @@
 
       function isWorldLockOwner() {
         return Boolean(playerProfileId && currentWorldLock && currentWorldLock.ownerAccountId === playerProfileId);
+      }
+
+      function isWorldLockBlockId(id) {
+        return LOCK_BLOCK_ID_SET.has(Number(id));
+      }
+
+      function getCurrentWorldLockBlockId() {
+        const id = Math.floor(Number(currentWorldLock && currentWorldLock.lockBlockId));
+        return isWorldLockBlockId(id) ? id : WORLD_LOCK_ID;
       }
 
       function isWorldLockAdmin() {
@@ -8867,7 +8887,7 @@
             } else if (tx === spawnTiles.base.tx && ty === spawnTiles.base.ty) {
               nextId = SPAWN_BASE_ID;
             } else if (preserveLock && tx === preserveLockTx && ty === preserveLockTy) {
-              nextId = WORLD_LOCK_ID;
+              nextId = getCurrentWorldLockBlockId();
             }
             if (world[ty][tx] === nextId) continue;
             world[ty][tx] = nextId;
@@ -9023,7 +9043,7 @@
         if (world[ty][tx] !== 0) return;
         if (tileOccupiedByAnyPlayer(tx, ty)) return;
         if (isWorldLocked() && !isWorldLockOwner()) {
-          if (id === WORLD_LOCK_ID) {
+          if (isWorldLockBlockId(id)) {
             notifyOwnerOnlyWorldEdit("the world lock");
             return;
           }
@@ -9105,7 +9125,7 @@
           awardXp(3, "placing blocks");
         };
 
-        if (id === WORLD_LOCK_ID) {
+        if (isWorldLockBlockId(id)) {
           if (isWorldLocked()) {
             if (isWorldLockOwner()) {
               postLocalSystemChat("This world already has your lock.");
@@ -9119,6 +9139,7 @@
             currentWorldLock = {
               ownerAccountId: playerProfileId || "",
               ownerName,
+              lockBlockId: id,
               tx,
               ty,
               createdAt: Date.now()
@@ -9133,6 +9154,7 @@
             return {
               ownerAccountId: playerProfileId || "",
               ownerName,
+              lockBlockId: id,
               tx,
               ty,
               createdAt: firebase.database.ServerValue.TIMESTAMP
@@ -9147,6 +9169,7 @@
             currentWorldLock = normalizeWorldLock(result.snapshot && result.snapshot.val ? result.snapshot.val() : null) || {
               ownerAccountId: playerProfileId || "",
               ownerName,
+              lockBlockId: id,
               tx,
               ty,
               createdAt: Date.now()
@@ -9174,7 +9197,7 @@
         }
         if (isProtectedSpawnTile(tx, ty)) return;
         if (isUnbreakableTileId(id)) return;
-        if (id === WORLD_LOCK_ID && !isWorldLockOwner()) {
+        if (isWorldLockBlockId(id) && !isWorldLockOwner()) {
           notifyWorldLockedDenied();
           return;
         }
@@ -9351,13 +9374,13 @@
         }
         if (id === GAMBLE_ID) {
           const gambleCtrl = getGambleController();
-          if (gambleCtrl && typeof gambleCtrl.onBroken === "function") {
-            gambleCtrl.onBroken(tx, ty);
+          if (gambleCtrl && typeof gambleCtrl.claimOnBreak === "function") {
+            gambleCtrl.claimOnBreak(tx, ty);
           } else {
             setLocalGambleMachine(tx, ty, null);
-          }
-          if (network.enabled && network.gambleRef) {
-            network.gambleRef.child(getTileKey(tx, ty)).remove().catch(() => {});
+            if (network.enabled && network.gambleRef) {
+              network.gambleRef.child(getTileKey(tx, ty)).remove().catch(() => {});
+            }
           }
         }
         if (isPlantSeedBlockId(id)) {
@@ -9399,7 +9422,7 @@
           }
         }
         syncBlock(tx, ty, 0);
-        if (id === WORLD_LOCK_ID) {
+        if (isWorldLockBlockId(id)) {
           currentWorldLock = null;
           if (network.enabled && network.lockRef) {
             network.lockRef.remove().catch(() => {});
@@ -9421,7 +9444,7 @@
           notifyWorldLockedDenied();
           return;
         }
-        if (id === WORLD_LOCK_ID && !isWorldLockOwner()) {
+        if (isWorldLockBlockId(id) && !isWorldLockOwner()) {
           notifyWorldLockedDenied();
           return;
         }
@@ -9492,7 +9515,7 @@
           }
         }
         const id = world[ty][tx];
-        if (id === WORLD_LOCK_ID) {
+        if (isWorldLockBlockId(id)) {
           openWorldLockModal(tx, ty);
           return;
         }
