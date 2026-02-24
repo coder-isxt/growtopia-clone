@@ -249,6 +249,44 @@ window.GTModules = window.GTModules || {};
     const trigger = Math.max(3, Math.min(totalSlots, Math.floor(Number(safeBet && safeBet.triggerCount) || 3)));
     const bet = Math.max(1, Math.floor(Number(safeBet && safeBet.bet) || 1));
     const locked = [];
+    const board = new Array(totalSlots).fill(null);
+    const frames = [];
+
+    function captureFrame(respins) {
+      const cells = [];
+      for (let i = 0; i < board.length; i++) {
+        const cell = board[i];
+        if (!cell) {
+          cells.push(".");
+        } else if (cell.id === "collect") {
+          cells.push("COL");
+        } else if (cell.id === "multiplier") {
+          cells.push("M" + Math.max(2, Math.floor(Number(cell.mult) || 2)));
+        } else if (cell.id === "bomb") {
+          cells.push("B" + Math.max(1, Math.floor(Number(cell.mult) || 1)));
+        } else if (cell.id === "jackpot") {
+          cells.push("J" + Math.max(1, Math.floor(Number(cell.mult) || 1)));
+        } else {
+          cells.push("C" + Math.max(1, Math.floor(Number(cell.mult) || 1)));
+        }
+      }
+      frames.push({
+        respins: Math.max(0, Math.floor(Number(respins) || 0)),
+        filled: locked.length,
+        cells
+      });
+    }
+
+    function placeOnBoard(symbol) {
+      const free = [];
+      for (let i = 0; i < board.length; i++) {
+        if (!board[i]) free.push(i);
+      }
+      if (!free.length) return false;
+      const idx = free[Math.floor(Math.random() * free.length)];
+      board[idx] = symbol;
+      return true;
+    }
 
     function pickFrom(values, weights) {
       const arr = Array.isArray(values) ? values : [];
@@ -290,8 +328,11 @@ window.GTModules = window.GTModules || {};
     }
 
     for (let i = 0; i < trigger && locked.length < totalSlots; i++) {
-      locked.push({ id: "coin", mult: Math.max(1, Number(pickFrom(safe.coinValues, safe.coinWeights)) || 5) });
+      const s = { id: "coin", mult: Math.max(1, Number(pickFrom(safe.coinValues, safe.coinWeights)) || 5) };
+      if (!placeOnBoard(s)) break;
+      locked.push(s);
     }
+    captureFrame(Math.max(1, Math.floor(Number(safe.respins) || 3)));
 
     let respins = Math.max(1, Math.floor(Number(safe.respins) || 3));
     let spins = 0;
@@ -303,11 +344,15 @@ window.GTModules = window.GTModules || {};
         const addCount = Math.max(1, Math.min(left, Math.random() < 0.22 ? 2 : 1));
         for (let a = 0; a < addCount; a++) {
           if (locked.length >= totalSlots) break;
-          locked.push(pickBonusSymbol());
+          const s = pickBonusSymbol();
+          if (!placeOnBoard(s)) break;
+          locked.push(s);
         }
         respins = Math.max(1, Math.floor(Number(safe.respins) || 3));
+        captureFrame(respins);
       } else {
         respins -= 1;
+        captureFrame(respins);
       }
     }
 
@@ -364,7 +409,12 @@ window.GTModules = window.GTModules || {};
       picks: labelList.slice(0, 24),
       filled: locked.length,
       totalSlots,
-      fullScreen
+      fullScreen,
+      bonusView: {
+        rows: V2_ROWS,
+        reels: V2_REELS,
+        frames: frames.slice(0, 96)
+      }
     };
   }
 
@@ -443,14 +493,14 @@ window.GTModules = window.GTModules || {};
   function spinV2(bet, options) {
     const opts = options && typeof options === "object" ? options : {};
     const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
-    const buyX = Math.max(0, Math.floor(Number(opts.buyX) || 0));
-    const boughtFreeSpins = String(opts.mode || "").toLowerCase() === "buyfs" && buyX >= 2;
-    const wager = safeBet * (boughtFreeSpins ? buyX : 1);
+    const buyX = 5;
+    const boughtBonus = String(opts.mode || "").toLowerCase() === "buybonus";
+    const wager = safeBet * (boughtBonus ? buyX : 1);
     const baseGrid = buildGridV2();
     const base = evaluateV2Grid(
       baseGrid,
       safeBet,
-      boughtFreeSpins
+      boughtBonus
         ? { allowScatterPayout: false, allowBonus: false }
         : { allowScatterPayout: true, allowBonus: true }
     );
@@ -458,24 +508,23 @@ window.GTModules = window.GTModules || {};
     const allLineIds = Array.isArray(base.lineIds) ? base.lineIds.slice(0, 12) : [];
     const summaryParts = [String(base.summary || "No winning paylines")];
 
-    let freeSpinsAwarded = 0;
-    if (boughtFreeSpins) {
-      freeSpinsAwarded = buyX;
-      allLineWins.push("BUY BONUS x" + buyX + " (" + buyX + "x bet)");
-      summaryParts.push("Bought free spins: " + buyX + " for " + wager + " WL.");
-    } else if (base.scatterCount >= 3) {
-      freeSpinsAwarded = base.scatterCount >= 5 ? 8 : (base.scatterCount === 4 ? 5 : 3);
-      allLineWins.push("FREE SPINS x" + freeSpinsAwarded);
-      summaryParts.push("Free spins awarded: " + freeSpinsAwarded);
+    let boughtBonusPayout = 0;
+    let boughtBonusSummary = "";
+    let boughtBonusView = null;
+    if (boughtBonus) {
+      const bonusRound = runMiningBonus({ bet: safeBet, triggerCount: 5 });
+      boughtBonusPayout = Math.max(0, Math.floor(Number(bonusRound && bonusRound.payout) || 0));
+      boughtBonusSummary = String(bonusRound && bonusRound.summary || "").slice(0, 220);
+      boughtBonusView = bonusRound && bonusRound.bonusView ? bonusRound.bonusView : null;
+      allLineWins.length = 0;
+      allLineIds.length = 0;
+      allLineWins.push("BUY BONUS x5 (5x bet)");
+      summaryParts.length = 0;
+      summaryParts.push("Bought bonus for " + wager + " WL.");
+      if (boughtBonusSummary) summaryParts.push(boughtBonusSummary);
     }
 
-    const freeSpinPayout = 0;
-    const freeSpinsPlayed = 0;
-    if (freeSpinsAwarded > 0) {
-      summaryParts.push("Use your free spins manually.");
-    }
-
-    const uncapped = Math.max(0, Math.floor(Number(base.payoutWanted) || 0) + freeSpinPayout);
+    const uncapped = Math.max(0, (boughtBonus ? boughtBonusPayout : Math.floor(Number(base.payoutWanted) || 0)));
     const cap = wager * Math.max(1, Math.floor(Number(GAME_DEFS.slots_v2.maxPayoutMultiplier) || 50));
     const payoutWanted = Math.max(0, Math.min(cap, uncapped));
     const finalMultiplier = wager > 0 ? Number((payoutWanted / wager).toFixed(2)) : 0;
@@ -495,10 +544,11 @@ window.GTModules = window.GTModules || {};
       lineIds: allLineIds.slice(0, 12),
       lineWins: allLineWins.slice(0, 18),
       scatterCount: base.scatterCount,
-      bonusTriggered: Boolean(base.bonusTriggered),
-      freeSpinsAwarded,
-      freeSpinsPlayed,
-      freeSpinPayout
+      bonusTriggered: Boolean(boughtBonus || base.bonusTriggered),
+      freeSpinsAwarded: 0,
+      freeSpinsPlayed: 0,
+      freeSpinPayout: 0,
+      bonusView: boughtBonusView
     };
   }
 
