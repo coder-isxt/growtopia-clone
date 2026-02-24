@@ -307,6 +307,7 @@
       const WEATHER_MACHINE_ID = 21;
       const DISPLAY_BLOCK_ID = 22;
       const WOOD_PLANK_ID = 23;
+      const OBSIDIAN_LOCK_ID = 24;
       const DONATION_BOX_ID = 34;
       const STORAGE_CHEST_ID = 36;
       const TREE_YIELD_BLOCK_ID = 4;
@@ -593,6 +594,7 @@
           getCosmeticItems: () => COSMETIC_ITEMS,
           getVendingId: () => VENDING_ID,
           getWorldLockId: () => WORLD_LOCK_ID,
+          getObsidianLockId: () => OBSIDIAN_LOCK_ID,
           getWorld: () => world,
           getVendingModalEl: () => vendingModalEl,
           getVendingTitleEl: () => vendingTitleEl,
@@ -698,6 +700,7 @@
           getWorld: () => world,
           getGambleId: () => GAMBLE_ID,
           getWorldLockId: () => WORLD_LOCK_ID,
+          getObsidianLockId: () => OBSIDIAN_LOCK_ID,
           clampInventoryCount,
           saveInventory,
           refreshToolbar,
@@ -4626,7 +4629,24 @@
         return Math.max(0, Math.min(INVENTORY_ITEM_LIMIT, safe));
       }
 
+      function autoConvertWorldLocksInInventory() {
+        const wl = Math.max(0, Math.floor(Number(inventory[WORLD_LOCK_ID]) || 0));
+        if (wl < 300) return false;
+        const currentOb = Math.max(0, Math.floor(Number(inventory[OBSIDIAN_LOCK_ID]) || 0));
+        if (currentOb >= INVENTORY_ITEM_LIMIT) return false;
+        const possibleAdds = Math.floor(wl / 100);
+        if (possibleAdds <= 0) return false;
+        const room = Math.max(0, INVENTORY_ITEM_LIMIT - currentOb);
+        const addOb = Math.max(0, Math.min(possibleAdds, room));
+        if (addOb <= 0) return false;
+        const consumedWl = addOb * 100;
+        inventory[WORLD_LOCK_ID] = Math.max(0, wl - consumedWl);
+        inventory[OBSIDIAN_LOCK_ID] = currentOb + addOb;
+        return true;
+      }
+
       function clampLocalInventoryAll() {
+        autoConvertWorldLocksInInventory();
         for (const id of INVENTORY_IDS) {
           inventory[id] = clampInventoryCount(inventory[id]);
         }
@@ -4679,6 +4699,7 @@
           const value = Number.isFinite(directValue) ? directValue : keyValue;
           inventory[id] = clampInventoryCount(value);
         }
+        autoConvertWorldLocksInInventory();
         if (typeof cosmeticsModule.applyFromRecord === "function") {
           cosmeticsModule.applyFromRecord({
             record,
@@ -12379,6 +12400,15 @@
             opts.onClick(event);
           });
         }
+        if (typeof opts.onDoubleClick === "function") {
+          slot.addEventListener("dblclick", (event) => {
+            if (performance.now() < suppressInventoryClickUntilMs) {
+              event.preventDefault();
+              return;
+            }
+            opts.onDoubleClick(event);
+          });
+        }
         return slot;
       }
 
@@ -12457,7 +12487,30 @@
               }
               selectedSlot = i;
               refreshToolbar(true); // Force a full rebuild to show selected state
-            }
+            },
+            onDoubleClick: (!isTool && (id === WORLD_LOCK_ID || id === OBSIDIAN_LOCK_ID)) ? () => {
+              const currentWl = Math.max(0, Math.floor(Number(inventory[WORLD_LOCK_ID]) || 0));
+              const currentOb = Math.max(0, Math.floor(Number(inventory[OBSIDIAN_LOCK_ID]) || 0));
+              if (id === WORLD_LOCK_ID) {
+                if (currentWl < 100) return;
+                inventory[WORLD_LOCK_ID] = currentWl - 100;
+                inventory[OBSIDIAN_LOCK_ID] = currentOb + 1;
+                saveInventory();
+                refreshToolbar(true);
+                postLocalSystemChat("Converted 100 WL into 1 Obsidian Lock.");
+                return;
+              }
+              if (currentOb <= 0) return;
+              if (currentWl > 200) {
+                postLocalSystemChat("Cannot convert: World Locks are over 200 (would exceed 300).");
+                return;
+              }
+              inventory[OBSIDIAN_LOCK_ID] = currentOb - 1;
+              inventory[WORLD_LOCK_ID] = currentWl + 100;
+              saveInventory();
+              refreshToolbar(true);
+              postLocalSystemChat("Converted 1 Obsidian Lock into 100 WL.");
+            } : null
           });
           blockSection.grid.appendChild(slotEl);
         }
@@ -12556,6 +12609,7 @@
       let toolbarRenderTimeout = 0;
       
       function refreshToolbar(immediate) {
+        autoConvertWorldLocksInInventory();
         if (immediate) {
           if (toolbarRenderTimeout) {
             clearTimeout(toolbarRenderTimeout);

@@ -287,6 +287,39 @@ window.GTModules = window.GTModules || {};
       return Boolean(machine && pid && machine.ownerAccountId === pid);
     }
 
+    function getCurrencyIds() {
+      const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
+      const obsidianLockId = Math.max(0, Math.floor(Number(get("getObsidianLockId", 0)) || 0));
+      return { worldLockId, obsidianLockId };
+    }
+
+    function getTotalLocks(inv) {
+      const { worldLockId, obsidianLockId } = getCurrencyIds();
+      const wl = Math.max(0, Math.floor(Number(inv && inv[worldLockId]) || 0));
+      const ob = Math.max(0, Math.floor(Number(inv && inv[obsidianLockId]) || 0));
+      return wl + (ob * 100);
+    }
+
+    function setCanonicalLocks(inv, totalLocks) {
+      const { worldLockId, obsidianLockId } = getCurrencyIds();
+      const total = Math.max(0, Math.floor(Number(totalLocks) || 0));
+      inv[worldLockId] = total % 100;
+      if (obsidianLockId > 0) inv[obsidianLockId] = Math.floor(total / 100);
+    }
+
+    function spendLocksLocal(inv, amount) {
+      const cost = Math.max(0, Math.floor(Number(amount) || 0));
+      const total = getTotalLocks(inv);
+      if (total < cost) return false;
+      setCanonicalLocks(inv, total - cost);
+      return true;
+    }
+
+    function addLocksLocal(inv, amount) {
+      const total = getTotalLocks(inv) + Math.max(0, Math.floor(Number(amount) || 0));
+      setCanonicalLocks(inv, total);
+    }
+
     function getSelfAccountId() {
       return String(get("getPlayerProfileId", "") || "").trim();
     }
@@ -462,9 +495,8 @@ window.GTModules = window.GTModules || {};
       const canSpin = maxBetByBank >= def.minBet;
       const blockedByActiveUser = isUsedByOther(m);
       const canPlayNow = canSpin && !blockedByActiveUser && !spectating;
-      const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
       const inventory = get("getInventory", {}) || {};
-      const playerLocks = Math.max(0, Math.floor(Number(inventory[worldLockId]) || 0));
+      const playerLocks = getTotalLocks(inventory);
       const maxBetByPlayer = Math.max(0, Math.min(def.maxBet, playerLocks));
       const maxBetEffective = Math.max(0, Math.min(maxBetByBank, maxBetByPlayer));
       const tileKey = getTileKey(tx, ty);
@@ -665,9 +697,8 @@ window.GTModules = window.GTModules || {};
       }
       const bet = Math.max(def.minBet, Math.min(maxBetByBank, Math.floor(Number(betInput && betInput.value) || 0)));
       lastBetByTile.set(getTileKey(tx, ty), bet);
-      const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
       const inventory = get("getInventory", {}) || {};
-      const haveLocal = Math.max(0, Math.floor(Number(inventory[worldLockId]) || 0));
+      const haveLocal = getTotalLocks(inventory);
       if (haveLocal < bet) {
         post("Not enough World Locks. Need " + bet + ".");
         return;
@@ -697,7 +728,8 @@ window.GTModules = window.GTModules || {};
           return;
         }
         const payout = Math.max(0, Math.floor(Number(result.payoutWanted) || 0));
-        inventory[worldLockId] = Math.max(0, haveLocal - bet + payout);
+        const nextTotal = Math.max(0, haveLocal - bet + payout);
+        setCanonicalLocks(inventory, nextTotal);
         const nextStats = normalizeStats(current.stats);
         nextStats.plays += 1;
         nextStats.totalBet += bet;
@@ -728,17 +760,19 @@ window.GTModules = window.GTModules || {};
         return;
       }
 
-      const lockRef = network.db.ref(basePath + "/player-inventories/" + profileId + "/" + worldLockId);
+      const lockRef = network.db.ref(basePath + "/player-inventories/" + profileId);
       const machineRef = getMachineRef(tx, ty);
       if (!machineRef) {
         finalizeLocal();
         return;
       }
 
-      lockRef.transaction((current) => {
-        const have = Math.max(0, Math.floor(Number(current) || 0));
+      lockRef.transaction((currentRaw) => {
+        const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+        const have = getTotalLocks(current);
         if (have < bet) return;
-        return have - bet;
+        setCanonicalLocks(current, have - bet);
+        return current;
       }).then((deductResult) => {
         if (!deductResult.committed) {
           post("Not enough World Locks.");
@@ -752,14 +786,22 @@ window.GTModules = window.GTModules || {};
           return update.next;
         }).then((machineTxn) => {
           if (!machineTxn || !machineTxn.committed) {
-            lockRef.transaction((current) => Math.max(0, Math.floor(Number(current) || 0)) + bet).catch(() => {});
+            lockRef.transaction((currentRaw) => {
+              const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+              addLocksLocal(current, bet);
+              return current;
+            }).catch(() => {});
             post("Spin failed.");
             return null;
           }
           const raw = machineTxn.snapshot && typeof machineTxn.snapshot.val === "function" ? machineTxn.snapshot.val() : null;
           setLocal(tx, ty, raw);
           if (payout > 0) {
-            return lockRef.transaction((current) => Math.max(0, Math.floor(Number(current) || 0)) + payout).then((payTxn) => {
+            return lockRef.transaction((currentRaw) => {
+              const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+              addLocksLocal(current, payout);
+              return current;
+            }).then((payTxn) => {
               if (!payTxn || !payTxn.committed) {
                 post("Spin payout failed.");
               }
@@ -793,9 +835,8 @@ window.GTModules = window.GTModules || {};
       const els = getModalEls();
       const refillInput = els.actions ? els.actions.querySelector("[data-gamble-input='refill']") : null;
       const amount = Math.max(1, Math.floor(Number(refillInput && refillInput.value) || 0));
-      const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
       const inventory = get("getInventory", {}) || {};
-      const haveLocal = Math.max(0, Math.floor(Number(inventory[worldLockId]) || 0));
+      const haveLocal = getTotalLocks(inventory);
       if (haveLocal < amount) {
         post("Not enough WL to refill. Need " + amount + ".");
         return;
@@ -804,7 +845,7 @@ window.GTModules = window.GTModules || {};
       const basePath = String(get("getBasePath", "") || "");
       const profileId = String(get("getPlayerProfileId", "") || "");
       if (!network || !network.enabled || !network.db || !basePath || !profileId) {
-        inventory[worldLockId] = haveLocal - amount;
+        setCanonicalLocks(inventory, haveLocal - amount);
         const nextMachine = { ...machine, earningsLocks: Math.max(0, Math.floor(Number(machine.earningsLocks) || 0) + amount), updatedAt: Date.now() };
         setLocal(tx, ty, nextMachine);
         if (typeof opts.saveInventory === "function") opts.saveInventory();
@@ -813,13 +854,15 @@ window.GTModules = window.GTModules || {};
         post("Refilled machine by " + amount + " WL.");
         return;
       }
-      const lockRef = network.db.ref(basePath + "/player-inventories/" + profileId + "/" + worldLockId);
+      const lockRef = network.db.ref(basePath + "/player-inventories/" + profileId);
       const machineRef = getMachineRef(tx, ty);
       if (!machineRef) return;
-      lockRef.transaction((current) => {
-        const have = Math.max(0, Math.floor(Number(current) || 0));
+      lockRef.transaction((currentRaw) => {
+        const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+        const have = getTotalLocks(current);
         if (have < amount) return;
-        return have - amount;
+        setCanonicalLocks(current, have - amount);
+        return current;
       }).then((deductTxn) => {
         if (!deductTxn.committed) {
           post("Not enough WL to refill.");
@@ -835,7 +878,11 @@ window.GTModules = window.GTModules || {};
           };
         }).then((machineTxn) => {
           if (!machineTxn || !machineTxn.committed) {
-            lockRef.transaction((current) => Math.max(0, Math.floor(Number(current) || 0)) + amount).catch(() => {});
+            lockRef.transaction((currentRaw) => {
+              const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+              addLocksLocal(current, amount);
+              return current;
+            }).catch(() => {});
             post("Refill failed.");
             return false;
           }
@@ -867,14 +914,13 @@ window.GTModules = window.GTModules || {};
         post("No earnings to collect.");
         return;
       }
-      const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
       const inventory = get("getInventory", {}) || {};
       const network = get("getNetwork", null);
       const basePath = String(get("getBasePath", "") || "");
       const profileId = String(get("getPlayerProfileId", "") || "");
 
       if (!network || !network.enabled || !network.db || !basePath || !profileId) {
-        inventory[worldLockId] = Math.max(0, Math.floor(Number(inventory[worldLockId]) || 0) + amountLocal);
+        addLocksLocal(inventory, amountLocal);
         const nextMachine = { ...machine, earningsLocks: 0, updatedAt: Date.now() };
         setLocal(tx, ty, nextMachine);
         if (typeof opts.saveInventory === "function") opts.saveInventory();
@@ -905,8 +951,10 @@ window.GTModules = window.GTModules || {};
         }
         const raw = machineTxn.snapshot && typeof machineTxn.snapshot.val === "function" ? machineTxn.snapshot.val() : null;
         setLocal(tx, ty, raw);
-        return network.db.ref(basePath + "/player-inventories/" + profileId + "/" + worldLockId).transaction((current) => {
-          return Math.max(0, Math.floor(Number(current) || 0)) + collected;
+        return network.db.ref(basePath + "/player-inventories/" + profileId).transaction((currentRaw) => {
+          const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+          addLocksLocal(current, collected);
+          return current;
         }).then(() => ({ collected }));
       }).then((done) => {
         if (!done) return;
@@ -999,9 +1047,8 @@ window.GTModules = window.GTModules || {};
         const def = MACHINE_DEFS[(machine && machine.type) || "reme_roulette"] || MACHINE_DEFS.reme_roulette;
         const bank = Math.max(0, Math.floor(Number(machine && machine.earningsLocks) || 0));
         const byBank = getMaxBetByBank(bank, def);
-        const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
         const inventory = get("getInventory", {}) || {};
-        const byPlayer = Math.max(0, Math.min(def.maxBet, Math.floor(Number(inventory[worldLockId]) || 0)));
+        const byPlayer = Math.max(0, Math.min(def.maxBet, getTotalLocks(inventory)));
         const effective = Math.max(0, Math.min(byBank, byPlayer));
         const els = getModalEls();
         const betInput = els.body ? els.body.querySelector("[data-gamble-input='bet']") : null;

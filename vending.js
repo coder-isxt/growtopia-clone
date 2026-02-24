@@ -100,6 +100,41 @@ window.GTModules.vending = (function createVendingModule() {
       return Boolean(vm && pid && vm.ownerAccountId === pid);
     }
 
+    function getCurrencyIds() {
+      const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
+      const obsidianLockId = Math.max(0, Math.floor(Number(get("getObsidianLockId", 0)) || 0));
+      return { worldLockId, obsidianLockId };
+    }
+
+    function getTotalLocksFromInventory(inv) {
+      const { worldLockId, obsidianLockId } = getCurrencyIds();
+      const wl = Math.max(0, Math.floor(Number(inv && inv[worldLockId]) || 0));
+      const ob = Math.max(0, Math.floor(Number(inv && inv[obsidianLockId]) || 0));
+      return wl + (ob * 100);
+    }
+
+    function setCanonicalLocksToInventory(inv, totalLocks) {
+      const { worldLockId, obsidianLockId } = getCurrencyIds();
+      const total = Math.max(0, Math.floor(Number(totalLocks) || 0));
+      const nextOb = Math.floor(total / 100);
+      const nextWl = total % 100;
+      inv[worldLockId] = nextWl;
+      if (obsidianLockId > 0) inv[obsidianLockId] = nextOb;
+    }
+
+    function addLocksToLocalInventory(inv, amount) {
+      const total = getTotalLocksFromInventory(inv) + Math.max(0, Math.floor(Number(amount) || 0));
+      setCanonicalLocksToInventory(inv, total);
+    }
+
+    function spendLocksFromLocalInventory(inv, amount) {
+      const cost = Math.max(0, Math.floor(Number(amount) || 0));
+      const total = getTotalLocksFromInventory(inv);
+      if (total < cost) return false;
+      setCanonicalLocksToInventory(inv, total - cost);
+      return true;
+    }
+
     function getListingIdentity(vm) {
       if (!vm) return null;
       if (vm.sellType === "cosmetic") {
@@ -446,9 +481,8 @@ window.GTModules.vending = (function createVendingModule() {
         return;
       }
       const inventory = get("getInventory", {});
-      const worldLockId = get("getWorldLockId", 0);
       createOrUpdateMachine(tx, ty, (current) => ({ ...current, earningsLocks: 0 })).then(() => {
-        inventory[worldLockId] = Math.max(0, Math.floor((inventory[worldLockId] || 0) + earnings));
+        addLocksToLocalInventory(inventory, earnings);
         (opts.saveInventory || (() => {}))();
         (opts.refreshToolbar || (() => {}))();
         post("Collected " + earnings + " World Locks from vending.");
@@ -477,7 +511,6 @@ window.GTModules.vending = (function createVendingModule() {
 
       const inventory = get("getInventory", {});
       const cosmeticInv = get("getCosmeticInventory", {});
-      const worldLockId = get("getWorldLockId", 0);
       let claimedStock = 0;
       let claimedEarnings = 0;
       let claimedType = "block";
@@ -492,7 +525,7 @@ window.GTModules.vending = (function createVendingModule() {
         return { ...current, stock: 0, earningsLocks: 0 };
       }).then(() => {
         if (claimedEarnings > 0) {
-          inventory[worldLockId] = Math.max(0, Math.floor((inventory[worldLockId] || 0) + claimedEarnings));
+          addLocksToLocalInventory(inventory, claimedEarnings);
         }
         if (claimedStock > 0) {
           if (claimedType === "cosmetic" && claimedCosmeticId) {
@@ -561,7 +594,6 @@ window.GTModules.vending = (function createVendingModule() {
       const totalPrice = price * buyAmount;
       const inv = get("getInventory", {});
       const cosmeticInv = get("getCosmeticInventory", {});
-      const worldLockId = get("getWorldLockId", 0);
       const getBlockKeyById = opts.getBlockKeyById || ((id) => "block_" + id);
       const cmap = getCosmeticItemMap();
 
@@ -573,7 +605,7 @@ window.GTModules.vending = (function createVendingModule() {
         post("Not enough stock for that amount.");
         return;
       }
-      if ((inv[worldLockId] || 0) < totalPrice) {
+      if (getTotalLocksFromInventory(inv) < totalPrice) {
         post("Not enough World Locks. Need " + totalPrice + ".");
         return;
       }
@@ -589,7 +621,10 @@ window.GTModules.vending = (function createVendingModule() {
       const profileId = get("getPlayerProfileId", "");
 
       if (!network || !network.enabled || !network.db || !network.vendingRef) {
-        inv[worldLockId] = Math.max(0, Math.floor((inv[worldLockId] || 0) - totalPrice));
+        if (!spendLocksFromLocalInventory(inv, totalPrice)) {
+          post("Not enough World Locks.");
+          return;
+        }
         if (selected.type === "cosmetic") {
           cosmeticInv[selected.cosmeticId] = Math.max(0, Math.floor((cosmeticInv[selected.cosmeticId] || 0) + totalItems));
         } else {
@@ -611,16 +646,18 @@ window.GTModules.vending = (function createVendingModule() {
       }
 
       const key = getTileKey(tx, ty);
-      const buyerLocksRef = network.db.ref(basePath + "/player-inventories/" + profileId + "/" + worldLockId);
+      const buyerInventoryRef = network.db.ref(basePath + "/player-inventories/" + profileId);
       const machineRef = network.vendingRef.child(key);
       const grantPath = selected.type === "cosmetic"
         ? basePath + "/player-inventories/" + profileId + "/cosmeticItems/" + selected.cosmeticId
         : basePath + "/player-inventories/" + profileId + "/" + selected.blockId;
 
-      buyerLocksRef.transaction((current) => {
-        const have = Math.max(0, Math.floor(Number(current) || 0));
-        if (have < totalPrice) return;
-        return have - totalPrice;
+      buyerInventoryRef.transaction((currentRaw) => {
+        const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+        const available = getTotalLocksFromInventory(current);
+        if (available < totalPrice) return;
+        setCanonicalLocksToInventory(current, available - totalPrice);
+        return current;
       }).then((lockResult) => {
         if (!lockResult.committed) {
           post("Not enough World Locks.");
@@ -644,7 +681,11 @@ window.GTModules.vending = (function createVendingModule() {
           };
         }).then((vmResult) => {
           if (!vmResult.committed) {
-            buyerLocksRef.transaction((current) => (Math.max(0, Math.floor(Number(current) || 0)) + totalPrice)).catch(() => {});
+            buyerInventoryRef.transaction((currentRaw) => {
+              const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+              addLocksToLocalInventory(current, totalPrice);
+              return current;
+            }).catch(() => {});
             post("Purchase failed (stock changed).");
             return false;
           }
