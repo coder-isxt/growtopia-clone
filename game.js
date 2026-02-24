@@ -200,6 +200,7 @@
       const gambleModule = modules.gamble || {};
       let gambleModuleLoadInFlight = false;
       let gambleModuleLoadCallbacks = [];
+      let gambleModuleLoadStartedAt = 0;
 
       function hasGambleFactory(mod) {
         if (!mod) return false;
@@ -227,15 +228,32 @@
       }
 
       function ensureGambleModuleLoaded(done) {
-        const cb = typeof done === "function" ? done : function () {};
+        const rawCb = typeof done === "function" ? done : function () {};
+        let cbDone = false;
+        const cbTimer = setTimeout(() => {
+          if (cbDone) return;
+          cbDone = true;
+          rawCb(false);
+        }, 4500);
+        const cb = (ok) => {
+          if (cbDone) return;
+          cbDone = true;
+          clearTimeout(cbTimer);
+          rawCb(Boolean(ok));
+        };
         const existing = resolveGambleModule();
         if (hasGambleFactory(existing)) {
           cb(true);
           return;
         }
+        if (gambleModuleLoadInFlight && (Date.now() - gambleModuleLoadStartedAt) > 5000) {
+          gambleModuleLoadInFlight = false;
+          flushGambleLoadCallbacks(false);
+        }
         gambleModuleLoadCallbacks.push(cb);
         if (gambleModuleLoadInFlight) return;
         gambleModuleLoadInFlight = true;
+        gambleModuleLoadStartedAt = Date.now();
         const script = document.createElement("script");
         const ver = encodeURIComponent(String(window.GT_ASSET_VERSION || "dev"));
         let finished = false;
@@ -243,6 +261,7 @@
           if (finished) return;
           finished = true;
           gambleModuleLoadInFlight = false;
+          gambleModuleLoadStartedAt = 0;
           flushGambleLoadCallbacks(Boolean(ok));
         };
         script.src = "gamble.js?v=" + ver + "&retry=" + Date.now();
@@ -732,7 +751,8 @@
             ? liveGambleModule.default.createController
             : null);
         if (!factory) return null;
-        gambleController = factory({
+        try {
+          gambleController = factory({
           getNetwork: () => network,
           getBasePath: () => BASE_PATH,
           getCurrentWorldId: () => currentWorldId,
@@ -753,6 +773,11 @@
           getGambleActionsEl: () => gambleActionsEl,
           getGambleCloseBtnEl: () => gambleCloseBtn
         });
+        } catch (error) {
+          console.error("[gamble] createController failed", error);
+          gambleController = null;
+          return null;
+        }
         if (typeof gambleController.bindModalEvents === "function") {
           gambleController.bindModalEvents();
         }
@@ -2036,12 +2061,17 @@
             );
             return;
           }
-          ctrl = getGambleController();
-          if (!ctrl || typeof ctrl.openModal !== "function") {
-            postLocalSystemChat("Gamble module loaded but controller init failed.");
-            return;
+          try {
+            ctrl = getGambleController();
+            if (!ctrl || typeof ctrl.openModal !== "function") {
+              postLocalSystemChat("Gamble module loaded but controller init failed.");
+              return;
+            }
+            ctrl.openModal(tx, ty);
+          } catch (error) {
+            console.error("[gamble] openModal failed", error);
+            postLocalSystemChat("Gamble open failed. Check console.");
           }
-          ctrl.openModal(tx, ty);
         });
       }
 
