@@ -576,6 +576,7 @@
           getBasePath: () => BASE_PATH,
           getCurrentWorldId: () => currentWorldId,
           getPlayerProfileId: () => playerProfileId,
+          getPlayerSessionId: () => playerSessionId,
           getPlayerName: () => playerName,
           getFirebase: () => (typeof firebase !== "undefined" ? firebase : null),
           getBlockKeyById,
