@@ -63,8 +63,6 @@ window.GTModules = window.GTModules || {};
         lastMultiplier: Math.max(0, Number(row.lastMultiplier) || 0),
         lastOutcome: String(row.lastOutcome || "").slice(0, 16),
         lastPlayerName: String(row.lastPlayerName || "").slice(0, 20),
-        lastPlayerHand: String(row.lastPlayerHand || "").slice(0, 120),
-        lastHouseHand: String(row.lastHouseHand || "").slice(0, 120),
         lastAt: Number(row.lastAt) || 0
       };
     }
@@ -273,6 +271,10 @@ window.GTModules = window.GTModules || {};
         payoutWanted: Math.max(0, Math.floor(safeBet * multiplier)),
         outcome,
         tie: push,
+        playerRoll: playerTotal,
+        houseRoll: houseTotal,
+        playerReme: 0,
+        houseReme: 0,
         playerTotal,
         houseTotal,
         playerHandText: formatHand(playerCards, playerTotal),
@@ -439,7 +441,7 @@ window.GTModules = window.GTModules || {};
       return "LOSE";
     }
 
-    function renderModal(tx, ty, machine) {
+    function renderModal(tx, ty, machine, spectatingMode) {
       const els = getModalEls();
       if (!els.modal || !els.title || !els.body || !els.actions) return;
       const m = machine || getLocal(tx, ty) || {
@@ -454,9 +456,12 @@ window.GTModules = window.GTModules || {};
       const stats = normalizeStats(m.stats);
       const ownerLabel = m.ownerName || "owner";
       const ownerView = canCollect(m);
+      const spectating = Boolean(spectatingMode);
       const bank = Math.max(0, Math.floor(Number(m.earningsLocks) || 0));
       const maxBetByBank = getMaxBetByBank(bank, def);
       const canSpin = maxBetByBank >= def.minBet;
+      const blockedByActiveUser = isUsedByOther(m);
+      const canPlayNow = canSpin && !blockedByActiveUser && !spectating;
       const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
       const inventory = get("getInventory", {}) || {};
       const playerLocks = Math.max(0, Math.floor(Number(inventory[worldLockId]) || 0));
@@ -480,6 +485,7 @@ window.GTModules = window.GTModules || {};
             "<div class='vending-stat'><span>In Use</span><strong>" + (m.inUseAccountId && !isUsageStale(m) ? ("@" + esc(m.inUseName || "player")) : "No") + "</strong></div>" +
             // "<div class='vending-stat'><span>Plays</span><strong>" + stats.plays + "</strong></div>" +
             "<div class='vending-stat'><span>Total Bets Placed</span><strong>" + stats.totalBet + " WL</strong></div>" +
+            "<div class='vending-stat'><span>Last Player</span><strong>" + (stats.lastPlayerName ? ("@" + esc(stats.lastPlayerName)) : "-") + "</strong></div>" +
             // "<div class='vending-stat'><span>Total Paid Out</span><strong>" + stats.totalPayout + " WL</strong></div>" +
           "</div>" +
         "</div>" +
@@ -502,8 +508,8 @@ window.GTModules = window.GTModules || {};
         "<div class='vending-section'>" +
           "<div class='vending-section-title'>Play (" + (def.id === "blackjack" ? "Blackjack" : "Player vs House") + ")</div>" +
           "<div class='vending-field-grid'>" +
-            "<label class='vending-field'><span>Bet (World Locks)</span><input data-gamble-input='bet' type='number' min='" + def.minBet + "' max='" + (canSpin ? maxBetByBank : def.minBet) + "' step='1' value='" + displayBet + "'" + (canSpin ? "" : " disabled") + "></label>" +
-            "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='maxbet'" + ((canSpin && maxBetEffective > 0) ? "" : " disabled") + ">Apply Max Bet</button></div>" +
+            "<label class='vending-field'><span>Bet (World Locks)</span><input data-gamble-input='bet' type='number' min='" + def.minBet + "' max='" + (canSpin ? maxBetByBank : def.minBet) + "' step='1' value='" + displayBet + "'" + (canPlayNow ? "" : " disabled") + "></label>" +
+            "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='maxbet'" + ((canPlayNow && maxBetEffective > 0) ? "" : " disabled") + ">Apply Max Bet</button></div>" +
           "</div>" +
           (def.id === "blackjack"
             ? ("<div class='vending-auto-stock-note'>Auto blackjack round: both sides draw, then hit until 17.</div>" +
@@ -513,12 +519,14 @@ window.GTModules = window.GTModules || {};
               "<div class='vending-auto-stock-note'>If house rolls 0, 19, 28 or 37, player auto-loses.</div>")) +
           "<div class='vending-auto-stock-note'>All lost bets go into machine bank. Wins are paid from machine bank.</div>" +
           "<div class='vending-auto-stock-note'>Required bank >= " + coverageMult + "x bet. With 12 WL bank, max bet is " + Math.floor(12 / coverageMult) + " WL.</div>" +
+          (spectating ? "<div class='vending-auto-stock-note'>Spectating live: read-only.</div>" : "") +
+          (blockedByActiveUser && !spectating ? "<div class='vending-auto-stock-note'>Machine is currently in use by @" + esc(m.inUseName || "another player") + ".</div>" : "") +
         "</div>" +
         "<div class='vending-section'>" +
           "<div class='vending-section-title'>Last Result</div>" +
           "<div class='vending-stat-grid'>" +
-            "<div class='vending-stat'><span>You</span><strong>" + (stats.plays ? esc(def.id === "blackjack" ? (stats.lastPlayerHand || "-") : (stats.lastPlayerRoll + " (" + stats.lastPlayerReme + ")")) : "-") + "</strong></div>" +
-            "<div class='vending-stat'><span>House</span><strong>" + (stats.plays ? esc(def.id === "blackjack" ? (stats.lastHouseHand || "-") : (stats.lastHouseRoll + " (" + stats.lastHouseReme + ")")) : "-") + "</strong></div>" +
+            "<div class='vending-stat'><span>You</span><strong>" + (stats.plays ? esc(def.id === "blackjack" ? (String(stats.lastPlayerRoll) + " pts") : (stats.lastPlayerRoll + " (" + stats.lastPlayerReme + ")")) : "-") + "</strong></div>" +
+            "<div class='vending-stat'><span>House</span><strong>" + (stats.plays ? esc(def.id === "blackjack" ? (String(stats.lastHouseRoll) + " pts") : (stats.lastHouseRoll + " (" + stats.lastHouseReme + ")")) : "-") + "</strong></div>" +
             "<div class='vending-stat'><span>Outcome</span><strong>" + esc(stats.plays ? getOutcomeLabel(stats.lastOutcome) : "-") + "</strong></div>" +
             "<div class='vending-stat'><span>Multiplier</span><strong>" + (stats.plays ? (stats.lastMultiplier + "x") : "-") + "</strong></div>" +
           "</div>" +
@@ -526,18 +534,18 @@ window.GTModules = window.GTModules || {};
 
       if (ownerView) {
         els.actions.innerHTML =
-          "<button data-gamble-act='spin'" + (canSpin ? "" : " disabled") + ">" + (def.id === "blackjack" ? "Deal" : "Spin") + "</button>" +
+          "<button data-gamble-act='spin'" + (canPlayNow ? "" : " disabled") + ">" + (def.id === "blackjack" ? "Deal" : "Spin") + "</button>" +
           "<input data-gamble-input='refill' type='number' min='1' step='1' value='1' style='max-width:120px;'>" +
           "<button data-gamble-act='refill'>Refill</button>" +
           "<button data-gamble-act='collect'" + (m.earningsLocks > 0 ? "" : " disabled") + ">Collect Earnings</button>" +
           "<button data-gamble-act='close'>Close</button>";
       } else {
         els.actions.innerHTML =
-          "<button data-gamble-act='spin'" + (canSpin ? "" : " disabled") + ">" + (def.id === "blackjack" ? "Deal" : "Spin") + "</button>" +
+          "<button data-gamble-act='spin'" + (canPlayNow ? "" : " disabled") + ">" + (def.id === "blackjack" ? "Deal" : "Spin") + "</button>" +
           "<button data-gamble-act='close'>Close</button>";
       }
 
-      modalCtx = { tx, ty };
+      modalCtx = { tx, ty, spectating };
       els.modal.classList.remove("hidden");
     }
 
@@ -595,8 +603,6 @@ window.GTModules = window.GTModules || {};
       nextStats.lastHouseReme = result.houseReme;
       nextStats.lastMultiplier = result.multiplier;
       nextStats.lastOutcome = result.outcome;
-      nextStats.lastPlayerHand = String(result.playerHandText || "").slice(0, 120);
-      nextStats.lastHouseHand = String(result.houseHandText || "").slice(0, 120);
       nextStats.lastPlayerName = playerName;
       nextStats.lastAt = firebaseRef && firebaseRef.database ? firebaseRef.database.ServerValue.TIMESTAMP : Date.now();
       const next = {
@@ -612,7 +618,7 @@ window.GTModules = window.GTModules || {};
 
     function getOutcomeMessage(result, payout) {
       if (result.gameType === "blackjack") {
-        const base = "You " + (result.playerHandText || "-") + " vs House " + (result.houseHandText || "-") + ": ";
+        const base = "You " + result.playerTotal + " vs House " + result.houseTotal + ": ";
         if (result.outcome === "blackjack") return base + "BLACKJACK. Won " + payout + " WL.";
         if (result.outcome === "win") return base + "WIN. Won " + payout + " WL.";
         if (result.outcome === "push") return base + "PUSH. Bet returned (" + payout + " WL).";
@@ -702,8 +708,6 @@ window.GTModules = window.GTModules || {};
         nextStats.lastHouseReme = result.houseReme;
         nextStats.lastMultiplier = result.multiplier;
         nextStats.lastOutcome = result.outcome;
-        nextStats.lastPlayerHand = String(result.playerHandText || "").slice(0, 120);
-        nextStats.lastHouseHand = String(result.houseHandText || "").slice(0, 120);
         nextStats.lastPlayerName = profileName;
         nextStats.lastAt = Date.now();
         const nextMachine = {
@@ -982,6 +986,11 @@ window.GTModules = window.GTModules || {};
       if (!(target instanceof HTMLElement)) return;
       const action = String(target.dataset.gambleAct || "").trim();
       if (!action) return;
+      if (modalCtx && modalCtx.spectating && action !== "close") {
+        const post = opts.postLocalSystemChat || (() => {});
+        post("Spectator mode is read-only.");
+        return;
+      }
       if (action === "maxbet") {
         if (!modalCtx) return;
         const tx = Math.floor(Number(modalCtx.tx));
@@ -1050,7 +1059,7 @@ window.GTModules = window.GTModules || {};
       }
     }
 
-    function openModal(tx, ty) {
+    function openModal(tx, ty, spectatingMode) {
       if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
       if (modalCtx && (modalCtx.tx !== tx || modalCtx.ty !== ty)) {
         closeModal();
@@ -1068,7 +1077,7 @@ window.GTModules = window.GTModules || {};
         setLocal(tx, ty, machine);
       }
       seedOwner(tx, ty);
-      renderModal(tx, ty, machine);
+      renderModal(tx, ty, machine, Boolean(spectatingMode));
     }
 
     function isOpen() {
@@ -1079,7 +1088,7 @@ window.GTModules = window.GTModules || {};
     function renderOpen() {
       if (!isOpen() || !modalCtx) return;
       const machine = getLocal(modalCtx.tx, modalCtx.ty);
-      renderModal(modalCtx.tx, modalCtx.ty, machine);
+      renderModal(modalCtx.tx, modalCtx.ty, machine, Boolean(modalCtx.spectating));
     }
 
     function interact(tx, ty) {
@@ -1087,8 +1096,14 @@ window.GTModules = window.GTModules || {};
       const gambleId = Math.max(0, Math.floor(Number(get("getGambleId", 0)) || 0));
       if (!world || !world[ty] || world[ty][tx] !== gambleId) return;
       acquireMachineUsage(tx, ty).then((ok) => {
-        if (!ok) return;
-        openModal(tx, ty);
+        if (ok) {
+          openModal(tx, ty, false);
+          return;
+        }
+        const current = getLocal(tx, ty);
+        if (current && isUsedByOther(current)) {
+          openModal(tx, ty, true);
+        }
       });
     }
 

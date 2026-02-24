@@ -6713,6 +6713,9 @@
         const ctrl = getGambleController();
         if (!ctrl || typeof ctrl.setLocal !== "function") return;
         ctrl.setLocal(tx, ty, value);
+        if (typeof ctrl.isOpen === "function" && ctrl.isOpen() && typeof ctrl.renderOpen === "function") {
+          ctrl.renderOpen();
+        }
       }
 
       function getLocalGambleMachine(tx, ty) {
