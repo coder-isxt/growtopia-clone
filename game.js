@@ -71,6 +71,11 @@
       const chestBodyEl = document.getElementById("chestBody");
       const chestActionsEl = document.getElementById("chestActions");
       const chestCloseBtn = document.getElementById("chestCloseBtn");
+      const gambleModalEl = document.getElementById("gambleModal");
+      const gambleTitleEl = document.getElementById("gambleTitle");
+      const gambleBodyEl = document.getElementById("gambleBody");
+      const gambleActionsEl = document.getElementById("gambleActions");
+      const gambleCloseBtn = document.getElementById("gambleCloseBtn");
       const signModalEl = document.getElementById("signModal");
       const signTitleEl = document.getElementById("signTitle");
       const signTextInputEl = document.getElementById("signTextInput");
@@ -192,6 +197,7 @@
       const tradeModule = modules.trade || {};
       const shopModule = modules.shop || {};
       const signModule = modules.sign || {};
+      const gambleModule = modules.gamble || {};
 
       const SETTINGS = window.GT_SETTINGS || {};
       const TILE = Number(SETTINGS.TILE_SIZE) || 32;
@@ -274,6 +280,7 @@
       const SPIKE_BASE_ID = 33;
       const SPIKE_ROTATION_IDS = [33, 37, 38, 39];
       const VENDING_ID = 17;
+      const GAMBLE_ID = 32;
       const SIGN_ID = 18;
       const ANTI_GRAV_ID = 19;
       const CAMERA_ID = 20;
@@ -429,6 +436,7 @@
       let ownedWorldScanInFlight = false;
       let ownedWorldScanToken = 0;
       let vendingController = null;
+      let gambleController = null;
       let donationController = null;
       let chestController = null;
       let friendsController = null;
@@ -652,6 +660,36 @@
           chestController.bindModalEvents();
         }
         return chestController;
+      }
+
+      function getGambleController() {
+        if (gambleController) return gambleController;
+        if (typeof gambleModule.createController !== "function") return null;
+        gambleController = gambleModule.createController({
+          getNetwork: () => network,
+          getBasePath: () => BASE_PATH,
+          getCurrentWorldId: () => currentWorldId,
+          getPlayerProfileId: () => playerProfileId,
+          getPlayerName: () => playerName,
+          getFirebase: () => (typeof firebase !== "undefined" ? firebase : null),
+          getInventory: () => inventory,
+          getWorld: () => world,
+          getGambleId: () => GAMBLE_ID,
+          getWorldLockId: () => WORLD_LOCK_ID,
+          clampInventoryCount,
+          saveInventory,
+          refreshToolbar,
+          postLocalSystemChat,
+          getGambleModalEl: () => gambleModalEl,
+          getGambleTitleEl: () => gambleTitleEl,
+          getGambleBodyEl: () => gambleBodyEl,
+          getGambleActionsEl: () => gambleActionsEl,
+          getGambleCloseBtnEl: () => gambleCloseBtn
+        });
+        if (typeof gambleController.bindModalEvents === "function") {
+          gambleController.bindModalEvents();
+        }
+        return gambleController;
       }
 
       function getPresenceByAccountId(accountId) {
@@ -1084,6 +1122,7 @@
         dropsRef: null,
         dropFeedRef: null,
         vendingRef: null,
+        gambleRef: null,
         donationRef: null,
         chestsRef: null,
         signsRef: null,
@@ -1154,6 +1193,9 @@
           vendingAdded: null,
           vendingChanged: null,
           vendingRemoved: null,
+          gambleAdded: null,
+          gambleChanged: null,
+          gambleRemoved: null,
           donationAdded: null,
           donationChanged: null,
           donationRemoved: null,
@@ -1892,6 +1934,29 @@
         if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
         if (!isChestBlockId(world[ty][tx])) return;
         const ctrl = getChestController();
+        if (ctrl && typeof ctrl.openModal === "function") {
+          ctrl.openModal(tx, ty);
+        }
+      }
+
+      function closeGambleModal() {
+        const ctrl = getGambleController();
+        if (ctrl && typeof ctrl.closeModal === "function") {
+          ctrl.closeModal();
+          return;
+        }
+        if (gambleModalEl) gambleModalEl.classList.add("hidden");
+      }
+
+      function openGambleModal(tx, ty) {
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
+        const tileId = Number(world[ty] && world[ty][tx]);
+        if (tileId !== GAMBLE_ID) return;
+        const ctrl = getGambleController();
+        if (!ctrl || typeof ctrl.openModal !== "function") {
+          postLocalSystemChat("Gamble module not loaded. Use force reload / Ctrl+F5.");
+          return;
+        }
         if (ctrl && typeof ctrl.openModal === "function") {
           ctrl.openModal(tx, ty);
         }
@@ -4966,6 +5031,8 @@
         clearAllTileDamage();
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
+        const gambleCtrl = getGambleController();
+        if (gambleCtrl && typeof gambleCtrl.clearAll === "function") gambleCtrl.clearAll();
         const donationCtrl = getDonationController();
         if (donationCtrl && typeof donationCtrl.clearAll === "function") donationCtrl.clearAll();
         const chestCtrl = getChestController();
@@ -4983,6 +5050,7 @@
         closeDoorModal();
         closeCameraModal();
         closeWeatherModal();
+        closeGambleModal();
         closeDonationModal();
         closeChestModal();
         closeTradeMenuModal();
@@ -5039,6 +5107,7 @@
           closeVendingModal();
           closeDonationModal();
           closeChestModal();
+          closeGambleModal();
           closeSignModal();
           closeWorldLockModal();
           closeDoorModal();
@@ -6616,6 +6685,18 @@
 
       function getLocalVendingMachine(tx, ty) {
         const ctrl = getVendingController();
+        if (!ctrl || typeof ctrl.getLocal !== "function") return null;
+        return ctrl.getLocal(tx, ty);
+      }
+
+      function setLocalGambleMachine(tx, ty, value) {
+        const ctrl = getGambleController();
+        if (!ctrl || typeof ctrl.setLocal !== "function") return;
+        ctrl.setLocal(tx, ty, value);
+      }
+
+      function getLocalGambleMachine(tx, ty) {
+        const ctrl = getGambleController();
         if (!ctrl || typeof ctrl.getLocal !== "function") return null;
         return ctrl.getLocal(tx, ty);
       }
@@ -8705,6 +8786,8 @@
       function clearWorldRuntimePlacementData() {
         const vendingCtrl = getVendingController();
         if (vendingCtrl && typeof vendingCtrl.clearAll === "function") vendingCtrl.clearAll();
+        const gambleCtrl = getGambleController();
+        if (gambleCtrl && typeof gambleCtrl.clearAll === "function") gambleCtrl.clearAll();
         const donationCtrl = getDonationController();
         if (donationCtrl && typeof donationCtrl.clearAll === "function") donationCtrl.clearAll();
         const chestCtrl = getChestController();
@@ -8758,6 +8841,7 @@
         closeDoorModal();
         closeCameraModal();
         closeWeatherModal();
+        closeGambleModal();
         if (network.enabled) {
           const dbOps = [];
           if (network.blocksRef && Object.keys(updates).length) {
@@ -8766,6 +8850,7 @@
           if (network.hitsRef) dbOps.push(network.hitsRef.remove());
           if (network.dropsRef) dbOps.push(network.dropsRef.remove());
           if (network.vendingRef) dbOps.push(network.vendingRef.remove());
+          if (network.gambleRef) dbOps.push(network.gambleRef.remove());
           if (network.donationRef) dbOps.push(network.donationRef.remove());
           if (network.chestsRef) dbOps.push(network.chestsRef.remove());
           if (network.signsRef) dbOps.push(network.signsRef.remove());
@@ -8930,6 +9015,11 @@
               updatedAt: Date.now()
             });
             seedVendingMachineOwner(tx, ty);
+          } else if (id === GAMBLE_ID) {
+            const gambleCtrl = getGambleController();
+            if (gambleCtrl && typeof gambleCtrl.onPlaced === "function") {
+              gambleCtrl.onPlaced(tx, ty);
+            }
           } else if (isDonationBoxBlockId(id)) {
             const donationCtrl = getDonationController();
             if (donationCtrl && typeof donationCtrl.onPlaced === "function") {
@@ -9215,6 +9305,17 @@
             }
           }
         }
+        if (id === GAMBLE_ID) {
+          const gambleCtrl = getGambleController();
+          if (gambleCtrl && typeof gambleCtrl.onBroken === "function") {
+            gambleCtrl.onBroken(tx, ty);
+          } else {
+            setLocalGambleMachine(tx, ty, null);
+          }
+          if (network.enabled && network.gambleRef) {
+            network.gambleRef.child(getTileKey(tx, ty)).remove().catch(() => {});
+          }
+        }
         if (isPlantSeedBlockId(id)) {
           saveTreePlant(tx, ty, null);
         }
@@ -9353,6 +9454,10 @@
         }
         if (id === VENDING_ID) {
           interactWithVendingMachine(tx, ty);
+          return;
+        }
+        if (id === GAMBLE_ID) {
+          openGambleModal(tx, ty);
           return;
         }
         if (isDonationBoxBlockId(id)) {
@@ -10044,6 +10149,15 @@
         if (network.vendingRef && network.handlers.vendingRemoved) {
           network.vendingRef.off("child_removed", network.handlers.vendingRemoved);
         }
+        if (network.gambleRef && network.handlers.gambleAdded) {
+          network.gambleRef.off("child_added", network.handlers.gambleAdded);
+        }
+        if (network.gambleRef && network.handlers.gambleChanged) {
+          network.gambleRef.off("child_changed", network.handlers.gambleChanged);
+        }
+        if (network.gambleRef && network.handlers.gambleRemoved) {
+          network.gambleRef.off("child_removed", network.handlers.gambleRemoved);
+        }
         if (network.donationRef && network.handlers.donationAdded) {
           network.donationRef.off("child_added", network.handlers.donationAdded);
         }
@@ -10138,6 +10252,7 @@
         network.dropsRef = null;
         network.dropFeedRef = null;
         network.vendingRef = null;
+        network.gambleRef = null;
         network.donationRef = null;
         network.chestsRef = null;
         network.signsRef = null;
@@ -10169,6 +10284,9 @@
         network.handlers.vendingAdded = null;
         network.handlers.vendingChanged = null;
         network.handlers.vendingRemoved = null;
+        network.handlers.gambleAdded = null;
+        network.handlers.gambleChanged = null;
+        network.handlers.gambleRemoved = null;
         network.handlers.donationAdded = null;
         network.handlers.donationChanged = null;
         network.handlers.donationRemoved = null;
@@ -10200,6 +10318,8 @@
         currentWorldLock = null;
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
+        const gambleCtrl = getGambleController();
+        if (gambleCtrl && typeof gambleCtrl.clearAll === "function") gambleCtrl.clearAll();
         const donationCtrl = getDonationController();
         if (donationCtrl && typeof donationCtrl.clearAll === "function") donationCtrl.clearAll();
         const chestCtrl = getChestController();
@@ -10218,6 +10338,7 @@
         closeDoorModal();
         closeCameraModal();
         closeWeatherModal();
+        closeGambleModal();
         closeDonationModal();
         closeChestModal();
         closeTradeMenuModal();
@@ -10386,6 +10507,7 @@
         network.dropsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/drops");
         network.dropFeedRef = network.dropsRef.limitToLast(DROP_MAX_PER_WORLD);
         network.vendingRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/vending");
+        network.gambleRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/gamble-machines");
         network.donationRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/donation-boxes");
         network.chestsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/chests");
         network.signsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/signs");
@@ -10434,6 +10556,7 @@
               network.blocksRef.child(tx + "_" + ty).set(requiredId).catch(() => {});
             }
             setLocalVendingMachine(tx, ty, null);
+            setLocalGambleMachine(tx, ty, null);
             setLocalDonationBox(tx, ty, null);
             {
               const chestCtrl = getChestController();
@@ -10454,6 +10577,9 @@
           }
           if (id !== VENDING_ID) {
             setLocalVendingMachine(tx, ty, null);
+          }
+          if (id !== GAMBLE_ID) {
+            setLocalGambleMachine(tx, ty, null);
           }
           if (!isDonationBoxBlockId(id)) {
             setLocalDonationBox(tx, ty, null);
@@ -10492,6 +10618,7 @@
               network.blocksRef.child(tx + "_" + ty).set(requiredId).catch(() => {});
             }
             setLocalVendingMachine(tx, ty, null);
+            setLocalGambleMachine(tx, ty, null);
             setLocalDonationBox(tx, ty, null);
             {
               const chestCtrl = getChestController();
@@ -10508,6 +10635,7 @@
           }
           world[ty][tx] = 0;
           setLocalVendingMachine(tx, ty, null);
+          setLocalGambleMachine(tx, ty, null);
           setLocalDonationBox(tx, ty, null);
           {
             const chestCtrl = getChestController();
@@ -10608,6 +10736,17 @@
           const tile = parseTileKey(snapshot.key || "");
           if (!tile) return;
           setLocalVendingMachine(tile.tx, tile.ty, null);
+        };
+        network.handlers.gambleAdded = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalGambleMachine(tile.tx, tile.ty, snapshot.val());
+        };
+        network.handlers.gambleChanged = network.handlers.gambleAdded;
+        network.handlers.gambleRemoved = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalGambleMachine(tile.tx, tile.ty, null);
         };
         network.handlers.donationAdded = (snapshot) => {
           const tile = parseTileKey(snapshot.key || "");
@@ -10728,6 +10867,11 @@
           network.vendingRef.on("child_added", network.handlers.vendingAdded);
           network.vendingRef.on("child_changed", network.handlers.vendingChanged);
           network.vendingRef.on("child_removed", network.handlers.vendingRemoved);
+        }
+        if (network.gambleRef && network.handlers.gambleAdded) {
+          network.gambleRef.on("child_added", network.handlers.gambleAdded);
+          network.gambleRef.on("child_changed", network.handlers.gambleChanged);
+          network.gambleRef.on("child_removed", network.handlers.gambleRemoved);
         }
         if (network.donationRef && network.handlers.donationAdded) {
           network.donationRef.on("child_added", network.handlers.donationAdded);
@@ -11070,6 +11214,10 @@
         const chestCtrl = getChestController();
         if (chestCtrl && typeof chestCtrl.bindModalEvents === "function") {
           chestCtrl.bindModalEvents();
+        }
+        const gambleCtrl = getGambleController();
+        if (gambleCtrl && typeof gambleCtrl.bindModalEvents === "function") {
+          gambleCtrl.bindModalEvents();
         }
         if (signCloseBtn) {
           signCloseBtn.addEventListener("click", () => {
@@ -12724,6 +12872,11 @@
         if (e.key === "Escape" && chestModalEl && !chestModalEl.classList.contains("hidden")) {
           e.preventDefault();
           closeChestModal();
+          return;
+        }
+        if (e.key === "Escape" && gambleModalEl && !gambleModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeGambleModal();
           return;
         }
         if (e.key === "Escape" && signModalEl && !signModalEl.classList.contains("hidden")) {
