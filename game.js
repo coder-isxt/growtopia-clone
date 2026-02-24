@@ -386,11 +386,18 @@
         : [])
         .map((raw) => {
           const row = raw && typeof raw === "object" ? raw : {};
+          const styleRaw = row.style && typeof row.style === "object" ? row.style : {};
           return {
             id: String(row.id || "").trim().slice(0, 32),
             name: String(row.name || "").trim().slice(0, 24),
             color: String(row.color || "").trim().slice(0, 24) || "#8fb4ff",
-            defaultUnlocked: Boolean(row.defaultUnlocked)
+            defaultUnlocked: Boolean(row.defaultUnlocked),
+            style: {
+              bold: Boolean(styleRaw.bold),
+              glow: Boolean(styleRaw.glow),
+              rainbow: Boolean(styleRaw.rainbow),
+              glowColor: String(styleRaw.glowColor || "").trim().slice(0, 24)
+            }
           };
         })
         .filter((row) => row.id && row.name);
@@ -4487,10 +4494,23 @@
           const title = unlocked[i];
           const equipped = equippedTitleId === title.id;
           const previewName = formatTitleWithUsername(title.name || title.id, playerName || "Player");
+          const style = normalizeTitleStyle(title.style);
+          const previewClass = "title-menu-preview" + (style.rainbow ? " chat-title-rainbow" : "");
+          const previewStyle = [];
+          if (!style.rainbow) {
+            previewStyle.push("color:" + escapeHtml(title.color || "#8fb4ff"));
+          }
+          if (style.bold) {
+            previewStyle.push("font-weight:800");
+          }
+          if (style.glow) {
+            const glowColor = escapeHtml(style.glowColor || title.color || "#8fb4ff");
+            previewStyle.push("text-shadow:0 0 6px " + glowColor + ",0 0 12px " + glowColor);
+          }
           rows.push(
             "<div class='vending-section'>" +
               "<div class='vending-stat-grid'>" +
-                "<div class='vending-stat'><span>Title</span><strong style='color:" + escapeHtml(title.color || "#8fb4ff") + ";'>" + escapeHtml(previewName) + "</strong></div>" +
+                "<div class='vending-stat'><span>Title</span><strong class='" + previewClass + "'" + (previewStyle.length ? (" style='" + previewStyle.join(";") + "'") : "") + ">" + escapeHtml(previewName) + "</strong></div>" +
                 //"<div class='vending-stat'><span>Status</span><strong>" + (equipped ? "Equipped" : "Unlocked") + "</strong></div>" +
               "</div>" +
               "<div class='vending-actions' style='justify-content:flex-start;'>" +
