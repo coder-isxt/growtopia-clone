@@ -10,7 +10,7 @@ window.GTModules = window.GTModules || {};
       minRoll: 0,
       maxRoll: 37,
       minBet: 1,
-      maxBet: 300,
+      maxBet: 30000,
       maxPayoutMultiplier: 3,
       tripleWinRolls: new Set([0, 19, 28, 37]),
       houseAutoLoseRolls: new Set([0, 19, 28, 37])
@@ -19,7 +19,7 @@ window.GTModules = window.GTModules || {};
       id: "blackjack",
       name: "Blackjack",
       minBet: 1,
-      maxBet: 300,
+      maxBet: 30000,
       maxPayoutMultiplier: 3
     }
   };
