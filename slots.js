@@ -1,15 +1,30 @@
 window.GTModules = window.GTModules || {};
 
 (function initSlotsModule() {
-  const DEFAULT_DEF = {
-    id: "slots",
-    name: "Slots",
-    minBet: 1,
-    maxBet: 30000,
-    maxPayoutMultiplier: 10
+  const GAME_DEFS = {
+    slots: {
+      id: "slots",
+      name: "Slots",
+      minBet: 1,
+      maxBet: 30000,
+      maxPayoutMultiplier: 10,
+      rtp: 0.95,
+      volatility: "medium",
+      layout: { reels: 3, rows: 1 }
+    },
+    slots_v2: {
+      id: "slots_v2",
+      name: "Slots v2",
+      minBet: 1,
+      maxBet: 30000,
+      maxPayoutMultiplier: 50,
+      rtp: 0.96,
+      volatility: "medium-high",
+      layout: { reels: 5, rows: 3 }
+    }
   };
 
-  const SYMBOLS = [
+  const SYMBOLS_V1 = [
     { id: "cherry", icon: "CHERRY", weight: 30 },
     { id: "lemon", icon: "LEMON", weight: 28 },
     { id: "bar", icon: "BAR", weight: 20 },
@@ -17,91 +32,314 @@ window.GTModules = window.GTModules || {};
     { id: "seven", icon: "SEVEN", weight: 8 }
   ];
 
-  const TOTAL_WEIGHT = SYMBOLS.reduce((sum, row) => sum + Math.max(1, Math.floor(Number(row.weight) || 1)), 0);
+  const SYMBOLS_V2 = [
+    { id: "gem", icon: "GEM", weight: 25 },
+    { id: "pickaxe", icon: "PICK", weight: 20 },
+    { id: "miner", icon: "MINER", weight: 18 },
+    { id: "gold", icon: "GOLD", weight: 12 },
+    { id: "dynamite", icon: "DYN", weight: 10 },
+    { id: "wild", icon: "WILD", weight: 9 },
+    { id: "scatter", icon: "SCAT", weight: 4 },
+    { id: "bonus", icon: "BONUS", weight: 2 }
+  ];
 
-  function pickSymbol() {
-    let roll = Math.floor(Math.random() * TOTAL_WEIGHT);
-    for (let i = 0; i < SYMBOLS.length; i++) {
-      roll -= Math.max(1, Math.floor(Number(SYMBOLS[i].weight) || 1));
-      if (roll < 0) return SYMBOLS[i];
-    }
-    return SYMBOLS[0];
+  const PAYLINES_V2 = [
+    [1, 1, 1, 1, 1], // middle
+    [0, 0, 0, 0, 0], // top
+    [2, 2, 2, 2, 2], // bottom
+    [0, 1, 2, 1, 0], // V
+    [2, 1, 0, 1, 2], // inverted V
+    [0, 0, 1, 2, 2], // zig-zag
+    [2, 2, 1, 0, 0], // zig-zag
+    [1, 0, 1, 2, 1], // wave
+    [1, 2, 1, 0, 1], // wave
+    [0, 1, 1, 1, 2]  // slope
+  ];
+
+  const PAYTABLE_V2 = {
+    gem: { 3: 3, 4: 6, 5: 10 },
+    pickaxe: { 3: 4, 4: 8, 5: 14 },
+    miner: { 3: 5, 4: 10, 5: 18 },
+    gold: { 3: 6, 4: 12, 5: 22 },
+    dynamite: { 3: 8, 4: 16, 5: 28 }
+  };
+
+  function cloneDef(row) {
+    const def = row || GAME_DEFS.slots;
+    return {
+      id: String(def.id || "slots"),
+      name: String(def.name || "Slots"),
+      minBet: Math.max(1, Math.floor(Number(def.minBet) || 1)),
+      maxBet: Math.max(1, Math.floor(Number(def.maxBet) || 30000)),
+      maxPayoutMultiplier: Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || 10)),
+      rtp: Number(def.rtp) || 0.95,
+      volatility: String(def.volatility || "medium"),
+      layout: {
+        reels: Math.max(1, Math.floor(Number(def.layout && def.layout.reels) || 3)),
+        rows: Math.max(1, Math.floor(Number(def.layout && def.layout.rows) || 1))
+      }
+    };
   }
 
-  function countById(reels) {
+  function getDefinitions() {
     const out = {};
-    const arr = Array.isArray(reels) ? reels : [];
-    for (let i = 0; i < arr.length; i++) {
-      const key = String(arr[i] && arr[i].id || "");
-      out[key] = (out[key] || 0) + 1;
+    const ids = Object.keys(GAME_DEFS);
+    for (let i = 0; i < ids.length; i++) {
+      out[ids[i]] = cloneDef(GAME_DEFS[ids[i]]);
     }
     return out;
   }
 
-  function evaluateReels(reels, bet) {
+  function pickWeighted(symbols) {
+    const safe = Array.isArray(symbols) ? symbols : [];
+    let total = 0;
+    for (let i = 0; i < safe.length; i++) total += Math.max(1, Math.floor(Number(safe[i].weight) || 1));
+    let roll = Math.floor(Math.random() * Math.max(1, total));
+    for (let i = 0; i < safe.length; i++) {
+      roll -= Math.max(1, Math.floor(Number(safe[i].weight) || 1));
+      if (roll < 0) return safe[i];
+    }
+    return safe[0] || { id: "none", icon: "?" };
+  }
+
+  function spinV1(bet) {
     const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
-    const counts = countById(reels);
+    const reels = [pickWeighted(SYMBOLS_V1), pickWeighted(SYMBOLS_V1), pickWeighted(SYMBOLS_V1)];
+    const counts = {};
+    for (let i = 0; i < reels.length; i++) {
+      const id = String(reels[i] && reels[i].id || "");
+      counts[id] = (counts[id] || 0) + 1;
+    }
     const ids = Object.keys(counts);
     let multiplier = 0;
     let outcome = "lose";
-    let reason = "No match";
-
+    let summary = "No match";
     for (let i = 0; i < ids.length; i++) {
       if (counts[ids[i]] === 3) {
         if (ids[i] === "seven") {
-          multiplier = 10;
-          outcome = "jackpot";
-          reason = "Triple seven";
+          multiplier = 10; outcome = "jackpot"; summary = "Triple seven";
         } else if (ids[i] === "bar") {
-          multiplier = 6;
-          outcome = "win";
-          reason = "Triple bar";
+          multiplier = 6; outcome = "win"; summary = "Triple bar";
         } else {
-          multiplier = 4;
-          outcome = "win";
-          reason = "Triple match";
+          multiplier = 4; outcome = "win"; summary = "Triple match";
         }
         break;
       }
     }
-
     if (multiplier <= 0) {
       if ((counts.seven || 0) === 2) {
-        multiplier = 3;
-        outcome = "win";
-        reason = "Double seven";
+        multiplier = 3; outcome = "win"; summary = "Double seven";
       } else if (ids.some((id) => counts[id] === 2)) {
-        multiplier = 2;
-        outcome = "win";
-        reason = "Double match";
+        multiplier = 2; outcome = "win"; summary = "Double match";
       }
     }
-
-    const payoutWanted = Math.max(0, Math.floor(safeBet * multiplier));
     return {
+      gameId: "slots",
       bet: safeBet,
       reels: reels.map((r) => String(r && r.icon || "?")),
       multiplier,
-      payoutWanted,
+      payoutWanted: Math.max(0, Math.floor(safeBet * multiplier)),
       outcome,
-      summary: reason
+      summary
     };
   }
 
-  function spin(bet) {
-    const reels = [pickSymbol(), pickSymbol(), pickSymbol()];
-    const result = evaluateReels(reels, bet);
-    return result;
+  function buildGridV2() {
+    const rows = 3;
+    const cols = 5;
+    const grid = [[], [], []];
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows; r++) {
+        grid[r][c] = pickWeighted(SYMBOLS_V2);
+      }
+    }
+    return grid;
   }
 
-  function getDefinition() {
-    return { ...DEFAULT_DEF };
+  function gridToTextRows(grid) {
+    const safe = Array.isArray(grid) ? grid : [];
+    const out = [];
+    for (let r = 0; r < safe.length; r++) {
+      const row = Array.isArray(safe[r]) ? safe[r] : [];
+      out.push(row.map((cell) => String(cell && cell.icon || "?")).join(","));
+    }
+    return out;
+  }
+
+  function getLineSymbols(grid, pattern) {
+    const out = [];
+    for (let c = 0; c < pattern.length; c++) {
+      const r = Math.max(0, Math.min(2, Math.floor(Number(pattern[c]) || 0)));
+      const cell = (grid[r] && grid[r][c]) ? grid[r][c] : { id: "none", icon: "?" };
+      out.push(cell);
+    }
+    return out;
+  }
+
+  function resolveLineBaseSymbol(line) {
+    for (let i = 0; i < line.length; i++) {
+      const id = String(line[i] && line[i].id || "");
+      if (id && id !== "wild" && id !== "scatter" && id !== "bonus") return id;
+    }
+    return "";
+  }
+
+  function evaluatePayline(line, betPerLine) {
+    const base = resolveLineBaseSymbol(line);
+    if (!base) return { multiplier: 0, matchCount: 0, symbol: "", text: "" };
+    let count = 0;
+    for (let i = 0; i < line.length; i++) {
+      const id = String(line[i] && line[i].id || "");
+      if (id === base || id === "wild") count += 1;
+      else break;
+    }
+    if (count < 3) return { multiplier: 0, matchCount: count, symbol: base, text: "" };
+    const row = PAYTABLE_V2[base] || {};
+    const lineMult = Math.max(0, Number(row[count]) || 0);
+    return {
+      multiplier: lineMult,
+      matchCount: count,
+      symbol: base,
+      text: base.toUpperCase() + " x" + count + " (" + lineMult + "x line)"
+    };
+  }
+
+  function runMiningBonus(safeBet) {
+    const tiles = [
+      { kind: "coins", mult: 2 },
+      { kind: "coins", mult: 3 },
+      { kind: "coins", mult: 4 },
+      { kind: "coins", mult: 5 },
+      { kind: "coins", mult: 6 },
+      { kind: "mult", mult: 2 },
+      { kind: "mult", mult: 3 },
+      { kind: "jackpot", mult: 10 },
+      { kind: "dynamite", mult: 0 }
+    ];
+    for (let i = tiles.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = tiles[i];
+      tiles[i] = tiles[j];
+      tiles[j] = t;
+    }
+    const picks = [tiles[0], tiles[1], tiles[2]];
+    let extraMultiplier = 0;
+    let chainMultiplier = 1;
+    let hitDynamite = false;
+    let hitJackpot = false;
+    for (let i = 0; i < picks.length; i++) {
+      const p = picks[i];
+      if (p.kind === "dynamite") hitDynamite = true;
+      if (p.kind === "jackpot") {
+        hitJackpot = true;
+        extraMultiplier += p.mult;
+      } else if (p.kind === "mult") {
+        chainMultiplier *= p.mult;
+      } else {
+        extraMultiplier += p.mult;
+      }
+    }
+    if (hitDynamite) {
+      return {
+        triggered: true,
+        payout: 0,
+        multiplier: 0,
+        summary: "Bonus dynamite exploded. Bonus payout lost.",
+        picks: picks.map((p) => p.kind.toUpperCase())
+      };
+    }
+    const totalMult = Math.max(0, extraMultiplier * chainMultiplier);
+    return {
+      triggered: true,
+      payout: Math.max(0, Math.floor(safeBet * totalMult)),
+      multiplier: totalMult,
+      summary: hitJackpot
+        ? ("Mining jackpot bonus " + totalMult + "x")
+        : ("Mining bonus " + totalMult + "x"),
+      picks: picks.map((p) => p.kind.toUpperCase())
+    };
+  }
+
+  function spinV2(bet) {
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    const grid = buildGridV2();
+    const paylineCount = PAYLINES_V2.length;
+    const betPerLine = safeBet / paylineCount;
+    let totalMultiplier = 0;
+    const lineWins = [];
+    let scatterCount = 0;
+    let bonusCount = 0;
+
+    for (let r = 0; r < grid.length; r++) {
+      for (let c = 0; c < grid[r].length; c++) {
+        const id = String(grid[r][c] && grid[r][c].id || "");
+        if (id === "scatter") scatterCount += 1;
+        if (id === "bonus") bonusCount += 1;
+      }
+    }
+
+    for (let i = 0; i < PAYLINES_V2.length; i++) {
+      const line = getLineSymbols(grid, PAYLINES_V2[i]);
+      const evalLine = evaluatePayline(line, betPerLine);
+      if (evalLine.multiplier > 0) {
+        totalMultiplier += evalLine.multiplier / paylineCount;
+        lineWins.push("L" + (i + 1) + " " + evalLine.text);
+      }
+    }
+
+    if (scatterCount >= 3) {
+      const scatterMult = scatterCount >= 5 ? 10 : (scatterCount === 4 ? 5 : 2);
+      totalMultiplier += scatterMult;
+      lineWins.push("SCATTER x" + scatterCount + " (" + scatterMult + "x)");
+    }
+
+    let bonus = null;
+    if (bonusCount >= 3) {
+      bonus = runMiningBonus(safeBet);
+    }
+
+    const basePayout = Math.max(0, Math.floor(safeBet * totalMultiplier));
+    const bonusPayout = bonus && bonus.triggered ? Math.max(0, Math.floor(Number(bonus.payout) || 0)) : 0;
+    const payoutWanted = basePayout + bonusPayout;
+    const finalMultiplier = safeBet > 0 ? Number((payoutWanted / safeBet).toFixed(2)) : 0;
+
+    let outcome = "lose";
+    if (finalMultiplier >= 20) outcome = "jackpot";
+    else if (finalMultiplier > 0) outcome = "win";
+
+    const summary = lineWins.length
+      ? lineWins.slice(0, 3).join(" | ")
+      : "No winning paylines";
+    const bonusSummary = bonus && bonus.triggered
+      ? (bonus.summary + " [" + bonus.picks.join(", ") + "]")
+      : "";
+
+    return {
+      gameId: "slots_v2",
+      bet: safeBet,
+      reels: gridToTextRows(grid), // 3 row strings, csv by reel
+      multiplier: finalMultiplier,
+      payoutWanted,
+      outcome,
+      summary: bonusSummary ? (summary + " | " + bonusSummary) : summary,
+      paylines: paylineCount,
+      lineWins,
+      scatterCount,
+      bonusTriggered: Boolean(bonus && bonus.triggered)
+    };
+  }
+
+  function spin(gameId, bet) {
+    const id = String(gameId || "slots").trim().toLowerCase();
+    if (id === "slots_v2") return spinV2(bet);
+    return spinV1(bet);
   }
 
   const api = {
     spin,
-    getDefinition
+    getDefinitions
   };
 
   window.GTModules.slots = api;
 })();
+
