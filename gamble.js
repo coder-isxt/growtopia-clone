@@ -1106,9 +1106,11 @@ window.GTModules = window.GTModules || {};
                   "<div class='vending-auto-stock-note'>Wild substitutes symbols on paylines. Scatter pays anywhere (3+).</div>" +
                   "<div class='vending-auto-stock-note'>Bonus symbols (3+) trigger Hold & Spin (3 respins, resets on new symbol).</div>")
               : (def.id === "slots_v3"
-                ? ("<div class='vending-auto-stock-note'>5-reel high-volatility slot with fixed paylines.</div>" +
-                  "<div class='vending-auto-stock-note'>Wins pay left-to-right from reel 1. Wild substitutes symbols.</div>" +
-                  "<div class='vending-auto-stock-note'>3+ Scatter triggers Free Spins with growing multipliers and upgrades.</div>")
+                ? ("<div class='vending-auto-stock-note'>5-reel, fixed-payline, high-volatility slot (RTP target below 100%).</div>" +
+                  "<div class='vending-auto-stock-note'>3-5 matches must land left-to-right from reel 1. Higher symbols pay more.</div>" +
+                  "<div class='vending-auto-stock-note'>Wild substitutes regular symbols. Scatter pays anywhere and 3+ triggers bonus.</div>" +
+                  "<div class='vending-auto-stock-note'>Bonus free spins: extra wilds, stacking multipliers, and scatter retriggers.</div>" +
+                  "<div class='vending-auto-stock-note'>Spin payout = symbol value x bet x active multipliers. Big wins are rare.</div>")
               : ("<div class='vending-auto-stock-note'>No number selection. You roll vs house roll (0-37). Higher reme wins.</div>" +
                 "<div class='vending-auto-stock-note'>Tie = lose. Special player rolls 0, 19, 28 give 3x.</div>" +
                 "<div class='vending-auto-stock-note'>If house rolls 0, 19, 28 or 37, player auto-loses.</div>"))))) +

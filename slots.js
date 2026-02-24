@@ -54,13 +54,15 @@ window.GTModules = window.GTModules || {};
   ];
 
   const SYMBOLS_V3 = [
-    { id: "ruby", icon: "RUBY", weight: 28 },
-    { id: "emerald", icon: "EMER", weight: 26 },
-    { id: "skull", icon: "SKULL", weight: 16 },
-    { id: "reaper", icon: "REAPR", weight: 12 },
-    { id: "blood", icon: "BLOOD", weight: 9 },
-    { id: "wild", icon: "WILD", weight: 8 },
-    { id: "scatter", icon: "SCAT", weight: 4 }
+    { id: "ruby", icon: "RUBY", weight: 22 },
+    { id: "emerald", icon: "EMER", weight: 22 },
+    { id: "club", icon: "CLUB", weight: 20 },
+    { id: "ring", icon: "RING", weight: 18 },
+    { id: "skull", icon: "SKULL", weight: 11 },
+    { id: "reaper", icon: "REAPR", weight: 7 },
+    { id: "blood", icon: "BLOOD", weight: 5 },
+    { id: "wild", icon: "WILD", weight: 3 },
+    { id: "scatter", icon: "SCAT", weight: 2 }
   ];
 
   const V2_ROWS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v2.layout.rows) || 3));
@@ -114,20 +116,25 @@ window.GTModules = window.GTModules || {};
   const V3_REELS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v3.layout.reels) || 5));
   const PAYLINES_V3 = PAYLINES_V2.slice(0, 10);
   const PAYTABLE_V3 = {
-    ruby: { 3: 2, 4: 4, 5: 7 },
-    emerald: { 3: 2, 4: 5, 5: 8 },
-    skull: { 3: 4, 4: 9, 5: 16 },
-    reaper: { 3: 6, 4: 14, 5: 26 },
-    blood: { 3: 10, 4: 22, 5: 45 }
+    ruby: { 3: 1.4, 4: 2.2, 5: 3.8 },
+    emerald: { 3: 1.6, 4: 2.6, 5: 4.4 },
+    club: { 3: 1.8, 4: 3.2, 5: 5.8 },
+    ring: { 3: 2.2, 4: 4.4, 5: 8.5 },
+    skull: { 3: 3.8, 4: 8.6, 5: 18 },
+    reaper: { 3: 6.5, 4: 15, 5: 34 },
+    blood: { 3: 12, 4: 28, 5: 66 }
   };
   const BONUS_V3 = {
-    initialFreeSpins: 8,
+    initialFreeSpins: 10,
     extraSpinsOnScatter: 2,
-    winMultMin: 2,
-    winMultMax: 4,
-    featureWildChance: 0.18,
-    featureUpgradeChance: 0.12,
-    maxFeatureSpins: 40
+    baseSpinMultiplierMin: 1,
+    baseSpinMultiplierMax: 3,
+    stackMultiplierValues: [2, 3],
+    stackMultiplierWeights: [78, 22],
+    stackMultiplierChanceOnWin: 0.36,
+    featureWildChance: 0.42,
+    featureUpgradeChance: 0.28,
+    maxFeatureSpins: 60
   };
 
   function cloneDef(row) {
@@ -697,12 +704,25 @@ window.GTModules = window.GTModules || {};
     let spinsLeft = Math.max(1, Math.floor(Number(start.initialFreeSpins) || 8));
     let played = 0;
     let totalPayout = 0;
-    let growthMult = 1;
+    let stackedMult = 1;
     let wildBoost = 0;
     let payUpgrade = 0;
     const timeline = [];
     const trigger = Math.max(3, Math.floor(Number(triggerScatters) || 3));
     if (trigger > 3) spinsLeft += (trigger - 3);
+    function pickWeightedNumber(values, weights, fallback) {
+      const vals = Array.isArray(values) ? values : [];
+      const w = Array.isArray(weights) ? weights : [];
+      if (!vals.length) return fallback;
+      let total = 0;
+      for (let i = 0; i < vals.length; i++) total += Math.max(1, Math.floor(Number(w[i]) || 1));
+      let roll = Math.floor(Math.random() * Math.max(1, total));
+      for (let i = 0; i < vals.length; i++) {
+        roll -= Math.max(1, Math.floor(Number(w[i]) || 1));
+        if (roll < 0) return Number(vals[i]) || fallback;
+      }
+      return Number(vals[0]) || fallback;
+    }
     while (spinsLeft > 0 && played < start.maxFeatureSpins) {
       spinsLeft -= 1;
       played += 1;
@@ -711,11 +731,18 @@ window.GTModules = window.GTModules || {};
       const scat = spinEval.scatterCount;
       if (scat >= 3) spinsLeft += Math.max(0, Math.floor(Number(start.extraSpinsOnScatter) || 2));
       if (spinEval.baseMultiplier > 0) {
-        const stepMult = Math.max(start.winMultMin, Math.floor(Math.random() * (start.winMultMax - start.winMultMin + 1)) + start.winMultMin);
-        const payout = Math.max(0, Math.floor(safeBet * spinEval.baseMultiplier * growthMult * stepMult));
+        const baseSpinMult = Math.max(
+          Number(start.baseSpinMultiplierMin) || 1,
+          Math.floor(Math.random() * (Math.max(Number(start.baseSpinMultiplierMax) || 3, Number(start.baseSpinMultiplierMin) || 1) - (Number(start.baseSpinMultiplierMin) || 1) + 1)) + (Number(start.baseSpinMultiplierMin) || 1)
+        );
+        if (Math.random() < Number(start.stackMultiplierChanceOnWin) || 0) {
+          const add = pickWeightedNumber(start.stackMultiplierValues, start.stackMultiplierWeights, 2);
+          stackedMult *= Math.max(2, add);
+          timeline.push("STACK x" + stackedMult);
+        }
+        const payout = Math.max(0, Math.floor(safeBet * spinEval.baseMultiplier * baseSpinMult * stackedMult));
         totalPayout += payout;
-        growthMult += 0.15;
-        timeline.push("FS" + played + ": " + Math.floor(spinEval.baseMultiplier * growthMult * stepMult) + "x");
+        timeline.push("FS" + played + ": " + Math.floor(spinEval.baseMultiplier * baseSpinMult * stackedMult) + "x");
       } else {
         timeline.push("FS" + played + ": miss");
       }
@@ -731,7 +758,7 @@ window.GTModules = window.GTModules || {};
     return {
       spinsPlayed: played,
       payout: totalPayout,
-      summary: "Free spins " + played + " | Growth x" + growthMult.toFixed(2) + " | Upgrades +" + payUpgrade,
+      summary: "Free spins " + played + " | Stack x" + stackedMult.toFixed(2) + " | Upgrades +" + payUpgrade,
       timeline: timeline.slice(0, 24)
     };
   }
