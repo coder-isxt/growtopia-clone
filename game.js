@@ -156,6 +156,26 @@
       const exitWorldBtn = document.getElementById("exitWorldBtn");
       const logoutBtn = document.getElementById("logoutBtn");
 
+      function ensureGambleModalDom() {
+        if (document.getElementById("gambleModal")) return;
+        const host = document.getElementById("gameShell") || document.body;
+        if (!host) return;
+        const wrap = document.createElement("div");
+        wrap.innerHTML =
+          '<div id="gambleModal" class="vending-modal hidden">' +
+            '<div class="vending-card sign-card">' +
+              '<div class="vending-header">' +
+                '<strong id="gambleTitle">Gambling Machine</strong>' +
+                '<button id="gambleCloseBtn" type="button">Close</button>' +
+              '</div>' +
+              '<div id="gambleBody" class="vending-body"></div>' +
+              '<div id="gambleActions" class="vending-actions"></div>' +
+            '</div>' +
+          '</div>';
+        if (wrap.firstElementChild) host.appendChild(wrap.firstElementChild);
+      }
+      ensureGambleModalDom();
+
       const modules = window.GTModules || {};
       const adminModule = modules.admin || {};
       const blocksModule = modules.blocks || {};
@@ -949,11 +969,11 @@
           saveInventory,
           refreshToolbar,
           postLocalSystemChat,
-          getGambleModalEl: () => gambleModalEl,
-          getGambleTitleEl: () => gambleTitleEl,
-          getGambleBodyEl: () => gambleBodyEl,
-          getGambleActionsEl: () => gambleActionsEl,
-          getGambleCloseBtnEl: () => gambleCloseBtn
+          getGambleModalEl: () => gambleModalEl || document.getElementById("gambleModal"),
+          getGambleTitleEl: () => gambleTitleEl || document.getElementById("gambleTitle"),
+          getGambleBodyEl: () => gambleBodyEl || document.getElementById("gambleBody"),
+          getGambleActionsEl: () => gambleActionsEl || document.getElementById("gambleActions"),
+          getGambleCloseBtnEl: () => gambleCloseBtn || document.getElementById("gambleCloseBtn")
         });
         if (typeof gambleController.bindModalEvents === "function") {
           gambleController.bindModalEvents();
