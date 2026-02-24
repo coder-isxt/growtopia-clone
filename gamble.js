@@ -1057,7 +1057,7 @@ window.GTModules = window.GTModules || {};
           "</div>" +
           (def.id === "slots_v2"
             ? ("<div class='vending-field-grid'>" +
-                "<label class='vending-field'><span>Buy Bonus</span><input type='text' value='10x bet (fixed)' disabled></label>" +
+                "<label class='vending-field'><span>Buy Bonus ("+ effectiveBet * buyX +")</span><input type='text' value='10x bet (fixed)' disabled></label>" +
                 "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='buybonus'" + (canPlayNow ? "" : " disabled") + ">Buy Bonus</button></div>" +
               "</div>")
             : "") +
