@@ -2,6 +2,18 @@ window.GTModules = window.GTModules || {};
 
 (function initGambleModule() {
   const MACHINE_USE_TIMEOUT_MS = 120000;
+  const SLOTS_V2_RENDER_PAYLINES = [
+    [1, 1, 1, 1, 1],
+    [0, 0, 0, 0, 0],
+    [2, 2, 2, 2, 2],
+    [0, 1, 2, 1, 0],
+    [2, 1, 0, 1, 2],
+    [0, 0, 1, 2, 2],
+    [2, 2, 1, 0, 0],
+    [1, 0, 1, 2, 1],
+    [1, 2, 1, 0, 1],
+    [0, 1, 1, 1, 2]
+  ];
   const slotsModule = (window.GTModules && window.GTModules.slots) || {};
   const slotsDefs = (typeof slotsModule.getDefinitions === "function" ? slotsModule.getDefinitions() : null) || {};
   const slotsDef = slotsDefs.slots || {};
@@ -38,7 +50,9 @@ window.GTModules = window.GTModules || {};
       name: String(slotsV2Def.name || "Slots v2"),
       minBet: Math.max(1, Math.floor(Number(slotsV2Def.minBet) || 1)),
       maxBet: Math.max(1, Math.floor(Number(slotsV2Def.maxBet) || 30000)),
-      maxPayoutMultiplier: Math.max(1, Math.floor(Number(slotsV2Def.maxPayoutMultiplier) || 50))
+      maxPayoutMultiplier: Math.max(1, Math.floor(Number(slotsV2Def.maxPayoutMultiplier) || 50)),
+      reels: Math.max(1, Math.floor(Number(slotsV2Def.layout && slotsV2Def.layout.reels) || 5)),
+      rows: Math.max(1, Math.floor(Number(slotsV2Def.layout && slotsV2Def.layout.rows) || 3))
     }
   };
 
@@ -83,6 +97,7 @@ window.GTModules = window.GTModules || {};
         lastSlotsText: String(row.lastSlotsText || "").slice(0, 220),
         lastSlotsSummary: String(row.lastSlotsSummary || "").slice(0, 180),
         lastSlotsLines: String(row.lastSlotsLines || "").slice(0, 220),
+        lastSlotsLineIds: String(row.lastSlotsLineIds || "").slice(0, 120),
         lastSlotsGameId: String(row.lastSlotsGameId || "").slice(0, 24),
         lastPlayerName: String(row.lastPlayerName || "").slice(0, 20),
         lastAt: Number(row.lastAt) || 0
@@ -205,16 +220,19 @@ window.GTModules = window.GTModules || {};
       };
     }
 
-    function evaluateSlots(def, bet) {
+    function evaluateSlots(def, bet, options) {
       const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+      const opts = options && typeof options === "object" ? options : {};
       if (slotsModule && typeof slotsModule.spin === "function") {
-        const raw = slotsModule.spin(def && def.id ? def.id : "slots", safeBet) || {};
+        const raw = slotsModule.spin(def && def.id ? def.id : "slots", safeBet, opts) || {};
         const reels = Array.isArray(raw.reels) ? raw.reels.map((r) => String(r || "?")).slice(0, 8) : ["?", "?", "?"];
+        const lineIds = Array.isArray(raw.lineIds) ? raw.lineIds.map((v) => Math.max(1, Math.floor(Number(v) || 0))).filter((v) => v > 0).slice(0, 12) : [];
         const multiplier = Math.max(0, Number(raw.multiplier) || 0);
         const outcome = String(raw.outcome || (multiplier > 0 ? "win" : "lose")).slice(0, 16);
         const payoutWanted = Math.max(0, Math.floor(Number(raw.payoutWanted) || (safeBet * multiplier)));
+        const wager = Math.max(1, Math.floor(Number(raw.bet) || safeBet));
         return {
-          bet: safeBet,
+          bet: wager,
           playerRoll: 0,
           houseRoll: 0,
           playerReme: 0,
@@ -224,6 +242,7 @@ window.GTModules = window.GTModules || {};
           reels,
           slotsSummary: String(raw.summary || "").slice(0, 180),
           slotsLines: Array.isArray(raw.lineWins) ? raw.lineWins.slice(0, 8).join(" | ") : "",
+          slotsLineIds: lineIds.join(","),
           slotsGameId: String(raw.gameId || (def && def.id) || "slots").slice(0, 24),
           multiplier,
           payoutWanted,
@@ -242,6 +261,7 @@ window.GTModules = window.GTModules || {};
         reels: ["?", "?", "?"],
         slotsSummary: "Module unavailable",
         slotsLines: "",
+        slotsLineIds: "",
         slotsGameId: String((def && def.id) || "slots").slice(0, 24),
         multiplier: 0,
         payoutWanted: 0,
@@ -317,16 +337,42 @@ window.GTModules = window.GTModules || {};
       return raw.split("|").map((s) => String(s || "").trim()).filter(Boolean).slice(0, 8);
     }
 
-    function buildRollingSlotsRows(cols, seed) {
+    function parseSlotsLineIds(value) {
+      const raw = String(value || "");
+      if (!raw) return [];
+      const out = [];
+      const parts = raw.split(",").map((s) => String(s || "").trim()).filter(Boolean);
+      for (let i = 0; i < parts.length; i++) {
+        const id = Math.max(1, Math.floor(Number(parts[i]) || 0));
+        if (id > 0 && out.indexOf(id) < 0) out.push(id);
+      }
+      return out.slice(0, 12);
+    }
+
+    function normalizeSlotsPayline(pattern, reels, rows) {
+      const safeReels = Math.max(1, Math.floor(Number(reels) || 5));
+      const safeRows = Math.max(1, Math.floor(Number(rows) || 3));
+      const arr = Array.isArray(pattern) ? pattern : [];
+      const fallback = Math.max(0, Math.min(safeRows - 1, Math.floor(Number(arr[arr.length - 1]) || 0)));
+      const out = [];
+      for (let c = 0; c < safeReels; c++) {
+        out.push(Math.max(0, Math.min(safeRows - 1, Math.floor(Number(arr[c]) || fallback))));
+      }
+      return out;
+    }
+
+    function buildRollingSlotsRows(cols, rows, seed) {
       const symbols = ["GEM", "PICK", "MINER", "GOLD", "DYN", "WILD", "SCAT", "BONUS"];
       const safeCols = Math.max(5, Math.floor(Number(cols) || 5));
+      const safeRows = Math.max(1, Math.floor(Number(rows) || 3));
       const safeSeed = Math.max(0, Math.floor(Number(seed) || 0));
-      const out = [[], [], []];
+      const out = [];
+      for (let r = 0; r < safeRows; r++) out[r] = [];
       for (let c = 0; c < safeCols; c++) {
         const base = (safeSeed + c * 17) % symbols.length;
-        out[0][c] = symbols[(base + 1) % symbols.length];
-        out[1][c] = symbols[(base + 3) % symbols.length];
-        out[2][c] = symbols[(base + 5) % symbols.length];
+        for (let r = 0; r < safeRows; r++) {
+          out[r][c] = symbols[(base + 1 + r * 2) % symbols.length];
+        }
       }
       return out;
     }
@@ -785,41 +831,74 @@ window.GTModules = window.GTModules || {};
       const canDouble = Boolean(canActRound && activeHand && !activeHand.done && !activeHand.doubled && Array.isArray(activeHand.cards) && activeHand.cards.length === 2);
       const realSlotsRows = parseSlotsRows(stats.lastSlotsText);
       const slotsRows = isRollingSlotsV2
-        ? buildRollingSlotsRows(Math.max(5, (realSlotsRows[0] && realSlotsRows[0].length) || 5), Math.floor(now / 80))
+        ? buildRollingSlotsRows(
+            Math.max(Number(def.reels) || 5, (realSlotsRows[0] && realSlotsRows[0].length) || 5),
+            Math.max(Number(def.rows) || 3, realSlotsRows.length || 3),
+            Math.floor(now / 80)
+          )
         : realSlotsRows;
       const slotsLines = parseSlotsLines(stats.lastSlotsLines);
-      const slotsCols = Math.max(5, (slotsRows[0] && slotsRows[0].length) || 0, (slotsRows[1] && slotsRows[1].length) || 0, (slotsRows[2] && slotsRows[2].length) || 0);
+      const slotsLineIds = parseSlotsLineIds(stats.lastSlotsLineIds);
+      let slotsCols = Math.max(1, Number(def.reels) || 5);
+      for (let r = 0; r < slotsRows.length; r++) {
+        slotsCols = Math.max(slotsCols, (slotsRows[r] && slotsRows[r].length) || 0);
+      }
+      const slotsRowsCount = Math.max(1, Number(def.rows) || slotsRows.length || 3);
       let slotsV2BoardHtml = "";
       if (def.id === "slots_v2") {
-        const winStateClass = stats.lastOutcome === "jackpot"
+        const winStateClass = isRollingSlotsV2
+          ? "slotsv2-idle"
+          : (stats.lastOutcome === "jackpot"
           ? "slotsv2-jackpot"
-          : ((stats.lastOutcome === "win" && stats.lastMultiplier > 0) ? "slotsv2-win" : "slotsv2-idle");
+          : ((stats.lastOutcome === "win" && stats.lastMultiplier > 0) ? "slotsv2-win" : "slotsv2-idle"));
         for (let c = 0; c < slotsCols; c++) {
-          const t1 = (slotsRows[0] && slotsRows[0][c]) || "?";
-          const t2 = (slotsRows[1] && slotsRows[1][c]) || "?";
-          const t3 = (slotsRows[2] && slotsRows[2][c]) || "?";
-          const cls1 = getSlotsSymbolClass(t1);
-          const cls2 = getSlotsSymbolClass(t2);
-          const cls3 = getSlotsSymbolClass(t3);
-          slotsV2BoardHtml +=
-            "<div class='slotsv2-reel'>" +
-              "<div class='slotsv2-cell " + cls1 + "'><span class='slotsv2-glyph'>" + esc(getSlotsSymbolLabel(t1)) + "</span><span class='slotsv2-token'>" + esc(normalizeSlotsToken(t1) || "?") + "</span></div>" +
-              "<div class='slotsv2-cell " + cls2 + "'><span class='slotsv2-glyph'>" + esc(getSlotsSymbolLabel(t2)) + "</span><span class='slotsv2-token'>" + esc(normalizeSlotsToken(t2) || "?") + "</span></div>" +
-              "<div class='slotsv2-cell " + cls3 + "'><span class='slotsv2-glyph'>" + esc(getSlotsSymbolLabel(t3)) + "</span><span class='slotsv2-token'>" + esc(normalizeSlotsToken(t3) || "?") + "</span></div>" +
-            "</div>";
+          slotsV2BoardHtml += "<div class='slotsv2-reel'>";
+          for (let r = 0; r < slotsRowsCount; r++) {
+            const tok = (slotsRows[r] && slotsRows[r][c]) || "?";
+            const cls = getSlotsSymbolClass(tok);
+            slotsV2BoardHtml +=
+              "<div class='slotsv2-cell " + cls + "'><span class='slotsv2-glyph'>" + esc(getSlotsSymbolLabel(tok)) + "</span><span class='slotsv2-token'>" + esc(normalizeSlotsToken(tok) || "?") + "</span></div>";
+          }
+          slotsV2BoardHtml += "</div>";
         }
-        const lineBadges = slotsLines.length
+        let overlayHtml = "";
+        if (!isRollingSlotsV2 && slotsLineIds.length) {
+          const used = [];
+          for (let i = 0; i < slotsLineIds.length; i++) {
+            const lineId = slotsLineIds[i];
+            if (used.indexOf(lineId) >= 0) continue;
+            used.push(lineId);
+            const basePattern = SLOTS_V2_RENDER_PAYLINES[Math.max(0, lineId - 1)];
+            if (!basePattern) continue;
+            const pattern = normalizeSlotsPayline(basePattern, slotsCols, slotsRowsCount);
+            const points = [];
+            for (let c = 0; c < pattern.length; c++) {
+              const x = ((c + 0.5) / slotsCols) * 100;
+              const y = ((pattern[c] + 0.5) / slotsRowsCount) * 100;
+              points.push(x.toFixed(2) + "," + y.toFixed(2));
+            }
+            if (points.length >= 2) {
+              overlayHtml += "<polyline points='" + points.join(" ") + "' class='slotsv2-winline'/>";
+            }
+          }
+        }
+        if (overlayHtml) {
+          slotsV2BoardHtml += "<svg class='slotsv2-overlay' viewBox='0 0 100 100' preserveAspectRatio='none'>" + overlayHtml + "</svg>";
+        }
+        const lineBadges = isRollingSlotsV2
+          ? "<span class='slotsv2-line-badge muted'>Spinning...</span>"
+          : (slotsLines.length
           ? slotsLines.map((line) => "<span class='slotsv2-line-badge'>" + esc(line) + "</span>").join("")
-          : "<span class='slotsv2-line-badge muted'>No winning lines</span>";
+          : "<span class='slotsv2-line-badge muted'>No winning lines</span>");
         slotsV2BoardHtml =
-          "<div class='slotsv2-board " + winStateClass + (isRollingSlotsV2 ? " rolling" : "") + "'>" + slotsV2BoardHtml + "</div>" +
+          "<div class='slotsv2-board " + winStateClass + (isRollingSlotsV2 ? " rolling" : "") + "' style='--slots-cols:" + slotsCols + ";'>" + slotsV2BoardHtml + "</div>" +
           "<div class='slotsv2-lines'>" + lineBadges + "</div>";
       }
       const slotsV2ResultHtml = def.id === "slots_v2"
         ? ("<div class='vending-section'>" +
             "<div class='vending-section-title'>Slots v2 Board</div>" +
             slotsV2BoardHtml +
-            "<div class='bj-banner bj-banner-" + getOutcomeTone(stats.lastOutcome) + "'>" +
+            "<div class='bj-banner " + (isRollingSlotsV2 ? "bj-banner-info" : ("bj-banner-" + getOutcomeTone(stats.lastOutcome))) + "'>" +
               (isRollingSlotsV2
                 ? "Rolling..."
                 : ("Result: " + esc(stats.lastSlotsSummary || "-") + " | Payout: " + esc(stats.lastMultiplier > 0 ? (stats.lastMultiplier + "x") : "-"))) +
@@ -926,6 +1005,12 @@ window.GTModules = window.GTModules || {};
             "<label class='vending-field'><span>Bet (World Locks)</span><input data-gamble-input='bet' type='number' min='" + def.minBet + "' max='" + (canSpin ? maxBetByBank : def.minBet) + "' step='1' value='" + displayBet + "'" + (canPlayNow && !roundActive ? "" : " disabled") + "></label>" +
             "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='maxbet'" + ((canPlayNow && maxBetEffective > 0 && !roundActive) ? "" : " disabled") + ">Apply Max Bet</button></div>" +
           "</div>" +
+          (def.id === "slots_v2"
+            ? ("<div class='vending-field-grid'>" +
+                "<label class='vending-field'><span>Buy Bonus (x bet)</span><input data-gamble-input='buyx' type='number' min='2' max='20' step='1' value='5'" + (canPlayNow ? "" : " disabled") + "></label>" +
+                "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='buyfs'" + (canPlayNow ? "" : " disabled") + ">Buy Free Spins</button></div>" +
+              "</div>")
+            : "") +
           (def.id === "blackjack"
             ? ("<div class='vending-auto-stock-note'>You: Hit, Stand, Double, Split. Dealer hits to 17+ and stands on 17.</div>" +
               "<div class='vending-auto-stock-note'>Blackjack pays 3:2 (floor), win pays 2x, push returns bet.</div>")
@@ -1053,6 +1138,7 @@ window.GTModules = window.GTModules || {};
       nextStats.lastSlotsText = Array.isArray(result.reels) ? result.reels.join(" | ") : "";
       nextStats.lastSlotsSummary = String(result.slotsSummary || "").slice(0, 180);
       nextStats.lastSlotsLines = String(result.slotsLines || "").slice(0, 220);
+      nextStats.lastSlotsLineIds = String(result.slotsLineIds || "").slice(0, 120);
       nextStats.lastSlotsGameId = String(result.slotsGameId || "").slice(0, 24);
       nextStats.lastPlayerName = playerName;
       nextStats.lastAt = firebaseRef && firebaseRef.database ? firebaseRef.database.ServerValue.TIMESTAMP : Date.now();
@@ -1325,8 +1411,9 @@ window.GTModules = window.GTModules || {};
       };
     }
 
-    function spin() {
+    function spin(mode) {
       if (!modalCtx) return;
+      const actionMode = String(mode || "normal").toLowerCase() === "buyfs" ? "buyfs" : "normal";
       const post = opts.postLocalSystemChat || (() => {});
       const tx = Math.floor(Number(modalCtx.tx));
       const ty = Math.floor(Number(modalCtx.ty));
@@ -1373,8 +1460,16 @@ window.GTModules = window.GTModules || {};
       lastBetByTile.set(getTileKey(tx, ty), bet);
       const inventory = get("getInventory", {}) || {};
       const haveLocal = getTotalLocks(inventory);
-      if (haveLocal < bet) {
-        post("Not enough World Locks. Need " + bet + ".");
+      const buyXInput = els.body ? els.body.querySelector("[data-gamble-input='buyx']") : null;
+      const buyX = Math.max(2, Math.min(20, Math.floor(Number(buyXInput && buyXInput.value) || 5)));
+      const wagerPreview = (def.id === "slots_v2" && actionMode === "buyfs") ? (bet * buyX) : bet;
+      const coveragePreview = wagerPreview * Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || 3));
+      if (bankLocal < coveragePreview) {
+        post("Machine bank is too low for this stake.");
+        return;
+      }
+      if (haveLocal < wagerPreview) {
+        post("Not enough World Locks. Need " + wagerPreview + ".");
         return;
       }
 
@@ -1490,29 +1585,34 @@ window.GTModules = window.GTModules || {};
 
       const result = (() => {
         if (def.id === "slots" || def.id === "slots_v2") {
-          return evaluateSlots(def, bet);
+          return evaluateSlots(def, bet, { mode: actionMode, buyX });
         }
         const playerRoll = Math.floor(Math.random() * (def.maxRoll - def.minRoll + 1)) + def.minRoll;
         const houseRoll = Math.floor(Math.random() * (def.maxRoll - def.minRoll + 1)) + def.minRoll;
         return evaluateSpin(def, playerRoll, houseRoll, bet);
       })();
       result.gameType = def.id;
+      const wager = Math.max(1, Math.floor(Number(result && result.bet) || bet));
+      if (haveLocal < wager) {
+        post("Not enough World Locks. Need " + wager + ".");
+        return;
+      }
 
       const finalizeLocal = () => {
         const current = getLocal(tx, ty) || machine;
         const beforeBank = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
-        const needsCoverage = bet * Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || 3));
+        const needsCoverage = wager * Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || 3));
         if (beforeBank < needsCoverage) {
           post("Machine bank changed. Max bet is now " + getMaxBetByBank(beforeBank, def, getMachineMaxBetCap(current, def)) + " WL.");
           renderModal(tx, ty, current);
           return;
         }
         const payout = Math.max(0, Math.floor(Number(result.payoutWanted) || 0));
-        const nextTotal = Math.max(0, haveLocal - bet + payout);
+        const nextTotal = Math.max(0, haveLocal - wager + payout);
         setCanonicalLocks(inventory, nextTotal);
         const nextStats = normalizeStats(current.stats);
         nextStats.plays += 1;
-        nextStats.totalBet += bet;
+        nextStats.totalBet += wager;
         nextStats.totalPayout += payout;
         nextStats.lastPlayerRoll = result.playerRoll;
         nextStats.lastHouseRoll = result.houseRoll;
@@ -1523,6 +1623,7 @@ window.GTModules = window.GTModules || {};
         nextStats.lastSlotsText = Array.isArray(result.reels) ? result.reels.join(" | ") : "";
         nextStats.lastSlotsSummary = String(result.slotsSummary || "").slice(0, 180);
         nextStats.lastSlotsLines = String(result.slotsLines || "").slice(0, 220);
+        nextStats.lastSlotsLineIds = String(result.slotsLineIds || "").slice(0, 120);
         nextStats.lastSlotsGameId = String(result.slotsGameId || "").slice(0, 24);
         nextStats.lastPlayerName = profileName;
         nextStats.lastAt = Date.now();
@@ -1554,8 +1655,8 @@ window.GTModules = window.GTModules || {};
       lockRef.transaction((currentRaw) => {
         const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
         const have = getTotalLocks(current);
-        if (have < bet) return;
-        setCanonicalLocks(current, have - bet);
+        if (have < wager) return;
+        setCanonicalLocks(current, have - wager);
         return current;
       }).then((deductResult) => {
         if (!deductResult.committed) {
@@ -1572,7 +1673,7 @@ window.GTModules = window.GTModules || {};
           if (!machineTxn || !machineTxn.committed) {
             lockRef.transaction((currentRaw) => {
               const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
-              addLocksLocal(current, bet);
+              addLocksLocal(current, wager);
               return current;
             }).catch(() => {});
             post("Spin failed.");
@@ -2033,7 +2134,11 @@ window.GTModules = window.GTModules || {};
         return;
       }
       if (action === "spin") {
-        spin();
+        spin("normal");
+        return;
+      }
+      if (action === "buyfs") {
+        spin("buyfs");
         return;
       }
       if (action === "bj-hit") {

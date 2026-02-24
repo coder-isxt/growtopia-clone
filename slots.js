@@ -43,6 +43,9 @@ window.GTModules = window.GTModules || {};
     { id: "bonus", icon: "BONUS", weight: 2 }
   ];
 
+  const V2_ROWS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v2.layout.rows) || 3));
+  const V2_REELS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v2.layout.reels) || 5));
+
   const PAYLINES_V2 = [
     [1, 1, 1, 1, 1], // middle
     [0, 0, 0, 0, 0], // top
@@ -145,15 +148,28 @@ window.GTModules = window.GTModules || {};
   }
 
   function buildGridV2() {
-    const rows = 3;
-    const cols = 5;
-    const grid = [[], [], []];
+    const rows = V2_ROWS;
+    const cols = V2_REELS;
+    const grid = [];
+    for (let r = 0; r < rows; r++) grid[r] = [];
     for (let c = 0; c < cols; c++) {
       for (let r = 0; r < rows; r++) {
         grid[r][c] = pickWeighted(SYMBOLS_V2);
       }
     }
     return grid;
+  }
+
+  function normalizePattern(pattern, cols) {
+    const out = [];
+    const safeCols = Math.max(1, Math.floor(Number(cols) || V2_REELS));
+    const arr = Array.isArray(pattern) ? pattern : [];
+    const fallback = Math.max(0, Math.min(V2_ROWS - 1, Math.floor(Number(arr[arr.length - 1]) || 0)));
+    for (let c = 0; c < safeCols; c++) {
+      const row = Math.max(0, Math.min(V2_ROWS - 1, Math.floor(Number(arr[c]) || fallback)));
+      out.push(row);
+    }
+    return out;
   }
 
   function gridToTextRows(grid) {
@@ -263,7 +279,9 @@ window.GTModules = window.GTModules || {};
   function evaluateV2Grid(grid, safeBet, options) {
     const opts = options && typeof options === "object" ? options : {};
     const safeGrid = Array.isArray(grid) ? grid : buildGridV2();
-    const paylineCount = PAYLINES_V2.length;
+    const cols = (safeGrid[0] && safeGrid[0].length) || V2_REELS;
+    const paylines = PAYLINES_V2.map((p) => normalizePattern(p, cols));
+    const paylineCount = paylines.length;
     const betPerLine = safeBet / paylineCount;
     let totalMultiplier = 0;
     const lineWins = [];
@@ -278,12 +296,14 @@ window.GTModules = window.GTModules || {};
       }
     }
 
-    for (let i = 0; i < PAYLINES_V2.length; i++) {
-      const line = getLineSymbols(safeGrid, PAYLINES_V2[i]);
+    const lineIds = [];
+    for (let i = 0; i < paylines.length; i++) {
+      const line = getLineSymbols(safeGrid, paylines[i]);
       const evalLine = evaluatePayline(line, betPerLine);
       if (evalLine.multiplier > 0) {
         totalMultiplier += evalLine.multiplier / paylineCount;
         lineWins.push("L" + (i + 1) + " " + evalLine.text);
+        lineIds.push(i + 1);
       }
     }
 
@@ -321,21 +341,37 @@ window.GTModules = window.GTModules || {};
       outcome,
       summary: bonusSummary ? (summary + " | " + bonusSummary) : summary,
       paylines: paylineCount,
+      lineIds,
       lineWins,
       scatterCount,
       bonusTriggered: Boolean(bonus && bonus.triggered)
     };
   }
 
-  function spinV2(bet) {
+  function spinV2(bet, options) {
+    const opts = options && typeof options === "object" ? options : {};
     const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    const buyX = Math.max(0, Math.floor(Number(opts.buyX) || 0));
+    const boughtFreeSpins = String(opts.mode || "").toLowerCase() === "buyfs" && buyX >= 2;
+    const wager = safeBet * (boughtFreeSpins ? buyX : 1);
     const baseGrid = buildGridV2();
-    const base = evaluateV2Grid(baseGrid, safeBet, { allowScatterPayout: true, allowBonus: true });
+    const base = evaluateV2Grid(
+      baseGrid,
+      safeBet,
+      boughtFreeSpins
+        ? { allowScatterPayout: false, allowBonus: false }
+        : { allowScatterPayout: true, allowBonus: true }
+    );
     const allLineWins = Array.isArray(base.lineWins) ? base.lineWins.slice(0, 14) : [];
+    const allLineIds = Array.isArray(base.lineIds) ? base.lineIds.slice(0, 12) : [];
     const summaryParts = [String(base.summary || "No winning paylines")];
 
     let freeSpinsAwarded = 0;
-    if (base.scatterCount >= 3) {
+    if (boughtFreeSpins) {
+      freeSpinsAwarded = buyX;
+      allLineWins.push("BUY BONUS x" + buyX + " (" + buyX + "x bet)");
+      summaryParts.push("Bought free spins: " + buyX + " for " + wager + " WL.");
+    } else if (base.scatterCount >= 3) {
       freeSpinsAwarded = base.scatterCount >= 5 ? 8 : (base.scatterCount === 4 ? 5 : 3);
       allLineWins.push("FREE SPINS x" + freeSpinsAwarded);
       summaryParts.push("Free spins awarded: " + freeSpinsAwarded);
@@ -349,6 +385,11 @@ window.GTModules = window.GTModules || {};
       const fsPayout = Math.max(0, Math.floor(Number(fs.payoutWanted) || 0));
       freeSpinPayout += fsPayout;
       freeSpinsPlayed += 1;
+      if (Array.isArray(fs.lineIds)) {
+        for (let li = 0; li < fs.lineIds.length && allLineIds.length < 12; li++) {
+          allLineIds.push(fs.lineIds[li]);
+        }
+      }
       if (fs.lineWins && fs.lineWins.length) {
         for (let li = 0; li < fs.lineWins.length && allLineWins.length < 18; li++) {
           allLineWins.push("FS" + (i + 1) + " " + fs.lineWins[li]);
@@ -360,20 +401,23 @@ window.GTModules = window.GTModules || {};
     }
 
     const uncapped = Math.max(0, Math.floor(Number(base.payoutWanted) || 0) + freeSpinPayout);
-    const cap = safeBet * Math.max(1, Math.floor(Number(GAME_DEFS.slots_v2.maxPayoutMultiplier) || 50));
+    const cap = wager * Math.max(1, Math.floor(Number(GAME_DEFS.slots_v2.maxPayoutMultiplier) || 50));
     const payoutWanted = Math.max(0, Math.min(cap, uncapped));
-    const finalMultiplier = safeBet > 0 ? Number((payoutWanted / safeBet).toFixed(2)) : 0;
+    const finalMultiplier = wager > 0 ? Number((payoutWanted / wager).toFixed(2)) : 0;
     const outcome = finalMultiplier >= 20 ? "jackpot" : (finalMultiplier > 0 ? "win" : "lose");
 
     return {
       gameId: "slots_v2",
-      bet: safeBet,
+      bet: wager,
+      baseBet: safeBet,
+      buyX,
       reels: base.reels,
       multiplier: finalMultiplier,
       payoutWanted,
       outcome,
       summary: summaryParts.join(" | ").slice(0, 220),
       paylines: base.paylines,
+      lineIds: allLineIds.slice(0, 12),
       lineWins: allLineWins.slice(0, 18),
       scatterCount: base.scatterCount,
       bonusTriggered: Boolean(base.bonusTriggered),
@@ -383,9 +427,9 @@ window.GTModules = window.GTModules || {};
     };
   }
 
-  function spin(gameId, bet) {
+  function spin(gameId, bet, options) {
     const id = String(gameId || "slots").trim().toLowerCase();
-    if (id === "slots_v2") return spinV2(bet);
+    if (id === "slots_v2") return spinV2(bet, options);
     return spinV1(bet);
   }
 
