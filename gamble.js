@@ -1701,7 +1701,9 @@ window.GTModules = window.GTModules || {};
         const houseRoll = Math.floor(Math.random() * (def.maxRoll - def.minRoll + 1)) + def.minRoll;
         return evaluateSpin(def, playerRoll, houseRoll, effectiveBet);
       })();
-      const coverageStake = Math.max(def.minBet, Math.floor(Number(result && result.bet) || effectiveBet));
+      const coverageStake = (def.id === "slots_v2")
+        ? Math.max(def.minBet, Math.floor(Number(effectiveBet) || def.minBet))
+        : Math.max(def.minBet, Math.floor(Number(result && result.bet) || effectiveBet));
       const wager = Math.max(1, Math.floor(Number(result && result.bet) || effectiveBet));
       result.gameType = def.id;
       const slotsBonusView = (def.id === "slots_v2" && result && result.bonusView && typeof result.bonusView === "object")
@@ -1764,14 +1766,17 @@ window.GTModules = window.GTModules || {};
           scheduleSlotsBonusReplay();
         }
         renderModal(tx, ty, nextMachine);
-        post(getOutcomeMessage(result, payout));
+        const outcomeMsg = getOutcomeMessage(result, payout);
+        if (outcomeMsg) post(outcomeMsg);
         if (payout > 0) {
           const delayMs = getSlotsRevealDelayMs();
           setTimeout(() => {
-            addLocksLocal(inventory, payout);
-            if (typeof opts.saveInventory === "function") opts.saveInventory();
-            if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
-            post("Payout credited: +" + payout + " WL.");
+            try {
+              addLocksLocal(inventory, payout);
+              if (typeof opts.saveInventory === "function") opts.saveInventory();
+              if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+              post("Payout credited: +" + payout + " WL.");
+            } catch (_) {}
           }, Math.max(0, delayMs));
         }
       };
@@ -1836,25 +1841,28 @@ window.GTModules = window.GTModules || {};
           scheduleSlotsBonusReplay();
         }
         renderModal(tx, ty, latest);
-        post(getOutcomeMessage(result, done.payout));
+        const outcomeMsg = getOutcomeMessage(result, done.payout);
+        if (outcomeMsg) post(outcomeMsg);
         if (done.payout > 0) {
           const delayMs = getSlotsRevealDelayMs();
           setTimeout(() => {
-            lockRef.transaction((currentRaw) => {
-              const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
-              addLocksLocal(current, done.payout);
-              return current;
-            }).then((payTxn) => {
-              if (!payTxn || !payTxn.committed) {
+            try {
+              lockRef.transaction((currentRaw) => {
+                const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+                addLocksLocal(current, done.payout);
+                return current;
+              }).then((payTxn) => {
+                if (!payTxn || !payTxn.committed) {
+                  post("Spin payout failed.");
+                  return;
+                }
+                if (typeof opts.saveInventory === "function") opts.saveInventory();
+                if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+                post("Payout credited: +" + done.payout + " WL.");
+              }).catch(() => {
                 post("Spin payout failed.");
-                return;
-              }
-              if (typeof opts.saveInventory === "function") opts.saveInventory();
-              if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
-              post("Payout credited: +" + done.payout + " WL.");
-            }).catch(() => {
-              post("Spin payout failed.");
-            });
+              });
+            } catch (_) {}
           }, Math.max(0, delayMs));
         }
       }).catch(() => {
