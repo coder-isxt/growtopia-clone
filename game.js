@@ -202,7 +202,10 @@
       let gambleModuleLoadCallbacks = [];
 
       function hasGambleFactory(mod) {
-        return Boolean(mod && typeof mod.createController === "function");
+        if (!mod) return false;
+        if (typeof mod.createController === "function") return true;
+        if (mod.default && typeof mod.default.createController === "function") return true;
+        return false;
       }
 
       function resolveGambleModule() {
@@ -235,16 +238,25 @@
         gambleModuleLoadInFlight = true;
         const script = document.createElement("script");
         const ver = encodeURIComponent(String(window.GT_ASSET_VERSION || "dev"));
+        let finished = false;
+        const finish = (ok) => {
+          if (finished) return;
+          finished = true;
+          gambleModuleLoadInFlight = false;
+          flushGambleLoadCallbacks(Boolean(ok));
+        };
         script.src = "gamble.js?v=" + ver + "&retry=" + Date.now();
         script.onload = function () {
-          gambleModuleLoadInFlight = false;
           const mod = resolveGambleModule();
-          flushGambleLoadCallbacks(hasGambleFactory(mod));
+          finish(hasGambleFactory(mod));
         };
         script.onerror = function () {
-          gambleModuleLoadInFlight = false;
-          flushGambleLoadCallbacks(false);
+          finish(false);
         };
+        setTimeout(() => {
+          const mod = resolveGambleModule();
+          finish(hasGambleFactory(mod));
+        }, 3000);
         document.body.appendChild(script);
       }
 
@@ -714,8 +726,13 @@
       function getGambleController() {
         if (gambleController) return gambleController;
         const liveGambleModule = resolveGambleModule();
-        if (typeof liveGambleModule.createController !== "function") return null;
-        gambleController = liveGambleModule.createController({
+        const factory = typeof (liveGambleModule && liveGambleModule.createController) === "function"
+          ? liveGambleModule.createController
+          : (liveGambleModule && liveGambleModule.default && typeof liveGambleModule.default.createController === "function"
+            ? liveGambleModule.default.createController
+            : null);
+        if (!factory) return null;
+        gambleController = factory({
           getNetwork: () => network,
           getBasePath: () => BASE_PATH,
           getCurrentWorldId: () => currentWorldId,
@@ -2007,11 +2024,12 @@
           ctrl.openModal(tx, ty);
           return;
         }
+        postLocalSystemChat("Loading gamble module...");
         ensureGambleModuleLoaded((ok) => {
           if (!ok) {
             const gm = resolveGambleModule();
             const hasModule = gm && typeof gm === "object";
-            const hasFactory = hasModule && typeof gm.createController === "function";
+            const hasFactory = hasModule && hasGambleFactory(gm);
             postLocalSystemChat(
               "Gamble unavailable (module:" + (hasModule ? "yes" : "no") +
               ", factory:" + (hasFactory ? "yes" : "no") + ")."
