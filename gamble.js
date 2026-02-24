@@ -291,9 +291,7 @@ window.GTModules = window.GTModules || {};
       const needsCoverage = Math.max(1, Math.floor(Number(result.bet) || 0)) * 3;
       if (beforeBank < needsCoverage) return null;
       const payout = Math.max(0, Math.floor(Number(result.payoutWanted) || 0));
-      const nextBank = result.outcome === "lose"
-        ? (beforeBank + result.bet)
-        : Math.max(0, beforeBank - payout);
+      const nextBank = Math.max(0, beforeBank + Math.max(0, Math.floor(Number(result.bet) || 0)) - payout);
       const nextStats = normalizeStats(current.stats);
       nextStats.plays += 1;
       nextStats.totalBet += result.bet;
@@ -400,9 +398,7 @@ window.GTModules = window.GTModules || {};
         nextStats.lastAt = Date.now();
         const nextMachine = {
           ...current,
-          earningsLocks: result.outcome === "lose"
-            ? (beforeBank + bet)
-            : Math.max(0, beforeBank - payout),
+          earningsLocks: Math.max(0, beforeBank + bet - payout),
           stats: nextStats,
           updatedAt: Date.now()
         };
@@ -672,6 +668,9 @@ window.GTModules = window.GTModules || {};
       }
       if (els.actions) {
         els.actions.addEventListener("click", handleActionClick);
+      }
+      if (els.body) {
+        els.body.addEventListener("click", handleActionClick);
       }
     }
 
