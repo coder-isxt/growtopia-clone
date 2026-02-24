@@ -3,7 +3,7 @@ window.GTModules = window.GTModules || {};
 (function initGambleModule() {
   const MACHINE_DEFS = {
     reme_roulette: {
-      id: "reme_roulette",
+      id: "gamble_machine",
       name: "Reme Roulette (0-37)",
       minRoll: 0,
       maxRoll: 37,
@@ -501,4 +501,5 @@ window.GTModules = window.GTModules || {};
   } else {
     window.GTModules.gamble = api;
   }
+  window.GTModules.gambling = window.GTModules.gamble;
 })();

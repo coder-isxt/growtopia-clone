@@ -197,87 +197,7 @@
       const tradeModule = modules.trade || {};
       const shopModule = modules.shop || {};
       const signModule = modules.sign || {};
-      const gambleModule = modules.gamble || {};
-      let gambleModuleLoadInFlight = false;
-      let gambleModuleLoadCallbacks = [];
-      let gambleModuleLoadStartedAt = 0;
-
-      function hasGambleFactory(mod) {
-        if (!mod) return false;
-        if (typeof mod.createController === "function") return true;
-        if (mod.default && typeof mod.default.createController === "function") return true;
-        return false;
-      }
-
-      function resolveGambleModule() {
-        const live = window.GTModules && window.GTModules.gamble;
-        if (live && typeof live === "object") return live;
-        return gambleModule && typeof gambleModule === "object" ? gambleModule : null;
-      }
-
-      function flushGambleLoadCallbacks(ok) {
-        const list = gambleModuleLoadCallbacks.slice();
-        gambleModuleLoadCallbacks = [];
-        for (let i = 0; i < list.length; i++) {
-          try {
-            list[i](ok);
-          } catch (error) {
-            // ignore callback errors
-          }
-        }
-      }
-
-      function ensureGambleModuleLoaded(done) {
-        const rawCb = typeof done === "function" ? done : function () {};
-        let cbDone = false;
-        const cbTimer = setTimeout(() => {
-          if (cbDone) return;
-          cbDone = true;
-          rawCb(false);
-        }, 4500);
-        const cb = (ok) => {
-          if (cbDone) return;
-          cbDone = true;
-          clearTimeout(cbTimer);
-          rawCb(Boolean(ok));
-        };
-        const existing = resolveGambleModule();
-        if (hasGambleFactory(existing)) {
-          cb(true);
-          return;
-        }
-        if (gambleModuleLoadInFlight && (Date.now() - gambleModuleLoadStartedAt) > 5000) {
-          gambleModuleLoadInFlight = false;
-          flushGambleLoadCallbacks(false);
-        }
-        gambleModuleLoadCallbacks.push(cb);
-        if (gambleModuleLoadInFlight) return;
-        gambleModuleLoadInFlight = true;
-        gambleModuleLoadStartedAt = Date.now();
-        const script = document.createElement("script");
-        const ver = encodeURIComponent(String(window.GT_ASSET_VERSION || "dev"));
-        let finished = false;
-        const finish = (ok) => {
-          if (finished) return;
-          finished = true;
-          gambleModuleLoadInFlight = false;
-          gambleModuleLoadStartedAt = 0;
-          flushGambleLoadCallbacks(Boolean(ok));
-        };
-        script.src = "gamble.js?v=" + ver + "&retry=" + Date.now();
-        script.onload = function () {
-          const mod = resolveGambleModule();
-          finish(hasGambleFactory(mod));
-        };
-        script.onerror = function () {
-          finish(false);
-        };
-        setTimeout(() => {
-          const mod = resolveGambleModule();
-          finish(hasGambleFactory(mod));
-        }, 3000);
-        document.body.appendChild(script);
-      }
+      const gambleModule = modules.gambling || modules.gamble || {};
 
       const SETTINGS = window.GT_SETTINGS || {};
       const TILE = Number(SETTINGS.TILE_SIZE) || 32;
@@ -744,15 +664,8 @@
 
       function getGambleController() {
         if (gambleController) return gambleController;
-        const liveGambleModule = resolveGambleModule();
-        const factory = typeof (liveGambleModule && liveGambleModule.createController) === "function"
-          ? liveGambleModule.createController
-          : (liveGambleModule && liveGambleModule.default && typeof liveGambleModule.default.createController === "function"
-            ? liveGambleModule.default.createController
-            : null);
-        if (!factory) return null;
-        try {
-          gambleController = factory({
+        if (typeof gambleModule.createController !== "function") return null;
+        gambleController = gambleModule.createController({
           getNetwork: () => network,
           getBasePath: () => BASE_PATH,
           getCurrentWorldId: () => currentWorldId,
@@ -773,11 +686,6 @@
           getGambleActionsEl: () => gambleActionsEl,
           getGambleCloseBtnEl: () => gambleCloseBtn
         });
-        } catch (error) {
-          console.error("[gamble] createController failed", error);
-          gambleController = null;
-          return null;
-        }
         if (typeof gambleController.bindModalEvents === "function") {
           gambleController.bindModalEvents();
         }
@@ -2044,35 +1952,12 @@
         if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
         const tileId = Number(world[ty] && world[ty][tx]);
         if (tileId !== GAMBLE_ID) return;
-        let ctrl = getGambleController();
+        const ctrl = getGambleController();
         if (ctrl && typeof ctrl.openModal === "function") {
           ctrl.openModal(tx, ty);
           return;
         }
-        postLocalSystemChat("Loading gamble module...");
-        ensureGambleModuleLoaded((ok) => {
-          if (!ok) {
-            const gm = resolveGambleModule();
-            const hasModule = gm && typeof gm === "object";
-            const hasFactory = hasModule && hasGambleFactory(gm);
-            postLocalSystemChat(
-              "Gamble unavailable (module:" + (hasModule ? "yes" : "no") +
-              ", factory:" + (hasFactory ? "yes" : "no") + ")."
-            );
-            return;
-          }
-          try {
-            ctrl = getGambleController();
-            if (!ctrl || typeof ctrl.openModal !== "function") {
-              postLocalSystemChat("Gamble module loaded but controller init failed.");
-              return;
-            }
-            ctrl.openModal(tx, ty);
-          } catch (error) {
-            console.error("[gamble] openModal failed", error);
-            postLocalSystemChat("Gamble open failed. Check console.");
-          }
-        });
+        postLocalSystemChat("Gamble module unavailable.");
       }
 
       function getAdminBackupOptionsMarkup() {
