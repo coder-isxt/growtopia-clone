@@ -705,13 +705,16 @@
             ownerAccountId: String(row.ownerAccountId || ""),
             ownerName: String(row.ownerName || "").slice(0, 20),
             type: "reme_roulette",
+            earningsLocks: Math.max(0, Math.floor(Number(row.earningsLocks) || 0)),
             stats: {
               plays: Math.max(0, Math.floor(Number(stats.plays) || 0)),
               totalBet: Math.max(0, Math.floor(Number(stats.totalBet) || 0)),
               totalPayout: Math.max(0, Math.floor(Number(stats.totalPayout) || 0)),
-              lastRoll: Math.max(0, Math.floor(Number(stats.lastRoll) || 0)),
-              lastReme: Math.max(0, Math.floor(Number(stats.lastReme) || 0)),
-              lastTarget: Math.max(0, Math.floor(Number(stats.lastTarget) || 0)),
+              lastPlayerRoll: Math.max(0, Math.floor(Number(stats.lastPlayerRoll) || 0)),
+              lastHouseRoll: Math.max(0, Math.floor(Number(stats.lastHouseRoll) || 0)),
+              lastPlayerReme: Math.max(0, Math.floor(Number(stats.lastPlayerReme) || 0)),
+              lastHouseReme: Math.max(0, Math.floor(Number(stats.lastHouseReme) || 0)),
+              lastMultiplier: Math.max(0, Number(stats.lastMultiplier) || 0),
               lastOutcome: String(stats.lastOutcome || "").slice(0, 16)
             },
             updatedAt: Number(row.updatedAt) || 0
@@ -759,6 +762,17 @@
           return Math.floor(v / 10) + (v % 10);
         }
 
+        function canCollect(machine) {
+          const pid = String(get("getPlayerProfileId", "") || "");
+          return Boolean(machine && pid && machine.ownerAccountId === pid);
+        }
+
+        function getOutcomeLabel(outcome) {
+          if (outcome === "triple") return "TRIPLE";
+          if (outcome === "win") return "WIN";
+          return "LOSE";
+        }
+
         function renderModal(tx, ty, machine) {
           const els = getEls();
           if (!els.modal || !els.title || !els.body || !els.actions) {
@@ -768,29 +782,41 @@
           }
           const m = machine || getLocal(tx, ty) || normalize({});
           const stats = m.stats || {};
+          const ownerView = canCollect(m);
           els.title.textContent = "Gambling Machine (" + tx + "," + ty + ")";
           els.body.innerHTML =
             "<div class='vending-section'>" +
               "<div class='vending-stat-grid'>" +
-                "<div class='vending-stat'><span>Type</span><strong>Reme Roulette (0-37)</strong></div>" +
+                "<div class='vending-stat'><span>Type</span><strong>Reme Roulette (Player vs House)</strong></div>" +
                 "<div class='vending-stat'><span>Owner</span><strong>@" + (m.ownerName || "owner") + "</strong></div>" +
+                "<div class='vending-stat'><span>Machine Bank</span><strong>" + Math.max(0, Math.floor(Number(m.earningsLocks) || 0)) + " WL</strong></div>" +
                 "<div class='vending-stat'><span>Plays</span><strong>" + (stats.plays || 0) + "</strong></div>" +
-                "<div class='vending-stat'><span>Total Bet</span><strong>" + (stats.totalBet || 0) + " WL</strong></div>" +
-                "<div class='vending-stat'><span>Total Paid</span><strong>" + (stats.totalPayout || 0) + " WL</strong></div>" +
+                "<div class='vending-stat'><span>Total Bet In</span><strong>" + (stats.totalBet || 0) + " WL</strong></div>" +
+                "<div class='vending-stat'><span>Total Paid Out</span><strong>" + (stats.totalPayout || 0) + " WL</strong></div>" +
               "</div>" +
             "</div>" +
             "<div class='vending-section'>" +
-              "<div class='vending-section-title'>Play</div>" +
+              "<div class='vending-section-title'>Play (Player vs House)</div>" +
               "<div class='vending-field-grid'>" +
-                "<label class='vending-field'><span>Pick Number (Reme)</span><select data-gamble-input='target'>" +
-                  "<option value='0'>0</option><option value='1'>1</option><option value='2'>2</option><option value='3'>3</option><option value='4'>4</option>" +
-                  "<option value='5'>5</option><option value='6'>6</option><option value='7'>7</option><option value='8'>8</option><option value='9'>9</option>" +
-                "</select></label>" +
                 "<label class='vending-field'><span>Bet (World Locks)</span><input data-gamble-input='bet' type='number' min='1' max='300' step='1' value='1'></label>" +
               "</div>" +
-              "<div class='vending-auto-stock-note'>Reme = sum of digits (26 => 8). Tie = lose. 0/19/28 = 3x.</div>" +
+              "<div class='vending-auto-stock-note'>No number selection. You roll vs house roll (0-37). Higher reme wins.</div>" +
+              "<div class='vending-auto-stock-note'>Tie = lose. 0/19/28 = 3x. All bets go to machine bank.</div>" +
+            "</div>" +
+            "<div class='vending-section'>" +
+              "<div class='vending-section-title'>Last Result</div>" +
+              "<div class='vending-stat-grid'>" +
+                "<div class='vending-stat'><span>You</span><strong>" + ((stats.plays || 0) ? ((stats.lastPlayerRoll || 0) + " (" + (stats.lastPlayerReme || 0) + ")") : "-") + "</strong></div>" +
+                "<div class='vending-stat'><span>House</span><strong>" + ((stats.plays || 0) ? ((stats.lastHouseRoll || 0) + " (" + (stats.lastHouseReme || 0) + ")") : "-") + "</strong></div>" +
+                "<div class='vending-stat'><span>Outcome</span><strong>" + ((stats.plays || 0) ? getOutcomeLabel(stats.lastOutcome) : "-") + "</strong></div>" +
+                "<div class='vending-stat'><span>Multiplier</span><strong>" + ((stats.plays || 0) ? ((stats.lastMultiplier || 0) + "x") : "-") + "</strong></div>" +
+              "</div>" +
             "</div>";
-          els.actions.innerHTML = "<button data-gamble-act='spin'>Spin</button><button data-gamble-act='close'>Close</button>";
+          if (ownerView) {
+            els.actions.innerHTML = "<button data-gamble-act='spin'>Spin</button><button data-gamble-act='collect'" + (m.earningsLocks > 0 ? "" : " disabled") + ">Collect Earnings</button><button data-gamble-act='close'>Close</button>";
+          } else {
+            els.actions.innerHTML = "<button data-gamble-act='spin'>Spin</button><button data-gamble-act='close'>Close</button>";
+          }
           modalCtx = { tx, ty };
           els.modal.classList.remove("hidden");
         }
@@ -800,9 +826,7 @@
           const tx = Math.floor(Number(modalCtx.tx));
           const ty = Math.floor(Number(modalCtx.ty));
           const els = getEls();
-          const targetInput = els.body ? els.body.querySelector("[data-gamble-input='target']") : null;
           const betInput = els.body ? els.body.querySelector("[data-gamble-input='bet']") : null;
-          const target = Math.max(0, Math.min(9, Math.floor(Number(targetInput && targetInput.value) || 0)));
           const bet = Math.max(1, Math.min(300, Math.floor(Number(betInput && betInput.value) || 0)));
           const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
           const inv = get("getInventory", {}) || {};
@@ -812,37 +836,44 @@
             post("Not enough World Locks. Need " + bet + ".");
             return;
           }
-          const roll = Math.floor(Math.random() * 38);
-          const reme = sumDigits(roll);
-          const triple = roll === 0 || roll === 19 || roll === 28;
-          const tie = !triple && reme > 9;
+          const playerRoll = Math.floor(Math.random() * 38);
+          const houseRoll = Math.floor(Math.random() * 38);
+          const playerReme = sumDigits(playerRoll);
+          const houseReme = sumDigits(houseRoll);
+          const triple = playerRoll === 0 || playerRoll === 19 || playerRoll === 28;
+          const tie = playerReme === houseReme;
           let mult = 0;
           let outcome = "lose";
           if (triple) {
             mult = 3;
             outcome = "triple";
-          } else if (!tie && reme === target) {
+          } else if (!tie && playerReme > houseReme) {
             mult = 2;
             outcome = "win";
           }
-          const payout = Math.max(0, Math.floor(bet * mult));
+          const m = getLocal(tx, ty) || normalize({});
+          const beforeBank = Math.max(0, Math.floor(Number(m.earningsLocks) || 0));
+          const afterBetBank = beforeBank + bet;
+          const payoutWanted = Math.max(0, Math.floor(bet * mult));
+          const payout = Math.max(0, Math.min(payoutWanted, afterBetBank));
           inv[worldLockId] = Math.max(0, Math.floor(have - bet + payout));
           if (typeof opts.saveInventory === "function") opts.saveInventory();
           if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
-
-          const m = getLocal(tx, ty) || normalize({});
           const stats = m.stats || {};
           const next = {
             ...m,
             ownerAccountId: m.ownerAccountId || String(get("getPlayerProfileId", "") || ""),
             ownerName: m.ownerName || String(get("getPlayerName", "") || "").slice(0, 20),
+            earningsLocks: Math.max(0, afterBetBank - payout),
             stats: {
               plays: Math.max(0, Math.floor(Number(stats.plays) || 0)) + 1,
               totalBet: Math.max(0, Math.floor(Number(stats.totalBet) || 0)) + bet,
               totalPayout: Math.max(0, Math.floor(Number(stats.totalPayout) || 0)) + payout,
-              lastRoll: roll,
-              lastReme: reme,
-              lastTarget: target,
+              lastPlayerRoll: playerRoll,
+              lastHouseRoll: houseRoll,
+              lastPlayerReme: playerReme,
+              lastHouseReme: houseReme,
+              lastMultiplier: mult,
               lastOutcome: outcome
             },
             updatedAt: Date.now()
@@ -858,10 +889,46 @@
             network.db.ref(basePath + "/player-inventories/" + profileId + "/" + worldLockId).set(inv[worldLockId]).catch(() => {});
           }
 
-          if (outcome === "triple") post("Roll " + roll + " hit 3x. You won " + payout + " WL.");
-          else if (outcome === "win") post("Roll " + roll + " (reme " + reme + ") matched " + target + ". You won " + payout + " WL.");
-          else if (tie) post("Roll " + roll + " produced reme " + reme + " (tie). Tie = lose.");
-          else post("Roll " + roll + " (reme " + reme + ") missed " + target + ". You lost " + bet + " WL.");
+          const left = "You " + playerRoll + " (" + playerReme + ")";
+          const right = "House " + houseRoll + " (" + houseReme + ")";
+          if (outcome === "triple") post(left + " vs " + right + ": TRIPLE. Won " + payout + " WL.");
+          else if (outcome === "win") post(left + " vs " + right + ": WIN. Won " + payout + " WL.");
+          else if (tie) post(left + " vs " + right + ": TIE = LOSE. Lost " + bet + " WL.");
+          else post(left + " vs " + right + ": LOSE. Lost " + bet + " WL.");
+          renderModal(tx, ty, next);
+        }
+
+        function collect() {
+          if (!modalCtx) return;
+          const tx = Math.floor(Number(modalCtx.tx));
+          const ty = Math.floor(Number(modalCtx.ty));
+          const machine = getLocal(tx, ty) || normalize({});
+          const post = opts.postLocalSystemChat || (() => {});
+          if (!canCollect(machine)) {
+            post("Only owner can collect machine earnings.");
+            return;
+          }
+          const amount = Math.max(0, Math.floor(Number(machine.earningsLocks) || 0));
+          if (amount <= 0) {
+            post("No earnings to collect.");
+            return;
+          }
+          const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
+          const inv = get("getInventory", {}) || {};
+          inv[worldLockId] = Math.max(0, Math.floor(Number(inv[worldLockId]) || 0) + amount);
+          const next = { ...machine, earningsLocks: 0, updatedAt: Date.now() };
+          setLocal(tx, ty, next);
+          if (typeof opts.saveInventory === "function") opts.saveInventory();
+          if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+          const network = get("getNetwork", null);
+          const basePath = String(get("getBasePath", "") || "");
+          const worldId = String(get("getCurrentWorldId", "") || "");
+          const profileId = String(get("getPlayerProfileId", "") || "");
+          if (network && network.enabled && network.db && basePath && worldId && profileId) {
+            network.db.ref(basePath + "/worlds/" + worldId + "/gamble-machines/" + getTileKey(tx, ty)).set(next).catch(() => {});
+            network.db.ref(basePath + "/player-inventories/" + profileId + "/" + worldLockId).set(inv[worldLockId]).catch(() => {});
+          }
+          post("Collected " + amount + " WL from machine.");
           renderModal(tx, ty, next);
         }
 
@@ -882,6 +949,7 @@
               const act = String(target.dataset.gambleAct || "");
               if (act === "close") closeModal();
               if (act === "spin") spin();
+              if (act === "collect") collect();
             });
           }
         }
@@ -916,6 +984,7 @@
             ownerAccountId: pid,
             ownerName: name,
             type: "reme_roulette",
+            earningsLocks: 0,
             stats: {},
             updatedAt: Date.now()
           });
