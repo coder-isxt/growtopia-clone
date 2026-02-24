@@ -174,8 +174,8 @@ window.GTModules = window.GTModules || {};
     function evaluateSpin(def, playerRoll, houseRoll, bet) {
       const playerReme = getRemeFromRoll(playerRoll);
       const houseReme = getRemeFromRoll(houseRoll);
-      const houseAutoLose = Boolean(def.houseAutoLoseRolls && def.houseAutoLoseRolls.has(houseRoll));
-      const triple = def.tripleWinRolls.has(playerRoll);
+      const houseAutoLose = Boolean(def && def.houseAutoLoseRolls && typeof def.houseAutoLoseRolls.has === "function" && def.houseAutoLoseRolls.has(houseRoll));
+      const triple = Boolean(def && def.tripleWinRolls && typeof def.tripleWinRolls.has === "function" && def.tripleWinRolls.has(playerRoll));
       const tie = playerReme === houseReme;
       let multiplier = 0;
       let outcome = "lose";
@@ -1346,7 +1346,7 @@ window.GTModules = window.GTModules || {};
       }
 
       const result = (() => {
-        if (def.id === "slots") {
+        if (def.id === "slots" || def.id === "slots_v2") {
           return evaluateSlots(def, bet);
         }
         const playerRoll = Math.floor(Math.random() * (def.maxRoll - def.minRoll + 1)) + def.minRoll;
