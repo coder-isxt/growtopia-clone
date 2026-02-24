@@ -4083,7 +4083,6 @@
           refreshToolbar();
           //postDailyQuestStatus();
           setInWorldState(false);
-          refreshWorldButtons([currentWorldId]);
           updateOnlineCount();
           initFirebaseMultiplayer();
         }
@@ -4827,7 +4826,7 @@
       }
 
       function getInitialWorldId() {
-        return normalizeWorldId(localStorage.getItem("growtopia_current_world") || "default-world") || "default-world";
+        return "default-world";
       }
 
       function normalizeWorldId(value) {
@@ -10089,12 +10088,11 @@
         if (Array.isArray(worldIds)) {
           knownWorldIds = Array.from(new Set(worldIds.filter(Boolean)));
         }
-        if (!inWorld && hasRenderedMenuWorldList) {
+        if (!inWorld && hasRenderedMenuWorldList && !force && !Array.isArray(worldIds)) {
           return;
         }
         const occupancyWorlds = Array.from(worldOccupancy.keys());
-        const fallback = currentWorldId ? [currentWorldId] : [];
-        const unique = Array.from(new Set(knownWorldIds.concat(occupancyWorlds, fallback)));
+        const unique = Array.from(new Set(knownWorldIds.concat(occupancyWorlds)));
         const ownedWorlds = unique
           .filter((id) => {
             const ownerId = getWorldLockOwnerAccountId(id);
@@ -10477,7 +10475,6 @@
           setInWorldState(true);
           currentWorldId = worldId;
           resetSpawnStructureTile();
-          localStorage.setItem("growtopia_current_world", worldId);
           setCurrentWorldUI();
           resetForWorldChange();
           refreshWorldButtons([worldId]);
@@ -10508,7 +10505,6 @@
         detachCurrentWorldListeners();
         currentWorldId = worldId;
         resetSpawnStructureTile();
-        localStorage.setItem("growtopia_current_world", worldId);
         setCurrentWorldUI();
         resetForWorldChange();
         writeWorldIndexMeta(worldId, createIfMissing);
@@ -11585,7 +11581,7 @@
         }
         if (!window.firebase) {
           setNetworkState("Offline (set firebase-config.js)", true);
-          refreshWorldButtons([currentWorldId]);
+          refreshWorldButtons(null, true);
           totalOnlinePlayers = inWorld ? 1 : 0;
           updateOnlineCount();
           return;
@@ -12059,7 +12055,7 @@
         } catch (error) {
           console.error(error);
           setNetworkState("Firebase error", true);
-          refreshWorldButtons([currentWorldId]);
+          refreshWorldButtons(null, true);
           updateOnlineCount();
         }
       }
@@ -13111,7 +13107,6 @@
         //postDailyQuestStatus();
         bindMobileControls();
         setInWorldState(false);
-        refreshWorldButtons([currentWorldId]);
         updateOnlineCount();
         bindWorldControls();
         initFirebaseMultiplayer();
