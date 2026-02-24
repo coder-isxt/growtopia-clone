@@ -2442,16 +2442,19 @@ canvas {
 }
 
 .slotsv2-winfx {
-  margin-top: 8px;
-  position: relative;
-  height: 28px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 10px;
+  bottom: 10px;
   overflow: hidden;
   pointer-events: none;
+  z-index: 4;
 }
 
 .slotsv2-winfx span {
   position: absolute;
-  top: 2px;
+  top: 10%;
   width: 10px;
   height: 10px;
   border-radius: 2px;

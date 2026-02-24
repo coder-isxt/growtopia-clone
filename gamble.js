@@ -933,13 +933,13 @@ window.GTModules = window.GTModules || {};
           : (slotsLines.length
           ? slotsLines.map((line) => "<span class='slotsv2-line-badge'>" + esc(line) + "</span>").join("")
           : "<span class='slotsv2-line-badge muted'>No winning lines</span>");
+        const boardFxHtml = (!isRollingSlotsV2 && !bonusActive && (stats.lastOutcome === "win" || stats.lastOutcome === "jackpot"))
+          ? ("<div class='slotsv2-winfx " + (stats.lastOutcome === "jackpot" ? "slotsv2-outcome-jackpot" : "slotsv2-outcome-win") + "'><span></span><span></span><span></span><span></span><span></span><span></span></div>")
+          : "";
         slotsV2BoardHtml =
-          "<div class='slotsv2-board " + winStateClass + (isRollingSlotsV2 ? " rolling" : "") + "' style='--slots-cols:" + slotsCols + ";'>" + slotsV2BoardHtml + "</div>" +
+          "<div class='slotsv2-board " + winStateClass + (isRollingSlotsV2 ? " rolling" : "") + "' style='--slots-cols:" + slotsCols + ";'>" + slotsV2BoardHtml + boardFxHtml + "</div>" +
           "<div class='slotsv2-lines'>" + lineBadges + "</div>";
       }
-      const slotsV2OutcomeClass = stats.lastOutcome === "jackpot"
-        ? "slotsv2-outcome-jackpot"
-        : (stats.lastOutcome === "win" ? "slotsv2-outcome-win" : "slotsv2-outcome-lose");
       const slotsV2ResultHtml = def.id === "slots_v2"
         ? ("<div class='vending-section'>" +
             "<div class='vending-section-title'>Slots v2 Board</div>" +
@@ -975,9 +975,6 @@ window.GTModules = window.GTModules || {};
                 ? (bonusActive ? "Hold & Spin in progress..." : "Rolling...")
                 : ("Result: " + esc(stats.lastSlotsSummary || "-") + " | Payout: " + esc(stats.lastMultiplier > 0 ? (stats.lastMultiplier + "x") : "-"))) +
             "</div>" +
-            ((!isRollingSlotsV2 && !bonusActive && (stats.lastOutcome === "win" || stats.lastOutcome === "jackpot"))
-              ? ("<div class='slotsv2-winfx " + slotsV2OutcomeClass + "'><span></span><span></span><span></span><span></span><span></span><span></span></div>")
-              : "") +
           "</div>")
         : "";
       let blackjackStateHtml = "";
@@ -1170,6 +1167,11 @@ window.GTModules = window.GTModules || {};
       const ref = getMachineRef(tx, ty);
       if (!ref) return;
       const firebaseRef = get("getFirebase", null);
+      const getSlotsRevealDelayMs = () => {
+        if (def.id !== "slots_v2") return 0;
+        const frames = (slotsBonusView && Array.isArray(slotsBonusView.frames)) ? slotsBonusView.frames.length : 0;
+        return 1200 + (frames * 360) + 250;
+      };
       const profileId = String(get("getPlayerProfileId", "") || "");
       if (!profileId) return;
       const profileName = String(get("getPlayerName", "") || "").slice(0, 20);
@@ -1723,8 +1725,7 @@ window.GTModules = window.GTModules || {};
           return;
         }
         const payout = Math.max(0, Math.floor(Number(result.payoutWanted) || 0));
-        const nextTotal = Math.max(0, haveLocal - wager + payout);
-        setCanonicalLocks(inventory, nextTotal);
+        setCanonicalLocks(inventory, Math.max(0, haveLocal - wager));
         const nextStats = normalizeStats(current.stats);
         nextStats.plays += 1;
         nextStats.totalBet += wager;
@@ -1764,6 +1765,15 @@ window.GTModules = window.GTModules || {};
         }
         renderModal(tx, ty, nextMachine);
         post(getOutcomeMessage(result, payout));
+        if (payout > 0) {
+          const delayMs = getSlotsRevealDelayMs();
+          setTimeout(() => {
+            addLocksLocal(inventory, payout);
+            if (typeof opts.saveInventory === "function") opts.saveInventory();
+            if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+            post("Payout credited: +" + payout + " WL.");
+          }, Math.max(0, delayMs));
+        }
       };
 
       if (!network || !network.enabled || !network.db || !basePath || !profileId) {
@@ -1807,19 +1817,7 @@ window.GTModules = window.GTModules || {};
           }
           const raw = machineTxn.snapshot && typeof machineTxn.snapshot.val === "function" ? machineTxn.snapshot.val() : null;
           setLocal(tx, ty, raw);
-          if (payout > 0) {
-            return lockRef.transaction((currentRaw) => {
-              const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
-              addLocksLocal(current, payout);
-              return current;
-            }).then((payTxn) => {
-              if (!payTxn || !payTxn.committed) {
-                post("Spin payout failed.");
-              }
-              return { payout };
-            });
-          }
-          return { payout: 0 };
+          return { payout };
         });
       }).then((done) => {
         if (!done) return;
@@ -1839,6 +1837,26 @@ window.GTModules = window.GTModules || {};
         }
         renderModal(tx, ty, latest);
         post(getOutcomeMessage(result, done.payout));
+        if (done.payout > 0) {
+          const delayMs = getSlotsRevealDelayMs();
+          setTimeout(() => {
+            lockRef.transaction((currentRaw) => {
+              const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+              addLocksLocal(current, done.payout);
+              return current;
+            }).then((payTxn) => {
+              if (!payTxn || !payTxn.committed) {
+                post("Spin payout failed.");
+                return;
+              }
+              if (typeof opts.saveInventory === "function") opts.saveInventory();
+              if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+              post("Payout credited: +" + done.payout + " WL.");
+            }).catch(() => {
+              post("Spin payout failed.");
+            });
+          }, Math.max(0, delayMs));
+        }
       }).catch(() => {
         post("Spin failed.");
       });
