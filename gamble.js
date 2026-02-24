@@ -546,8 +546,17 @@ window.GTModules = window.GTModules || {};
       if (outcome === "push") return "PUSH";
       if (outcome === "house_roll") return "HOUSE SPECIAL";
       if (outcome === "triple") return "TRIPLE";
+      if (outcome === "bust") return "BUST";
       if (outcome === "win") return "WIN";
       return "LOSE";
+    }
+
+    function getOutcomeTone(outcome) {
+      const key = String(outcome || "").toLowerCase();
+      if (key === "blackjack" || key === "win" || key === "triple") return "win";
+      if (key === "push") return "push";
+      if (key === "bust" || key === "house_roll" || key === "lose") return "lose";
+      return "info";
     }
 
     function renderModal(tx, ty, machine, spectatingMode) {
@@ -601,32 +610,52 @@ window.GTModules = window.GTModules || {};
           let handsHtml = "";
           for (let i = 0; i < round.hands.length; i++) {
             const hand = round.hands[i];
-            const handTotal = scoreHand(hand.cards);
-            const handTitle = "Hand " + (i + 1) + (i === activeHandIndex && roundActive ? " (active)" : "");
-            const tag = hand.done ? (hand.outcome ? getOutcomeLabel(hand.outcome) : "DONE") : "PLAY";
+            const handDetail = scoreHandDetail(hand.cards);
+            const handTotal = handDetail.total;
+            const handTitle = "Hand " + (i + 1);
+            const tag = hand.done ? (hand.outcome ? getOutcomeLabel(hand.outcome) : "DONE") : (i === activeHandIndex ? "ACTIVE" : "WAIT");
+            const tone = hand.done ? getOutcomeTone(hand.outcome) : (i === activeHandIndex ? "turn" : "info");
+            const rowClass = "bj-hand-row bj-hand-" + tone + (i === activeHandIndex ? " active" : "");
             handsHtml +=
-              "<div class='vending-stat'>" +
-                "<span>" + esc(handTitle) + "</span>" +
-                "<strong>" + esc(formatHand(hand.cards, handTotal, false)) + " | Bet " + hand.bet + " WL | " + esc(tag) + "</strong>" +
+              "<div class='" + rowClass + "'>" +
+                "<div class='bj-hand-top'>" +
+                  "<span class='bj-hand-title'>" + esc(handTitle) + "</span>" +
+                  "<span class='bj-hand-tag'>" + esc(tag) + "</span>" +
+                "</div>" +
+                "<div class='bj-hand-cards'>" + esc(formatHand(hand.cards, handTotal, false)) + "</div>" +
+                "<div class='bj-hand-meta'>Bet " + hand.bet + " WL" + (handDetail.isBlackjack ? " | Natural 21" : "") + "</div>" +
               "</div>";
+          }
+          let bannerClass = "bj-banner bj-banner-info";
+          let bannerText = "Blackjack ready.";
+          if (roundActive) {
+            bannerClass = isRoundPlayer ? "bj-banner bj-banner-turn" : "bj-banner bj-banner-wait";
+            bannerText = isRoundPlayer
+              ? "Your turn: choose Hit / Stand / Double / Split."
+              : ("Round in progress by @" + esc(round.playerName || "player") + ".");
+          } else {
+            const tone = getOutcomeTone(round.aggregateOutcome || stats.lastOutcome || "");
+            bannerClass = "bj-banner bj-banner-" + tone;
+            bannerText = "Round finished: " + esc(getOutcomeLabel(round.aggregateOutcome || stats.lastOutcome || "lose")) + ".";
+            if (round.summary) {
+              bannerText += " " + esc(round.summary);
+            }
           }
           blackjackStateHtml =
             "<div class='vending-section'>" +
               "<div class='vending-section-title'>Blackjack Round</div>" +
+              "<div class='" + bannerClass + "'>" + bannerText + "</div>" +
               "<div class='vending-stat-grid'>" +
                 "<div class='vending-stat'><span>Player</span><strong>@" + esc(round.playerName || "player") + "</strong></div>" +
                 "<div class='vending-stat'><span>Dealer</span><strong>" + esc(dealerText) + "</strong></div>" +
-                handsHtml +
               "</div>" +
-              (roundActive
-                ? "<div class='vending-auto-stock-note'>" + (isRoundPlayer ? "Your turn." : "Live game in progress. Spectating.") + "</div>"
-                : (round.summary ? "<div class='vending-auto-stock-note'>" + esc(round.summary) + "</div>" : "")) +
+              "<div class='bj-hand-list'>" + handsHtml + "</div>" +
             "</div>";
         } else {
           blackjackStateHtml =
             "<div class='vending-section'>" +
               "<div class='vending-section-title'>Blackjack Round</div>" +
-              "<div class='vending-auto-stock-note'>No active round. Deal to start.</div>" +
+              "<div class='bj-banner bj-banner-info'>No active round. Press Deal to start.</div>" +
             "</div>";
         }
       }
@@ -682,6 +711,9 @@ window.GTModules = window.GTModules || {};
         blackjackStateHtml +
         "<div class='vending-section'>" +
           "<div class='vending-section-title'>Last Result</div>" +
+          (stats.plays
+            ? ("<div class='bj-banner bj-banner-" + getOutcomeTone(stats.lastOutcome) + "'>Last round: " + esc(getOutcomeLabel(stats.lastOutcome)) + "</div>")
+            : "") +
           "<div class='vending-stat-grid'>" +
             "<div class='vending-stat'><span>You</span><strong>" + (stats.plays ? esc(def.id === "blackjack" ? (String(stats.lastPlayerRoll) + " pts") : (stats.lastPlayerRoll + " (" + stats.lastPlayerReme + ")")) : "-") + "</strong></div>" +
             "<div class='vending-stat'><span>House</span><strong>" + (stats.plays ? esc(def.id === "blackjack" ? (String(stats.lastHouseRoll) + " pts") : (stats.lastHouseRoll + " (" + stats.lastHouseReme + ")")) : "-") + "</strong></div>" +
