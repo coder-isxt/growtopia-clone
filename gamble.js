@@ -1268,19 +1268,19 @@ window.GTModules = window.GTModules || {};
         if (result.outcome === "push") return "PUSH. Bet returned (" + payout + " WL).";
         return "LOSE. Lost " + result.bet + " WL.";
       }
-      if (result.gameType === "slots" || result.gameType === "slots_v2" || result.gameType === "slots_v3") {
-        const gameLabel = result.gameType === "slots_v2" ? "SLOTS V2" : (result.gameType === "slots_v3" ? "SLOTS V3" : "SLOTS");
-        const reels = Array.isArray(result.reels) ? result.reels.join(" | ") : "? | ? | ?";
-        const lines = String(result.slotsLines || "").trim();
-        const spinTag = result.isFreeSpin ? "[FREE SPIN] " : "";
-        if (result.outcome === "jackpot") {
-          return spinTag + gameLabel + " " + reels + ": JACKPOT. Won " + payout + " WL." + (lines ? (" Lines: " + lines + ".") : "");
-        }
-        if (result.multiplier > 0) {
-          return spinTag + gameLabel + " " + reels + ": WIN " + result.multiplier + "x. Won " + payout + " WL." + (lines ? (" Lines: " + lines + ".") : "");
-        }
-        return spinTag + gameLabel + " " + reels + ": LOSE. Lost " + result.bet + " WL.";
-      }
+      // if (result.gameType === "slots" || result.gameType === "slots_v2" || result.gameType === "slots_v3") {
+      //   const gameLabel = result.gameType === "slots_v2" ? "SLOTS V2" : (result.gameType === "slots_v3" ? "SLOTS V3" : "SLOTS");
+      //   const reels = Array.isArray(result.reels) ? result.reels.join(" | ") : "? | ? | ?";
+      //   const lines = String(result.slotsLines || "").trim();
+      //   const spinTag = result.isFreeSpin ? "[FREE SPIN] " : "";
+      //   if (result.outcome === "jackpot") {
+      //     return spinTag + gameLabel + " " + reels + ": JACKPOT. Won " + payout + " WL." + (lines ? (" Lines: " + lines + ".") : "");
+      //   }
+      //   if (result.multiplier > 0) {
+      //     return spinTag + gameLabel + " " + reels + ": WIN " + result.multiplier + "x. Won " + payout + " WL." + (lines ? (" Lines: " + lines + ".") : "");
+      //   }
+      //   return spinTag + gameLabel + " " + reels + ": LOSE. Lost " + result.bet + " WL.";
+      // }
       if (result.gameType === "reme_roulette") {
         const playerText = "You " + result.playerRoll + " (" + result.playerReme + ")";
         const houseText = "House " + result.houseRoll + " (" + result.houseReme + ")";
