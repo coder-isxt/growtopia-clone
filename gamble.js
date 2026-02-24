@@ -615,14 +615,11 @@ window.GTModules = window.GTModules || {};
             const handTitle = "Hand " + (i + 1);
             const tag = hand.done ? (hand.outcome ? getOutcomeLabel(hand.outcome) : "DONE") : (i === activeHandIndex ? "ACTIVE" : "WAIT");
             const tone = hand.done ? getOutcomeTone(hand.outcome) : (i === activeHandIndex ? "turn" : "info");
-            const rowClass = "bj-hand-row bj-hand-" + tone + (i === activeHandIndex ? " active" : "");
+            const rowClass = "vending-stat bj-stat bj-stat-" + tone + (i === activeHandIndex ? " active" : "");
             handsHtml +=
               "<div class='" + rowClass + "'>" +
-                "<div class='bj-hand-top'>" +
-                  "<span class='bj-hand-title'>" + esc(handTitle) + "</span>" +
-                  "<span class='bj-hand-tag'>" + esc(tag) + "</span>" +
-                "</div>" +
-                "<div class='bj-hand-cards'>" + esc(formatHand(hand.cards, handTotal, false)) + "</div>" +
+                "<span>" + esc(handTitle) + " - " + esc(tag) + "</span>" +
+                "<strong>" + esc(formatHand(hand.cards, handTotal, false)) + "</strong>" +
                 "<div class='bj-hand-meta'>Bet " + hand.bet + " WL" + (handDetail.isBlackjack ? " | Natural 21" : "") + "</div>" +
               "</div>";
           }
@@ -648,8 +645,10 @@ window.GTModules = window.GTModules || {};
               "<div class='vending-stat-grid'>" +
                 "<div class='vending-stat'><span>Player</span><strong>@" + esc(round.playerName || "player") + "</strong></div>" +
                 "<div class='vending-stat'><span>Dealer</span><strong>" + esc(dealerText) + "</strong></div>" +
+                "<div class='vending-stat'><span>Round State</span><strong>" + esc(roundActive ? "In Progress" : "Finished") + "</strong></div>" +
+                "<div class='vending-stat'><span>Your Access</span><strong>" + esc(isRoundPlayer ? "You are playing" : "Spectating") + "</strong></div>" +
+                handsHtml +
               "</div>" +
-              "<div class='bj-hand-list'>" + handsHtml + "</div>" +
             "</div>";
         } else {
           blackjackStateHtml =
@@ -709,18 +708,20 @@ window.GTModules = window.GTModules || {};
           (blockedByActiveUser && !spectating ? "<div class='vending-auto-stock-note'>Machine is currently in use by @" + esc(m.inUseName || "another player") + ".</div>" : "") +
         "</div>" +
         blackjackStateHtml +
-        "<div class='vending-section'>" +
-          "<div class='vending-section-title'>Last Result</div>" +
-          (stats.plays
-            ? ("<div class='bj-banner bj-banner-" + getOutcomeTone(stats.lastOutcome) + "'>Last round: " + esc(getOutcomeLabel(stats.lastOutcome)) + "</div>")
-            : "") +
-          "<div class='vending-stat-grid'>" +
-            "<div class='vending-stat'><span>You</span><strong>" + (stats.plays ? esc(def.id === "blackjack" ? (String(stats.lastPlayerRoll) + " pts") : (stats.lastPlayerRoll + " (" + stats.lastPlayerReme + ")")) : "-") + "</strong></div>" +
-            "<div class='vending-stat'><span>House</span><strong>" + (stats.plays ? esc(def.id === "blackjack" ? (String(stats.lastHouseRoll) + " pts") : (stats.lastHouseRoll + " (" + stats.lastHouseReme + ")")) : "-") + "</strong></div>" +
-            "<div class='vending-stat'><span>Outcome</span><strong>" + esc(stats.plays ? getOutcomeLabel(stats.lastOutcome) : "-") + "</strong></div>" +
-            "<div class='vending-stat'><span>Multiplier</span><strong>" + (stats.plays ? (stats.lastMultiplier + "x") : "-") + "</strong></div>" +
-          "</div>" +
-        "</div>";
+        (def.id === "blackjack"
+          ? ""
+          : ("<div class='vending-section'>" +
+              "<div class='vending-section-title'>Last Result</div>" +
+              (stats.plays
+                ? ("<div class='bj-banner bj-banner-" + getOutcomeTone(stats.lastOutcome) + "'>Last round: " + esc(getOutcomeLabel(stats.lastOutcome)) + "</div>")
+                : "") +
+              "<div class='vending-stat-grid'>" +
+                "<div class='vending-stat'><span>You</span><strong>" + (stats.plays ? esc(def.id === "blackjack" ? (String(stats.lastPlayerRoll) + " pts") : (stats.lastPlayerRoll + " (" + stats.lastPlayerReme + ")")) : "-") + "</strong></div>" +
+                "<div class='vending-stat'><span>House</span><strong>" + (stats.plays ? esc(def.id === "blackjack" ? (String(stats.lastHouseRoll) + " pts") : (stats.lastHouseRoll + " (" + stats.lastHouseReme + ")")) : "-") + "</strong></div>" +
+                "<div class='vending-stat'><span>Outcome</span><strong>" + esc(stats.plays ? getOutcomeLabel(stats.lastOutcome) : "-") + "</strong></div>" +
+                "<div class='vending-stat'><span>Multiplier</span><strong>" + (stats.plays ? (stats.lastMultiplier + "x") : "-") + "</strong></div>" +
+              "</div>" +
+            "</div>"));
 
       if (ownerView) {
         if (def.id === "blackjack" && roundActive) {
