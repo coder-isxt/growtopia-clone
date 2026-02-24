@@ -2,6 +2,8 @@ window.GTModules = window.GTModules || {};
 
 (function initGambleModule() {
   const MACHINE_USE_TIMEOUT_MS = 120000;
+  const slotsModule = (window.GTModules && window.GTModules.slots) || {};
+  const slotsDef = (typeof slotsModule.getDefinition === "function" ? slotsModule.getDefinition() : null) || {};
 
   const MACHINE_DEFS = {
     reme_roulette: {
@@ -21,6 +23,13 @@ window.GTModules = window.GTModules || {};
       minBet: 1,
       maxBet: 30000,
       maxPayoutMultiplier: 3
+    },
+    slots: {
+      id: "slots",
+      name: String(slotsDef.name || "Slots"),
+      minBet: Math.max(1, Math.floor(Number(slotsDef.minBet) || 1)),
+      maxBet: Math.max(1, Math.floor(Number(slotsDef.maxBet) || 30000)),
+      maxPayoutMultiplier: Math.max(1, Math.floor(Number(slotsDef.maxPayoutMultiplier) || 10))
     }
   };
 
@@ -62,6 +71,8 @@ window.GTModules = window.GTModules || {};
         lastHouseReme: Math.max(0, Math.floor(Number(row.lastHouseReme) || 0)),
         lastMultiplier: Math.max(0, Number(row.lastMultiplier) || 0),
         lastOutcome: String(row.lastOutcome || "").slice(0, 16),
+        lastSlotsText: String(row.lastSlotsText || "").slice(0, 80),
+        lastSlotsSummary: String(row.lastSlotsSummary || "").slice(0, 80),
         lastPlayerName: String(row.lastPlayerName || "").slice(0, 20),
         lastAt: Number(row.lastAt) || 0
       };
@@ -180,6 +191,47 @@ window.GTModules = window.GTModules || {};
         multiplier,
         payoutWanted: Math.max(0, Math.floor((Number(bet) || 0) * multiplier)),
         outcome
+      };
+    }
+
+    function evaluateSlots(def, bet) {
+      const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+      if (slotsModule && typeof slotsModule.spin === "function") {
+        const raw = slotsModule.spin(safeBet) || {};
+        const reels = Array.isArray(raw.reels) ? raw.reels.map((r) => String(r || "?")).slice(0, 3) : ["?", "?", "?"];
+        const multiplier = Math.max(0, Number(raw.multiplier) || 0);
+        const outcome = String(raw.outcome || (multiplier > 0 ? "win" : "lose")).slice(0, 16);
+        const payoutWanted = Math.max(0, Math.floor(Number(raw.payoutWanted) || (safeBet * multiplier)));
+        return {
+          bet: safeBet,
+          playerRoll: 0,
+          houseRoll: 0,
+          playerReme: 0,
+          houseReme: 0,
+          houseAutoLose: false,
+          tie: false,
+          reels,
+          slotsSummary: String(raw.summary || "").slice(0, 80),
+          multiplier,
+          payoutWanted,
+          outcome,
+          gameType: "slots"
+        };
+      }
+      return {
+        bet: safeBet,
+        playerRoll: 0,
+        houseRoll: 0,
+        playerReme: 0,
+        houseReme: 0,
+        houseAutoLose: false,
+        tie: false,
+        reels: ["?", "?", "?"],
+        slotsSummary: "Module unavailable",
+        multiplier: 0,
+        payoutWanted: 0,
+        outcome: "lose",
+        gameType: "slots"
       };
     }
 
@@ -577,6 +629,7 @@ window.GTModules = window.GTModules || {};
 
     function getOutcomeLabel(outcome) {
       if (outcome === "blackjack") return "BLACKJACK";
+      if (outcome === "jackpot") return "JACKPOT";
       if (outcome === "push") return "PUSH";
       if (outcome === "house_roll") return "HOUSE SPECIAL";
       if (outcome === "triple") return "TRIPLE";
@@ -587,7 +640,7 @@ window.GTModules = window.GTModules || {};
 
     function getOutcomeTone(outcome) {
       const key = String(outcome || "").toLowerCase();
-      if (key === "blackjack" || key === "win" || key === "triple") return "win";
+      if (key === "jackpot" || key === "blackjack" || key === "win" || key === "triple") return "win";
       if (key === "push") return "push";
       if (key === "bust" || key === "house_roll" || key === "lose") return "lose";
       return "info";
@@ -719,7 +772,7 @@ window.GTModules = window.GTModules || {};
             "</div>")
           : "") +
         "<div class='vending-section'>" +
-          "<div class='vending-section-title'>Play (" + (def.id === "blackjack" ? "Blackjack" : "Player vs House") + ")</div>" +
+          "<div class='vending-section-title'>Play (" + (def.id === "blackjack" ? "Blackjack" : (def.id === "slots" ? "Slots" : "Player vs House")) + ")</div>" +
           "<div class='vending-field-grid'>" +
             "<label class='vending-field'><span>Bet (World Locks)</span><input data-gamble-input='bet' type='number' min='" + def.minBet + "' max='" + (canSpin ? maxBetByBank : def.minBet) + "' step='1' value='" + displayBet + "'" + (canPlayNow && !roundActive ? "" : " disabled") + "></label>" +
             "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='maxbet'" + ((canPlayNow && maxBetEffective > 0 && !roundActive) ? "" : " disabled") + ">Apply Max Bet</button></div>" +
@@ -727,9 +780,12 @@ window.GTModules = window.GTModules || {};
           (def.id === "blackjack"
             ? ("<div class='vending-auto-stock-note'>You: Hit, Stand, Double, Split. Dealer hits to 17+ and stands on 17.</div>" +
               "<div class='vending-auto-stock-note'>Blackjack pays 3:2 (floor), win pays 2x, push returns bet.</div>")
-            : ("<div class='vending-auto-stock-note'>No number selection. You roll vs house roll (0-37). Higher reme wins.</div>" +
-              "<div class='vending-auto-stock-note'>Tie = lose. Special player rolls 0, 19, 28 give 3x.</div>" +
-              "<div class='vending-auto-stock-note'>If house rolls 0, 19, 28 or 37, player auto-loses.</div>")) +
+            : (def.id === "slots"
+              ? ("<div class='vending-auto-stock-note'>3-reel slots. Triple seven = jackpot (10x).</div>" +
+                "<div class='vending-auto-stock-note'>Triple bar = 6x, other triples = 4x, double seven = 3x, any pair = 2x.</div>")
+              : ("<div class='vending-auto-stock-note'>No number selection. You roll vs house roll (0-37). Higher reme wins.</div>" +
+                "<div class='vending-auto-stock-note'>Tie = lose. Special player rolls 0, 19, 28 give 3x.</div>" +
+                "<div class='vending-auto-stock-note'>If house rolls 0, 19, 28 or 37, player auto-loses.</div>"))) +
           "<div class='vending-auto-stock-note'>All lost bets go into machine bank. Wins are paid from machine bank.</div>" +
           "<div class='vending-auto-stock-note'>Required bank >= " + coverageMult + "x bet. With 12 WL bank, max bet is " + Math.floor(12 / coverageMult) + " WL.</div>" +
           (spectating ? "<div class='vending-auto-stock-note'>Spectating live: read-only.</div>" : "") +
@@ -744,8 +800,11 @@ window.GTModules = window.GTModules || {};
                 ? ("<div class='bj-banner bj-banner-" + getOutcomeTone(stats.lastOutcome) + "'>Last round: " + esc(getOutcomeLabel(stats.lastOutcome)) + "</div>")
                 : "") +
               "<div class='vending-stat-grid'>" +
-                "<div class='vending-stat'><span>You</span><strong>" + (stats.plays ? esc(def.id === "blackjack" ? (String(stats.lastPlayerRoll) + " pts") : (stats.lastPlayerRoll + " (" + stats.lastPlayerReme + ")")) : "-") + "</strong></div>" +
-                "<div class='vending-stat'><span>House</span><strong>" + (stats.plays ? esc(def.id === "blackjack" ? (String(stats.lastHouseRoll) + " pts") : (stats.lastHouseRoll + " (" + stats.lastHouseReme + ")")) : "-") + "</strong></div>" +
+                (def.id === "slots"
+                  ? ("<div class='vending-stat'><span>Reels</span><strong>" + (stats.plays ? esc(stats.lastSlotsText || "-") : "-") + "</strong></div>" +
+                    "<div class='vending-stat'><span>Result</span><strong>" + (stats.plays ? esc(stats.lastSlotsSummary || "-") : "-") + "</strong></div>")
+                  : ("<div class='vending-stat'><span>You</span><strong>" + (stats.plays ? esc(stats.lastPlayerRoll + " (" + stats.lastPlayerReme + ")") : "-") + "</strong></div>" +
+                    "<div class='vending-stat'><span>House</span><strong>" + (stats.plays ? esc(stats.lastHouseRoll + " (" + stats.lastHouseReme + ")") : "-") + "</strong></div>")) +
                 "<div class='vending-stat'><span>Outcome</span><strong>" + esc(stats.plays ? getOutcomeLabel(stats.lastOutcome) : "-") + "</strong></div>" +
                 "<div class='vending-stat'><span>Multiplier</span><strong>" + (stats.plays ? (stats.lastMultiplier + "x") : "-") + "</strong></div>" +
               "</div>" +
@@ -790,8 +849,8 @@ window.GTModules = window.GTModules || {};
         return {
           ownerAccountId: profileId,
           ownerName: profileName,
-          type: "reme_roulette",
-          maxBet: MACHINE_DEFS.reme_roulette.maxBet,
+          type: "slots",
+          maxBet: MACHINE_DEFS.slots.maxBet,
           earningsLocks: 0,
           stats: normalizeStats({}),
           updatedAt: firebaseRef && firebaseRef.database ? firebaseRef.database.ServerValue.TIMESTAMP : Date.now()
@@ -824,6 +883,8 @@ window.GTModules = window.GTModules || {};
       nextStats.lastHouseReme = result.houseReme;
       nextStats.lastMultiplier = result.multiplier;
       nextStats.lastOutcome = result.outcome;
+      nextStats.lastSlotsText = Array.isArray(result.reels) ? result.reels.join(" | ") : "";
+      nextStats.lastSlotsSummary = String(result.slotsSummary || "").slice(0, 80);
       nextStats.lastPlayerName = playerName;
       nextStats.lastAt = firebaseRef && firebaseRef.database ? firebaseRef.database.ServerValue.TIMESTAMP : Date.now();
       const next = {
@@ -845,6 +906,16 @@ window.GTModules = window.GTModules || {};
         if (result.outcome === "win") return "WIN. Won " + payout + " WL.";
         if (result.outcome === "push") return "PUSH. Bet returned (" + payout + " WL).";
         return "LOSE. Lost " + result.bet + " WL.";
+      }
+      if (result.gameType === "slots") {
+        const reels = Array.isArray(result.reels) ? result.reels.join(" | ") : "? | ? | ?";
+        if (result.outcome === "jackpot") {
+          return "SLOTS " + reels + ": JACKPOT. Won " + payout + " WL.";
+        }
+        if (result.multiplier > 0) {
+          return "SLOTS " + reels + ": WIN " + result.multiplier + "x. Won " + payout + " WL.";
+        }
+        return "SLOTS " + reels + ": LOSE. Lost " + result.bet + " WL.";
       }
       const playerText = "You " + result.playerRoll + " (" + result.playerReme + ")";
       const houseText = "House " + result.houseRoll + " (" + result.houseReme + ")";
@@ -1226,6 +1297,9 @@ window.GTModules = window.GTModules || {};
       }
 
       const result = (() => {
+        if (def.id === "slots") {
+          return evaluateSlots(def, bet);
+        }
         const playerRoll = Math.floor(Math.random() * (def.maxRoll - def.minRoll + 1)) + def.minRoll;
         const houseRoll = Math.floor(Math.random() * (def.maxRoll - def.minRoll + 1)) + def.minRoll;
         return evaluateSpin(def, playerRoll, houseRoll, bet);
@@ -1254,6 +1328,8 @@ window.GTModules = window.GTModules || {};
         nextStats.lastHouseReme = result.houseReme;
         nextStats.lastMultiplier = result.multiplier;
         nextStats.lastOutcome = result.outcome;
+        nextStats.lastSlotsText = Array.isArray(result.reels) ? result.reels.join(" | ") : "";
+        nextStats.lastSlotsSummary = String(result.slotsSummary || "").slice(0, 80);
         nextStats.lastPlayerName = profileName;
         nextStats.lastAt = Date.now();
         const nextMachine = {
@@ -1656,8 +1732,8 @@ window.GTModules = window.GTModules || {};
       setLocal(tx, ty, {
         ownerAccountId: String(get("getPlayerProfileId", "") || ""),
         ownerName: String(get("getPlayerName", "") || "").slice(0, 20),
-        type: "reme_roulette",
-        maxBet: MACHINE_DEFS.reme_roulette.maxBet,
+        type: "slots",
+        maxBet: MACHINE_DEFS.slots.maxBet,
         earningsLocks: 0,
         stats: normalizeStats({}),
         updatedAt: Date.now()
