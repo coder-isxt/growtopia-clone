@@ -1167,11 +1167,6 @@ window.GTModules = window.GTModules || {};
       const ref = getMachineRef(tx, ty);
       if (!ref) return;
       const firebaseRef = get("getFirebase", null);
-      const getSlotsRevealDelayMs = () => {
-        if (def.id !== "slots_v2") return 0;
-        const frames = (slotsBonusView && Array.isArray(slotsBonusView.frames)) ? slotsBonusView.frames.length : 0;
-        return 1200 + (frames * 360) + 250;
-      };
       const profileId = String(get("getPlayerProfileId", "") || "");
       if (!profileId) return;
       const profileName = String(get("getPlayerName", "") || "").slice(0, 20);
@@ -1236,6 +1231,12 @@ window.GTModules = window.GTModules || {};
         updatedAt: firebaseRef && firebaseRef.database ? firebaseRef.database.ServerValue.TIMESTAMP : Date.now()
       };
       return { next, payout };
+    }
+
+    function getSlotsRevealDelayMs(defId, bonusView) {
+      if (String(defId || "") !== "slots_v2") return 0;
+      const frames = (bonusView && Array.isArray(bonusView.frames)) ? bonusView.frames.length : 0;
+      return 1200 + (frames * 360) + 250;
     }
 
     function getOutcomeMessage(result, payout) {
@@ -1773,7 +1774,7 @@ window.GTModules = window.GTModules || {};
         const outcomeMsg = getOutcomeMessage(result, payout);
         if (outcomeMsg) post(outcomeMsg);
         if (payout > 0) {
-          const delayMs = getSlotsRevealDelayMs();
+          const delayMs = getSlotsRevealDelayMs(def.id, slotsBonusView);
           setTimeout(() => {
             try {
               addLocksLocal(inventory, payout);
@@ -1873,7 +1874,7 @@ window.GTModules = window.GTModules || {};
         const outcomeMsg = getOutcomeMessage(result, done.payout);
         if (outcomeMsg) post(outcomeMsg);
         if (done.payout > 0) {
-          const delayMs = getSlotsRevealDelayMs();
+          const delayMs = getSlotsRevealDelayMs(def.id, slotsBonusView);
           setTimeout(() => {
             try {
               lockRef.transaction((currentRaw) => {
