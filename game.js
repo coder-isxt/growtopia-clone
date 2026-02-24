@@ -723,6 +723,7 @@
           getGambleId: () => GAMBLE_ID,
           getWorldLockId: () => WORLD_LOCK_ID,
           getObsidianLockId: () => OBSIDIAN_LOCK_ID,
+          getIsMobileUi: () => Boolean(isMobileUi),
           isWorldLocked: () => isWorldLocked(),
           isWorldLockOwner: () => isWorldLockOwner(),
           isWorldLockAdmin: () => isWorldLockAdmin(),

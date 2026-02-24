@@ -82,6 +82,8 @@ window.GTModules = window.GTModules || {};
         lastOutcome: String(row.lastOutcome || "").slice(0, 16),
         lastSlotsText: String(row.lastSlotsText || "").slice(0, 220),
         lastSlotsSummary: String(row.lastSlotsSummary || "").slice(0, 180),
+        lastSlotsLines: String(row.lastSlotsLines || "").slice(0, 220),
+        lastSlotsGameId: String(row.lastSlotsGameId || "").slice(0, 24),
         lastPlayerName: String(row.lastPlayerName || "").slice(0, 20),
         lastAt: Number(row.lastAt) || 0
       };
@@ -221,6 +223,8 @@ window.GTModules = window.GTModules || {};
           tie: false,
           reels,
           slotsSummary: String(raw.summary || "").slice(0, 180),
+          slotsLines: Array.isArray(raw.lineWins) ? raw.lineWins.slice(0, 8).join(" | ") : "",
+          slotsGameId: String(raw.gameId || (def && def.id) || "slots").slice(0, 24),
           multiplier,
           payoutWanted,
           outcome,
@@ -237,6 +241,8 @@ window.GTModules = window.GTModules || {};
         tie: false,
         reels: ["?", "?", "?"],
         slotsSummary: "Module unavailable",
+        slotsLines: "",
+        slotsGameId: String((def && def.id) || "slots").slice(0, 24),
         multiplier: 0,
         payoutWanted: 0,
         outcome: "lose",
@@ -293,11 +299,22 @@ window.GTModules = window.GTModules || {};
       return labels + " (" + Math.max(0, Math.floor(Number(total) || 0)) + ")";
     }
 
-    function parseSlotsReelsText(value) {
+    function parseSlotsRows(value) {
       const raw = String(value || "");
-      const parts = raw.split("|").map((s) => String(s || "").trim()).filter(Boolean);
-      if (!parts.length) return ["?", "?", "?"];
-      return [parts[0] || "?", parts[1] || "?", parts[2] || "?"];
+      const rows = raw.split("|").map((s) => String(s || "").trim()).filter(Boolean);
+      if (!rows.length) return [["?", "?", "?"]];
+      const out = [];
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i].split(",").map((s) => String(s || "").trim()).filter(Boolean);
+        out.push(row.length ? row : ["?"]);
+      }
+      return out;
+    }
+
+    function parseSlotsLines(value) {
+      const raw = String(value || "");
+      if (!raw) return [];
+      return raw.split("|").map((s) => String(s || "").trim()).filter(Boolean).slice(0, 8);
     }
 
     function sanitizeCardList(cards) {
@@ -685,13 +702,15 @@ window.GTModules = window.GTModules || {};
       const ownerLabel = m.ownerName || "owner";
       const canEditMaxBet = canEditMachineMaxBet(m);
       const canManageAdvanced = canManageMachineAdvanced(m);
+      const isMobileUi = Boolean(get("getIsMobileUi", false));
       const spectating = Boolean(spectatingMode);
       const bank = Math.max(0, Math.floor(Number(m.earningsLocks) || 0));
       const machineMaxCap = getMachineMaxBetCap(m, def);
       const maxBetByBank = getMaxBetByBank(bank, def, machineMaxCap);
       const canSpin = maxBetByBank >= def.minBet;
       const blockedByActiveUser = isUsedByOther(m);
-      const canPlayNow = canSpin && !blockedByActiveUser && !spectating;
+      const blockedByMobileSlots = Boolean(def.id === "slots_v2" && isMobileUi);
+      const canPlayNow = canSpin && !blockedByActiveUser && !spectating && !blockedByMobileSlots;
       const inventory = get("getInventory", {}) || {};
       const playerLocks = getTotalLocks(inventory);
       const maxBetByPlayer = Math.max(0, Math.min(machineMaxCap, playerLocks));
@@ -712,6 +731,21 @@ window.GTModules = window.GTModules || {};
       const activeHand = (roundActive && round && round.hands[activeHandIndex]) ? round.hands[activeHandIndex] : null;
       const canSplit = Boolean(canActRound && activeHand && !activeHand.done && canSplitHand(activeHand) && round.hands.length === 1);
       const canDouble = Boolean(canActRound && activeHand && !activeHand.done && !activeHand.doubled && Array.isArray(activeHand.cards) && activeHand.cards.length === 2);
+      const slotsRows = parseSlotsRows(stats.lastSlotsText);
+      const slotsLines = parseSlotsLines(stats.lastSlotsLines);
+      const slotsV2ResultHtml = def.id === "slots_v2"
+        ? ("<div class='vending-section'>" +
+            "<div class='vending-section-title'>Slots v2 Board</div>" +
+            "<div class='vending-stat-grid'>" +
+              "<div class='vending-stat'><span>Row 1</span><strong>" + esc((slotsRows[0] || ["-", "-", "-", "-", "-"]).join(" | ")) + "</strong></div>" +
+              "<div class='vending-stat'><span>Row 2</span><strong>" + esc((slotsRows[1] || ["-", "-", "-", "-", "-"]).join(" | ")) + "</strong></div>" +
+              "<div class='vending-stat'><span>Row 3</span><strong>" + esc((slotsRows[2] || ["-", "-", "-", "-", "-"]).join(" | ")) + "</strong></div>" +
+              "<div class='vending-stat'><span>Payout</span><strong>" + (stats.lastMultiplier > 0 ? esc((stats.lastMultiplier + "x")) : "-") + "</strong></div>" +
+              "<div class='vending-stat'><span>Winning Lines</span><strong>" + esc(slotsLines.length ? slotsLines.join(" | ") : "-") + "</strong></div>" +
+              "<div class='vending-stat'><span>Result</span><strong>" + esc(stats.lastSlotsSummary || "-") + "</strong></div>" +
+            "</div>" +
+          "</div>")
+        : "";
       let blackjackStateHtml = "";
       if (def.id === "blackjack") {
         if (round) {
@@ -827,9 +861,11 @@ window.GTModules = window.GTModules || {};
                 "<div class='vending-auto-stock-note'>If house rolls 0, 19, 28 or 37, player auto-loses.</div>")))) +
           "<div class='vending-auto-stock-note'>All lost bets go into machine bank. Wins are paid from machine bank.</div>" +
           "<div class='vending-auto-stock-note'>Required bank >= " + coverageMult + "x bet. With 12 WL bank, max bet is " + Math.floor(12 / coverageMult) + " WL.</div>" +
+          (blockedByMobileSlots ? "<div class='vending-auto-stock-note'>Slots v2 is desktop-only. Use PC/tablet desktop mode to play.</div>" : "") +
           (spectating ? "<div class='vending-auto-stock-note'>Spectating live: read-only.</div>" : "") +
           (blockedByActiveUser && !spectating ? "<div class='vending-auto-stock-note'>Machine is currently in use by @" + esc(m.inUseName || "another player") + ".</div>" : "") +
         "</div>" +
+        slotsV2ResultHtml +
         blackjackStateHtml +
         (def.id === "blackjack"
           ? ""
@@ -839,7 +875,7 @@ window.GTModules = window.GTModules || {};
                 ? ("<div class='bj-banner bj-banner-" + getOutcomeTone(stats.lastOutcome) + "'>Last round: " + esc(getOutcomeLabel(stats.lastOutcome)) + "</div>")
                 : "") +
               "<div class='vending-stat-grid'>" +
-                (def.id === "slots"
+                ((def.id === "slots" || def.id === "slots_v2")
                   ? ("<div class='vending-stat'><span>Reels</span><strong>" + (stats.plays ? esc(stats.lastSlotsText || "-") : "-") + "</strong></div>" +
                     "<div class='vending-stat'><span>Result</span><strong>" + (stats.plays ? esc(stats.lastSlotsSummary || "-") : "-") + "</strong></div>")
                   : ("<div class='vending-stat'><span>You</span><strong>" + (stats.plays ? esc(stats.lastPlayerRoll + " (" + stats.lastPlayerReme + ")") : "-") + "</strong></div>" +
@@ -934,6 +970,8 @@ window.GTModules = window.GTModules || {};
       nextStats.lastOutcome = result.outcome;
       nextStats.lastSlotsText = Array.isArray(result.reels) ? result.reels.join(" | ") : "";
       nextStats.lastSlotsSummary = String(result.slotsSummary || "").slice(0, 180);
+      nextStats.lastSlotsLines = String(result.slotsLines || "").slice(0, 220);
+      nextStats.lastSlotsGameId = String(result.slotsGameId || "").slice(0, 24);
       nextStats.lastPlayerName = playerName;
       nextStats.lastAt = firebaseRef && firebaseRef.database ? firebaseRef.database.ServerValue.TIMESTAMP : Date.now();
       const next = {
@@ -958,11 +996,12 @@ window.GTModules = window.GTModules || {};
       }
       if (result.gameType === "slots") {
         const reels = Array.isArray(result.reels) ? result.reels.join(" | ") : "? | ? | ?";
+        const lines = String(result.slotsLines || "").trim();
         if (result.outcome === "jackpot") {
-          return "SLOTS " + reels + ": JACKPOT. Won " + payout + " WL.";
+          return "SLOTS " + reels + ": JACKPOT. Won " + payout + " WL." + (lines ? (" Lines: " + lines + ".") : "");
         }
         if (result.multiplier > 0) {
-          return "SLOTS " + reels + ": WIN " + result.multiplier + "x. Won " + payout + " WL.";
+          return "SLOTS " + reels + ": WIN " + result.multiplier + "x. Won " + payout + " WL." + (lines ? (" Lines: " + lines + ".") : "");
         }
         return "SLOTS " + reels + ": LOSE. Lost " + result.bet + " WL.";
       }
@@ -1218,6 +1257,11 @@ window.GTModules = window.GTModules || {};
         updatedAt: 0
       };
       const def = MACHINE_DEFS[machine.type] || MACHINE_DEFS.reme_roulette;
+      const isMobileUi = Boolean(get("getIsMobileUi", false));
+      if (def.id === "slots_v2" && isMobileUi) {
+        post("Slots v2 is desktop-only.");
+        return;
+      }
       const els = getModalEls();
       const betInput = els.body ? els.body.querySelector("[data-gamble-input='bet']") : null;
       const bankLocal = Math.max(0, Math.floor(Number(machine.earningsLocks) || 0));
@@ -1379,6 +1423,8 @@ window.GTModules = window.GTModules || {};
         nextStats.lastOutcome = result.outcome;
         nextStats.lastSlotsText = Array.isArray(result.reels) ? result.reels.join(" | ") : "";
         nextStats.lastSlotsSummary = String(result.slotsSummary || "").slice(0, 180);
+        nextStats.lastSlotsLines = String(result.slotsLines || "").slice(0, 220);
+        nextStats.lastSlotsGameId = String(result.slotsGameId || "").slice(0, 24);
         nextStats.lastPlayerName = profileName;
         nextStats.lastAt = Date.now();
         const nextMachine = {
