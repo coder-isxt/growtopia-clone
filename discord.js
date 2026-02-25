@@ -154,7 +154,21 @@ window.GTModules.discord = (function createDiscordModule() {
       });
       if (directRes && directRes.ok) return true;
     } catch (error) {
-      // try proxy fallback below
+      // try no-cors fallback below
+    }
+
+    // Browser CORS for Discord webhooks is often restrictive.
+    // `no-cors` gives an opaque response, but still sends the request.
+    try {
+      await fetch(url, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      return true;
+    } catch (error) {
+      // ignore
     }
 
     return false;

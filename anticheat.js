@@ -30,6 +30,14 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
     chat_rate: {
       title: "Chat Spam",
       reason: "Too many chat messages in a short window."
+    },
+    storage_plaintext: {
+      title: "Storage Tamper (Plaintext)",
+      reason: "Protected local data appears as plaintext."
+    },
+    storage_corrupt: {
+      title: "Storage Tamper (Corrupt)",
+      reason: "Protected local data cannot be decrypted/parsed."
     }
   };
 
@@ -40,6 +48,9 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
     const chatTimes = [];
     let lastPos = null;
     let worldIdAtLastPos = "";
+    let movementGraceUntilMs = 0;
+    let lastCountedActionAtMs = 0;
+    let lastStorageCheckAtMs = 0;
 
     const SETTINGS = window.GT_SETTINGS || {};
     const MAX_SPEED_PX_S = Math.max(160, Number(SETTINGS.AC_MAX_SPEED_PX_S) || 4600);
@@ -47,6 +58,9 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
     const MAX_ACTIONS_PER_2S = Math.max(8, Number(SETTINGS.AC_MAX_ACTIONS_PER_2S) || 30);
     const MAX_CHAT_PER_10S = Math.max(4, Number(SETTINGS.AC_MAX_CHAT_PER_10S) || 10);
     const ALERT_COOLDOWN_MS = Math.max(3000, Number(SETTINGS.AC_ALERT_COOLDOWN_MS) || 15000);
+    const ACTION_RATE_DEBOUNCE_MS = Math.max(20, Number(SETTINGS.AC_ACTION_DEBOUNCE_MS) || 60);
+    const MOVEMENT_GRACE_MS = Math.max(1200, Number(SETTINGS.AC_MOVEMENT_GRACE_MS) || 2600);
+    const STORAGE_CHECK_EVERY_MS = Math.max(1000, Number(SETTINGS.AC_STORAGE_CHECK_EVERY_MS) || 2500);
     let lastWebhookFailNoticeAt = 0;
 
     function get(k, fallback) {
@@ -211,17 +225,67 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       }).catch(() => {});
     }
 
+    function getStorageKeys() {
+      const fn = opts.getWatchedStorageKeys;
+      if (typeof fn !== "function") return [];
+      const keys = fn();
+      if (!Array.isArray(keys)) return [];
+      return keys.map((k) => String(k || "").trim()).filter(Boolean);
+    }
+
+    function checkLocalStorageIntegrity(nowMs) {
+      if ((nowMs - lastStorageCheckAtMs) < STORAGE_CHECK_EVERY_MS) return;
+      lastStorageCheckAtMs = nowMs;
+      const secure = window.GTModules && window.GTModules.secureStorage;
+      if (!secure) return;
+      const canRead = typeof secure.loadJson === "function";
+      if (!canRead) return;
+      const keys = getStorageKeys();
+      if (!keys.length) return;
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        let raw = "";
+        try {
+          raw = localStorage.getItem(key) || "";
+        } catch (error) {
+          continue;
+        }
+        if (!raw) continue;
+        const looksEncrypted = raw.startsWith("enc1:");
+        if (!looksEncrypted) {
+          report("storage_plaintext", "warn", { key, hint: "value is not encrypted" });
+          continue;
+        }
+        if (typeof secure.isReady === "function" && !secure.isReady()) {
+          continue;
+        }
+        let parsed = null;
+        try {
+          parsed = secure.loadJson(key);
+        } catch (error) {
+          parsed = null;
+        }
+        if (!parsed || typeof parsed !== "object") {
+          report("storage_corrupt", "critical", { key, hint: "encrypted payload cannot be read" });
+        }
+      }
+    }
+
     function onSessionStart() {
       actionTimes.length = 0;
       chatTimes.length = 0;
       lastPos = null;
       worldIdAtLastPos = "";
+      movementGraceUntilMs = performance.now() + MOVEMENT_GRACE_MS;
+      lastCountedActionAtMs = 0;
+      lastStorageCheckAtMs = 0;
     }
 
     function onWorldSwitch(nextWorldId) {
       actionTimes.length = 0;
       lastPos = null;
       worldIdAtLastPos = String(nextWorldId || "");
+      movementGraceUntilMs = performance.now() + MOVEMENT_GRACE_MS;
     }
 
     function onFrame() {
@@ -237,6 +301,7 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       const vy = Number(player.vy);
       const now = performance.now();
       const worldId = String(get("getCurrentWorldId", "") || "");
+      checkLocalStorageIntegrity(now);
 
       if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(vx) || !Number.isFinite(vy)) {
         report("non_finite_state", "critical", { x, y, vx, vy });
@@ -246,6 +311,11 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       if (!lastPos || worldIdAtLastPos !== worldId) {
         lastPos = { x, y, t: now };
         worldIdAtLastPos = worldId;
+        return;
+      }
+
+      if (now < movementGraceUntilMs) {
+        lastPos = { x, y, t: now };
         return;
       }
 
@@ -268,10 +338,13 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
 
     function onActionAttempt(payload) {
       const now = performance.now();
-      actionTimes.push(now);
-      while (actionTimes.length && (now - actionTimes[0]) > 2000) actionTimes.shift();
-      if (actionTimes.length > MAX_ACTIONS_PER_2S) {
-        report("action_rate", "warn", { actionsIn2s: actionTimes.length });
+      if ((now - lastCountedActionAtMs) >= ACTION_RATE_DEBOUNCE_MS) {
+        lastCountedActionAtMs = now;
+        actionTimes.push(now);
+        while (actionTimes.length && (now - actionTimes[0]) > 2000) actionTimes.shift();
+        if (actionTimes.length > MAX_ACTIONS_PER_2S) {
+          report("action_rate", "warn", { actionsIn2s: actionTimes.length });
+        }
       }
 
       const data = payload || {};

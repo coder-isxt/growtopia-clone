@@ -1081,6 +1081,14 @@
           getPlayerRect: () => ({ w: PLAYER_W, h: PLAYER_H }),
           getTileSize: () => TILE,
           getEditReachTiles: () => editReachTiles,
+          postLocalSystemChat,
+          getWatchedStorageKeys: () => ([
+            SAVED_AUTH_KEY,
+            getInventoryStorageKey(),
+            getProgressionStorageKey(),
+            getAchievementsStorageKey(),
+            getQuestsStorageKey()
+          ]),
           appendLogEntry: (entry) => {
             if (!entry || !entry.rule) return;
             logAntiCheatEvent(entry.rule, entry.severity, entry.details);

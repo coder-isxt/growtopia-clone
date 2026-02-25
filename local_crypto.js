@@ -207,7 +207,16 @@ window.GTModules = window.GTModules || {};
         if (!opened) return null;
         return JSON.parse(opened);
       }
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      // Legacy plaintext migration: re-save encrypted once key is ready.
+      if (keyBytes && keyBytes.length && parsed && typeof parsed === "object") {
+        try {
+          saveJson(key, parsed);
+        } catch (error) {
+          // ignore migration failures
+        }
+      }
+      return parsed;
     } catch (error) {
       return null;
     }
