@@ -560,6 +560,7 @@
       let adminBackupSelectedId = "";
       let adminBackupLoading = false;
       let isAdminOpen = false;
+      let adminCommandsMenuOpen = false;
       let hasSeenAdminRoleSnapshot = false;
       const adminCommandLastUsedAt = new Map();
       const chatMessages = [];
@@ -1808,6 +1809,40 @@
         return total;
       }
 
+      function getAvailableRankCommands() {
+        const list = [
+          "/myrole",
+          "/warp <world>",
+          "/dance",
+          "/msg <user> <message>",
+          "/r <message>",
+          "/lock",
+          "/unlock",
+          "/online"
+        ];
+        if (hasAdminPermission("tp")) list.push("/where <user>", "/goto <user>", "/tp <user>");
+        if (hasAdminPermission("bring")) list.push("/bringall", "/bring <user>", "/summon <user>");
+        if (hasAdminPermission("announce")) list.push("/announce <message>");
+        if (hasAdminPermission("announce_user")) list.push("/announcep <user> <message>");
+        if (hasAdminPermission("tempban")) list.push("/tempban <user> <60m|12h|7d> [reason]", "/ban <user> [60m|12h|7d] [reason]");
+        if (hasAdminPermission("permban")) list.push("/permban <user> [reason]");
+        if (hasAdminPermission("unban")) list.push("/unban <user>");
+        if (hasAdminPermission("kick")) list.push("/kick <user>");
+        if (hasAdminPermission("freeze")) list.push("/freeze <user>");
+        if (hasAdminPermission("unfreeze")) list.push("/unfreeze <user>");
+        if (hasAdminPermission("godmode")) list.push("/godmode [user] <on|off>");
+        if (hasAdminPermission("clearworld")) list.push("/clearworld");
+        if (hasAdminPermission("resetinv")) list.push("/resetinv <user>");
+        if (hasAdminPermission("give_block")) list.push("/givex <user> <block_key> <amount>", "/givefarmable <user> <farmable_key> <amount>");
+        if (hasAdminPermission("give_item")) list.push("/giveitem <user> <item_id> <amount>", "/spawnd <item> <qty_per_drop> <tile_amount>");
+        if (hasAdminPermission("give_title")) list.push("/givetitle <user> <title_id> <amount>");
+        if (hasAdminPermission("remove_title")) list.push("/removetitle <user> <title_id> <amount>");
+        if (hasAdminPermission("reach")) list.push("/reach <user> <amount>");
+        if (hasAdminPermission("setrole") || hasAdminPermission("setrole_limited")) list.push("/setrole <user> <none|moderator|admin|manager|owner>", "/role <user>");
+        if (hasAdminPermission("clear_logs")) list.push("/clearaudit", "/clearlogs");
+        return list;
+      }
+
       function getAuditLevel(action) {
         if (typeof adminModule.getAuditLevel === "function") {
           return adminModule.getAuditLevel(action);
@@ -2601,12 +2636,21 @@
             </div>
           </div>
         `;
+        const roleCommandList = getAvailableRankCommands();
+        const commandItemsMarkup = roleCommandList.map((cmd) => {
+          return '<div class="admin-cmd-item"><code>' + escapeHtml(cmd) + "</code></div>";
+        }).join("");
         adminAccountsEl.innerHTML = `
           <div class="admin-dashboard">
             <aside class="admin-dash-sidebar">
               <div class="admin-dash-brand">Dashboard</div>
               <div class="admin-dash-user">Signed in as <strong>@${escapeHtml(playerName || "guest")}</strong></div>
               <div class="admin-dash-role">Role: ${escapeHtml(currentAdminRole)}</div>
+              <button class="admin-sidebar-btn" data-admin-act="togglecommands">Commands (${roleCommandList.length})</button>
+              <div class="admin-sidebar-commands ${adminCommandsMenuOpen ? "" : "hidden"}">
+                <div class="admin-sidebar-commands-title">Available For ${escapeHtml(currentAdminRole)}</div>
+                <div class="admin-sidebar-commands-list">${commandItemsMarkup || "<div class='admin-cmd-item'><code>No commands.</code></div>"}</div>
+              </div>
               <div class="admin-summary-hint">Quick: /adminhelp, /where user, /goto user, /bringall, /announce</div>
             </aside>
             <div class="admin-dash-main">
@@ -2710,6 +2754,11 @@
           return;
         }
         if (!action || !canUseAdminPanel) return;
+        if (action === "togglecommands") {
+          adminCommandsMenuOpen = !adminCommandsMenuOpen;
+          renderAdminPanel();
+          return;
+        }
         if (action === "clearaudit") {
           if (!network.db || !hasAdminPermission("clear_logs")) return;
           network.db.ref(BASE_PATH + "/admin-audit").remove().then(() => {

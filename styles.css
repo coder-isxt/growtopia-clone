@@ -4072,6 +4072,59 @@ body{
   line-height: 1.45;
 }
 
+.admin-sidebar-btn {
+  border: 1px solid rgba(112, 210, 248, 0.45);
+  background: linear-gradient(180deg, rgba(26, 86, 124, 0.7), rgba(20, 60, 88, 0.82));
+  color: #e6f6ff;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-sidebar-btn:hover {
+  border-color: rgba(130, 226, 255, 0.72);
+}
+
+.admin-sidebar-commands {
+  border: 1px solid rgba(118, 167, 217, 0.28);
+  border-radius: 10px;
+  background: rgba(18, 29, 44, 0.82);
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+  min-height: 0;
+}
+
+.admin-sidebar-commands-title {
+  color: #9fcaef;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.admin-sidebar-commands-list {
+  display: grid;
+  gap: 4px;
+  max-height: 320px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.admin-cmd-item code {
+  display: block;
+  border: 1px solid rgba(126, 180, 232, 0.22);
+  background: rgba(9, 18, 30, 0.85);
+  border-radius: 8px;
+  color: #d9edff;
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 4px 6px;
+}
+
 .admin-dash-main {
   padding: 14px;
   display: grid;
