@@ -9717,7 +9717,7 @@
         }
         if (isProtectedSpawnTile(tx, ty)) return;
         if (isUnbreakableTileId(id)) return;
-        if (isWorldLockBlockId(id) && !isWorldLockOwner()) {
+        if (isWorldLocked() && isWorldLockBlockId(id) && !isWorldLockOwner()) {
           notifyWorldLockedDenied();
           return;
         }
@@ -9977,7 +9977,7 @@
           notifyWorldLockedDenied();
           return;
         }
-        if (isWorldLockBlockId(id) && !isWorldLockOwner()) {
+        if (isWorldLocked() && isWorldLockBlockId(id) && !isWorldLockOwner()) {
           notifyWorldLockedDenied();
           return;
         }
