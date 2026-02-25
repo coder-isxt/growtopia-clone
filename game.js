@@ -8455,7 +8455,51 @@
         const plant = getLocalTreePlant(tx, ty);
         if (!plant || typeof ctrl.getGrowthState !== "function") return;
         const growth = ctrl.getGrowthState(plant);
-        if (!growth || growth.mature) return;
+        if (!growth) return;
+        const fruitCount = typeof ctrl.getFruitAmount === "function"
+          ? Math.max(1, Math.min(5, Math.floor(Number(ctrl.getFruitAmount(plant)) || 1)))
+          : Math.max(1, Math.min(5, Math.floor(Number(plant.fruitAmount) || 1)));
+        const fruitBlockId = Math.max(1, Math.floor(Number(plant.yieldBlockId) || TREE_YIELD_BLOCK_ID));
+        const fruitDef = blockDefs[fruitBlockId] || null;
+        if (growth.mature) {
+          const cols = 3;
+          const rows = Math.ceil(fruitCount / cols);
+          const cell = 8;
+          const gap = 2;
+          const gridW = cols * cell + (cols - 1) * gap;
+          const gridH = rows * cell + (rows - 1) * gap;
+          const label = "x" + fruitCount;
+          ctx.save();
+          ctx.font = "bold 11px 'Trebuchet MS', sans-serif";
+          const labelW = Math.ceil(ctx.measureText(label).width);
+          const boxW = Math.max(gridW + 8, labelW + 10);
+          const boxH = gridH + 22;
+          let bx = x + Math.floor((TILE - boxW) / 2);
+          const by = y - boxH - 8;
+          const viewW = getCameraViewWidth();
+          if (bx < 4) bx = 4;
+          if (bx + boxW > viewW - 4) bx = viewW - 4 - boxW;
+          ctx.fillStyle = "rgba(8, 22, 34, 0.9)";
+          ctx.fillRect(bx, by, boxW, boxH);
+          ctx.strokeStyle = "rgba(255,255,255,0.35)";
+          ctx.strokeRect(bx + 0.5, by + 0.5, boxW - 1, boxH - 1);
+          ctx.fillStyle = "#f7fbff";
+          ctx.fillText(label, bx + Math.floor((boxW - labelW) / 2), by + 11);
+          const gx = bx + Math.floor((boxW - gridW) / 2);
+          const gy = by + 14;
+          for (let i = 0; i < fruitCount; i++) {
+            const cx = i % cols;
+            const cy = Math.floor(i / cols);
+            const px = gx + cx * (cell + gap);
+            const py = gy + cy * (cell + gap);
+            ctx.fillStyle = fruitDef && fruitDef.color ? fruitDef.color : "#67c95a";
+            ctx.fillRect(px, py, cell, cell);
+            ctx.strokeStyle = "rgba(255,255,255,0.35)";
+            ctx.strokeRect(px + 0.5, py + 0.5, cell - 1, cell - 1);
+          }
+          ctx.restore();
+          return;
+        }
         const playerTx = Math.floor((player.x + PLAYER_W / 2) / TILE);
         const playerTy = Math.floor((player.y + PLAYER_H / 2) / TILE);
         if (playerTx !== tx || playerTy !== ty) return;
@@ -9498,6 +9542,13 @@
         if (inventory[id] <= 0) return;
         if (world[ty][tx] !== 0) return;
         if (tileOccupiedByAnyPlayer(tx, ty)) return;
+        if (isPlantSeedBlockId(id)) {
+          const supportTy = ty + 1;
+          if (supportTy >= WORLD_H || world[supportTy][tx] === 0) {
+            postLocalSystemChat("Seeds can only be planted on top of blocks.");
+            return;
+          }
+        }
         if (isWorldLocked() && !isWorldLockOwner()) {
           if (isWorldLockBlockId(id)) {
             notifyOwnerOnlyWorldEdit("the world lock");
@@ -9566,13 +9617,15 @@
             const seedPlant = (ctrl && typeof ctrl.createSeedPlant === "function")
               ? ctrl.createSeedPlant(Date.now(), {
                   yieldBlockId: seedCfg.yieldBlockId || TREE_YIELD_BLOCK_ID,
-                  growMs: seedCfg.growMs || TREE_GROW_MS
+                  growMs: seedCfg.growMs || TREE_GROW_MS,
+                  randomFn: Math.random
                 })
               : {
                   type: "tree",
                   plantedAt: Date.now(),
                   growMs: seedCfg.growMs || TREE_GROW_MS,
-                  yieldBlockId: seedCfg.yieldBlockId || TREE_YIELD_BLOCK_ID
+                  yieldBlockId: seedCfg.yieldBlockId || TREE_YIELD_BLOCK_ID,
+                  fruitAmount: 1 + Math.floor(Math.random() * 5)
                 };
             saveTreePlant(tx, ty, seedPlant);
           }
@@ -9871,7 +9924,7 @@
             }
           }
           const seedDropId = SEED_DROP_BY_BLOCK_ID[id] || 0;
-          if (seedDropId && Math.random() < SEED_DROP_CHANCE) {
+          if (seedDropId && !isWorldLockBlockId(id) && Math.random() < SEED_DROP_CHANCE) {
             inventory[seedDropId] = (inventory[seedDropId] || 0) + 1;
             if (particleController && typeof particleController.emitSeedDrop === "function") {
               particleController.emitSeedDrop(tx * TILE + TILE * 0.5, ty * TILE + TILE * 0.4);
