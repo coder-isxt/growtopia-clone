@@ -4339,6 +4339,44 @@
         });
       }
 
+      function getWorkerSessionEndpoint() {
+        const packetEndpoint = String(window.PACKET_API_ENDPOINT || "").trim();
+        if (packetEndpoint) {
+          if (/\/packet\/?$/i.test(packetEndpoint)) {
+            return packetEndpoint.replace(/\/packet\/?$/i, "/session");
+          }
+          return packetEndpoint.replace(/\/+$/, "") + "/session";
+        }
+        const origin = String(window.location && window.location.origin || "").trim();
+        if (!origin) return "";
+        return origin.replace(/\/+$/, "") + "/session";
+      }
+
+      async function requestWorkerSession(action, accountId, username, sessionId) {
+        const endpoint = getWorkerSessionEndpoint();
+        if (!endpoint) throw new Error("Session endpoint is not configured.");
+        const payload = {
+          action: String(action || "").trim().toLowerCase(),
+          accountId: String(accountId || "").trim(),
+          username: String(username || "").trim(),
+          sessionId: String(sessionId || "").trim()
+        };
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          credentials: "omit"
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || !body || body.ok !== true) {
+          const msg = body && body.error && body.error.message
+            ? String(body.error.message)
+            : ("Session API error (" + response.status + ")");
+          throw new Error(msg);
+        }
+        return body;
+      }
+
       async function readAuthValueWithRetry(path, label) {
         const safePath = String(path || "").trim();
         if (!safePath) throw new Error("Invalid auth read path.");
@@ -4361,39 +4399,39 @@
       }
 
       async function reserveAccountSession(db, accountId, username) {
-        const sessionRef = db.ref(BASE_PATH + "/account-sessions/" + accountId);
         const sessionId = "s_" + Math.random().toString(36).slice(2, 12);
         const startedAtLocal = Date.now();
-        const result = await withAuthTimeout(sessionRef.transaction((current) => {
-          if (current && current.sessionId) {
-            return;
+        let claimedSessionId = sessionId;
+        try {
+          const out = await withAuthTimeout(
+            requestWorkerSession("claim", accountId, username, sessionId),
+            "Session reservation",
+            14000
+          );
+          claimedSessionId = String(out && out.sessionId || sessionId);
+        } catch (error) {
+          const message = String((error && error.message) || "");
+          if (/already active/i.test(message)) {
+            addClientLog("Session denied for @" + username + " (already active).");
+            throw new Error("This account is already active in another client.");
           }
-          return {
-            sessionId,
-            username,
-            startedAt: firebase.database.ServerValue.TIMESTAMP
-          };
-        }), "Session reservation", 12000);
-        if (!result.committed) {
-          addClientLog("Session denied for @" + username + " (already active).");
-          throw new Error("This account is already active in another client.");
+          throw error;
         }
-        await withAuthTimeout(sessionRef.onDisconnect().remove(), "Session onDisconnect", 6000);
-        playerSessionRef = sessionRef;
-        playerSessionId = sessionId;
+        playerSessionRef = null;
+        playerSessionId = claimedSessionId;
         playerSessionStartedAt = startedAtLocal;
         chatMessages.length = 0;
         recentChatFingerprintAt.clear();
         renderChatMessages();
-        addClientLog("Session created for @" + username + " (" + sessionId + ").", accountId, username, sessionId);
+        addClientLog("Session created for @" + username + " (" + claimedSessionId + ").", accountId, username, claimedSessionId);
       }
 
       function releaseAccountSession() {
-        if (playerSessionRef) {
-          playerSessionRef.remove().catch(() => {});
-          if (playerName) {
-            addClientLog("Session released for @" + playerName + ".");
-          }
+        const accountId = String(playerProfileId || "").trim();
+        const sid = String(playerSessionId || "").trim();
+        if (accountId && sid) {
+          requestWorkerSession("release", accountId, playerName, sid).catch(() => {});
+          if (playerName) addClientLog("Session released for @" + playerName + ".");
         }
         playerSessionRef = null;
         playerSessionId = "";
@@ -4470,7 +4508,7 @@
             const banValue = banSnap.val();
             const status = getBanStatus(banValue, Date.now());
             if (status.expired) {
-              await withAuthTimeout(db.ref(BASE_PATH + "/bans/" + accountId).remove(), "Clear expired ban", 12000);
+              db.ref(BASE_PATH + "/bans/" + accountId).remove().catch(() => {});
             } else if (status.active) {
               addClientLog("Login blocked for @" + username + " (banned).", accountId, username, "");
               const reasonText = status.reason ? " Reason: " + status.reason + "." : "";
