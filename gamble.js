@@ -662,6 +662,7 @@ window.GTModules = window.GTModules || {};
     }
 
     function addLocksLocal(inv, amount) {
+      sound.play("slots_win");
       const fn = get("addLockValue", null);
       if (typeof fn === "function") {
         fn(inv, amount);
@@ -669,7 +670,6 @@ window.GTModules = window.GTModules || {};
       }
       const total = getTotalLocks(inv) + Math.max(0, Math.floor(Number(amount) || 0));
       setCanonicalLocks(inv, total);
-      sound.play("slots_win");
     }
 
     function getSelfAccountId() {

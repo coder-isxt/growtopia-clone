@@ -9,6 +9,7 @@ window.GTModules.sounds = (function createSoundsModule() {
     const registry = new Map();
     const activeById = new Map();
     const preloadPromises = new Map();
+    const pendingPlays = [];
     let muted = false;
     let masterVolume = 1;
     let unlocked = false;
@@ -67,6 +68,7 @@ window.GTModules.sounds = (function createSoundsModule() {
       ensureUnlockBinding.bound = true;
       const unlock = () => {
         unlocked = true;
+        flushPendingPlays();
       };
       window.addEventListener("pointerdown", unlock, { passive: true, once: true });
       window.addEventListener("touchstart", unlock, { passive: true, once: true });
@@ -174,16 +176,9 @@ window.GTModules.sounds = (function createSoundsModule() {
       for (let i = 0; i < keys.length; i++) stop(keys[i]);
     }
 
-    function play(id, options) {
-      const soundId = normalizeId(id);
-      if (!soundId || muted) return null;
-      if (!registry.has(soundId)) {
-        register(soundId, {});
-      }
+    function performPlay(soundId, options) {
       const row = registry.get(soundId);
       if (!row) return null;
-      ensureUnlockBinding();
-      if (!unlocked) return null;
       const optsPlay = options && typeof options === "object" ? options : {};
       const audio = createAudio(soundId);
       if (!audio) return null;
@@ -205,9 +200,36 @@ window.GTModules.sounds = (function createSoundsModule() {
       return audio;
     }
 
+    function flushPendingPlays() {
+      if (!unlocked || muted || !pendingPlays.length) return;
+      const queued = pendingPlays.splice(0, pendingPlays.length);
+      for (let i = 0; i < queued.length; i++) {
+        const req = queued[i];
+        if (!req || !req.id) continue;
+        performPlay(req.id, req.options || null);
+      }
+    }
+
+    function play(id, options) {
+      const soundId = normalizeId(id);
+      if (!soundId || muted) return null;
+      if (!registry.has(soundId)) {
+        register(soundId, {});
+      }
+      const row = registry.get(soundId);
+      if (!row) return null;
+      ensureUnlockBinding();
+      if (!unlocked) {
+        pendingPlays.push({ id: soundId, options: options && typeof options === "object" ? options : null });
+        return null;
+      }
+      return performPlay(soundId, options);
+    }
+
     function setMuted(nextMuted) {
       muted = Boolean(nextMuted);
       if (muted) stopAll();
+      if (!muted) flushPendingPlays();
     }
 
     function setMasterVolume(value) {
@@ -220,7 +242,10 @@ window.GTModules.sounds = (function createSoundsModule() {
         registerMany(defs);
       }
       const autoPreload = window.GT_SOUND_PRELOAD;
-      if (autoPreload === true) {
+      if (autoPreload === false) {
+        return;
+      }
+      if (autoPreload === true || autoPreload === undefined) {
         preload();
       } else if (Array.isArray(autoPreload)) {
         preload(autoPreload);
