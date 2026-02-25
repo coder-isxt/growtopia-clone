@@ -1,6 +1,17 @@
 window.GTModules = window.GTModules || {};
 
 window.GTModules.farmables = (function createFarmablesModule() {
+  const BLOCK_ASSET_BASE = "./assets/blocks";
+  const FARMABLE_LIST = [
+    { id: 43, key: "farmable_grass", name: "Farmable Grass", color: "#5fd062", solid: true, farmable: true, icon: "FG", faIcon: "fa-solid fa-seedling", image: "terrain/grass.png" },
+    { id: 44, key: "farmable_dirt", name: "Farmable Dirt", color: "#9c6a34", solid: true, farmable: true, icon: "FD", faIcon: "fa-solid fa-seedling", image: "terrain/dirt.png" },
+    { id: 45, key: "farmable_stone", name: "Farmable Stone", color: "#95a0aa", solid: true, farmable: true, icon: "FS", faIcon: "fa-solid fa-seedling", image: "terrain/stone.png" },
+    { id: 46, key: "farmable_wood", name: "Farmable Wood", color: "#bf8646", solid: true, farmable: true, icon: "FW", faIcon: "fa-solid fa-seedling", image: "terrain/wood.png" },
+    { id: 47, key: "farmable_sand", name: "Farmable Sand", color: "#f2db95", solid: true, farmable: true, icon: "FSA", faIcon: "fa-solid fa-seedling", image: "terrain/sand.png" },
+    { id: 48, key: "farmable_brick", name: "Farmable Brick", color: "#d06a58", solid: true, farmable: true, icon: "FB", faIcon: "fa-solid fa-seedling", image: "terrain/brick.png" },
+    { id: 49, key: "farmable_leaf", name: "Farmable Leaf", color: "#58a94f", solid: true, farmable: true, icon: "FL", faIcon: "fa-solid fa-seedling", image: "special/leaf.png" },
+    { id: 50, key: "farmable_plank", name: "Farmable Plank", color: "#c8d2dc", solid: true, farmable: true, icon: "FP", faIcon: "fa-solid fa-seedling", image: "special/plank.png" }
+  ];
   const DEFAULT_FARMABLES = [
     { key: "farmable_grass", xp: 8, gemMin: 1, gemMax: 2 },
     { key: "farmable_dirt", xp: 7, gemMin: 1, gemMax: 2 },
@@ -29,6 +40,31 @@ window.GTModules.farmables = (function createFarmablesModule() {
     const raw = Number(rng());
     const r = Number.isFinite(raw) ? Math.max(0, Math.min(0.999999, raw)) : 0;
     return low + Math.floor(r * (high - low + 1));
+  }
+
+  function resolveImagePath(image) {
+    const raw = String(image || "").trim();
+    if (!raw) return "";
+    if (/^(https?:)?\/\//.test(raw) || raw.startsWith("/") || raw.startsWith("./") || raw.startsWith("../")) {
+      return raw;
+    }
+    return BLOCK_ASSET_BASE.replace(/\/+$/, "") + "/" + raw.replace(/^\/+/, "");
+  }
+
+  function buildDefsFromList(list) {
+    const defs = {};
+    const src = Array.isArray(list) ? list : [];
+    for (let i = 0; i < src.length; i++) {
+      const row = src[i] || {};
+      const id = Math.floor(Number(row.id));
+      if (!Number.isInteger(id) || id < 0) continue;
+      defs[id] = {
+        ...row,
+        id,
+        imagePath: resolveImagePath(row.image || row.imagePath)
+      };
+    }
+    return defs;
   }
 
   function normalizeBlockDefs(blockDefs) {
@@ -129,6 +165,12 @@ window.GTModules.farmables = (function createFarmablesModule() {
   }
 
   return {
+    getFarmableList() {
+      return FARMABLE_LIST.map((entry) => ({ ...entry }));
+    },
+    getFarmableDefs() {
+      return buildDefsFromList(FARMABLE_LIST);
+    },
     createRegistry
   };
 })();

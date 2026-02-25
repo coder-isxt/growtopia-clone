@@ -292,6 +292,8 @@
       const CAMERA_ZOOM_STEP = Math.max(0.05, Number(SETTINGS.CAMERA_ZOOM_STEP) || 0.12);
 
       const baseBlockDefs = typeof blocksModule.getBlockDefs === "function" ? blocksModule.getBlockDefs() : {};
+      const farmableBlockDefs = typeof farmablesModule.getFarmableDefs === "function" ? farmablesModule.getFarmableDefs() : {};
+      const worldBlockDefs = { ...baseBlockDefs, ...farmableBlockDefs };
       const SPAWN_TILE_X = 8;
       const SPAWN_TILE_Y = 11;
       const SPAWN_DOOR_ID = 7;
@@ -334,7 +336,7 @@
       const TOOL_FIST = "fist";
       const TOOL_WRENCH = "wrench";
       const farmableRegistry = typeof farmablesModule.createRegistry === "function"
-        ? farmablesModule.createRegistry(baseBlockDefs, {})
+        ? farmablesModule.createRegistry(worldBlockDefs, {})
         : {
             ids: [],
             byId: {},
@@ -343,12 +345,12 @@
             getBreakXp: (_id, fallbackXp) => Math.max(1, Math.floor(Number(fallbackXp) || 1))
           };
       const seedRegistry = typeof seedsModule.createSeedRegistry === "function"
-        ? seedsModule.createSeedRegistry(baseBlockDefs, {
+        ? seedsModule.createSeedRegistry(worldBlockDefs, {
             growMs: TREE_GROW_MS,
             forceSeedForBlockIds: Array.isArray(farmableRegistry.ids) ? farmableRegistry.ids : []
           })
         : { defs: {}, config: {} };
-      const blockDefs = { ...baseBlockDefs, ...(seedRegistry.defs || {}) };
+      const blockDefs = { ...worldBlockDefs, ...(seedRegistry.defs || {}) };
       const LOCK_BLOCK_IDS = (() => {
         const ids = Object.values(blockDefs)
           .filter((def) => def && def.worldLock === true)
