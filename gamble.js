@@ -19,6 +19,7 @@ window.GTModules = window.GTModules || {};
   const slotsDef = slotsDefs.slots || {};
   const slotsV2Def = slotsDefs.slots_v2 || {};
   const slotsV3Def = slotsDefs.slots_v3 || {};
+  const slotsV4Def = slotsDefs.slots_v4 || {};
 
   const MACHINE_DEFS = {
     reme_roulette: {
@@ -64,6 +65,16 @@ window.GTModules = window.GTModules || {};
       maxPayoutMultiplier: 100,
       reels: Math.max(1, Math.floor(Number(slotsV3Def.layout && slotsV3Def.layout.reels) || 5)),
       rows: Math.max(1, Math.floor(Number(slotsV3Def.layout && slotsV3Def.layout.rows) || 3))
+    },
+    slots_v4: {
+      id: "slots_v4",
+      name: String(slotsV4Def.name || "Slots v4"),
+      minBet: Math.max(1, Math.floor(Number(slotsV4Def.minBet) || 1)),
+      maxBet: Math.max(1, Math.floor(Number(slotsV4Def.maxBet) || 30000)),
+      // Coverage multiplier for machine solvency (separate from slot engine's internal theoretical max).
+      maxPayoutMultiplier: 120,
+      reels: Math.max(1, Math.floor(Number(slotsV4Def.layout && slotsV4Def.layout.reels) || 5)),
+      rows: Math.max(1, Math.floor(Number(slotsV4Def.layout && slotsV4Def.layout.rows) || 3))
     }
   };
 
@@ -825,13 +836,13 @@ window.GTModules = window.GTModules || {};
       const rollingUntil = (modalCtx && modalCtx.tx === tx && modalCtx.ty === ty)
         ? Math.max(0, Math.floor(Number(modalCtx.rollingUntil) || 0))
         : 0;
-      const isRollingSlotsV2 = Boolean((def.id === "slots_v2" || def.id === "slots_v3") && rollingUntil > now);
+      const isRollingSlotsV2 = Boolean((def.id === "slots_v2" || def.id === "slots_v3" || def.id === "slots_v4") && rollingUntil > now);
       const bank = Math.max(0, Math.floor(Number(m.earningsLocks) || 0));
       const machineMaxCap = getMachineMaxBetCap(m, def);
       const maxBetByBank = getMaxBetByBank(bank, def, machineMaxCap);
       const canSpin = maxBetByBank >= def.minBet;
       const blockedByActiveUser = isUsedByOther(m);
-      const blockedByMobileSlots = Boolean((def.id === "slots_v2" || def.id === "slots_v3") && isMobileUi);
+      const blockedByMobileSlots = Boolean((def.id === "slots_v2" || def.id === "slots_v3" || def.id === "slots_v4") && isMobileUi);
       const blockedByRolling = isRollingSlotsV2;
       const canPlayNow = canSpin && !blockedByActiveUser && !spectating && !blockedByMobileSlots && !blockedByRolling;
       const inventory = get("getInventory", {}) || {};
@@ -887,7 +898,7 @@ window.GTModules = window.GTModules || {};
       }
       const slotsRowsCount = Math.max(1, Number(def.rows) || slotsRows.length || 3);
       let slotsV2BoardHtml = "";
-      if (def.id === "slots_v2" || def.id === "slots_v3") {
+      if (def.id === "slots_v2" || def.id === "slots_v3" || def.id === "slots_v4") {
         const winCellMap = {};
         if (!isRollingSlotsV2 && slotsLineIds.length) {
           for (let i = 0; i < slotsLineIds.length; i++) {
@@ -951,7 +962,7 @@ window.GTModules = window.GTModules || {};
           "<div class='slotsv2-board " + winStateClass + (isRollingSlotsV2 ? " rolling" : "") + "' style='--slots-cols:" + slotsCols + ";'>" + slotsV2BoardHtml + boardFxHtml + "</div>" +
           "<div class='slotsv2-lines'>" + lineBadges + "</div>";
       }
-      const slotsV2ResultHtml = (def.id === "slots_v2" || def.id === "slots_v3")
+      const slotsV2ResultHtml = (def.id === "slots_v2" || def.id === "slots_v3" || def.id === "slots_v4")
         ? ("<div class='vending-section'>" +
             "<div class='vending-section-title'>Slots v2 Board</div>" +
             slotsV2BoardHtml +
@@ -1083,7 +1094,7 @@ window.GTModules = window.GTModules || {};
             "</div>")
           : "") +
         "<div class='vending-section'>" +
-          "<div class='vending-section-title'>Play (" + (def.id === "blackjack" ? "Blackjack" : (def.id === "slots" ? "Slots" : (def.id === "slots_v2" ? "Slots v2" : (def.id === "slots_v3" ? "Slots v3" : "Player vs House")))) + ")</div>" +
+          "<div class='vending-section-title'>Play (" + (def.id === "blackjack" ? "Blackjack" : (def.id === "slots" ? "Slots" : (def.id === "slots_v2" ? "Slots v2" : (def.id === "slots_v3" ? "Slots v3" : (def.id === "slots_v4" ? "Slots v4" : "Player vs House"))))) + ")</div>" +
           "<div class='vending-field-grid'>" +
             "<label class='vending-field'><span>Bet (World Locks)</span><input data-gamble-input='bet' type='number' min='" + def.minBet + "' max='" + (canSpin ? maxBetByBank : def.minBet) + "' step='1' value='" + displayBet + "'" + (canPlayNow && !roundActive ? "" : " disabled") + "></label>" +
             "<div class='vending-field'><span>&nbsp;</span><button type='button' data-gamble-act='maxbet'" + ((canPlayNow && maxBetEffective > 0 && !roundActive) ? "" : " disabled") + ">Apply Max Bet</button></div>" +
@@ -1111,9 +1122,15 @@ window.GTModules = window.GTModules || {};
                   "<div class='vending-auto-stock-note'>Wild substitutes regular symbols. Scatter pays anywhere and 3+ triggers bonus.</div>" +
                   "<div class='vending-auto-stock-note'>Bonus free spins: extra wilds, stacking multipliers, and scatter retriggers.</div>" +
                   "<div class='vending-auto-stock-note'>Spin payout = symbol value x bet x active multipliers. Big wins are rare.</div>")
+              : (def.id === "slots_v4"
+                ? ("<div class='vending-auto-stock-note'>Forgotten-style: 5 reels, fixed paylines, high volatility.</div>" +
+                  "<div class='vending-auto-stock-note'>Wins pay left-to-right from reel 1. Low symbols pay small, premium symbols pay bigger.</div>" +
+                  "<div class='vending-auto-stock-note'>Wild substitutes regular symbols. Scatter pays anywhere and 3+ starts free spins.</div>" +
+                  "<div class='vending-auto-stock-note'>Bonus focus: extra wilds, expanding symbols, win multipliers, and retriggers.</div>" +
+                  "<div class='vending-auto-stock-note'>Payout = symbol value x bet x multipliers. Big wins are possible but rare.</div>")
               : ("<div class='vending-auto-stock-note'>No number selection. You roll vs house roll (0-37). Higher reme wins.</div>" +
                 "<div class='vending-auto-stock-note'>Tie = lose. Special player rolls 0, 19, 28 give 3x.</div>" +
-                "<div class='vending-auto-stock-note'>If house rolls 0, 19, 28 or 37, player auto-loses.</div>"))))) +
+                "<div class='vending-auto-stock-note'>If house rolls 0, 19, 28 or 37, player auto-loses.</div>")))))) +
           "<div class='vending-auto-stock-note'>All lost bets go into machine bank. Wins are paid from machine bank.</div>" +
           (def.id === "slots_v2" ? "<div class='vending-auto-stock-note'>Hold & Spin can land collect/multiplier/bomb/jackpot symbols.</div>" : "") +
           "<div class='vending-auto-stock-note'>Required bank >= " + coverageMult + "x bet. With 12 WL bank, max bet is " + Math.floor(12 / coverageMult) + " WL.</div>" +
@@ -1124,7 +1141,7 @@ window.GTModules = window.GTModules || {};
         "</div>" +
         slotsV2ResultHtml +
         blackjackStateHtml +
-        (def.id === "blackjack" || def.id === "slots_v2" || def.id === "slots_v3"
+        (def.id === "blackjack" || def.id === "slots_v2" || def.id === "slots_v3" || def.id === "slots_v4"
           ? ""
           : ("<div class='vending-section'>" +
               "<div class='vending-section-title'>Last Result</div>" +
@@ -1259,6 +1276,9 @@ window.GTModules = window.GTModules || {};
       if (id === "slots_v3") {
         return 1650;
       }
+      if (id === "slots_v4") {
+        return 1750;
+      }
       return 0;
     }
 
@@ -1270,19 +1290,23 @@ window.GTModules = window.GTModules || {};
         if (result.outcome === "push") return "PUSH. Bet returned (" + payout + " WL).";
         return "LOSE. Lost " + result.bet + " WL.";
       }
-      // if (result.gameType === "slots" || result.gameType === "slots_v2" || result.gameType === "slots_v3") {
-      //   const gameLabel = result.gameType === "slots_v2" ? "SLOTS V2" : (result.gameType === "slots_v3" ? "SLOTS V3" : "SLOTS");
-      //   const reels = Array.isArray(result.reels) ? result.reels.join(" | ") : "? | ? | ?";
-      //   const lines = String(result.slotsLines || "").trim();
-      //   const spinTag = result.isFreeSpin ? "[FREE SPIN] " : "";
-      //   if (result.outcome === "jackpot") {
-      //     return spinTag + gameLabel + " " + reels + ": JACKPOT. Won " + payout + " WL." + (lines ? (" Lines: " + lines + ".") : "");
-      //   }
-      //   if (result.multiplier > 0) {
-      //     return spinTag + gameLabel + " " + reels + ": WIN " + result.multiplier + "x. Won " + payout + " WL." + (lines ? (" Lines: " + lines + ".") : "");
-      //   }
-      //   return spinTag + gameLabel + " " + reels + ": LOSE. Lost " + result.bet + " WL.";
-      // }
+      if (result.gameType === "slots" || result.gameType === "slots_v2" || result.gameType === "slots_v3" || result.gameType === "slots_v4") {
+        const gameLabel = result.gameType === "slots_v2"
+          ? "SLOTS V2"
+          : (result.gameType === "slots_v3"
+          ? "SLOTS V3"
+          : (result.gameType === "slots_v4" ? "SLOTS V4" : "SLOTS"));
+        const reels = Array.isArray(result.reels) ? result.reels.join(" | ") : "? | ? | ?";
+        const lines = String(result.slotsLines || "").trim();
+        const spinTag = result.isFreeSpin ? "[FREE SPIN] " : "";
+        if (result.outcome === "jackpot") {
+          return spinTag + gameLabel + " " + reels + ": JACKPOT. Won " + payout + " WL." + (lines ? (" Lines: " + lines + ".") : "");
+        }
+        if (result.multiplier > 0) {
+          return spinTag + gameLabel + " " + reels + ": WIN " + result.multiplier + "x. Won " + payout + " WL." + (lines ? (" Lines: " + lines + ".") : "");
+        }
+        return spinTag + gameLabel + " " + reels + ": LOSE. Lost " + result.bet + " WL.";
+      }
       if (result.gameType === "reme_roulette") {
         const playerText = "You " + result.playerRoll + " (" + result.playerReme + ")";
         const houseText = "House " + result.houseRoll + " (" + result.houseReme + ")";
@@ -1540,7 +1564,7 @@ window.GTModules = window.GTModules || {};
       };
       const def = MACHINE_DEFS[machine.type] || MACHINE_DEFS.reme_roulette;
       const isMobileUi = Boolean(get("getIsMobileUi", false));
-      if ((def.id === "slots_v2" || def.id === "slots_v3") && isMobileUi) {
+      if ((def.id === "slots_v2" || def.id === "slots_v3" || def.id === "slots_v4") && isMobileUi) {
         post(def.name + " is desktop-only.");
         return;
       }
@@ -1593,7 +1617,7 @@ window.GTModules = window.GTModules || {};
 
       // slots_v2 bonus buy is resolved through the normal spin transaction path using mode=buybonus
 
-      if (def.id === "slots_v2" || def.id === "slots_v3") {
+      if (def.id === "slots_v2" || def.id === "slots_v3" || def.id === "slots_v4") {
         const rollingUntil = Date.now() + 1100;
         modalCtx = { ...(modalCtx || {}), tx, ty, spectating: Boolean(modalCtx && modalCtx.spectating), rollingUntil };
         renderOpen();
@@ -1716,7 +1740,7 @@ window.GTModules = window.GTModules || {};
       }
 
       const result = (() => {
-        if (def.id === "slots" || def.id === "slots_v2" || def.id === "slots_v3") {
+        if (def.id === "slots" || def.id === "slots_v2" || def.id === "slots_v3" || def.id === "slots_v4") {
           return evaluateSlots(def, effectiveBet, { mode: actionMode, buyX });
         }
         const playerRoll = Math.floor(Math.random() * (def.maxRoll - def.minRoll + 1)) + def.minRoll;
