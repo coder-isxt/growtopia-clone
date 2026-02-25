@@ -272,8 +272,8 @@
       const PLAYER_SYNC_MIN_MS = Math.max(25, Number(SETTINGS.PLAYER_SYNC_MIN_MS) || 60);
       const GLOBAL_SYNC_MIN_MS = Math.max(PLAYER_SYNC_MIN_MS, Number(SETTINGS.GLOBAL_SYNC_MIN_MS) || 170);
       const LAYOUT_PREFS_KEY = "gt_layout_panels_v3";
-      const DESKTOP_PANEL_LEFT_DEFAULT = 200;
-      const DESKTOP_PANEL_RIGHT_DEFAULT = 190;
+      const DESKTOP_PANEL_LEFT_DEFAULT = 302;
+      const DESKTOP_PANEL_RIGHT_DEFAULT = 375;
       const DESKTOP_PANEL_MIN = 140;
       const DESKTOP_PANEL_MAX_RATIO = 0.26;
       const MOVE_ACCEL = Number(SETTINGS.MOVE_ACCEL) || 0.46;
@@ -13122,25 +13122,19 @@
       }
 
       function loadDesktopPanelLayout() {
-        let savedLeft = DESKTOP_PANEL_LEFT_DEFAULT;
-        let savedRight = DESKTOP_PANEL_RIGHT_DEFAULT;
+        // Fixed desktop panel layout requested by user.
+        applyDesktopPanelLayout(DESKTOP_PANEL_LEFT_DEFAULT, DESKTOP_PANEL_RIGHT_DEFAULT, false);
         try {
-          const raw = localStorage.getItem(LAYOUT_PREFS_KEY);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            savedLeft = Number(parsed && parsed.left);
-            savedRight = Number(parsed && parsed.right);
-          }
+          localStorage.removeItem(LAYOUT_PREFS_KEY);
         } catch (error) {
-          // ignore parse failures
+          // ignore localStorage failures
         }
-        applyDesktopPanelLayout(savedLeft, savedRight, false);
       }
 
       function setLayoutResizeHandlesVisible() {
-        const desktopMode = (window.innerWidth || 0) >= 980;
-        if (leftPanelResizeHandleEl) leftPanelResizeHandleEl.classList.toggle("hidden", !desktopMode);
-        if (rightPanelResizeHandleEl) rightPanelResizeHandleEl.classList.toggle("hidden", !desktopMode);
+        // Resize handles are disabled for fixed layout mode.
+        if (leftPanelResizeHandleEl) leftPanelResizeHandleEl.classList.add("hidden");
+        if (rightPanelResizeHandleEl) rightPanelResizeHandleEl.classList.add("hidden");
       }
 
       function onLayoutResizeMove(event) {
@@ -13168,28 +13162,8 @@
       function initDesktopLayoutResize() {
         loadDesktopPanelLayout();
         setLayoutResizeHandlesVisible();
-        const bindHandle = (handle, side) => {
-          if (!handle) return;
-          handle.addEventListener("pointerdown", (event) => {
-            if (typeof event.button === "number" && event.button !== 0) return;
-            if ((window.innerWidth || 0) < 980) return;
-            layoutResizeSide = side;
-            document.body.classList.add("layout-resizing");
-            if (typeof handle.setPointerCapture === "function" && event.pointerId != null) {
-              try {
-                handle.setPointerCapture(event.pointerId);
-              } catch (error) {
-                // ignore pointer capture failures
-              }
-            }
-            event.preventDefault();
-          });
-        };
-        bindHandle(leftPanelResizeHandleEl, "left");
-        bindHandle(rightPanelResizeHandleEl, "right");
-        window.addEventListener("pointermove", onLayoutResizeMove, { passive: true });
-        window.addEventListener("pointerup", onLayoutResizeEnd);
-        window.addEventListener("pointercancel", onLayoutResizeEnd);
+        layoutResizeSide = "";
+        document.body.classList.remove("layout-resizing");
         resizeCanvas();
       }
 

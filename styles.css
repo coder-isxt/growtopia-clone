@@ -13,8 +13,8 @@
   --shadow-md: 0 10px 26px rgba(0, 0, 0, 0.36);
   --radius-lg: 16px;
   --radius-md: 12px;
-  --left-panel-w: 200px;
-  --right-panel-w: 190px;
+  --left-panel-w: 302px;
+  --right-panel-w: 375px;
   --desktop-shell-pad: 6px;
   --desktop-side-gap: 6px;
 }
