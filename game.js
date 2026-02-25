@@ -393,6 +393,7 @@
       const SEED_INVENTORY_IDS = INVENTORY_IDS.filter((id) => PLANT_SEED_ID_SET.has(id));
       const BLOCK_ONLY_INVENTORY_IDS = INVENTORY_IDS.filter((id) => !PLANT_SEED_ID_SET.has(id));
       const FARMABLE_INVENTORY_IDS = BLOCK_ONLY_INVENTORY_IDS.filter((id) => farmableRegistry.isFarmable(id));
+      const NORMAL_BLOCK_INVENTORY_IDS = BLOCK_ONLY_INVENTORY_IDS.filter((id) => !FARMABLE_INVENTORY_IDS.includes(id));
       const slotOrder = [TOOL_FIST, TOOL_WRENCH].concat(INVENTORY_IDS);
       const cosmeticBundle = typeof cosmeticsModule.buildCatalog === "function"
         ? cosmeticsModule.buildCatalog(itemsModule)
@@ -1891,6 +1892,12 @@
       }
 
       function buildAdminInventoryItemOptions(kind) {
+        if (kind === "farmable") {
+          return FARMABLE_INVENTORY_IDS.map((id) => {
+            const label = blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Farmable " + id);
+            return '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml(label + " (" + getBlockKeyById(id) + ")") + "</option>";
+          }).join("");
+        }
         if (kind === "cosmetic") {
           return COSMETIC_ITEMS.map((item) => {
             return '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name + " (" + item.id + ")") + "</option>";
@@ -1901,7 +1908,7 @@
             return '<option value="' + escapeHtml(title.id) + '">' + escapeHtml(title.name + " (" + title.id + ")") + "</option>";
           }).join("");
         }
-        return INVENTORY_IDS.map((id) => {
+        return NORMAL_BLOCK_INVENTORY_IDS.map((id) => {
           const label = blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id);
           return '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml(label + " (" + getBlockKeyById(id) + ")") + "</option>";
         }).join("");
@@ -1918,10 +1925,11 @@
           if (qty <= 0) continue;
           const def = blockDefs[id] || {};
           const blockKey = getBlockKeyById(id);
+          const isFarmable = FARMABLE_INVENTORY_IDS.includes(id);
           rows.push({
-            kind: "block",
+            kind: isFarmable ? "farmable" : "block",
             itemId: blockKey,
-            label: def.name ? def.name + " (Block " + id + ")" : "Block " + id,
+            label: def.name ? (def.name + " (" + (isFarmable ? "Farmable " : "Block ") + id + ")") : ((isFarmable ? "Farmable " : "Block ") + id),
             qty
           });
         }
@@ -1959,6 +1967,7 @@
           ? "<div class='admin-inventory-tools'>" +
             "<select class='admin-inv-kind' data-account-id='" + escapeHtml(accountId) + "'>" +
             "<option value='block'>Blocks</option>" +
+            "<option value='farmable'>Farmables</option>" +
             "<option value='cosmetic'>Cosmetics</option>" +
             "<option value='title'>Titles</option>" +
             "</select>" +
@@ -2428,7 +2437,7 @@
               <div class="admin-console-opt admin-console-opt-block hidden admin-console-field">
                 <label>Block</label>
                 <select class="admin-console-block">
-                  ${BLOCK_ONLY_INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
+                  ${NORMAL_BLOCK_INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
                 </select>
               </div>
               <div class="admin-console-opt admin-console-opt-farmable hidden admin-console-field">
@@ -2789,6 +2798,11 @@
             if (!(blockEl instanceof HTMLSelectElement) || !(amountEl instanceof HTMLInputElement)) return;
             const blockRef = blockEl.value || "";
             const amount = Number(amountEl.value);
+            const safeId = parseBlockRef(blockRef);
+            if (!NORMAL_BLOCK_INVENTORY_IDS.includes(safeId)) {
+              postLocalSystemChat("Selected block is not a normal block.");
+              return;
+            }
             const ok = applyInventoryGrant(targetAccountId, blockRef, amount, "panel", targetUsername);
             if (ok) {
               postLocalSystemChat("Added " + amount + " of block " + blockRef + " to @" + targetUsername + ".");
@@ -3088,7 +3102,11 @@
         if (!accountId) return;
         const itemSelect = adminInventoryBodyEl.querySelector('.admin-inv-item[data-account-id="' + accountId + '"]');
         if (!(itemSelect instanceof HTMLSelectElement)) return;
-        const kind = target.value === "cosmetic" ? "cosmetic" : (target.value === "title" ? "title" : "block");
+        const kind = target.value === "cosmetic"
+          ? "cosmetic"
+          : (target.value === "title"
+              ? "title"
+              : (target.value === "farmable" ? "farmable" : "block"));
         itemSelect.innerHTML = buildAdminInventoryItemOptions(kind);
       }
 
@@ -3112,7 +3130,7 @@
         const amountInput = adminInventoryBodyEl.querySelector('.admin-inv-amount[data-account-id="' + accountId + '"]');
         if (!(kindSelect instanceof HTMLSelectElement) || !(itemSelect instanceof HTMLSelectElement) || !(amountInput instanceof HTMLInputElement)) return;
         const removeAllItem = (kind, itemId) => {
-          const cleanKind = kind === "cosmetic" ? "cosmetic" : (kind === "title" ? "title" : "block");
+          const cleanKind = kind === "cosmetic" ? "cosmetic" : (kind === "title" ? "title" : (kind === "farmable" ? "farmable" : "block"));
           const cleanItemId = String(itemId || "").trim();
           if (!cleanItemId) return;
           if (cleanKind === "cosmetic") {
@@ -3142,7 +3160,11 @@
             return;
           }
           const blockId = parseBlockRef(cleanItemId);
-          if (!INVENTORY_IDS.includes(blockId)) return;
+          if (cleanKind === "farmable") {
+            if (!FARMABLE_INVENTORY_IDS.includes(blockId)) return;
+          } else if (!NORMAL_BLOCK_INVENTORY_IDS.includes(blockId)) {
+            return;
+          }
           network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + blockId).set(0).then(() => {
             setLocalInventoryBlockCount(accountId, blockId, 0);
             logAdminAudit("Admin(inventory-modal) removed all block " + blockId + " for @" + username + ".");
@@ -3205,8 +3227,13 @@
           });
           return;
         }
+        const blockKind = kindSelect.value === "farmable" ? "farmable" : "block";
         const blockId = parseBlockRef(itemSelect.value || "");
-        if (!INVENTORY_IDS.includes(blockId)) return;
+        if (blockKind === "farmable") {
+          if (!FARMABLE_INVENTORY_IDS.includes(blockId)) return;
+        } else if (!NORMAL_BLOCK_INVENTORY_IDS.includes(blockId)) {
+          return;
+        }
         network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + blockId).transaction((current) => {
           const now = Math.max(0, Math.floor(Number(current) || 0));
           return Math.max(0, now + delta);
@@ -3888,6 +3915,7 @@
           parseBlockRef,
           INVENTORY_IDS,
           FARMABLE_INVENTORY_IDS,
+          NORMAL_BLOCK_INVENTORY_IDS,
           getBlockNameById: (id) => {
             const def = blockDefs[Math.floor(Number(id) || 0)];
             return def && def.name ? def.name : "";

@@ -505,7 +505,8 @@ window.GTModules.commands = {
         c.postLocalSystemChat("Target account not found: " + targetRef);
         return true;
       }
-      if (!c.INVENTORY_IDS.includes(blockId) || !Number.isInteger(amount) || amount <= 0) {
+      const normalBlockIds = Array.isArray(c.NORMAL_BLOCK_INVENTORY_IDS) ? c.NORMAL_BLOCK_INVENTORY_IDS : [];
+      if (!normalBlockIds.includes(blockId) || !Number.isInteger(amount) || amount <= 0) {
         c.postLocalSystemChat("Usage: /givex <user> <block_key|block_id> <amount>");
         return true;
       }
