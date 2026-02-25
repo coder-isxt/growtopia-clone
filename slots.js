@@ -120,7 +120,8 @@ window.GTModules = window.GTModules || {};
     [2, 2, 1, 0, 0], // zig-zag
     [1, 0, 1, 2, 1], // wave
     [1, 2, 1, 0, 1], // wave
-    [0, 1, 1, 1, 2]  // slope
+    [0, 1, 1, 1, 2], // slope
+    [3, 3, 3, 3, 3]  // row 4 (for 4-row slot modes)
   ];
 
   const PAYTABLE_V2 = {
@@ -183,7 +184,7 @@ window.GTModules = window.GTModules || {};
 
   const V3_ROWS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v3.layout.rows) || 3));
   const V3_REELS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v3.layout.reels) || 5));
-  const PAYLINES_V3 = PAYLINES_V2.slice(0, 10);
+  const PAYLINES_V3 = PAYLINES_V2.slice(0, 11);
   const PAYTABLE_V3 = {
     ruby: { 3: 1.4, 4: 2.2, 5: 3.8 },
     emerald: { 3: 1.6, 4: 2.6, 5: 4.4 },
@@ -207,7 +208,7 @@ window.GTModules = window.GTModules || {};
   };
   const V4_ROWS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v4.layout.rows) || 3));
   const V4_REELS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v4.layout.reels) || 5));
-  const PAYLINES_V4 = PAYLINES_V2.slice(0, 10);
+  const PAYLINES_V4 = PAYLINES_V2.slice(0, 11);
   const PAYTABLE_V4 = {
     leaf: { 3: 1.3, 4: 2.3, 5: 3.9 },
     stone: { 3: 1.5, 4: 2.7, 5: 4.6 },
@@ -343,13 +344,14 @@ window.GTModules = window.GTModules || {};
     return grid;
   }
 
-  function normalizePattern(pattern, cols) {
+  function normalizePattern(pattern, cols, rows) {
     const out = [];
     const safeCols = Math.max(1, Math.floor(Number(cols) || V2_REELS));
+    const safeRows = Math.max(1, Math.floor(Number(rows) || V2_ROWS));
     const arr = Array.isArray(pattern) ? pattern : [];
-    const fallback = Math.max(0, Math.min(V2_ROWS - 1, Math.floor(Number(arr[arr.length - 1]) || 0)));
+    const fallback = Math.max(0, Math.min(safeRows - 1, Math.floor(Number(arr[arr.length - 1]) || 0)));
     for (let c = 0; c < safeCols; c++) {
-      const row = Math.max(0, Math.min(V2_ROWS - 1, Math.floor(Number(arr[c]) || fallback)));
+      const row = Math.max(0, Math.min(safeRows - 1, Math.floor(Number(arr[c]) || fallback)));
       out.push(row);
     }
     return out;
@@ -367,8 +369,9 @@ window.GTModules = window.GTModules || {};
 
   function getLineSymbols(grid, pattern) {
     const out = [];
+    const maxRow = Math.max(0, (Array.isArray(grid) ? grid.length : 0) - 1);
     for (let c = 0; c < pattern.length; c++) {
-      const r = Math.max(0, Math.min(2, Math.floor(Number(pattern[c]) || 0)));
+      const r = Math.max(0, Math.min(maxRow, Math.floor(Number(pattern[c]) || 0)));
       const cell = (grid[r] && grid[r][c]) ? grid[r][c] : { id: "none", icon: "?" };
       out.push(cell);
     }
@@ -605,7 +608,7 @@ window.GTModules = window.GTModules || {};
     const opts = options && typeof options === "object" ? options : {};
     const safeGrid = Array.isArray(grid) ? grid : buildGridV2();
     const cols = (safeGrid[0] && safeGrid[0].length) || V2_REELS;
-    const paylines = PAYLINES_V2.map((p) => normalizePattern(p, cols));
+    const paylines = PAYLINES_V2.map((p) => normalizePattern(p, cols, safeGrid.length));
     const paylineCount = paylines.length;
     const betPerLine = safeBet / paylineCount;
     let totalMultiplier = 0;
@@ -785,7 +788,7 @@ window.GTModules = window.GTModules || {};
     const options = opts && typeof opts === "object" ? opts : {};
     const payUpgrade = Math.max(0, Number(options.payUpgrade) || 0);
     const cols = (grid[0] && grid[0].length) || V3_REELS;
-    const paylines = PAYLINES_V3.map((p) => normalizePattern(p, cols));
+    const paylines = PAYLINES_V3.map((p) => normalizePattern(p, cols, grid.length));
     let scatterCount = 0;
     for (let r = 0; r < grid.length; r++) {
       for (let c = 0; c < grid[r].length; c++) {
@@ -964,7 +967,7 @@ window.GTModules = window.GTModules || {};
   function evaluateGridV4(grid, opts) {
     const options = opts && typeof opts === "object" ? opts : {};
     const cols = (grid[0] && grid[0].length) || V4_REELS;
-    const paylines = PAYLINES_V4.map((p) => normalizePattern(p, cols));
+    const paylines = PAYLINES_V4.map((p) => normalizePattern(p, cols, grid.length));
     const extraPay = Math.max(0, Number(options.extraPay) || 0);
     let scatterCount = 0;
     for (let r = 0; r < grid.length; r++) {
@@ -1161,7 +1164,7 @@ window.GTModules = window.GTModules || {};
 
   function evaluateGridV6(grid) {
     const cols = (grid[0] && grid[0].length) || V6_REELS;
-    const paylines = PAYLINES_V6.map((p) => normalizePattern(p, cols));
+    const paylines = PAYLINES_V6.map((p) => normalizePattern(p, cols, grid.length));
     let scatterCount = 0;
     for (let r = 0; r < grid.length; r++) {
       for (let c = 0; c < grid[r].length; c++) {
