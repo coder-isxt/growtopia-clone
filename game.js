@@ -324,6 +324,7 @@
       const TREE_GEM_MIN = Math.max(0, Math.floor(Number(SETTINGS.TREE_GEM_MIN) || 1));
       const TREE_GEM_MAX = Math.max(TREE_GEM_MIN, Math.floor(Number(SETTINGS.TREE_GEM_MAX) || 4));
       const SEED_DROP_CHANCE = 1 / 8;
+      const BREAK_RETURN_ITEM_CHANCE = 1 / 5;
       const INVENTORY_ITEM_LIMIT = 300;
       let spawnTileX = SPAWN_TILE_X;
       let spawnTileY = SPAWN_TILE_Y;
@@ -10000,7 +10001,8 @@
           resolveGachaBreak(id, tx, ty);
         } else {
           const dropId = getInventoryDropId(id);
-          if (INVENTORY_IDS.includes(dropId)) {
+          const shouldReturnBrokenItem = Math.random() < BREAK_RETURN_ITEM_CHANCE;
+          if (shouldReturnBrokenItem && INVENTORY_IDS.includes(dropId)) {
             const currentCount = Math.max(0, Math.floor(Number(inventory[dropId]) || 0));
             if (currentCount >= INVENTORY_ITEM_LIMIT) {
               if (Math.random() < (1 / 3)) {
