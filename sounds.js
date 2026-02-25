@@ -196,7 +196,27 @@ window.GTModules.sounds = (function createSoundsModule() {
       };
       audio.addEventListener("ended", clear, { once: true });
       audio.addEventListener("error", clear, { once: true });
-      audio.play().catch(clear);
+      const playPromise = audio.play();
+      if (playPromise && typeof playPromise.then === "function") {
+        playPromise.then(() => {
+          unlocked = true;
+        }).catch((error) => {
+          clear();
+          const queueOnBlocked = Boolean(optsPlay && optsPlay.__queueOnBlocked);
+          const blocked = Boolean(error && (error.name === "NotAllowedError" || error.name === "AbortError"));
+          if (queueOnBlocked && blocked) {
+            pendingPlays.push({
+              id: soundId,
+              options: {
+                ...(optsPlay || {}),
+                __queueOnBlocked: false
+              }
+            });
+          }
+        });
+      } else {
+        unlocked = true;
+      }
       return audio;
     }
 
@@ -220,8 +240,10 @@ window.GTModules.sounds = (function createSoundsModule() {
       if (!row) return null;
       ensureUnlockBinding();
       if (!unlocked) {
-        pendingPlays.push({ id: soundId, options: options && typeof options === "object" ? options : null });
-        return null;
+        return performPlay(soundId, {
+          ...(options && typeof options === "object" ? options : {}),
+          __queueOnBlocked: true
+        });
       }
       return performPlay(soundId, options);
     }
