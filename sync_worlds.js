@@ -89,7 +89,7 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
       network.chatFeedRef.off("child_added", h.chatAdded);
     }
     if (removePlayerRef && network.playerRef) {
-      network.playerRef.remove().catch(() => {});
+      // Authoritative backend mode: do not write directly from client on detach.
     }
   }
 
@@ -97,6 +97,7 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
     const opts = options || {};
     const remotePlayers = opts.remotePlayers;
     const playerId = String(opts.playerId || "");
+    const localAccountId = String(opts.localAccountId || "");
     const normalizeCosmetics = typeof opts.normalizeRemoteEquippedCosmetics === "function"
       ? opts.normalizeRemoteEquippedCosmetics
       : (v) => v || {};
@@ -123,9 +124,23 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
     };
     const setRemotePlayer = (id, p) => {
       if (!remotePlayers || typeof remotePlayers.set !== "function") return;
+      const accountId = (p.accountId || "").toString();
+      if (localAccountId && accountId && accountId === localAccountId) {
+        if (typeof remotePlayers.delete === "function") remotePlayers.delete(id);
+        return;
+      }
+      // De-dupe stale entries by account id.
+      if (accountId && typeof remotePlayers.forEach === "function" && typeof remotePlayers.delete === "function") {
+        const stale = [];
+        remotePlayers.forEach((row, rowId) => {
+          if (!row || rowId === id) return;
+          if (String(row.accountId || "") === accountId) stale.push(rowId);
+        });
+        for (let i = 0; i < stale.length; i++) remotePlayers.delete(stale[i]);
+      }
       remotePlayers.set(id, {
         id,
-        accountId: (p.accountId || "").toString(),
+        accountId,
         x: p.x,
         y: p.y,
         facing: p.facing || 1,

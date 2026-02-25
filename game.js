@@ -1415,6 +1415,9 @@
           }
           packetMoveInFlight = true;
           sendAuthoritativePacket("MOVE", nextData)
+            .then(() => {
+              if (network.connected) setNetworkState("Online", false);
+            })
             .catch(() => {
               setNetworkState("Network error", true);
             })
@@ -11613,6 +11616,7 @@
           ? syncWorldsModule.buildWorldHandlers({
             remotePlayers,
             playerId,
+            localAccountId: playerProfileId || "",
             normalizeRemoteEquippedCosmetics,
             updateOnlineCount,
             parseTileKey,
