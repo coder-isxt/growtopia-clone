@@ -669,6 +669,7 @@ window.GTModules = window.GTModules || {};
       }
       const total = getTotalLocks(inv) + Math.max(0, Math.floor(Number(amount) || 0));
       setCanonicalLocks(inv, total);
+      sound.play("slots_win");
     }
 
     function getSelfAccountId() {
@@ -1682,7 +1683,11 @@ window.GTModules = window.GTModules || {};
           const startedRound = normalizeBlackjackRound(start.next.blackjackRound);
           if (startedRound && startedRound.resolved) {
             const payout = Math.max(0, Math.floor(Number(start.payout) || 0));
-            if (payout > 0) addLocksLocal(inventory, payout);
+            if (payout > 0)
+              {
+                addLocksLocal(inventory, payout);
+                
+              }
             const result = start.result || getBlackjackResultFromResolvedRound(startedRound);
             post(getOutcomeMessage(result || { gameType: "blackjack", bet: start.bet, outcome: "lose" }, payout));
             if (typeof opts.saveInventory === "function") opts.saveInventory();
@@ -1722,6 +1727,7 @@ window.GTModules = window.GTModules || {};
               lockRefBj.transaction((currentRaw) => {
                 const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
                 addLocksLocal(current, bet);
+                
                 return current;
               }).catch(() => {});
               post("Failed to start blackjack.");
@@ -1740,6 +1746,7 @@ window.GTModules = window.GTModules || {};
                 return lockRefBj.transaction((currentRaw) => {
                   const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
                   addLocksLocal(current, payout);
+                  
                   return current;
                 }).then(() => {
                   if (typeof opts.saveInventory === "function") opts.saveInventory();
@@ -1846,6 +1853,7 @@ window.GTModules = window.GTModules || {};
               addLocksLocal(inventory, payout);
               if (typeof opts.saveInventory === "function") opts.saveInventory();
               if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+              
               post("Payout credited: +" + payout + " WL.");
             } catch (_) {}
           }, Math.max(0, delayMs));
