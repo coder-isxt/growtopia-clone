@@ -1392,6 +1392,14 @@
         return client.send(type, data || {});
       }
 
+      function sendPresenceLeavePacket() {
+        if (!network.enabled) return;
+        sendAuthoritativePacket("PRESENCE", {
+          action: "leave",
+          worldId: (inWorld ? currentWorldId : "menu") || "menu"
+        }).catch(() => {});
+      }
+
       function queueMovePacket(data) {
         const payload = data && typeof data === "object" ? data : {};
         packetQueuedMoveData = payload;
@@ -6238,11 +6246,9 @@
             playerName
           );
         }
+        sendPresenceLeavePacket();
         detachCurrentWorldListeners();
         teardownGlobalRealtimeListeners();
-        if (network.globalPlayerRef) {
-          network.globalPlayerRef.remove().catch(() => {});
-        }
         releaseAccountSession();
         network.enabled = false;
         packetQueuedMoveData = null;
@@ -11149,9 +11155,7 @@
           network.cameraLogsFeedRef.off("child_added", network.handlers.cameraLogAdded);
         }
         if (typeof syncWorldsModule.detachWorldListeners === "function") {
-          syncWorldsModule.detachWorldListeners(network, network.handlers, true);
-        } else if (network.playerRef) {
-          network.playerRef.remove().catch(() => {});
+          syncWorldsModule.detachWorldListeners(network, network.handlers, false);
         }
         if (blockSyncer && typeof blockSyncer.reset === "function") {
           blockSyncer.reset();
@@ -11911,10 +11915,6 @@
         applyQuestEvent("visit_world", { worldId });
 
         if (network.connected) {
-          if (network.globalPlayerRef) {
-            network.globalPlayerRef.onDisconnect().remove();
-          }
-          network.playerRef.onDisconnect().remove();
           syncPlayer(true);
           setNetworkState("Online", false);
         } else {
@@ -12618,12 +12618,6 @@
             network.connected = isConnected;
 
             if (isConnected) {
-              if (network.globalPlayerRef) {
-                network.globalPlayerRef.onDisconnect().remove();
-              }
-              if (network.playerRef) {
-                network.playerRef.onDisconnect().remove();
-              }
               syncPlayer(true);
               setNetworkState("Online", false);
             } else {
@@ -13001,13 +12995,8 @@
             if (inWorld) {
               sendSystemWorldMessage(playerName + " left the world.");
             }
+            sendPresenceLeavePacket();
             releaseAccountSession();
-            if (network.globalPlayerRef) {
-              network.globalPlayerRef.remove();
-            }
-            if (network.playerRef) {
-              network.playerRef.remove();
-            }
           });
         } catch (error) {
           console.error(error);

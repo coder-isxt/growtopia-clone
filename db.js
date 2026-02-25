@@ -220,8 +220,6 @@ window.GTModules.db = (function createDbModule() {
 
     if (typeof syncWorldsModule.detachWorldListeners === "function") {
       syncWorldsModule.detachWorldListeners(network, handlers, true);
-    } else if (network.playerRef) {
-      network.playerRef.remove().catch(() => {});
     }
   }
 
