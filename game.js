@@ -13101,6 +13101,8 @@
 
         toolbar.innerHTML = "";
         const blockSection = createInventorySection("Blocks & Tools", "Click to select (1: Fist, 2: Wrench)");
+        const farmableSection = createInventorySection("Farmables", "Separate from normal blocks: higher XP + gem drops");
+        let hasFarmableEntries = false;
         const cosmeticEntries = [];
         for (let i = 0; i < slotOrder.length; i++) {
           const id = slotOrder[i];
@@ -13108,12 +13110,13 @@
           const isWrench = id === TOOL_WRENCH;
           const isTool = isFist || isWrench;
           if (!isTool && Math.max(0, Number(inventory[id]) || 0) <= 0) continue;
+          const isFarmable = !isTool && FARMABLE_INVENTORY_IDS.includes(id);
           const blockDef = isTool ? null : blockDefs[id];
           const title = isFist ? "Fist" : (isWrench ? "Wrench" : (blockDef && blockDef.name ? blockDef.name : "Block"));
           const slotEl = createInventorySlot({
             selected: i === selectedSlot,
-            variant: "inventory-slot-block",
-            title: title + (isTool ? "" : " (x" + (inventory[id] || 0) + ")"),
+            variant: isFarmable ? "inventory-slot-farmable" : "inventory-slot-block",
+            title: (isFarmable ? "[Farmable] " : "") + title + (isTool ? "" : " (x" + (inventory[id] || 0) + ")"),
             color: isFist ? "#c59b81" : (isWrench ? "#90a4ae" : (blockDef && blockDef.color ? blockDef.color : "#999")),
             iconClass: isTool ? "icon-fist" : "icon-block",
             faIconClass: isFist ? "fa-solid fa-hand-fist" : (isWrench ? "fa-solid fa-screwdriver-wrench" : (blockDef && blockDef.faIcon ? blockDef.faIcon : "")),
@@ -13139,9 +13142,17 @@
               convertLockByDoubleClick(id);
             } : null
           });
-          blockSection.grid.appendChild(slotEl);
+          if (isFarmable) {
+            farmableSection.grid.appendChild(slotEl);
+            hasFarmableEntries = true;
+          } else {
+            blockSection.grid.appendChild(slotEl);
+          }
         }
         toolbar.appendChild(blockSection.section);
+        if (hasFarmableEntries) {
+          toolbar.appendChild(farmableSection.section);
+        }
 
 
         for (const item of COSMETIC_ITEMS) {

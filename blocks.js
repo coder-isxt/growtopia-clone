@@ -43,7 +43,17 @@ window.GTModules.blocks = (function createBlocksModule() {
     { id: 41, key: "mystery_block", name: "Mystery Block", color: "#a46cff", solid: true, icon: "MB", faIcon: "fa-solid fa-dice", image: "special/mystery_block.png" },
     { id: 34, key: "donation_box", name: "Donation Box", color: "#8f6d4f", solid: true, donationBox: true, icon: "DN", faIcon: "fa-solid fa-box-open", image: "special/donation_block.png" },
     { id: 36, key: "storage_chest", name: "Storage Chest", color: "#7f5f3e", solid: true, chestStorage: true, icon: "CH", faIcon: "fa-solid fa-box-archive", image: "special/chest.png" },
-    { id: 35, key: "leaf_block", name: "Leaf Block", color: "#467f3e", solid: true, icon: "CH", faIcon: "fa-solid fa-box-archive", image: "special/leaf.png" }
+    { id: 35, key: "leaf_block", name: "Leaf Block", color: "#467f3e", solid: true, icon: "CH", faIcon: "fa-solid fa-box-archive", image: "special/leaf.png" },
+
+    // Dedicated farmables (separate from normal terrain blocks)
+    { id: 43, key: "farmable_grass", name: "Farmable Grass", color: "#5fd062", solid: true, farmable: true, icon: "FG", faIcon: "fa-solid fa-seedling", image: "terrain/grass.png" },
+    { id: 44, key: "farmable_dirt", name: "Farmable Dirt", color: "#9c6a34", solid: true, farmable: true, icon: "FD", faIcon: "fa-solid fa-seedling", image: "terrain/dirt.png" },
+    { id: 45, key: "farmable_stone", name: "Farmable Stone", color: "#95a0aa", solid: true, farmable: true, icon: "FS", faIcon: "fa-solid fa-seedling", image: "terrain/stone.png" },
+    { id: 46, key: "farmable_wood", name: "Farmable Wood", color: "#bf8646", solid: true, farmable: true, icon: "FW", faIcon: "fa-solid fa-seedling", image: "terrain/wood.png" },
+    { id: 47, key: "farmable_sand", name: "Farmable Sand", color: "#f2db95", solid: true, farmable: true, icon: "FSA", faIcon: "fa-solid fa-seedling", image: "terrain/sand.png" },
+    { id: 48, key: "farmable_brick", name: "Farmable Brick", color: "#d06a58", solid: true, farmable: true, icon: "FB", faIcon: "fa-solid fa-seedling", image: "terrain/brick.png" },
+    { id: 49, key: "farmable_leaf", name: "Farmable Leaf", color: "#58a94f", solid: true, farmable: true, icon: "FL", faIcon: "fa-solid fa-seedling", image: "special/leaf.png" },
+    { id: 50, key: "farmable_plank", name: "Farmable Plank", color: "#c8d2dc", solid: true, farmable: true, icon: "FP", faIcon: "fa-solid fa-seedling", image: "special/plank.png" }
   ];
 
   function resolveImagePath(image) {

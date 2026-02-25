@@ -2,14 +2,14 @@ window.GTModules = window.GTModules || {};
 
 window.GTModules.farmables = (function createFarmablesModule() {
   const DEFAULT_FARMABLES = [
-    { key: "grass_block", xp: 8, gemMin: 1, gemMax: 2 },
-    { key: "dirt_block", xp: 7, gemMin: 1, gemMax: 2 },
-    { key: "stone_block", xp: 9, gemMin: 1, gemMax: 3 },
-    { key: "wood_block", xp: 11, gemMin: 2, gemMax: 4 },
-    { key: "sand_block", xp: 8, gemMin: 1, gemMax: 2 },
-    { key: "brick_block", xp: 10, gemMin: 2, gemMax: 4 },
-    { key: "leaf_block", xp: 12, gemMin: 2, gemMax: 5 },
-    { key: "wood_plank", xp: 9, gemMin: 1, gemMax: 3 }
+    { key: "farmable_grass", xp: 8, gemMin: 1, gemMax: 2 },
+    { key: "farmable_dirt", xp: 7, gemMin: 1, gemMax: 2 },
+    { key: "farmable_stone", xp: 9, gemMin: 1, gemMax: 3 },
+    { key: "farmable_wood", xp: 11, gemMin: 2, gemMax: 4 },
+    { key: "farmable_sand", xp: 8, gemMin: 1, gemMax: 2 },
+    { key: "farmable_brick", xp: 10, gemMin: 2, gemMax: 4 },
+    { key: "farmable_leaf", xp: 12, gemMin: 2, gemMax: 5 },
+    { key: "farmable_plank", xp: 9, gemMin: 1, gemMax: 3 }
   ];
 
   function toInt(value, fallback) {
