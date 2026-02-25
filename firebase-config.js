@@ -11,7 +11,6 @@ window.FIREBASE_CONFIG = {
 };
 
 window.FIREBASE_APIKEY_ENDPOINT = "https://growtopia.isxtgg.workers.dev/apikey";
-window.FIREBASE_LOCAL_APIKEY_STORAGE = "growtopia_local_firebase_apikey_v1";
 
 let __firebaseApiKeyPromise = null;
 const FIREBASE_APIKEY_FETCH_TIMEOUT_MS = 8000;
@@ -22,22 +21,9 @@ function isLocalRuntime() {
 }
 
 function getLocalApiKeyFromPrompt() {
-  const storageKey = window.FIREBASE_LOCAL_APIKEY_STORAGE || "growtopia_local_firebase_apikey_v2";
-  try {
-    const cached = localStorage.getItem(storageKey);
-    if (cached && cached.trim()) return cached.trim();
-  } catch (error) {
-    // ignore localStorage failures
-  }
   const entered = window.prompt("Enter Firebase API key for local run:");
   const safeKey = (entered || "").trim();
-  if (!safeKey) return "";
-  try {
-    localStorage.setItem(storageKey, safeKey);
-  } catch (error) {
-    // ignore localStorage failures
-  }
-  return safeKey;
+  return safeKey || "";
 }
 
 window.getFirebaseApiKey = async function getFirebaseApiKey() {
@@ -54,7 +40,6 @@ window.getFirebaseApiKey = async function getFirebaseApiKey() {
 
   if (__firebaseApiKeyPromise) return __firebaseApiKeyPromise;
 
-  const storageKey = window.FIREBASE_LOCAL_APIKEY_STORAGE || "growtopia_local_firebase_apikey_v1";
   let fetchController = null;
   let timeoutId = null;
   if (typeof AbortController !== "undefined") {
@@ -94,24 +79,9 @@ window.getFirebaseApiKey = async function getFirebaseApiKey() {
       const safeKey = (key || "").trim();
       if (!safeKey) throw new Error("Empty API key response.");
       if (window.FIREBASE_CONFIG) window.FIREBASE_CONFIG.apiKey = safeKey;
-      try {
-        localStorage.setItem(storageKey, safeKey);
-      } catch (error) {
-        // ignore localStorage failures
-      }
       return safeKey;
     })
     .catch((err) => {
-      try {
-        const cached = localStorage.getItem(storageKey);
-        if (cached && cached.trim()) {
-          const safe = cached.trim();
-          if (window.FIREBASE_CONFIG) window.FIREBASE_CONFIG.apiKey = safe;
-          return safe;
-        }
-      } catch (error) {
-        // ignore localStorage failures
-      }
       __firebaseApiKeyPromise = null;
       throw err;
     })

@@ -111,6 +111,13 @@ window.GTModules.inventory = (function createInventoryModule() {
     }
 
     function loadFromLocal() {
+      const secure = window.GTModules && window.GTModules.secureStorage;
+      if (secure && typeof secure.loadJson === "function") {
+        const parsed = secure.loadJson(getStorageKey());
+        if (!parsed || typeof parsed !== "object") return false;
+        applyFromRecord(parsed);
+        return true;
+      }
       try {
         const raw = localStorage.getItem(getStorageKey());
         if (!raw) return false;
@@ -123,6 +130,11 @@ window.GTModules.inventory = (function createInventoryModule() {
     }
 
     function saveToLocal() {
+      const secure = window.GTModules && window.GTModules.secureStorage;
+      if (secure && typeof secure.saveJson === "function") {
+        secure.saveJson(getStorageKey(), buildPayload());
+        return;
+      }
       try {
         localStorage.setItem(getStorageKey(), JSON.stringify(buildPayload()));
       } catch (error) {

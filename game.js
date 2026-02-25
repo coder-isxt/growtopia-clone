@@ -1322,37 +1322,68 @@
           authStorageModule.saveCredentials(SAVED_AUTH_KEY, username, password);
           return;
         }
-        try {
-          localStorage.setItem(SAVED_AUTH_KEY, JSON.stringify({
-            username: (username || "").toString().slice(0, 20),
-            password: (password || "").toString().slice(0, 64)
-          }));
-        } catch (error) {
-          // ignore localStorage failures
-        }
+        saveJsonToLocalStorage(SAVED_AUTH_KEY, {
+          username: (username || "").toString().slice(0, 20),
+          password: (password || "").toString().slice(0, 64)
+        });
       }
 
       function loadSavedCredentials() {
         if (typeof authStorageModule.loadCredentials === "function") {
           return authStorageModule.loadCredentials(SAVED_AUTH_KEY);
         }
-        try {
-          const raw = localStorage.getItem(SAVED_AUTH_KEY);
-          if (!raw) return { username: "", password: "" };
-          const parsed = JSON.parse(raw);
-          return {
-            username: (parsed && parsed.username || "").toString(),
-            password: (parsed && parsed.password || "").toString()
-          };
-        } catch (error) {
-          return { username: "", password: "" };
-        }
+        const parsed = loadJsonFromLocalStorage(SAVED_AUTH_KEY);
+        return {
+          username: (parsed && parsed.username || "").toString(),
+          password: (parsed && parsed.password || "").toString()
+        };
       }
 
       function applySavedCredentialsToForm() {
         const saved = loadSavedCredentials();
         if (saved.username) authUsernameEl.value = saved.username;
         if (saved.password) authPasswordEl.value = saved.password;
+        const secure = window.GTModules && window.GTModules.secureStorage;
+        if ((!saved.username && !saved.password) && secure && typeof secure.init === "function") {
+          secure.init().then(() => {
+            const late = loadSavedCredentials();
+            if (late.username && !authUsernameEl.value) authUsernameEl.value = late.username;
+            if (late.password && !authPasswordEl.value) authPasswordEl.value = late.password;
+          }).catch(() => {});
+        }
+      }
+
+      function saveJsonToLocalStorage(storageKey, payload) {
+        const key = String(storageKey || "");
+        if (!key) return;
+        const secure = window.GTModules && window.GTModules.secureStorage;
+        if (secure && typeof secure.saveJson === "function") {
+          secure.saveJson(key, payload);
+          return;
+        }
+        try {
+          localStorage.setItem(key, JSON.stringify(payload));
+        } catch (error) {
+          // ignore localStorage failures
+        }
+      }
+
+      function loadJsonFromLocalStorage(storageKey) {
+        const key = String(storageKey || "");
+        if (!key) return null;
+        const secure = window.GTModules && window.GTModules.secureStorage;
+        if (secure && typeof secure.loadJson === "function") {
+          const value = secure.loadJson(key);
+          if (value && typeof value === "object") return value;
+        }
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          return parsed && typeof parsed === "object" ? parsed : null;
+        } catch (error) {
+          return null;
+        }
       }
 
       function loadForceReloadMarker() {
@@ -4230,23 +4261,14 @@
       }
 
       function saveProgressionToLocal() {
-        try {
-          localStorage.setItem(getProgressionStorageKey(), JSON.stringify(buildProgressionPayload()));
-        } catch (error) {
-          // ignore localStorage quota/write failures
-        }
+        saveJsonToLocalStorage(getProgressionStorageKey(), buildProgressionPayload());
       }
 
       function loadProgressionFromLocal() {
-        try {
-          const raw = localStorage.getItem(getProgressionStorageKey());
-          if (!raw) return false;
-          const parsed = JSON.parse(raw);
-          applyProgressionFromRecord(parsed, false);
-          return true;
-        } catch (error) {
-          return false;
-        }
+        const parsed = loadJsonFromLocalStorage(getProgressionStorageKey());
+        if (!parsed) return false;
+        applyProgressionFromRecord(parsed, false);
+        return true;
       }
 
       function flushProgressionSave() {
@@ -4337,22 +4359,14 @@
       }
 
       function saveAchievementsToLocal() {
-        try {
-          localStorage.setItem(getAchievementsStorageKey(), JSON.stringify(buildAchievementsPayload()));
-        } catch (error) {
-          // ignore localStorage quota/write failures
-        }
+        saveJsonToLocalStorage(getAchievementsStorageKey(), buildAchievementsPayload());
       }
 
       function loadAchievementsFromLocal() {
-        try {
-          const raw = localStorage.getItem(getAchievementsStorageKey());
-          if (!raw) return false;
-          achievementsState = normalizeAchievementsState(JSON.parse(raw));
-          return true;
-        } catch (error) {
-          return false;
-        }
+        const parsed = loadJsonFromLocalStorage(getAchievementsStorageKey());
+        if (!parsed) return false;
+        achievementsState = normalizeAchievementsState(parsed);
+        return true;
       }
 
       function flushAchievementsSave() {
@@ -4604,22 +4618,14 @@
       }
 
       function saveQuestsToLocal() {
-        try {
-          localStorage.setItem(getQuestsStorageKey(), JSON.stringify(buildQuestsPayload()));
-        } catch (error) {
-          // ignore localStorage quota/write failures
-        }
+        saveJsonToLocalStorage(getQuestsStorageKey(), buildQuestsPayload());
       }
 
       function loadQuestsFromLocal() {
-        try {
-          const raw = localStorage.getItem(getQuestsStorageKey());
-          if (!raw) return false;
-          questsState = normalizeQuestsState(JSON.parse(raw));
-          return true;
-        } catch (error) {
-          return false;
-        }
+        const parsed = loadJsonFromLocalStorage(getQuestsStorageKey());
+        if (!parsed) return false;
+        questsState = normalizeQuestsState(parsed);
+        return true;
       }
 
       function describeQuestRewards(rewards) {
@@ -4961,23 +4967,14 @@
       }
 
       function loadInventoryFromLocal() {
-        try {
-          const raw = localStorage.getItem(getInventoryStorageKey());
-          if (!raw) return false;
-          const parsed = JSON.parse(raw);
-          applyInventoryFromRecord(parsed);
-          return true;
-        } catch (error) {
-          return false;
-        }
+        const parsed = loadJsonFromLocalStorage(getInventoryStorageKey());
+        if (!parsed) return false;
+        applyInventoryFromRecord(parsed);
+        return true;
       }
 
       function saveInventoryToLocal() {
-        try {
-          localStorage.setItem(getInventoryStorageKey(), JSON.stringify(buildInventoryPayload()));
-        } catch (error) {
-          // ignore localStorage quota/write failures
-        }
+        saveJsonToLocalStorage(getInventoryStorageKey(), buildInventoryPayload());
       }
 
       function saveInventory(immediate = true) {

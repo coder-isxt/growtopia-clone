@@ -82,3 +82,5 @@ window.FIREBASE_APP_CHECK_DEBUG_TOKEN = "";
 
 // Cloudflare Worker endpoint that returns the Discord webhook URL for anti-cheat alerts.
 window.ANTICHEAT_WEBHOOK_ENDPOINT = "https://growtopia.isxtgg.workers.dev/webhook";
+// Cloudflare Worker endpoint that returns the local-storage encryption key.
+window.ENCRYPTION_KEY_ENDPOINT = "https://growtopia.isxtgg.workers.dev/encryptionkey";
