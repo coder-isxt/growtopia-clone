@@ -312,13 +312,41 @@ window.GTModules.db = (function createDbModule() {
       };
       if (token) headers.Authorization = "Bearer " + token;
 
-      const res = await fetchImpl(endpoint, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(packet),
-        credentials: "omit"
-      });
-      const body = await res.json().catch(() => ({}));
+      const trySend = async (pkt) => {
+        const res = await fetchImpl(endpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(pkt),
+          credentials: "omit"
+        });
+        const body = await res.json().catch(() => ({}));
+        return { res, body };
+      };
+
+      let attempt = await trySend(packet);
+      let { res, body } = attempt;
+
+      const code = body && body.error && body.error.code ? String(body.error.code) : "";
+      const currentSeq = Number(
+        body && body.error && body.error.details && body.error.details.currentSeq
+      );
+      const canReplayRecover = !res.ok
+        && res.status === 409
+        && code === "REPLAY_DETECTED"
+        && Number.isFinite(currentSeq);
+      if (canReplayRecover) {
+        const next = Math.max(0, Math.floor(currentSeq + 1));
+        setSeq(next);
+        const retryPacket = {
+          ...packet,
+          seq: nextSeq(),
+          t: Date.now()
+        };
+        attempt = await trySend(retryPacket);
+        res = attempt.res;
+        body = attempt.body;
+      }
+
       if (!res.ok || !body || body.ok !== true) {
         const message = body && body.error && body.error.message
           ? String(body.error.message)

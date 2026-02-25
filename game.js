@@ -1418,7 +1418,12 @@
             .then(() => {
               if (network.connected) setNetworkState("Online", false);
             })
-            .catch(() => {
+            .catch((error) => {
+              const code = String(error && error.payload && error.payload.error && error.payload.error.code || "");
+              if (code === "REPLAY_DETECTED" || code === "MOVE_TOO_FAST") {
+                // Soft conflict/validation; don't mark whole network as down.
+                return;
+              }
               setNetworkState("Network error", true);
             })
             .finally(() => {
