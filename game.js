@@ -594,6 +594,14 @@
         grounded: false,
         facing: 1
       };
+      let currentPhysicsLimits = {
+        maxMoveSpeedPerTick: Math.max(0.01, Number(MAX_MOVE_SPEED) || 0),
+        maxFallSpeedPerTick: Math.max(0.01, Number(MAX_FALL_SPEED) || 0),
+        gravityPerTick: Math.max(0.001, Number(GRAVITY) || 0),
+        jumpVelocityPerTick: Math.abs(Number(JUMP_VELOCITY) || 0),
+        inWater: false,
+        inAntiGravity: false
+      };
       const cosmeticState = typeof cosmeticsModule.createInventoryState === "function"
         ? cosmeticsModule.createInventoryState(COSMETIC_ITEMS, COSMETIC_SLOTS)
         : { cosmeticInventory: {}, equippedCosmetics: {} };
@@ -1080,7 +1088,9 @@
           getPlayer: () => player,
           getPlayerRect: () => ({ w: PLAYER_W, h: PLAYER_H }),
           getTileSize: () => TILE,
+          getTickRate: () => FIXED_FPS,
           getEditReachTiles: () => editReachTiles,
+          getPhysicsLimits: () => currentPhysicsLimits,
           postLocalSystemChat,
           getWatchedStorageKeys: () => ([
             SAVED_AUTH_KEY,
@@ -7607,6 +7617,14 @@
         if (isFrozenByAdmin) {
           player.vx = 0;
           player.vy = 0;
+          currentPhysicsLimits = {
+            maxMoveSpeedPerTick: Math.max(0.01, Number(MAX_MOVE_SPEED) || 0),
+            maxFallSpeedPerTick: Math.max(0.01, Number(MAX_FALL_SPEED) || 0),
+            gravityPerTick: Math.max(0.001, Number(GRAVITY) || 0),
+            jumpVelocityPerTick: Math.abs(Number(JUMP_VELOCITY) || 0),
+            inWater: false,
+            inAntiGravity: false
+          };
           wasInWaterLastFrame = rectTouchesLiquid(player.x, player.y, PLAYER_W, PLAYER_H);
           wasJumpHeld = jump;
           return;
@@ -7631,6 +7649,14 @@
           gravityNow *= ANTI_GRAV_GRAVITY_MULT;
           maxFallNow *= ANTI_GRAV_FALL_MULT;
         }
+        currentPhysicsLimits = {
+          maxMoveSpeedPerTick: Math.max(0.01, Number(maxMoveSpeed) || 0),
+          maxFallSpeedPerTick: Math.max(0.01, Number(maxFallNow) || 0),
+          gravityPerTick: Math.max(0.001, Number(gravityNow) || 0),
+          jumpVelocityPerTick: Math.abs(Number(jumpVelocityNow) || 0),
+          inWater: Boolean(inWater),
+          inAntiGravity: Boolean(inAntiGravity)
+        };
 
         const moveDir = (moveRight ? 1 : 0) - (moveLeft ? 1 : 0);
         if (moveDir !== 0) {

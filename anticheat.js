@@ -129,6 +129,36 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       return parts.join(" | ").slice(0, 260);
     }
 
+    function getDynamicMotionCaps() {
+      const tileSize = Math.max(1, Number(get("getTileSize", 32)) || 32);
+      const tickRate = Math.max(20, Number(get("getTickRate", 60)) || 60);
+      const fallbackMovePerTick = Math.max(0.01, Number(SETTINGS.MAX_MOVE_SPEED) || 3.7);
+      const fallbackFallPerTick = Math.max(0.01, Number(SETTINGS.MAX_FALL_SPEED) || 10);
+      const fallbackJumpPerTick = Math.max(0.01, Math.abs(Number(SETTINGS.JUMP_VELOCITY) || 5));
+      const fallbackGravityPerTick = Math.max(0.001, Number(SETTINGS.GRAVITY) || 0.32);
+      const limits = get("getPhysicsLimits", null) || {};
+      const movePerTick = Math.max(0.01, Number(limits.maxMoveSpeedPerTick) || fallbackMovePerTick);
+      const fallPerTick = Math.max(0.01, Number(limits.maxFallSpeedPerTick) || fallbackFallPerTick);
+      const jumpPerTick = Math.max(0.01, Math.abs(Number(limits.jumpVelocityPerTick) || fallbackJumpPerTick));
+      const gravityPerTick = Math.max(0.001, Number(limits.gravityPerTick) || fallbackGravityPerTick);
+      const maxVerticalPerTick = Math.max(fallPerTick, jumpPerTick);
+      const maxVectorPerTick = Math.hypot(movePerTick, maxVerticalPerTick);
+      const maxVectorPxS = maxVectorPerTick * tickRate;
+      const maxHorizontalPxS = movePerTick * tickRate;
+      return {
+        tileSize,
+        tickRate,
+        gravityPerTick,
+        maxHorizontalPxS,
+        maxVectorPxS,
+        dynamicTeleportPxBase: Math.max(
+          TELEPORT_PX,
+          tileSize * 4,
+          maxVectorPxS * 0.20 // about 200ms worth of max movement
+        )
+      };
+    }
+
     function shouldReport(ruleKey) {
       const now = Date.now();
       const last = Number(lastRuleAt.get(ruleKey) || 0);
@@ -327,10 +357,33 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       const dist = Math.hypot(dx, dy);
       const speed = dist / (dtMs / 1000);
 
-      if (dist > TELEPORT_PX) {
-        report("teleport_like_move", "warn", { dist: Math.round(dist), dtMs: Math.round(dtMs), x: Math.round(x), y: Math.round(y) });
-      } else if (speed > MAX_SPEED_PX_S) {
-        report("speed_anomaly", "warn", { speed: Math.round(speed), dist: Math.round(dist), dtMs: Math.round(dtMs), vx, vy });
+      const caps = getDynamicMotionCaps();
+      const speedCapPxS = Math.max(120, Math.min(MAX_SPEED_PX_S, caps.maxVectorPxS * 1.45));
+      const horizontalSpeedCapPxS = Math.max(120, caps.maxHorizontalPxS * 1.45);
+      const dynamicTeleportPx = Math.max(caps.dynamicTeleportPxBase, speedCapPxS * (dtMs / 1000) * 2.8);
+      const horizontalSpeed = Math.abs(dx) / (dtMs / 1000);
+
+      if (dist > dynamicTeleportPx) {
+        report("teleport_like_move", "warn", {
+          dist: Math.round(dist),
+          dtMs: Math.round(dtMs),
+          x: Math.round(x),
+          y: Math.round(y),
+          capPx: Math.round(dynamicTeleportPx),
+          speedCapPxS: Math.round(speedCapPxS)
+        });
+      } else if (speed > speedCapPxS || horizontalSpeed > horizontalSpeedCapPxS) {
+        report("speed_anomaly", "warn", {
+          speed: Math.round(speed),
+          horizontalSpeed: Math.round(horizontalSpeed),
+          dist: Math.round(dist),
+          dtMs: Math.round(dtMs),
+          speedCapPxS: Math.round(speedCapPxS),
+          horizontalCapPxS: Math.round(horizontalSpeedCapPxS),
+          gravityPerTick: Number(caps.gravityPerTick.toFixed(4)),
+          vx,
+          vy
+        });
       }
 
       lastPos = { x, y, t: now };
