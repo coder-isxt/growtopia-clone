@@ -12,7 +12,8 @@ window.GTModules = window.GTModules || {};
     [2, 2, 1, 0, 0],
     [1, 0, 1, 2, 1],
     [1, 2, 1, 0, 1],
-    [0, 1, 1, 1, 2]
+    [0, 1, 1, 1, 2],
+    [3, 3, 3, 3, 3]
   ];
   const slotsModule = (window.GTModules && window.GTModules.slots) || {};
   const slotsDefs = (typeof slotsModule.getDefinitions === "function" ? slotsModule.getDefinitions() : null) || {};
@@ -623,34 +624,74 @@ window.GTModules = window.GTModules || {};
     function getCurrencyIds() {
       const worldLockId = Math.max(0, Math.floor(Number(get("getWorldLockId", 0)) || 0));
       const obsidianLockId = Math.max(0, Math.floor(Number(get("getObsidianLockId", 0)) || 0));
-      return { worldLockId, obsidianLockId };
+      const emeraldLockId = Math.max(0, Math.floor(Number(get("getEmeraldLockId", 0)) || 0));
+      return { worldLockId, obsidianLockId, emeraldLockId };
+    }
+
+    function getLockDefsForFallback() {
+      const getCfgFn = (opts && typeof opts.getLockCurrencyConfig === "function")
+        ? opts.getLockCurrencyConfig
+        : null;
+      const cfg = getCfgFn ? getCfgFn() : null;
+      if (Array.isArray(cfg) && cfg.length) {
+        return cfg
+          .map((row) => ({
+            id: Math.max(0, Math.floor(Number(row && row.id) || 0)),
+            value: Math.max(1, Math.floor(Number(row && row.value) || 1))
+          }))
+          .filter((row) => row.id > 0);
+      }
+      const ids = getCurrencyIds();
+      const defs = [];
+      if (ids.worldLockId > 0) defs.push({ id: ids.worldLockId, value: 1 });
+      if (ids.obsidianLockId > 0) defs.push({ id: ids.obsidianLockId, value: 100 });
+      if (ids.emeraldLockId > 0) defs.push({ id: ids.emeraldLockId, value: 10000 });
+      return defs;
     }
 
     function getTotalLocks(inv) {
-      const fn = get("getTotalLockValue", null);
+      const fn = (opts && typeof opts.getTotalLockValue === "function")
+        ? opts.getTotalLockValue
+        : null;
       if (typeof fn === "function") {
         return Math.max(0, Math.floor(Number(fn(inv)) || 0));
       }
-      const { worldLockId, obsidianLockId } = getCurrencyIds();
-      const wl = Math.max(0, Math.floor(Number(inv && inv[worldLockId]) || 0));
-      const ob = Math.max(0, Math.floor(Number(inv && inv[obsidianLockId]) || 0));
-      return wl + (ob * 100);
+      const defs = getLockDefsForFallback();
+      let total = 0;
+      for (let i = 0; i < defs.length; i++) {
+        const row = defs[i];
+        total += Math.max(0, Math.floor(Number(inv && inv[row.id]) || 0)) * row.value;
+      }
+      return Math.max(0, Math.floor(total));
     }
 
     function setCanonicalLocks(inv, totalLocks) {
-      const fn = get("distributeLockValueToInventory", null);
+      const fn = (opts && typeof opts.distributeLockValueToInventory === "function")
+        ? opts.distributeLockValueToInventory
+        : null;
       if (typeof fn === "function") {
         fn(inv, totalLocks);
         return;
       }
-      const { worldLockId, obsidianLockId } = getCurrencyIds();
       const total = Math.max(0, Math.floor(Number(totalLocks) || 0));
-      inv[worldLockId] = total % 100;
-      if (obsidianLockId > 0) inv[obsidianLockId] = Math.floor(total / 100);
+      const defs = getLockDefsForFallback().slice().sort((a, b) => b.value - a.value);
+      let remaining = total;
+      for (let i = 0; i < defs.length; i++) {
+        const row = defs[i];
+        const count = row.value > 0 ? Math.floor(remaining / row.value) : 0;
+        inv[row.id] = Math.max(0, count);
+        remaining -= count * row.value;
+      }
+      if (remaining > 0 && defs.length) {
+        const base = defs[defs.length - 1];
+        inv[base.id] = Math.max(0, Math.floor(Number(inv[base.id]) || 0)) + remaining;
+      }
     }
 
     function spendLocksLocal(inv, amount) {
-      const fn = get("spendLockValue", null);
+      const fn = (opts && typeof opts.spendLockValue === "function")
+        ? opts.spendLockValue
+        : null;
       if (typeof fn === "function") {
         return Boolean(fn(inv, amount));
       }
@@ -663,7 +704,9 @@ window.GTModules = window.GTModules || {};
 
     function addLocksLocal(inv, amount) {
       sound.play("slots_win");
-      const fn = get("addLockValue", null);
+      const fn = (opts && typeof opts.addLockValue === "function")
+        ? opts.addLockValue
+        : null;
       if (typeof fn === "function") {
         fn(inv, amount);
         return;
@@ -989,16 +1032,17 @@ window.GTModules = window.GTModules || {};
           ? ("<div class='slotsv2-winfx " + (stats.lastOutcome === "jackpot" ? "slotsv2-outcome-jackpot" : "slotsv2-outcome-win") + "'><span></span><span></span><span></span><span></span><span></span><span></span></div>")
           : "";
         slotsV2BoardHtml =
-          "<div class='slotsv2-board " + winStateClass + (isRollingSlotsV2 ? " rolling" : "") + "' style='--slots-cols:" + slotsCols + ";'>" + slotsV2BoardHtml + boardFxHtml + "</div>" +
+          "<div class='slotsv2-board " + winStateClass + "' style='--slots-cols:" + slotsCols + ";--slots-rows:" + slotsRowsCount + ";'>" + slotsV2BoardHtml + boardFxHtml + "</div>" +
           "<div class='slotsv2-lines'>" + lineBadges + "</div>";
       }
+      const hideBaseBoardForBonus = Boolean(def.id === "slots_v2" && bonusActive);
       const slotsV2ResultHtml = (def.id === "slots_v2" || def.id === "slots_v3" || def.id === "slots_v4" || def.id === "slots_v6")
         ? ("<div class='vending-section'>" +
-            "<div class='vending-section-title'>Slots v2 Board</div>" +
-            slotsV2BoardHtml +
+            "<div class='vending-section-title'>Slots Game</div>" +
+            (hideBaseBoardForBonus ? "" : slotsV2BoardHtml) +
             (def.id === "slots_v2" && activeBonusFrame
               ? ("<div class='vending-section-title' style='margin-top:10px;'>Hold &amp; Spin Bonus</div>" +
-                "<div class='slotsv2-board slotsv2-" + (bonusActive ? "idle rolling" : (stats.lastMultiplier > 0 ? "win" : "idle")) + (bonusHitFrame ? " slotsv2-bonus-hit" : "") + "' style='--slots-cols:" + bonusReels + ";'>" +
+                "<div class='slotsv2-board slotsv2-" + (bonusActive ? "idle rolling" : (stats.lastMultiplier > 0 ? "win" : "idle")) + (bonusHitFrame ? " slotsv2-bonus-hit" : "") + "' style='--slots-cols:" + bonusReels + ";--slots-rows:" + bonusRows + ";'>" +
                   (function buildBonusReplayBoard() {
                     let html = "";
                     const teaseList = (activeBonusFrame && Array.isArray(activeBonusFrame.tease)) ? activeBonusFrame.tease : [];
@@ -1168,9 +1212,7 @@ window.GTModules = window.GTModules || {};
                 "<div class='vending-auto-stock-note'>If house rolls 0, 19, 28 or 37, player auto-loses.</div>"))))))) +
           "<div class='vending-auto-stock-note'>All lost bets go into machine bank. Wins are paid from machine bank.</div>" +
           (def.id === "slots_v2" ? "<div class='vending-auto-stock-note'>Hold & Spin can land collect/multiplier/bomb/jackpot symbols.</div>" : "") +
-          "<div class='vending-auto-stock-note'>Required bank >= " + coverageMult + "x bet. With 12 WL bank, max bet is " + Math.floor(12 / coverageMult) + " WL.</div>" +
           (blockedByMobileSlots ? "<div class='vending-auto-stock-note'>" + esc(def.name) + " is desktop-only. Use PC/tablet desktop mode to play.</div>" : "") +
-          (blockedByRolling ? "<div class='vending-auto-stock-note'>Reels are rolling...</div>" : "") +
           (spectating ? "<div class='vending-auto-stock-note'>Spectating live: read-only.</div>" : "") +
           (blockedByActiveUser && !spectating ? "<div class='vending-auto-stock-note'>Machine is currently in use by @" + esc(m.inUseName || "another player") + ".</div>" : "") +
         "</div>" +

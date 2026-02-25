@@ -6,6 +6,7 @@
       const authCreateBtn = document.getElementById("authCreateBtn");
       const authLoginBtn = document.getElementById("authLoginBtn");
       const authStatusEl = document.getElementById("authStatus");
+      const authMainNoticeEl = document.getElementById("authMainNotice");
       const canvas = document.getElementById("game");
       const ctx = canvas.getContext("2d");
       const toolbar = document.getElementById("toolbar");
@@ -13,6 +14,7 @@
       const rightPanelResizeHandleEl = document.getElementById("rightPanelResizeHandle");
       const canvasWrapEl = document.getElementById("canvasWrap");
       const menuScreenEl = document.getElementById("menuScreen");
+      const menuMainNoticeEl = document.getElementById("menuMainNotice");
       const mobileControlsEl = document.getElementById("mobileControls");
       const mobileLeftBtn = document.getElementById("mobileLeftBtn");
       const mobileRightBtn = document.getElementById("mobileRightBtn");
@@ -286,6 +288,7 @@
         : [];
       const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
       const FORCE_RELOAD_MARKER_KEY = "growtopia_force_reload_marker_v1";
+      const FORCE_RELOAD_NOTICE_KEY = "growtopia_force_reload_notice_v1";
       const CAMERA_ZOOM_PREF_KEY = "growtopia_camera_zoom_v1";
       const CAMERA_ZOOM_MIN = Math.max(0.5, Number(SETTINGS.CAMERA_ZOOM_MIN) || 0.7);
       const CAMERA_ZOOM_MAX = Math.max(CAMERA_ZOOM_MIN + 0.1, Number(SETTINGS.CAMERA_ZOOM_MAX) || 2.2);
@@ -543,6 +546,11 @@
       let lastHandledGodModeCommandId = "";
       let lastHandledPrivateAnnouncementId = "";
       let announcementHideTimer = 0;
+      let serverMainPageNoticeText = "";
+      let localUpdateNoticeText = "";
+      let publicMainNoticeDb = null;
+      let publicMainNoticeRef = null;
+      let publicMainNoticeHandler = null;
       let isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
       let isMobileUi = false;
       let isChatOpen = false;
@@ -1469,6 +1477,70 @@
         }
       }
 
+      function saveForceReloadNotice(text) {
+        try {
+          sessionStorage.setItem(FORCE_RELOAD_NOTICE_KEY, String(text || "").slice(0, 200));
+        } catch (error) {
+          // ignore sessionStorage failures
+        }
+      }
+
+      function takeForceReloadNotice() {
+        try {
+          const text = (sessionStorage.getItem(FORCE_RELOAD_NOTICE_KEY) || "").toString();
+          if (text) sessionStorage.removeItem(FORCE_RELOAD_NOTICE_KEY);
+          return text;
+        } catch (error) {
+          return "";
+        }
+      }
+
+      function renderMainPageNotice() {
+        const parts = [];
+        if (localUpdateNoticeText) parts.push(localUpdateNoticeText);
+        if (serverMainPageNoticeText) parts.push(serverMainPageNoticeText);
+        const text = parts.join(" | ").trim().slice(0, 420);
+        const apply = (el) => {
+          if (!(el instanceof HTMLElement)) return;
+          if (!text) {
+            el.textContent = "";
+            el.classList.add("hidden");
+            return;
+          }
+          el.textContent = text;
+          el.classList.remove("hidden");
+        };
+        apply(authMainNoticeEl);
+        apply(menuMainNoticeEl);
+      }
+
+      function setServerMainPageNotice(text) {
+        serverMainPageNoticeText = String(text || "").trim().slice(0, 220);
+        renderMainPageNotice();
+      }
+
+      function setLocalUpdateNotice(text) {
+        localUpdateNoticeText = String(text || "").trim().slice(0, 220);
+        renderMainPageNotice();
+      }
+
+      async function startPublicMainNoticeListener() {
+        if (publicMainNoticeRef) return;
+        try {
+          publicMainNoticeDb = await getAuthDb();
+          if (!publicMainNoticeDb) return;
+          publicMainNoticeRef = publicMainNoticeDb.ref(BASE_PATH + "/system/main-notification");
+          publicMainNoticeHandler = (snapshot) => {
+            const value = snapshot && snapshot.val ? (snapshot.val() || {}) : {};
+            const text = (value.text || "").toString().trim().slice(0, 220);
+            setServerMainPageNotice(text);
+          };
+          publicMainNoticeRef.on("value", publicMainNoticeHandler);
+        } catch (error) {
+          // ignore when DB is unavailable pre-login
+        }
+      }
+
       function normalizeCameraZoom(value) {
         const numeric = Number(value);
         const safe = Number.isFinite(numeric) ? numeric : 1;
@@ -1823,6 +1895,7 @@
         if (hasAdminPermission("tp")) list.push("/where <user>", "/goto <user>", "/tp <user>");
         if (hasAdminPermission("bring")) list.push("/bringall", "/bring <user>", "/summon <user>");
         if (hasAdminPermission("announce")) list.push("/announce <message>");
+        if (hasAdminPermission("announce")) list.push("/mainnotif <message>", "/mainnotif clear");
         if (hasAdminPermission("announce_user")) list.push("/announcep <user> <message>");
         if (hasAdminPermission("tempban")) list.push("/tempban <user> <60m|12h|7d> [reason]", "/ban <user> [60m|12h|7d] [reason]");
         if (hasAdminPermission("permban")) list.push("/permban <user> [reason]");
@@ -12754,6 +12827,8 @@
             lastHandledForceReloadEventId = eventId;
             saveForceReloadMarker(eventId);
             const assetVersion = (value.assetVersion || "").toString().trim();
+            const updateText = "Game updated" + (assetVersion ? " (v=" + assetVersion + ")" : "") + ".";
+            saveForceReloadNotice(updateText);
             addClientLog("Global reload requested by @" + ((value.actorUsername || "owner").toString().slice(0, 20)) + ". Hard reloading" + (assetVersion ? " (v=" + assetVersion + ")" : "") + "...");
             showUpdatingOverlay();
             setTimeout(() => {
@@ -13996,5 +14071,7 @@
         releaseAccountSession();
       });
       applySavedCredentialsToForm();
+      setLocalUpdateNotice(takeForceReloadNotice());
+      startPublicMainNoticeListener();
       setAuthStatus("Create or login to continue.", false);
     })();
