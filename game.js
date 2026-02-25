@@ -2305,60 +2305,84 @@
             <div class="admin-card-header">
               <div class="admin-audit-title">Action Console</div>
             </div>
+            <div class="admin-console-help">Flow: choose player, choose action, fill required fields, then execute.</div>
             <div class="admin-console-grid">
-              <input class="admin-console-player-filter" type="text" placeholder="Filter players...">
-              <select class="admin-console-player">${playerOptions}</select>
-              <select class="admin-console-action">${actionOptionsMarkup}</select>
-              <div class="admin-console-opt admin-console-opt-duration hidden">
+              <div class="admin-console-field admin-console-field-wide">
+                <label>Find Player</label>
+                <input class="admin-console-player-filter" type="text" placeholder="Filter players...">
+              </div>
+              <div class="admin-console-field">
+                <label>Target</label>
+                <select class="admin-console-player">${playerOptions}</select>
+              </div>
+              <div class="admin-console-field">
+                <label>Action</label>
+                <select class="admin-console-action">${actionOptionsMarkup}</select>
+              </div>
+              <div class="admin-console-opt admin-console-opt-duration hidden admin-console-field">
+                <label>Duration</label>
                 <input class="admin-console-duration" type="text" value="15m" placeholder="60m / 12h / 7d">
               </div>
-              <div class="admin-console-opt admin-console-opt-reason hidden">
+              <div class="admin-console-opt admin-console-opt-reason hidden admin-console-field admin-console-field-wide">
+                <label>Reason</label>
                 <input class="admin-console-reason" type="text" maxlength="80" value="Banned by admin" placeholder="Reason">
               </div>
-              <div class="admin-console-opt admin-console-opt-role hidden">
+              <div class="admin-console-opt admin-console-opt-role hidden admin-console-field">
+                <label>Role</label>
                 <select class="admin-console-role">
                   ${assignable.map((r) => '<option value="' + escapeHtml(r) + '">' + escapeHtml(r) + "</option>").join("")}
                 </select>
               </div>
-              <div class="admin-console-opt admin-console-opt-block hidden">
+              <div class="admin-console-opt admin-console-opt-block hidden admin-console-field">
+                <label>Block</label>
                 <select class="admin-console-block">
                   ${BLOCK_ONLY_INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
                 </select>
               </div>
-              <div class="admin-console-opt admin-console-opt-seed hidden">
+              <div class="admin-console-opt admin-console-opt-seed hidden admin-console-field">
+                <label>Seed</label>
                 <select class="admin-console-seed">
                   ${SEED_INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Seed " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
                 </select>
               </div>
-              <div class="admin-console-opt admin-console-opt-item hidden">
+              <div class="admin-console-opt admin-console-opt-item hidden admin-console-field">
+                <label>Cosmetic</label>
                 <select class="admin-console-item">
                   ${COSMETIC_ITEMS.map((item) => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name + " (" + item.id + ")") + "</option>").join("")}
                 </select>
               </div>
-              <div class="admin-console-opt admin-console-opt-title hidden">
+              <div class="admin-console-opt admin-console-opt-title hidden admin-console-field">
+                <label>Title</label>
                 <select class="admin-console-title">
                   ${TITLE_CATALOG.map((title) => '<option value="' + escapeHtml(title.id) + '">' + escapeHtml(title.name + " (" + title.id + ")") + "</option>").join("")}
                 </select>
               </div>
-              <div class="admin-console-opt admin-console-opt-amount hidden">
+              <div class="admin-console-opt admin-console-opt-amount hidden admin-console-field">
+                <label>Amount</label>
                 <input class="admin-console-amount" type="number" min="1" step="1" value="1" placeholder="Amount">
               </div>
-              <div class="admin-console-opt admin-console-opt-backup hidden">
+              <div class="admin-console-opt admin-console-opt-backup hidden admin-console-field admin-console-field-wide">
+                <label>Backup</label>
                 <select class="admin-console-backup">${backupOptionsMarkup}</select>
               </div>
-              <div class="admin-console-opt admin-console-opt-reach hidden">
+              <div class="admin-console-opt admin-console-opt-reach hidden admin-console-field">
+                <label>Reach Tiles</label>
                 <input class="admin-console-reach" type="number" min="1" max="16" step="0.1" value="4.5" placeholder="Reach tiles">
               </div>
-              <div class="admin-console-opt admin-console-opt-godmode hidden">
+              <div class="admin-console-opt admin-console-opt-godmode hidden admin-console-field">
+                <label>Godmode</label>
                 <select class="admin-console-godmode">
                   <option value="on">Godmode ON</option>
                   <option value="off">Godmode OFF</option>
                 </select>
               </div>
-              <div class="admin-console-opt admin-console-opt-message hidden">
+              <div class="admin-console-opt admin-console-opt-message hidden admin-console-field admin-console-field-wide">
+                <label>Message</label>
                 <input class="admin-console-message" type="text" maxlength="140" placeholder="Message">
               </div>
-              <button data-admin-act="runconsole">Execute</button>
+              <div class="admin-console-run-wrap">
+                <button data-admin-act="runconsole">Execute Action</button>
+              </div>
             </div>
           </div>
         `;

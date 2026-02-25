@@ -4174,3 +4174,81 @@ body{
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.admin-console-help {
+  margin: 0 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(125, 179, 235, 0.24);
+  border-radius: 8px;
+  background: rgba(11, 24, 40, 0.65);
+  font-size: 12px;
+  color: #b9d3ef;
+}
+
+.admin-console-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.admin-console-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-console-field label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9ebddb;
+}
+
+.admin-console-opt.admin-console-field {
+  width: auto;
+}
+
+.admin-console-field-wide {
+  grid-column: span 2;
+}
+
+.admin-console-grid input,
+.admin-console-grid select {
+  min-height: 40px;
+  border-radius: 9px;
+  border: 1px solid rgba(124, 177, 232, 0.4);
+  background: #162437;
+  color: #e6f2ff;
+}
+
+.admin-console-run-wrap {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.admin-console-grid button[data-admin-act="runconsole"] {
+  min-width: 190px;
+  min-height: 42px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: linear-gradient(180deg, rgba(45, 171, 225, 0.95), rgba(29, 127, 184, 0.95));
+  border: 1px solid rgba(124, 220, 255, 0.62);
+  color: #eefaff;
+}
+
+@media (max-width: 1350px) {
+  .admin-console-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-console-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-console-field-wide {
+    grid-column: span 1;
+  }
+}
