@@ -266,12 +266,92 @@ window.GTModules.db = (function createDbModule() {
     for (const key of keys) network.handlers[key] = null;
   }
 
+  function resolvePacketEndpoint() {
+    const custom = String(window.PACKET_API_ENDPOINT || "").trim();
+    if (custom) return custom;
+    const origin = String(window.location && window.location.origin || "").trim();
+    if (origin && /^https?:\/\//i.test(origin)) return origin.replace(/\/+$/, "") + "/packet";
+    return "";
+  }
+
+  function createPacketClient(options) {
+    const opts = options || {};
+    const endpoint = String(opts.endpoint || resolvePacketEndpoint()).trim();
+    const getPlayerId = typeof opts.getPlayerId === "function" ? opts.getPlayerId : () => "";
+    const getSessionId = typeof opts.getSessionId === "function" ? opts.getSessionId : () => "";
+    const getSessionToken = typeof opts.getSessionToken === "function"
+      ? opts.getSessionToken
+      : () => "";
+    const fetchImpl = typeof opts.fetchImpl === "function" ? opts.fetchImpl : fetch.bind(window);
+    let seq = Math.max(0, Math.floor(Number(opts.initialSeq) || 0));
+
+    function nextSeq() {
+      seq += 1;
+      return seq;
+    }
+
+    async function send(type, data, extra) {
+      const cfg = extra || {};
+      if (!endpoint) throw new Error("Packet endpoint is not configured.");
+
+      const playerId = String(cfg.playerId || getPlayerId() || "").trim();
+      const session = String(cfg.session || getSessionId() || "").trim();
+      if (!playerId || !session) {
+        throw new Error("Missing packet playerId/session.");
+      }
+
+      const packet = {
+        type: String(type || "").trim(),
+        playerId,
+        session,
+        seq: typeof cfg.seq === "number" ? Math.max(0, Math.floor(cfg.seq)) : nextSeq(),
+        t: Date.now(),
+        data: (data && typeof data === "object") ? data : {}
+      };
+      const token = String(cfg.sessionToken || getSessionToken() || "").trim();
+      const headers = {
+        "Content-Type": "application/json"
+      };
+      if (token) headers.Authorization = "Bearer " + token;
+
+      const res = await fetchImpl(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(packet),
+        credentials: "omit"
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body || body.ok !== true) {
+        const message = body && body.error && body.error.message
+          ? String(body.error.message)
+          : ("HTTP " + res.status);
+        const err = new Error(message);
+        err.status = res.status;
+        err.payload = body;
+        throw err;
+      }
+      return body;
+    }
+
+    return {
+      send,
+      getSeq: () => seq,
+      setSeq: (n) => {
+        const v = Number(n);
+        if (!Number.isFinite(v)) return;
+        seq = Math.max(0, Math.floor(v));
+      },
+      getEndpoint: () => endpoint
+    };
+  }
+
   return {
     hasFirebaseConfig,
     getOrInitAuthDb,
     buildWorldRefs,
     attachWorldRuntimeListeners,
     detachWorldRuntimeListeners,
-    clearWorldNetworkRefsAndHandlers
+    clearWorldNetworkRefsAndHandlers,
+    createPacketClient
   };
 })();

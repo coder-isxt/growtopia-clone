@@ -1364,6 +1364,57 @@
           adminInventories: null
         }
       };
+      let packetClient = null;
+      let packetMoveInFlight = false;
+      let packetQueuedMoveData = null;
+
+      function getPacketClient() {
+        if (packetClient) return packetClient;
+        if (!dbModule || typeof dbModule.createPacketClient !== "function") return null;
+        packetClient = dbModule.createPacketClient({
+          endpoint: window.PACKET_API_ENDPOINT,
+          getPlayerId: () => playerId || "",
+          getSessionId: () => playerSessionId || "",
+          getSessionToken: () => {
+            const sid = String(playerSessionId || "");
+            const pid = String(playerId || "");
+            return sid ? ("pkt." + sid + "." + pid) : "";
+          }
+        });
+        return packetClient;
+      }
+
+      function sendAuthoritativePacket(type, data) {
+        const client = getPacketClient();
+        if (!client || typeof client.send !== "function") {
+          return Promise.reject(new Error("Packet client unavailable."));
+        }
+        return client.send(type, data || {});
+      }
+
+      function queueMovePacket(data) {
+        const payload = data && typeof data === "object" ? data : {};
+        packetQueuedMoveData = payload;
+        if (packetMoveInFlight) return;
+        const run = () => {
+          const nextData = packetQueuedMoveData;
+          packetQueuedMoveData = null;
+          if (!nextData || !network.enabled || !playerProfileId || !playerSessionId) {
+            packetMoveInFlight = false;
+            return;
+          }
+          packetMoveInFlight = true;
+          sendAuthoritativePacket("MOVE", nextData)
+            .catch(() => {
+              setNetworkState("Network error", true);
+            })
+            .finally(() => {
+              packetMoveInFlight = false;
+              if (packetQueuedMoveData) run();
+            });
+        };
+        run();
+      }
 
       const adminState = {
         accounts: {},
@@ -6194,6 +6245,8 @@
         }
         releaseAccountSession();
         network.enabled = false;
+        packetQueuedMoveData = null;
+        packetMoveInFlight = false;
         setInWorldState(false);
         setAdminOpen(false);
         pendingTeleportSelf = null;
@@ -6257,7 +6310,7 @@
         if (!inWorld) return;
         const safeText = (text || "").toString().slice(0, 120);
         if (!safeText) return;
-        if (!network.enabled || !network.chatRef) {
+        if (!network.enabled) {
           addChatMessage({
             name: "[System]",
             playerId: "",
@@ -6266,11 +6319,16 @@
           });
           return;
         }
-        network.chatRef.push({
+        sendAuthoritativePacket("CHAT", {
+          worldId: currentWorldId,
           name: "[System]",
-          playerId: "",
-          text: safeText,
-          createdAt: firebase.database.ServerValue.TIMESTAMP
+          message: safeText,
+          system: true,
+          sessionId: "",
+          titleId: "",
+          titleName: "",
+          titleColor: "",
+          titleStyle: normalizeTitleStyle(null)
         }).catch(() => {
           setNetworkState("System message error", true);
         });
@@ -6329,7 +6387,7 @@
         if (antiCheatController && typeof antiCheatController.onChatSend === "function") {
           antiCheatController.onChatSend(text);
         }
-        if (!network.enabled || !network.chatRef) {
+        if (!network.enabled) {
           chatInputEl.value = "";
           addChatMessage({
             name: playerName,
@@ -6352,16 +6410,15 @@
           });
           chatInputEl.value = "";
           setChatOpen(false);
-          network.chatRef.push({
+          sendAuthoritativePacket("CHAT", {
+            worldId: currentWorldId,
             name: playerName,
-            playerId,
+            message: text,
             sessionId: playerSessionId || "",
             titleId: titlePayload.id || "",
             titleName: titlePayload.name || "",
             titleColor: titlePayload.color || "",
-            titleStyle: titlePayload.style || normalizeTitleStyle(null),
-            text,
-            createdAt: firebase.database.ServerValue.TIMESTAMP
+            titleStyle: titlePayload.style || normalizeTitleStyle(null)
           }).catch(() => {
             setNetworkState("Chat send error", true);
           });
@@ -11885,13 +11942,14 @@
       }
 
       function syncBlock(tx, ty, id) {
-        if (!network.enabled || !network.blocksRef) return;
+        if (!network.enabled || !currentWorldId) return;
         syncTileDamageToNetwork(tx, ty, 0);
-        if (blockSyncer && typeof blockSyncer.enqueue === "function") {
-          blockSyncer.enqueue(tx, ty, id);
-          return;
-        }
-        network.blocksRef.child(tx + "_" + ty).set(id).catch(() => {
+        sendAuthoritativePacket("PLACE_BLOCK", {
+          worldId: currentWorldId,
+          x: tx,
+          y: ty,
+          blockId: Math.max(0, Math.floor(Number(id) || 0))
+        }).catch(() => {
           setNetworkState("Network error", true);
         });
       }
@@ -11947,15 +12005,18 @@
           ? syncPlayerModule.buildPayload(rawPayload)
           : rawPayload;
 
-        if (writePlayer && network.playerRef) {
-          network.playerRef.update(payload).catch(() => {
-            setNetworkState("Network error", true);
-          });
-        }
-        if (writeGlobal && network.globalPlayerRef) {
-          network.globalPlayerRef.update(payload).catch(() => {
-            setNetworkState("Network error", true);
-          });
+        if (writePlayer || writeGlobal) {
+          const movePacket = {
+            worldId: inWorld ? currentWorldId : "menu",
+            x: Math.round(player.x),
+            y: Math.round(player.y),
+            facing: player.facing,
+            vx: Number(player.vx) || 0,
+            vy: Number(player.vy) || 0,
+            dtMs: Math.max(16, Math.floor(Number(FIXED_FRAME_MS) || 16)),
+            profile: payload
+          };
+          queueMovePacket(movePacket);
         }
       }
 
