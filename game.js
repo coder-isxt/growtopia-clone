@@ -314,6 +314,7 @@
       const DISPLAY_BLOCK_ID = 22;
       const WOOD_PLANK_ID = 23;
       const OBSIDIAN_LOCK_ID = 24;
+      const EMERALD_LOCK_ID = 42;
       const DONATION_BOX_ID = 34;
       const STORAGE_CHEST_ID = 36;
       const TREE_YIELD_BLOCK_ID = 4;
@@ -342,6 +343,22 @@
         return ids.length ? ids : [WORLD_LOCK_ID];
       })();
       const LOCK_BLOCK_ID_SET = new Set(LOCK_BLOCK_IDS);
+      const LOCK_VALUE_BY_ID = (() => {
+        const out = {};
+        for (const id of LOCK_BLOCK_IDS) {
+          const def = blockDefs[id] || {};
+          const value = Math.max(1, Math.floor(Number(def.lockValue) || (id === OBSIDIAN_LOCK_ID ? 100 : 1)));
+          out[id] = value;
+        }
+        return out;
+      })();
+      const LOCK_CURRENCY_DEFS = LOCK_BLOCK_IDS
+        .map((id) => ({
+          id,
+          value: Math.max(1, Math.floor(Number(LOCK_VALUE_BY_ID[id]) || 1)),
+          autoConvert: Boolean((blockDefs[id] || {}).lockAutoConvert !== false)
+        }))
+        .sort((a, b) => a.value - b.value);
       const PLANT_SEED_CONFIG = seedRegistry && seedRegistry.config && typeof seedRegistry.config === "object"
         ? seedRegistry.config
         : {};
@@ -617,6 +634,11 @@
           getVendingId: () => VENDING_ID,
           getWorldLockId: () => WORLD_LOCK_ID,
           getObsidianLockId: () => OBSIDIAN_LOCK_ID,
+          getLockCurrencyConfig,
+          getTotalLockValue,
+          distributeLockValueToInventory,
+          spendLockValue,
+          addLockValue,
           getWorld: () => world,
           getVendingModalEl: () => vendingModalEl,
           getVendingTitleEl: () => vendingTitleEl,
@@ -723,6 +745,11 @@
           getGambleId: () => GAMBLE_ID,
           getWorldLockId: () => WORLD_LOCK_ID,
           getObsidianLockId: () => OBSIDIAN_LOCK_ID,
+          getLockCurrencyConfig,
+          getTotalLockValue,
+          distributeLockValueToInventory,
+          spendLockValue,
+          addLockValue,
           getIsMobileUi: () => Boolean(isMobileUi),
           isWorldLocked: () => isWorldLocked(),
           isWorldLockOwner: () => isWorldLockOwner(),
@@ -3756,6 +3783,7 @@
           setSelectedSlot: (value) => { selectedSlot = Number(value) || 0; },
           slotOrder,
           WORLD_LOCK_ID,
+          LOCK_BLOCK_IDS,
           inventory,
           tryPlace,
           refreshToolbar,
@@ -4769,20 +4797,166 @@
         return Number(value) > 0 ? 1 : 0;
       }
 
-      function autoConvertWorldLocksInInventory() {
-        const wl = Math.max(0, Math.floor(Number(inventory[WORLD_LOCK_ID]) || 0));
-        if (wl < 300) return false;
-        const currentOb = Math.max(0, Math.floor(Number(inventory[OBSIDIAN_LOCK_ID]) || 0));
-        if (currentOb >= INVENTORY_ITEM_LIMIT) return false;
-        const possibleAdds = Math.floor(wl / 100);
-        if (possibleAdds <= 0) return false;
-        const room = Math.max(0, INVENTORY_ITEM_LIMIT - currentOb);
-        const addOb = Math.max(0, Math.min(possibleAdds, room));
-        if (addOb <= 0) return false;
-        const consumedWl = addOb * 100;
-        inventory[WORLD_LOCK_ID] = Math.max(0, wl - consumedWl);
-        inventory[OBSIDIAN_LOCK_ID] = currentOb + addOb;
+      function getLockCurrencyConfig() {
+        return LOCK_CURRENCY_DEFS.slice();
+      }
+
+      function getAutoLockDefsAsc() {
+        return LOCK_CURRENCY_DEFS.filter((row) => row.autoConvert !== false).slice().sort((a, b) => a.value - b.value);
+      }
+
+      function getNonAutoLockDefsDesc() {
+        return LOCK_CURRENCY_DEFS.filter((row) => row.autoConvert === false).slice().sort((a, b) => b.value - a.value);
+      }
+
+      function getAutoLockValue(inv) {
+        const source = inv && typeof inv === "object" ? inv : inventory;
+        let total = 0;
+        for (const row of getAutoLockDefsAsc()) {
+          total += Math.max(0, Math.floor(Number(source[row.id]) || 0)) * row.value;
+        }
+        return Math.max(0, Math.floor(total));
+      }
+
+      function getNonAutoLockValue(inv) {
+        const source = inv && typeof inv === "object" ? inv : inventory;
+        let total = 0;
+        for (const row of getNonAutoLockDefsDesc()) {
+          total += Math.max(0, Math.floor(Number(source[row.id]) || 0)) * row.value;
+        }
+        return Math.max(0, Math.floor(total));
+      }
+
+      function getTotalLockValue(inv) {
+        const source = inv && typeof inv === "object" ? inv : inventory;
+        let total = 0;
+        for (const row of LOCK_CURRENCY_DEFS) {
+          const count = Math.max(0, Math.floor(Number(source[row.id]) || 0));
+          total += count * row.value;
+        }
+        return Math.max(0, Math.floor(total));
+      }
+
+      function setAutoLockValue(inv, totalValue) {
+        const source = inv && typeof inv === "object" ? inv : inventory;
+        let remaining = Math.max(0, Math.floor(Number(totalValue) || 0));
+        const defs = getAutoLockDefsAsc().slice().sort((a, b) => b.value - a.value);
+        if (!defs.length) return;
+        for (let i = 0; i < defs.length; i++) {
+          const row = defs[i];
+          if (!row || row.id <= 0) continue;
+          const count = row.value > 0 ? Math.floor(remaining / row.value) : 0;
+          const next = clampInventoryCount(count);
+          source[row.id] = next;
+          remaining -= next * row.value;
+        }
+        if (remaining > 0 && defs.length) {
+          const base = defs[defs.length - 1];
+          source[base.id] = clampInventoryCount(Math.max(0, Math.floor(Number(source[base.id]) || 0)) + remaining);
+        }
+      }
+
+      function setNonAutoLockValue(inv, totalValue) {
+        const source = inv && typeof inv === "object" ? inv : inventory;
+        let remaining = Math.max(0, Math.floor(Number(totalValue) || 0));
+        const defs = getNonAutoLockDefsDesc();
+        if (!defs.length) return;
+        for (let i = 0; i < defs.length; i++) {
+          const row = defs[i];
+          const count = row.value > 0 ? Math.floor(remaining / row.value) : 0;
+          const next = clampInventoryCount(count);
+          source[row.id] = next;
+          remaining -= next * row.value;
+        }
+      }
+
+      function distributeLockValueToInventory(inv, totalValue) {
+        const source = inv && typeof inv === "object" ? inv : inventory;
+        const targetTotal = Math.max(0, Math.floor(Number(totalValue) || 0));
+        const nonAutoTotal = getNonAutoLockValue(source);
+        const autoTarget = Math.max(0, targetTotal - nonAutoTotal);
+        setAutoLockValue(source, autoTarget);
+      }
+
+      function spendLockValue(inv, amount) {
+        const source = inv && typeof inv === "object" ? inv : inventory;
+        const cost = Math.max(0, Math.floor(Number(amount) || 0));
+        if (!cost) return true;
+        const autoTotal = getAutoLockValue(source);
+        const nonAutoTotal = getNonAutoLockValue(source);
+        if ((autoTotal + nonAutoTotal) < cost) return false;
+        if (autoTotal >= cost) {
+          setAutoLockValue(source, autoTotal - cost);
+          return true;
+        }
+        const remainingCost = cost - autoTotal;
+        setAutoLockValue(source, 0);
+        setNonAutoLockValue(source, Math.max(0, nonAutoTotal - remainingCost));
         return true;
+      }
+
+      function addLockValue(inv, amount) {
+        const source = inv && typeof inv === "object" ? inv : inventory;
+        const add = Math.max(0, Math.floor(Number(amount) || 0));
+        if (!add) return;
+        const autoTotal = getAutoLockValue(source);
+        setAutoLockValue(source, autoTotal + add);
+      }
+
+      function getNextHigherAutoLockDef(lockId) {
+        const defs = LOCK_CURRENCY_DEFS.filter((row) => row.autoConvert !== false).slice().sort((a, b) => a.value - b.value);
+        const idx = defs.findIndex((row) => row.id === lockId);
+        if (idx < 0 || idx >= defs.length - 1) return null;
+        return defs[idx + 1];
+      }
+
+      function getNextLowerAutoLockDef(lockId) {
+        const defs = LOCK_CURRENCY_DEFS.filter((row) => row.autoConvert !== false).slice().sort((a, b) => a.value - b.value);
+        const idx = defs.findIndex((row) => row.id === lockId);
+        if (idx <= 0) return null;
+        return defs[idx - 1];
+      }
+
+      function convertLockByDoubleClick(lockId) {
+        const safeId = Math.max(0, Math.floor(Number(lockId) || 0));
+        const selfDef = LOCK_CURRENCY_DEFS.find((row) => row.id === safeId);
+        if (!selfDef || selfDef.autoConvert === false) return;
+        const higher = getNextHigherAutoLockDef(safeId);
+        if (higher) {
+          const current = Math.max(0, Math.floor(Number(inventory[safeId]) || 0));
+          const needed = Math.max(1, Math.floor(higher.value / selfDef.value));
+          const currentHigher = Math.max(0, Math.floor(Number(inventory[higher.id]) || 0));
+          if (current >= needed && currentHigher < INVENTORY_ITEM_LIMIT) {
+            inventory[safeId] = current - needed;
+            inventory[higher.id] = currentHigher + 1;
+            saveInventory();
+            refreshToolbar(true);
+            postLocalSystemChat("Converted " + needed + " " + (blockDefs[safeId] && blockDefs[safeId].name || "locks") + " into 1 " + (blockDefs[higher.id] && blockDefs[higher.id].name || "lock") + ".");
+            return;
+          }
+        }
+        const lower = getNextLowerAutoLockDef(safeId);
+        if (!lower) return;
+        const current = Math.max(0, Math.floor(Number(inventory[safeId]) || 0));
+        if (current <= 0) return;
+        const ratio = Math.max(1, Math.floor(selfDef.value / lower.value));
+        const lowerNow = Math.max(0, Math.floor(Number(inventory[lower.id]) || 0));
+        if ((lowerNow + ratio) > INVENTORY_ITEM_LIMIT) {
+          postLocalSystemChat("Cannot convert: " + (blockDefs[lower.id] && blockDefs[lower.id].name || "target lock") + " would exceed " + INVENTORY_ITEM_LIMIT + ".");
+          return;
+        }
+        inventory[safeId] = current - 1;
+        inventory[lower.id] = lowerNow + ratio;
+        saveInventory();
+        refreshToolbar(true);
+        postLocalSystemChat("Converted 1 " + (blockDefs[safeId] && blockDefs[safeId].name || "lock") + " into " + ratio + " " + (blockDefs[lower.id] && blockDefs[lower.id].name || "locks") + ".");
+      }
+
+      function autoConvertWorldLocksInInventory() {
+        const before = getTotalLockValue(inventory);
+        distributeLockValueToInventory(inventory, before);
+        const after = getTotalLockValue(inventory);
+        return before !== after;
       }
 
       function clampLocalInventoryAll() {
@@ -12799,28 +12973,8 @@
               selectedSlot = i;
               refreshToolbar(true); // Force a full rebuild to show selected state
             },
-            onDoubleClick: (!isTool && (id === WORLD_LOCK_ID || id === OBSIDIAN_LOCK_ID)) ? () => {
-              const currentWl = Math.max(0, Math.floor(Number(inventory[WORLD_LOCK_ID]) || 0));
-              const currentOb = Math.max(0, Math.floor(Number(inventory[OBSIDIAN_LOCK_ID]) || 0));
-              if (id === WORLD_LOCK_ID) {
-                if (currentWl < 100) return;
-                inventory[WORLD_LOCK_ID] = currentWl - 100;
-                inventory[OBSIDIAN_LOCK_ID] = currentOb + 1;
-                saveInventory();
-                refreshToolbar(true);
-                postLocalSystemChat("Converted 100 WL into 1 Obsidian Lock.");
-                return;
-              }
-              if (currentOb <= 0) return;
-              if (currentWl > 200) {
-                postLocalSystemChat("Cannot convert: World Locks are over 200 (would exceed 300).");
-                return;
-              }
-              inventory[OBSIDIAN_LOCK_ID] = currentOb - 1;
-              inventory[WORLD_LOCK_ID] = currentWl + 100;
-              saveInventory();
-              refreshToolbar(true);
-              postLocalSystemChat("Converted 1 Obsidian Lock into 100 WL.");
+            onDoubleClick: (!isTool && LOCK_BLOCK_ID_SET.has(id)) ? () => {
+              convertLockByDoubleClick(id);
             } : null
           });
           blockSection.grid.appendChild(slotEl);

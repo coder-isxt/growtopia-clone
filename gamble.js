@@ -627,6 +627,10 @@ window.GTModules = window.GTModules || {};
     }
 
     function getTotalLocks(inv) {
+      const fn = get("getTotalLockValue", null);
+      if (typeof fn === "function") {
+        return Math.max(0, Math.floor(Number(fn(inv)) || 0));
+      }
       const { worldLockId, obsidianLockId } = getCurrencyIds();
       const wl = Math.max(0, Math.floor(Number(inv && inv[worldLockId]) || 0));
       const ob = Math.max(0, Math.floor(Number(inv && inv[obsidianLockId]) || 0));
@@ -634,6 +638,11 @@ window.GTModules = window.GTModules || {};
     }
 
     function setCanonicalLocks(inv, totalLocks) {
+      const fn = get("distributeLockValueToInventory", null);
+      if (typeof fn === "function") {
+        fn(inv, totalLocks);
+        return;
+      }
       const { worldLockId, obsidianLockId } = getCurrencyIds();
       const total = Math.max(0, Math.floor(Number(totalLocks) || 0));
       inv[worldLockId] = total % 100;
@@ -641,6 +650,10 @@ window.GTModules = window.GTModules || {};
     }
 
     function spendLocksLocal(inv, amount) {
+      const fn = get("spendLockValue", null);
+      if (typeof fn === "function") {
+        return Boolean(fn(inv, amount));
+      }
       const cost = Math.max(0, Math.floor(Number(amount) || 0));
       const total = getTotalLocks(inv);
       if (total < cost) return false;
@@ -649,6 +662,11 @@ window.GTModules = window.GTModules || {};
     }
 
     function addLocksLocal(inv, amount) {
+      const fn = get("addLockValue", null);
+      if (typeof fn === "function") {
+        fn(inv, amount);
+        return;
+      }
       const total = getTotalLocks(inv) + Math.max(0, Math.floor(Number(amount) || 0));
       setCanonicalLocks(inv, total);
     }

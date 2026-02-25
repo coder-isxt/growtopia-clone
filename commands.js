@@ -3,8 +3,10 @@ window.GTModules = window.GTModules || {};
 window.GTModules.commands = {
   handleChatCommand(ctx, rawText) {
     const c = ctx || {};
-    if (!rawText || (!rawText.startsWith("/") && !rawText.startsWith("!verify"))) return false;
-    const parts = rawText.trim().split(/\s+/);
+    const text = String(rawText || "").trim();
+    if (!text || (!text.startsWith("/") && !text.startsWith("!"))) return false;
+    const normalizedText = text.startsWith("!") ? ("/" + text.slice(1)) : text;
+    const parts = normalizedText.split(/\s+/);
     const command = (parts[0] || "").toLowerCase();
     if (command === "/warp") {
       const worldId = c.normalizeWorldId(parts[1] || "");
@@ -75,9 +77,11 @@ window.GTModules.commands = {
       }
       const target = c.getSpawnStructureTiles().base;
       const oldSelected = c.getSelectedSlot();
-      const idx = c.slotOrder.indexOf(c.WORLD_LOCK_ID);
-      if (idx < 0 || (c.inventory[c.WORLD_LOCK_ID] || 0) <= 0) {
-        c.postLocalSystemChat("You need a World Lock item.");
+      const lockIds = Array.isArray(c.LOCK_BLOCK_IDS) && c.LOCK_BLOCK_IDS.length ? c.LOCK_BLOCK_IDS.slice() : [c.WORLD_LOCK_ID];
+      const placeId = lockIds.find((id) => Math.max(0, Math.floor(Number(c.inventory[id]) || 0)) > 0) || 0;
+      const idx = placeId ? c.slotOrder.indexOf(placeId) : -1;
+      if (idx < 0 || !placeId) {
+        c.postLocalSystemChat("You need a lock item.");
         return true;
       }
       c.setSelectedSlot(idx);
@@ -515,15 +519,27 @@ window.GTModules.commands = {
         return true;
       }
       const targetRef = parts[1] || "";
-      const itemId = parts[2] || "";
+      const itemRef = parts[2] || "";
       const amount = Number(parts[3]);
       const accountId = c.findAccountIdByUserRef(targetRef);
       if (!accountId) {
         c.postLocalSystemChat("Target account not found: " + targetRef);
         return true;
       }
-      if (c.applyCosmeticItemGrant(accountId, itemId, amount, "chat", targetRef)) {
-        c.postLocalSystemChat("Gave item " + itemId + " x" + amount + " to @" + targetRef + ".");
+      const blockId = c.parseBlockRef(itemRef);
+      if (c.INVENTORY_IDS && c.INVENTORY_IDS.includes(blockId)) {
+        if (c.applyInventoryGrant(accountId, itemRef || blockId, amount, "chat", targetRef)) {
+          const blockName = typeof c.getBlockNameById === "function"
+            ? (c.getBlockNameById(blockId) || itemRef || ("block_" + blockId))
+            : (itemRef || ("block_" + blockId));
+          c.postLocalSystemChat("Gave block " + blockName + " x" + amount + " to @" + targetRef + ".");
+        }
+        return true;
+      }
+      if (c.applyCosmeticItemGrant(accountId, itemRef, amount, "chat", targetRef)) {
+        c.postLocalSystemChat("Gave item " + itemRef + " x" + amount + " to @" + targetRef + ".");
+      } else {
+        c.postLocalSystemChat("Usage: /giveitem <user> <block_key|block_id|cosmetic_id> <amount>");
       }
       return true;
     }
