@@ -2638,7 +2638,7 @@
         `;
         const roleCommandList = getAvailableRankCommands();
         const commandItemsMarkup = roleCommandList.map((cmd) => {
-          return '<div class="admin-cmd-item"><code>' + escapeHtml(cmd) + "</code></div>";
+          return '<div class="admin-cmd-item" data-cmd-text="' + escapeHtml(String(cmd).toLowerCase()) + '"><code>' + escapeHtml(cmd) + "</code></div>";
         }).join("");
         adminAccountsEl.innerHTML = `
           <div class="admin-dashboard">
@@ -2647,10 +2647,6 @@
               <div class="admin-dash-user">Signed in as <strong>@${escapeHtml(playerName || "guest")}</strong></div>
               <div class="admin-dash-role">Role: ${escapeHtml(currentAdminRole)}</div>
               <button class="admin-sidebar-btn" data-admin-act="togglecommands">Commands (${roleCommandList.length})</button>
-              <div class="admin-sidebar-commands ${adminCommandsMenuOpen ? "" : "hidden"}">
-                <div class="admin-sidebar-commands-title">Available For ${escapeHtml(currentAdminRole)}</div>
-                <div class="admin-sidebar-commands-list">${commandItemsMarkup || "<div class='admin-cmd-item'><code>No commands.</code></div>"}</div>
-              </div>
               <div class="admin-summary-hint">Quick: /adminhelp, /where user, /goto user, /bringall, /announce</div>
             </aside>
             <div class="admin-dash-main">
@@ -2669,6 +2665,19 @@
                   ${logsMarkup}
                   ${antiCheatMarkup}
                 </div>
+              </div>
+            </div>
+            <div class="admin-commands-modal ${adminCommandsMenuOpen ? "" : "hidden"}">
+              <div class="admin-commands-card">
+                <div class="admin-card-header">
+                  <div class="admin-audit-title">Commands For ${escapeHtml(currentAdminRole)}</div>
+                  <button data-admin-act="closecommands">Close</button>
+                </div>
+                <div class="admin-console-field admin-console-field-wide">
+                  <label>Search Commands</label>
+                  <input class="admin-cmd-search" type="text" placeholder="Type command or keyword...">
+                </div>
+                <div class="admin-sidebar-commands-list">${commandItemsMarkup || "<div class='admin-cmd-item'><code>No commands.</code></div>"}</div>
               </div>
             </div>
           </div>
@@ -2756,6 +2765,11 @@
         if (!action || !canUseAdminPanel) return;
         if (action === "togglecommands") {
           adminCommandsMenuOpen = !adminCommandsMenuOpen;
+          renderAdminPanel();
+          return;
+        }
+        if (action === "closecommands") {
+          adminCommandsMenuOpen = false;
           renderAdminPanel();
           return;
         }
@@ -3093,6 +3107,33 @@
           }
           if (firstVisible && (select.selectedOptions.length === 0 || select.selectedOptions[0].hidden)) {
             select.value = firstVisible;
+          }
+          return;
+        }
+        if (target instanceof HTMLInputElement && target.classList.contains("admin-cmd-search")) {
+          const q = String(target.value || "").trim().toLowerCase();
+          const rows = adminAccountsEl.querySelectorAll(".admin-cmd-item[data-cmd-text]");
+          let any = false;
+          rows.forEach((row) => {
+            if (!(row instanceof HTMLElement)) return;
+            const txt = String(row.dataset.cmdText || "");
+            const show = !q || txt.includes(q);
+            row.classList.toggle("hidden", !show);
+            if (show) any = true;
+          });
+          const list = adminAccountsEl.querySelector(".admin-sidebar-commands-list");
+          if (list instanceof HTMLElement) {
+            let empty = list.querySelector(".admin-cmd-empty");
+            if (!any) {
+              if (!empty) {
+                const el = document.createElement("div");
+                el.className = "admin-cmd-empty";
+                el.textContent = "No matching commands.";
+                list.appendChild(el);
+              }
+            } else if (empty) {
+              empty.remove();
+            }
           }
           return;
         }
