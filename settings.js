@@ -84,5 +84,3 @@ window.FIREBASE_APP_CHECK_DEBUG_TOKEN = "";
 window.ANTICHEAT_WEBHOOK_ENDPOINT = "https://growtopia.isxtgg.workers.dev/webhook";
 // Cloudflare Worker endpoint that returns the local-storage encryption key.
 window.ENCRYPTION_KEY_ENDPOINT = "https://growtopia.isxtgg.workers.dev/encryptionkey";
-// Authoritative packet API endpoint (all gameplay writes should use this).
-window.PACKET_API_ENDPOINT = "https://growtopia.isxtgg.workers.dev/packet";

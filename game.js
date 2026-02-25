@@ -495,8 +495,6 @@
       let pendingTeleportSelf = null;
       let lastHandledTeleportCommandId = "";
       let hasSeenInitialTeleportCommandSnapshot = false;
-      let hasSeenInitialSessionSnapshot = false;
-      let missingSessionSinceMs = 0;
       let lastHandledReachCommandId = "";
       let lastPrivateMessageFrom = null;
       let worldJoinRequestToken = 0;
@@ -1366,73 +1364,6 @@
           adminInventories: null
         }
       };
-      let packetClient = null;
-      let packetMoveInFlight = false;
-      let packetQueuedMoveData = null;
-
-      function getPacketClient() {
-        if (packetClient) return packetClient;
-        if (!dbModule || typeof dbModule.createPacketClient !== "function") return null;
-        packetClient = dbModule.createPacketClient({
-          endpoint: window.PACKET_API_ENDPOINT,
-          getPlayerId: () => playerId || "",
-          getSessionId: () => playerSessionId || "",
-          getSessionToken: () => {
-            const sid = String(playerSessionId || "");
-            const pid = String(playerId || "");
-            return sid ? ("pkt." + sid + "." + pid) : "";
-          }
-        });
-        return packetClient;
-      }
-
-      function sendAuthoritativePacket(type, data) {
-        const client = getPacketClient();
-        if (!client || typeof client.send !== "function") {
-          return Promise.reject(new Error("Packet client unavailable."));
-        }
-        return client.send(type, data || {});
-      }
-
-      function sendPresenceLeavePacket() {
-        if (!network.enabled) return;
-        sendAuthoritativePacket("PRESENCE", {
-          action: "leave",
-          worldId: (inWorld ? currentWorldId : "menu") || "menu"
-        }).catch(() => {});
-      }
-
-      function queueMovePacket(data) {
-        const payload = data && typeof data === "object" ? data : {};
-        packetQueuedMoveData = payload;
-        if (packetMoveInFlight) return;
-        const run = () => {
-          const nextData = packetQueuedMoveData;
-          packetQueuedMoveData = null;
-          if (!nextData || !network.enabled || !playerProfileId || !playerSessionId) {
-            packetMoveInFlight = false;
-            return;
-          }
-          packetMoveInFlight = true;
-          sendAuthoritativePacket("MOVE", nextData)
-            .then(() => {
-              if (network.connected) setNetworkState("Online", false);
-            })
-            .catch((error) => {
-              const code = String(error && error.payload && error.payload.error && error.payload.error.code || "");
-              if (code === "REPLAY_DETECTED" || code === "MOVE_TOO_FAST") {
-                // Soft conflict/validation; don't mark whole network as down.
-                return;
-              }
-              setNetworkState("Network error", true);
-            })
-            .finally(() => {
-              packetMoveInFlight = false;
-              if (packetQueuedMoveData) run();
-            });
-        };
-        run();
-      }
 
       const adminState = {
         accounts: {},
@@ -4349,44 +4280,6 @@
         });
       }
 
-      function getWorkerSessionEndpoint() {
-        const packetEndpoint = String(window.PACKET_API_ENDPOINT || "").trim();
-        if (packetEndpoint) {
-          if (/\/packet\/?$/i.test(packetEndpoint)) {
-            return packetEndpoint.replace(/\/packet\/?$/i, "/session");
-          }
-          return packetEndpoint.replace(/\/+$/, "") + "/session";
-        }
-        const origin = String(window.location && window.location.origin || "").trim();
-        if (!origin) return "";
-        return origin.replace(/\/+$/, "") + "/session";
-      }
-
-      async function requestWorkerSession(action, accountId, username, sessionId) {
-        const endpoint = getWorkerSessionEndpoint();
-        if (!endpoint) throw new Error("Session endpoint is not configured.");
-        const payload = {
-          action: String(action || "").trim().toLowerCase(),
-          accountId: String(accountId || "").trim(),
-          username: String(username || "").trim(),
-          sessionId: String(sessionId || "").trim()
-        };
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          credentials: "omit"
-        });
-        const body = await response.json().catch(() => ({}));
-        if (!response.ok || !body || body.ok !== true) {
-          const msg = body && body.error && body.error.message
-            ? String(body.error.message)
-            : ("Session API error (" + response.status + ")");
-          throw new Error(msg);
-        }
-        return body;
-      }
-
       async function readAuthValueWithRetry(path, label) {
         const safePath = String(path || "").trim();
         if (!safePath) throw new Error("Invalid auth read path.");
@@ -4409,39 +4302,39 @@
       }
 
       async function reserveAccountSession(db, accountId, username) {
+        const sessionRef = db.ref(BASE_PATH + "/account-sessions/" + accountId);
         const sessionId = "s_" + Math.random().toString(36).slice(2, 12);
         const startedAtLocal = Date.now();
-        let claimedSessionId = sessionId;
-        try {
-          const out = await withAuthTimeout(
-            requestWorkerSession("claim", accountId, username, sessionId),
-            "Session reservation",
-            14000
-          );
-          claimedSessionId = String(out && out.sessionId || sessionId);
-        } catch (error) {
-          const message = String((error && error.message) || "");
-          if (/already active/i.test(message)) {
-            addClientLog("Session denied for @" + username + " (already active).");
-            throw new Error("This account is already active in another client.");
+        const result = await withAuthTimeout(sessionRef.transaction((current) => {
+          if (current && current.sessionId) {
+            return;
           }
-          throw error;
+          return {
+            sessionId,
+            username,
+            startedAt: firebase.database.ServerValue.TIMESTAMP
+          };
+        }), "Session reservation", 12000);
+        if (!result.committed) {
+          addClientLog("Session denied for @" + username + " (already active).");
+          throw new Error("This account is already active in another client.");
         }
-        playerSessionRef = null;
-        playerSessionId = claimedSessionId;
+        await withAuthTimeout(sessionRef.onDisconnect().remove(), "Session onDisconnect", 6000);
+        playerSessionRef = sessionRef;
+        playerSessionId = sessionId;
         playerSessionStartedAt = startedAtLocal;
         chatMessages.length = 0;
         recentChatFingerprintAt.clear();
         renderChatMessages();
-        addClientLog("Session created for @" + username + " (" + claimedSessionId + ").", accountId, username, claimedSessionId);
+        addClientLog("Session created for @" + username + " (" + sessionId + ").", accountId, username, sessionId);
       }
 
       function releaseAccountSession() {
-        const accountId = String(playerProfileId || "").trim();
-        const sid = String(playerSessionId || "").trim();
-        if (accountId && sid) {
-          requestWorkerSession("release", accountId, playerName, sid).catch(() => {});
-          if (playerName) addClientLog("Session released for @" + playerName + ".");
+        if (playerSessionRef) {
+          playerSessionRef.remove().catch(() => {});
+          if (playerName) {
+            addClientLog("Session released for @" + playerName + ".");
+          }
         }
         playerSessionRef = null;
         playerSessionId = "";
@@ -4518,7 +4411,7 @@
             const banValue = banSnap.val();
             const status = getBanStatus(banValue, Date.now());
             if (status.expired) {
-              db.ref(BASE_PATH + "/bans/" + accountId).remove().catch(() => {});
+              await withAuthTimeout(db.ref(BASE_PATH + "/bans/" + accountId).remove(), "Clear expired ban", 12000);
             } else if (status.active) {
               addClientLog("Login blocked for @" + username + " (banned).", accountId, username, "");
               const reasonText = status.reason ? " Reason: " + status.reason + "." : "";
@@ -4543,8 +4436,6 @@
       function onAuthSuccess(accountId, username) {
         playerProfileId = accountId;
         playerName = username;
-        hasSeenInitialSessionSnapshot = false;
-        missingSessionSinceMs = 0;
         loadQuestsFromLocal();
         postDailyQuestStatus();
         const gemsCtrl = getGemsController();
@@ -6296,13 +6187,13 @@
             playerName
           );
         }
-        sendPresenceLeavePacket();
         detachCurrentWorldListeners();
         teardownGlobalRealtimeListeners();
+        if (network.globalPlayerRef) {
+          network.globalPlayerRef.remove().catch(() => {});
+        }
         releaseAccountSession();
         network.enabled = false;
-        packetQueuedMoveData = null;
-        packetMoveInFlight = false;
         setInWorldState(false);
         setAdminOpen(false);
         pendingTeleportSelf = null;
@@ -6313,8 +6204,6 @@
         }
         lastHandledTeleportCommandId = "";
         hasSeenInitialTeleportCommandSnapshot = false;
-        hasSeenInitialSessionSnapshot = false;
-        missingSessionSinceMs = 0;
         lastHandledReachCommandId = "";
         lastHandledFreezeCommandId = "";
         lastHandledGodModeCommandId = "";
@@ -6368,7 +6257,7 @@
         if (!inWorld) return;
         const safeText = (text || "").toString().slice(0, 120);
         if (!safeText) return;
-        if (!network.enabled) {
+        if (!network.enabled || !network.chatRef) {
           addChatMessage({
             name: "[System]",
             playerId: "",
@@ -6377,16 +6266,11 @@
           });
           return;
         }
-        sendAuthoritativePacket("CHAT", {
-          worldId: currentWorldId,
+        network.chatRef.push({
           name: "[System]",
-          message: safeText,
-          system: true,
-          sessionId: "",
-          titleId: "",
-          titleName: "",
-          titleColor: "",
-          titleStyle: normalizeTitleStyle(null)
+          playerId: "",
+          text: safeText,
+          createdAt: firebase.database.ServerValue.TIMESTAMP
         }).catch(() => {
           setNetworkState("System message error", true);
         });
@@ -6445,7 +6329,7 @@
         if (antiCheatController && typeof antiCheatController.onChatSend === "function") {
           antiCheatController.onChatSend(text);
         }
-        if (!network.enabled) {
+        if (!network.enabled || !network.chatRef) {
           chatInputEl.value = "";
           addChatMessage({
             name: playerName,
@@ -6468,15 +6352,16 @@
           });
           chatInputEl.value = "";
           setChatOpen(false);
-          sendAuthoritativePacket("CHAT", {
-            worldId: currentWorldId,
+          network.chatRef.push({
             name: playerName,
-            message: text,
+            playerId,
             sessionId: playerSessionId || "",
             titleId: titlePayload.id || "",
             titleName: titlePayload.name || "",
             titleColor: titlePayload.color || "",
-            titleStyle: titlePayload.style || normalizeTitleStyle(null)
+            titleStyle: titlePayload.style || normalizeTitleStyle(null),
+            text,
+            createdAt: firebase.database.ServerValue.TIMESTAMP
           }).catch(() => {
             setNetworkState("Chat send error", true);
           });
@@ -10531,7 +10416,7 @@
       }
 
       function hasFirebaseConfig(config) {
-        return Boolean(config && config.projectId && config.databaseURL);
+        return Boolean(config && config.apiKey && config.projectId && config.databaseURL);
       }
 
       function parseTileKey(key) {
@@ -11207,7 +11092,9 @@
           network.cameraLogsFeedRef.off("child_added", network.handlers.cameraLogAdded);
         }
         if (typeof syncWorldsModule.detachWorldListeners === "function") {
-          syncWorldsModule.detachWorldListeners(network, network.handlers, false);
+          syncWorldsModule.detachWorldListeners(network, network.handlers, true);
+        } else if (network.playerRef) {
+          network.playerRef.remove().catch(() => {});
         }
         if (blockSyncer && typeof blockSyncer.reset === "function") {
           blockSyncer.reset();
@@ -11621,7 +11508,6 @@
           ? syncWorldsModule.buildWorldHandlers({
             remotePlayers,
             playerId,
-            localAccountId: playerProfileId || "",
             normalizeRemoteEquippedCosmetics,
             updateOnlineCount,
             parseTileKey,
@@ -11968,6 +11854,10 @@
         applyQuestEvent("visit_world", { worldId });
 
         if (network.connected) {
+          if (network.globalPlayerRef) {
+            network.globalPlayerRef.onDisconnect().remove();
+          }
+          network.playerRef.onDisconnect().remove();
           syncPlayer(true);
           setNetworkState("Online", false);
         } else {
@@ -11995,14 +11885,13 @@
       }
 
       function syncBlock(tx, ty, id) {
-        if (!network.enabled || !currentWorldId) return;
+        if (!network.enabled || !network.blocksRef) return;
         syncTileDamageToNetwork(tx, ty, 0);
-        sendAuthoritativePacket("PLACE_BLOCK", {
-          worldId: currentWorldId,
-          x: tx,
-          y: ty,
-          blockId: Math.max(0, Math.floor(Number(id) || 0))
-        }).catch(() => {
+        if (blockSyncer && typeof blockSyncer.enqueue === "function") {
+          blockSyncer.enqueue(tx, ty, id);
+          return;
+        }
+        network.blocksRef.child(tx + "_" + ty).set(id).catch(() => {
           setNetworkState("Network error", true);
         });
       }
@@ -12058,18 +11947,15 @@
           ? syncPlayerModule.buildPayload(rawPayload)
           : rawPayload;
 
-        if (writePlayer || writeGlobal) {
-          const movePacket = {
-            worldId: inWorld ? currentWorldId : "menu",
-            x: Math.round(player.x),
-            y: Math.round(player.y),
-            facing: player.facing,
-            vx: Number(player.vx) || 0,
-            vy: Number(player.vy) || 0,
-            dtMs: Math.max(16, Math.floor(Number(FIXED_FRAME_MS) || 16)),
-            profile: payload
-          };
-          queueMovePacket(movePacket);
+        if (writePlayer && network.playerRef) {
+          network.playerRef.update(payload).catch(() => {
+            setNetworkState("Network error", true);
+          });
+        }
+        if (writeGlobal && network.globalPlayerRef) {
+          network.globalPlayerRef.update(payload).catch(() => {
+            setNetworkState("Network error", true);
+          });
         }
       }
 
@@ -12671,6 +12557,12 @@
             network.connected = isConnected;
 
             if (isConnected) {
+              if (network.globalPlayerRef) {
+                network.globalPlayerRef.onDisconnect().remove();
+              }
+              if (network.playerRef) {
+                network.playerRef.onDisconnect().remove();
+              }
               syncPlayer(true);
               setNetworkState("Online", false);
             } else {
@@ -12679,24 +12571,11 @@
           };
           network.handlers.mySession = (snapshot) => {
             const value = snapshot.val();
-            const sessionIdValue = String(value && value.sessionId || "").trim();
-            if (!sessionIdValue) {
-              const now = Date.now();
-              if (!hasSeenInitialSessionSnapshot) {
-                hasSeenInitialSessionSnapshot = true;
-                missingSessionSinceMs = now;
-                return;
-              }
-              if (!missingSessionSinceMs) missingSessionSinceMs = now;
-              if ((now - missingSessionSinceMs) < 8000) {
-                return;
-              }
+            if (!value || !value.sessionId) {
               forceLogout("You were kicked or your session expired.");
               return;
             }
-            hasSeenInitialSessionSnapshot = true;
-            missingSessionSinceMs = 0;
-            if (playerSessionId && sessionIdValue !== playerSessionId) {
+            if (playerSessionId && value.sessionId !== playerSessionId) {
               forceLogout("This account is active in another client.");
             }
           };
@@ -13061,8 +12940,13 @@
             if (inWorld) {
               sendSystemWorldMessage(playerName + " left the world.");
             }
-            sendPresenceLeavePacket();
             releaseAccountSession();
+            if (network.globalPlayerRef) {
+              network.globalPlayerRef.remove();
+            }
+            if (network.playerRef) {
+              network.playerRef.remove();
+            }
           });
         } catch (error) {
           console.error(error);
