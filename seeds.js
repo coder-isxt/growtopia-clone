@@ -32,6 +32,7 @@ window.GTModules.seeds = (function createSeedsModule() {
     if (!def || typeof def !== "object") return false;
     if (def.id <= 0) return false;
     if (def.unbreakable) return false;
+    if (def.worldLock === true) return false;
     if (def.seedable === false) return false;
     const key = String(def.key || "").toLowerCase();
     if (!key || key === "air" || key.endsWith("_seed")) return false;
@@ -54,6 +55,11 @@ window.GTModules.seeds = (function createSeedsModule() {
   function createSeedRegistry(blockDefs, options) {
     const opts = options && typeof options === "object" ? options : {};
     const growMs = Math.max(5000, Math.floor(Number(opts.growMs) || DEFAULT_GROW_MS));
+    const forcedIds = new Set(
+      (Array.isArray(opts.forceSeedForBlockIds) ? opts.forceSeedForBlockIds : [])
+        .map((id) => Math.floor(Number(id)))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    );
     const source = normalizeBlockDefs(blockDefs);
     const defs = {};
     const config = {};
@@ -64,7 +70,8 @@ window.GTModules.seeds = (function createSeedsModule() {
     for (let i = 0; i < sourceIds.length; i++) {
       const yieldId = sourceIds[i];
       const def = source[yieldId];
-      if (!defaultSeedable(def)) continue;
+      const forced = forcedIds.has(yieldId);
+      if (!forced && !defaultSeedable(def)) continue;
 
       const legacy = LEGACY_BY_YIELD_ID[yieldId] || null;
       const canUseLegacyId = Boolean(legacy) && !usedIds.has(legacy.seedId);

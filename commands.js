@@ -133,6 +133,7 @@ window.GTModules.commands = {
       if (c.hasAdminPermission("clearworld")) available.push("/clearworld");
       if (c.hasAdminPermission("resetinv")) available.push("/resetinv");
       if (c.hasAdminPermission("give_block")) available.push("/givex");
+      if (c.hasAdminPermission("give_block")) available.push("/givefarmable");
       if (c.hasAdminPermission("give_item")) available.push("/giveitem");
       if (c.hasAdminPermission("give_item")) available.push("/spawnd");
       if (c.hasAdminPermission("give_title")) available.push("/givetitle");
@@ -510,6 +511,33 @@ window.GTModules.commands = {
       }
       if (c.applyInventoryGrant(accountId, blockRef || blockId, amount, "chat", targetRef)) {
         c.postLocalSystemChat("Updated inventory for @" + targetRef + ".");
+      }
+      return true;
+    }
+    if (command === "/givefarmable") {
+      if (!c.hasAdminPermission("give_block")) {
+        c.postLocalSystemChat("Permission denied.");
+        return true;
+      }
+      const targetRef = parts[1] || "";
+      const farmableRef = parts[2] || "";
+      const blockId = c.parseBlockRef(farmableRef);
+      const amount = Number(parts[3]);
+      const accountId = c.findAccountIdByUserRef(targetRef);
+      if (!accountId) {
+        c.postLocalSystemChat("Target account not found: " + targetRef);
+        return true;
+      }
+      const farmableIds = Array.isArray(c.FARMABLE_INVENTORY_IDS) ? c.FARMABLE_INVENTORY_IDS : [];
+      if (!farmableIds.includes(blockId) || !Number.isInteger(amount) || amount <= 0) {
+        c.postLocalSystemChat("Usage: /givefarmable <user> <farmable_key> <amount>");
+        return true;
+      }
+      if (c.applyInventoryGrant(accountId, farmableRef || blockId, amount, "chat", targetRef)) {
+        const farmableName = typeof c.getBlockNameById === "function"
+          ? (c.getBlockNameById(blockId) || farmableRef || ("block_" + blockId))
+          : (farmableRef || ("block_" + blockId));
+        c.postLocalSystemChat("Gave farmable " + farmableName + " x" + amount + " to @" + targetRef + ".");
       }
       return true;
     }

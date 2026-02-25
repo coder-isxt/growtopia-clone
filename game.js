@@ -185,6 +185,7 @@
       const modules = window.GTModules || {};
       const adminModule = modules.admin || {};
       const blocksModule = modules.blocks || {};
+      const farmablesModule = modules.farmables || {};
       const seedsModule = modules.seeds || {};
       const plantsModule = modules.plants || {};
       const gemsModule = modules.gems || {};
@@ -331,8 +332,20 @@
       const MAX_EDIT_REACH_TILES = 16;
       const TOOL_FIST = "fist";
       const TOOL_WRENCH = "wrench";
+      const farmableRegistry = typeof farmablesModule.createRegistry === "function"
+        ? farmablesModule.createRegistry(baseBlockDefs, {})
+        : {
+            ids: [],
+            byId: {},
+            isFarmable: () => false,
+            rollGems: () => 0,
+            getBreakXp: (_id, fallbackXp) => Math.max(1, Math.floor(Number(fallbackXp) || 1))
+          };
       const seedRegistry = typeof seedsModule.createSeedRegistry === "function"
-        ? seedsModule.createSeedRegistry(baseBlockDefs, { growMs: TREE_GROW_MS })
+        ? seedsModule.createSeedRegistry(baseBlockDefs, {
+            growMs: TREE_GROW_MS,
+            forceSeedForBlockIds: Array.isArray(farmableRegistry.ids) ? farmableRegistry.ids : []
+          })
         : { defs: {}, config: {} };
       const blockDefs = { ...baseBlockDefs, ...(seedRegistry.defs || {}) };
       const LOCK_BLOCK_IDS = (() => {
@@ -379,6 +392,7 @@
         .sort((a, b) => a - b);
       const SEED_INVENTORY_IDS = INVENTORY_IDS.filter((id) => PLANT_SEED_ID_SET.has(id));
       const BLOCK_ONLY_INVENTORY_IDS = INVENTORY_IDS.filter((id) => !PLANT_SEED_ID_SET.has(id));
+      const FARMABLE_INVENTORY_IDS = BLOCK_ONLY_INVENTORY_IDS.filter((id) => farmableRegistry.isFarmable(id));
       const slotOrder = [TOOL_FIST, TOOL_WRENCH].concat(INVENTORY_IDS);
       const cosmeticBundle = typeof cosmeticsModule.buildCatalog === "function"
         ? cosmeticsModule.buildCatalog(itemsModule)
@@ -953,7 +967,8 @@
           getNetwork: () => network,
           getTreeGrowMs: () => TREE_GROW_MS,
           getTreeYieldBlockId: () => TREE_YIELD_BLOCK_ID,
-          getTreeStageCount: () => TREE_STAGE_COUNT
+          getTreeStageCount: () => TREE_STAGE_COUNT,
+          getBlockDefs: () => blockDefs
         });
         return plantsController;
       }
@@ -2363,6 +2378,7 @@
           { id: "godmode", label: "Godmode", perm: "godmode" },
           { id: "setrole", label: "Set Role", perm: hasAdminPermission("setrole") ? "setrole" : "setrole_limited" },
           { id: "give_block", label: "Give Block", perm: "give_block" },
+          { id: "give_farmable", label: "Give Farmable", perm: "give_block" },
           { id: "give_seed", label: "Give Seed", perm: "give_block" },
           { id: "give_item", label: "Give Cosmetic", perm: "give_item" },
           { id: "give_title", label: "Add Title", perm: "give_title" },
@@ -2413,6 +2429,12 @@
                 <label>Block</label>
                 <select class="admin-console-block">
                   ${BLOCK_ONLY_INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
+                </select>
+              </div>
+              <div class="admin-console-opt admin-console-opt-farmable hidden admin-console-field">
+                <label>Farmable</label>
+                <select class="admin-console-farmable">
+                  ${FARMABLE_INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Farmable " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
                 </select>
               </div>
               <div class="admin-console-opt admin-console-opt-seed hidden admin-console-field">
@@ -2611,6 +2633,7 @@
           reason: adminAccountsEl.querySelector(".admin-console-opt-reason"),
           role: adminAccountsEl.querySelector(".admin-console-opt-role"),
           block: adminAccountsEl.querySelector(".admin-console-opt-block"),
+          farmable: adminAccountsEl.querySelector(".admin-console-opt-farmable"),
           seed: adminAccountsEl.querySelector(".admin-console-opt-seed"),
           item: adminAccountsEl.querySelector(".admin-console-opt-item"),
           title: adminAccountsEl.querySelector(".admin-console-opt-title"),
@@ -2632,6 +2655,9 @@
           if (map.role instanceof HTMLElement) map.role.classList.remove("hidden");
         } else if (action === "give_block") {
           if (map.block instanceof HTMLElement) map.block.classList.remove("hidden");
+          if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
+        } else if (action === "give_farmable") {
+          if (map.farmable instanceof HTMLElement) map.farmable.classList.remove("hidden");
           if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
         } else if (action === "give_seed") {
           if (map.seed instanceof HTMLElement) map.seed.classList.remove("hidden");
@@ -2766,6 +2792,23 @@
             const ok = applyInventoryGrant(targetAccountId, blockRef, amount, "panel", targetUsername);
             if (ok) {
               postLocalSystemChat("Added " + amount + " of block " + blockRef + " to @" + targetUsername + ".");
+            }
+            return;
+          }
+          if (selectedAction === "give_farmable") {
+            const farmableEl = adminAccountsEl.querySelector(".admin-console-farmable");
+            const amountEl = adminAccountsEl.querySelector(".admin-console-amount");
+            if (!(farmableEl instanceof HTMLSelectElement) || !(amountEl instanceof HTMLInputElement)) return;
+            const blockRef = farmableEl.value || "";
+            const amount = Number(amountEl.value);
+            const safeId = parseBlockRef(blockRef);
+            if (!FARMABLE_INVENTORY_IDS.includes(safeId)) {
+              postLocalSystemChat("Selected block is not a farmable.");
+              return;
+            }
+            const ok = applyInventoryGrant(targetAccountId, blockRef, amount, "panel", targetUsername);
+            if (ok) {
+              postLocalSystemChat("Added " + amount + " of farmable " + blockRef + " to @" + targetUsername + ".");
             }
             return;
           }
@@ -3844,6 +3887,7 @@
           clearCurrentWorldToBedrock,
           parseBlockRef,
           INVENTORY_IDS,
+          FARMABLE_INVENTORY_IDS,
           getBlockNameById: (id) => {
             const def = blockDefs[Math.floor(Number(id) || 0)];
             return def && def.name ? def.name : "";
@@ -9962,9 +10006,20 @@
           }
           postLocalSystemChat("World unlocked.");
         }
+        const farmableXp = farmableRegistry && typeof farmableRegistry.getBreakXp === "function"
+          ? farmableRegistry.getBreakXp(id, 5)
+          : 5;
+        if (farmableRegistry && typeof farmableRegistry.isFarmable === "function" && farmableRegistry.isFarmable(id)) {
+          const farmableGems = Math.max(0, Math.floor(Number(
+            typeof farmableRegistry.rollGems === "function" ? farmableRegistry.rollGems(id, Math.random) : 0
+          ) || 0));
+          if (farmableGems > 0) {
+            addPlayerGems(farmableGems, true);
+          }
+        }
         saveInventory(false);
         refreshToolbar(true);
-        awardXp(5, "breaking blocks");
+        awardXp(farmableXp, "breaking blocks");
         applyQuestEvent("break_block", { count: 1 });
       }
 
