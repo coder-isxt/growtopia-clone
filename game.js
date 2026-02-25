@@ -495,6 +495,8 @@
       let pendingTeleportSelf = null;
       let lastHandledTeleportCommandId = "";
       let hasSeenInitialTeleportCommandSnapshot = false;
+      let hasSeenInitialSessionSnapshot = false;
+      let missingSessionSinceMs = 0;
       let lastHandledReachCommandId = "";
       let lastPrivateMessageFrom = null;
       let worldJoinRequestToken = 0;
@@ -4533,6 +4535,8 @@
       function onAuthSuccess(accountId, username) {
         playerProfileId = accountId;
         playerName = username;
+        hasSeenInitialSessionSnapshot = false;
+        missingSessionSinceMs = 0;
         loadQuestsFromLocal();
         postDailyQuestStatus();
         const gemsCtrl = getGemsController();
@@ -6301,6 +6305,8 @@
         }
         lastHandledTeleportCommandId = "";
         hasSeenInitialTeleportCommandSnapshot = false;
+        hasSeenInitialSessionSnapshot = false;
+        missingSessionSinceMs = 0;
         lastHandledReachCommandId = "";
         lastHandledFreezeCommandId = "";
         lastHandledGodModeCommandId = "";
@@ -12664,11 +12670,24 @@
           };
           network.handlers.mySession = (snapshot) => {
             const value = snapshot.val();
-            if (!value || !value.sessionId) {
+            const sessionIdValue = String(value && value.sessionId || "").trim();
+            if (!sessionIdValue) {
+              const now = Date.now();
+              if (!hasSeenInitialSessionSnapshot) {
+                hasSeenInitialSessionSnapshot = true;
+                missingSessionSinceMs = now;
+                return;
+              }
+              if (!missingSessionSinceMs) missingSessionSinceMs = now;
+              if ((now - missingSessionSinceMs) < 8000) {
+                return;
+              }
               forceLogout("You were kicked or your session expired.");
               return;
             }
-            if (playerSessionId && value.sessionId !== playerSessionId) {
+            hasSeenInitialSessionSnapshot = true;
+            missingSessionSinceMs = 0;
+            if (playerSessionId && sessionIdValue !== playerSessionId) {
               forceLogout("This account is active in another client.");
             }
           };
