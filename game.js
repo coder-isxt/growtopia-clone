@@ -2445,28 +2445,51 @@
             <div class="admin-anticheat-list">${antiCheatRows || "<div class='admin-audit-row'>No anti-cheat logs yet.</div>"}</div>
           </div>`
           : "";
-        adminAccountsEl.innerHTML = `
-          <div class="admin-layout">
-            <div class="admin-main">
-              <div class="admin-summary">
-                <div class="admin-summary-main">Signed in as <strong>${escapeHtml(playerName || "guest")}</strong> (${escapeHtml(currentAdminRole)}).</div>
-                ${adminConsoleMarkup}
-                <div class="admin-summary-stats">
-                  <span class="admin-stat-chip">Showing ${filteredIds.length}/${accountIds.length}</span>
-                  <span class="admin-stat-chip">Online ${onlineCount}</span>
-                  <span class="admin-stat-chip">Banned ${bannedCount}</span>
-                  <span class="admin-stat-chip">Global online ${totalOnlinePlayers}</span>
-                </div>
-                <div class="admin-summary-hint">Quick commands: /adminhelp, /where user, /goto user, /bringall, /announce msg</div>
-              </div>
-              <div class="admin-list">
-                ${rows.join("") || "<div class='admin-row'><div class='admin-meta'><strong>No players match filter.</strong></div></div>"}
-              </div>
+        const statsCardsMarkup = `
+          <div class="admin-dash-stats">
+            <div class="admin-dash-stat admin-dash-stat-teal">
+              <div class="admin-dash-stat-label">Players (Visible)</div>
+              <div class="admin-dash-stat-value">${filteredIds.length}<span>/${accountIds.length}</span></div>
             </div>
-            <div class="admin-sidepanels">
-              ${auditMarkup}
-              ${logsMarkup}
-              ${antiCheatMarkup}
+            <div class="admin-dash-stat admin-dash-stat-cyan">
+              <div class="admin-dash-stat-label">Online Now</div>
+              <div class="admin-dash-stat-value">${onlineCount}</div>
+            </div>
+            <div class="admin-dash-stat admin-dash-stat-red">
+              <div class="admin-dash-stat-label">Banned</div>
+              <div class="admin-dash-stat-value">${bannedCount}</div>
+            </div>
+            <div class="admin-dash-stat admin-dash-stat-amber">
+              <div class="admin-dash-stat-label">Global Online</div>
+              <div class="admin-dash-stat-value">${totalOnlinePlayers}</div>
+            </div>
+          </div>
+        `;
+        adminAccountsEl.innerHTML = `
+          <div class="admin-dashboard">
+            <aside class="admin-dash-sidebar">
+              <div class="admin-dash-brand">Dashboard</div>
+              <div class="admin-dash-user">Signed in as <strong>@${escapeHtml(playerName || "guest")}</strong></div>
+              <div class="admin-dash-role">Role: ${escapeHtml(currentAdminRole)}</div>
+              <div class="admin-summary-hint">Quick: /adminhelp, /where user, /goto user, /bringall, /announce</div>
+            </aside>
+            <div class="admin-dash-main">
+              ${statsCardsMarkup}
+              <div class="admin-layout">
+                <div class="admin-main">
+                  <div class="admin-summary">
+                    ${adminConsoleMarkup}
+                  </div>
+                  <div class="admin-list">
+                    ${rows.join("") || "<div class='admin-row'><div class='admin-meta'><strong>No players match filter.</strong></div></div>"}
+                  </div>
+                </div>
+                <div class="admin-sidepanels">
+                  ${auditMarkup}
+                  ${logsMarkup}
+                  ${antiCheatMarkup}
+                </div>
+              </div>
             </div>
           </div>
         `;

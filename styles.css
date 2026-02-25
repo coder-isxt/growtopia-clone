@@ -3975,3 +3975,202 @@ body{
     border-bottom: 1px solid rgba(255, 209, 102, 0.18);
   }
 }
+
+/* Admin dashboard skin (latest override) */
+.admin-panel {
+  width: min(1700px, calc(100vw - 22px));
+  height: min(960px, calc(100vh - 18px));
+  background: #1f2838;
+  border: 1px solid rgba(131, 163, 198, 0.24);
+  border-radius: 14px;
+  box-shadow: 0 28px 70px rgba(2, 8, 16, 0.68);
+}
+
+.admin-header {
+  padding: 12px 14px;
+  gap: 8px;
+  background: linear-gradient(180deg, #263348 0%, #202b3e 100%);
+  border-bottom: 1px solid rgba(126, 164, 205, 0.18);
+}
+
+.admin-header-top strong {
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  color: #d9ecff;
+}
+
+.admin-header button {
+  background: linear-gradient(180deg, rgba(45, 84, 124, 0.95), rgba(33, 61, 94, 0.95));
+  border: 1px solid rgba(125, 179, 235, 0.48);
+  border-radius: 9px;
+  color: #e6f2ff;
+}
+
+#adminForceReloadBtn {
+  background: linear-gradient(180deg, rgba(136, 42, 58, 0.95), rgba(100, 30, 43, 0.95));
+  border-color: rgba(255, 138, 158, 0.78);
+}
+
+.admin-header input,
+#adminAuditActionFilter {
+  background: #162133;
+  border: 1px solid rgba(128, 168, 214, 0.34);
+  color: #e7f3ff;
+}
+
+.admin-accounts {
+  padding: 0;
+}
+
+.admin-dashboard {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.admin-dash-sidebar {
+  background: linear-gradient(180deg, #2a3447 0%, #222d3f 100%);
+  border-right: 1px solid rgba(126, 164, 205, 0.2);
+  padding: 18px 14px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.admin-dash-brand {
+  font-size: 18px;
+  font-weight: 800;
+  color: #67daf8;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.admin-dash-user,
+.admin-dash-role {
+  color: #cde2f7;
+  font-size: 12px;
+}
+
+.admin-summary-hint {
+  margin-top: 8px;
+  color: #9cb5d0;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.admin-dash-main {
+  padding: 14px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+}
+
+.admin-dash-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-dash-stat {
+  border-radius: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(146, 186, 230, 0.22);
+  background: #273348;
+  min-height: 84px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+}
+
+.admin-dash-stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #b8cee4;
+}
+
+.admin-dash-stat-value {
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 800;
+  color: #ebf6ff;
+}
+
+.admin-dash-stat-value span {
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0.82;
+  margin-left: 4px;
+}
+
+.admin-dash-stat-teal .admin-dash-stat-value { color: #5ce0ca; }
+.admin-dash-stat-cyan .admin-dash-stat-value { color: #68d8ff; }
+.admin-dash-stat-red .admin-dash-stat-value { color: #ff8d9e; }
+.admin-dash-stat-amber .admin-dash-stat-value { color: #ffd27d; }
+
+.admin-layout {
+  grid-template-columns: minmax(0, 1.35fr) minmax(420px, 1fr);
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+}
+
+.admin-summary,
+.admin-row,
+.admin-card {
+  background: #273348;
+  border: 1px solid rgba(145, 184, 226, 0.2);
+  box-shadow: 0 8px 18px rgba(8, 16, 29, 0.36);
+}
+
+.admin-console {
+  padding: 12px;
+}
+
+.admin-card-header {
+  background: rgba(17, 30, 47, 0.58);
+  border-bottom: 1px solid rgba(141, 179, 221, 0.2);
+}
+
+.admin-list,
+.admin-audit-list,
+.admin-logs-list,
+.admin-anticheat-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 166, 232, 0.88) rgba(20, 31, 47, 0.6);
+}
+
+.admin-sidepanels {
+  gap: 10px;
+}
+
+.admin-audit-row {
+  color: #d4e8fb;
+}
+
+.admin-audit-row.level-warn {
+  color: #ffd27d;
+}
+
+.admin-audit-row.level-critical,
+.admin-audit-row.level-danger {
+  color: #ff9aa9;
+}
+
+.admin-audit-row.level-success {
+  color: #88f3cb;
+}
+
+@media (max-width: 1200px) {
+  .admin-dashboard {
+    grid-template-columns: 1fr;
+  }
+  .admin-dash-sidebar {
+    display: none;
+  }
+  .admin-dash-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
