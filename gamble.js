@@ -1035,14 +1035,14 @@ window.GTModules = window.GTModules || {};
           "<div class='slotsv2-board " + winStateClass + "' style='--slots-cols:" + slotsCols + ";--slots-rows:" + slotsRowsCount + ";'>" + slotsV2BoardHtml + boardFxHtml + "</div>" +
           "<div class='slotsv2-lines'>" + lineBadges + "</div>";
       }
-      const hideBaseBoardForBonus = Boolean(def.id === "slots_v2" && bonusActive);
+      const showBonusBoard = Boolean(def.id === "slots_v2" && activeBonusFrame);
+      const hideBaseBoardForBonus = showBonusBoard;
       const slotsV2ResultHtml = (def.id === "slots_v2" || def.id === "slots_v3" || def.id === "slots_v4" || def.id === "slots_v6")
         ? ("<div class='vending-section'>" +
             "<div class='vending-section-title'>Slots Game</div>" +
             (hideBaseBoardForBonus ? "" : slotsV2BoardHtml) +
             (def.id === "slots_v2" && activeBonusFrame
-              ? ("<div class='vending-section-title' style='margin-top:10px;'>Hold &amp; Spin Bonus</div>" +
-                "<div class='slotsv2-board slotsv2-" + (bonusActive ? "idle rolling" : (stats.lastMultiplier > 0 ? "win" : "idle")) + (bonusHitFrame ? " slotsv2-bonus-hit" : "") + "' style='--slots-cols:" + bonusReels + ";--slots-rows:" + bonusRows + ";'>" +
+              ? ("<div class='slotsv2-board slotsv2-" + (bonusActive ? "idle rolling" : (stats.lastMultiplier > 0 ? "win" : "idle")) + (bonusHitFrame ? " slotsv2-bonus-hit" : "") + "' style='--slots-cols:" + bonusReels + ";--slots-rows:" + bonusRows + ";'>" +
                   (function buildBonusReplayBoard() {
                     let html = "";
                     const teaseList = (activeBonusFrame && Array.isArray(activeBonusFrame.tease)) ? activeBonusFrame.tease : [];
