@@ -327,6 +327,7 @@
       const TREE_GEM_MAX = Math.max(TREE_GEM_MIN, Math.floor(Number(SETTINGS.TREE_GEM_MAX) || 4));
       const SEED_DROP_CHANCE = 1 / 8;
       const BREAK_RETURN_ITEM_CHANCE = 1 / 5;
+      const PASSIVE_LOCK_AUTOCONVERT = Boolean(SETTINGS.PASSIVE_LOCK_AUTOCONVERT);
       const INVENTORY_ITEM_LIMIT = 300;
       let spawnTileX = SPAWN_TILE_X;
       let spawnTileY = SPAWN_TILE_Y;
@@ -597,6 +598,7 @@
       let suppressInventoryClickUntilMs = 0;
       let pickupInventoryFlushTimer = 0;
       let inventorySaveTimer = 0;
+      let manualLockConvertHoldUntilMs = 0;
       let lastInventoryFullHintAt = 0;
       let isPointerDown = false;
 
@@ -5022,6 +5024,7 @@
           if (current >= needed && currentHigher < INVENTORY_ITEM_LIMIT) {
             inventory[safeId] = current - needed;
             inventory[higher.id] = currentHigher + 1;
+            manualLockConvertHoldUntilMs = performance.now() + 1800;
             saveInventory();
             refreshToolbar(true);
             postLocalSystemChat("Converted " + needed + " " + (blockDefs[safeId] && blockDefs[safeId].name || "locks") + " into 1 " + (blockDefs[higher.id] && blockDefs[higher.id].name || "lock") + ".");
@@ -5040,12 +5043,15 @@
         }
         inventory[safeId] = current - 1;
         inventory[lower.id] = lowerNow + ratio;
+        manualLockConvertHoldUntilMs = performance.now() + 1800;
         saveInventory();
         refreshToolbar(true);
         postLocalSystemChat("Converted 1 " + (blockDefs[safeId] && blockDefs[safeId].name || "lock") + " into " + ratio + " " + (blockDefs[lower.id] && blockDefs[lower.id].name || "locks") + ".");
       }
 
-      function autoConvertWorldLocksInInventory() {
+      function autoConvertWorldLocksInInventory(force) {
+        if (!force && !PASSIVE_LOCK_AUTOCONVERT) return false;
+        if (performance.now() < manualLockConvertHoldUntilMs) return false;
         const before = getTotalLockValue(inventory);
         distributeLockValueToInventory(inventory, before);
         const after = getTotalLockValue(inventory);
