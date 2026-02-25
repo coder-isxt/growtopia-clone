@@ -6346,6 +6346,16 @@
         return PLANT_SEED_CONFIG[Number(seedBlockId)] || null;
       }
 
+      function resolvePlantFruitAmount(plant) {
+        const rec = plant && typeof plant === "object" ? plant : {};
+        const fromRecord = Math.max(0, Math.floor(Number(rec.fruitAmount) || 0));
+        if (fromRecord > 0) return Math.max(1, Math.min(5, fromRecord));
+        const plantedAt = Math.max(1, Math.floor(Number(rec.plantedAt) || 1));
+        const yieldId = Math.max(1, Math.floor(Number(rec.yieldBlockId) || TREE_YIELD_BLOCK_ID));
+        const seed = ((plantedAt ^ (yieldId * 2654435761)) >>> 0);
+        return 1 + (seed % 5);
+      }
+
       function getTileKey(tx, ty) {
         return String(tx) + "_" + String(ty);
       }
@@ -8456,9 +8466,7 @@
         if (!plant || typeof ctrl.getGrowthState !== "function") return;
         const growth = ctrl.getGrowthState(plant);
         if (!growth) return;
-        const fruitCount = typeof ctrl.getFruitAmount === "function"
-          ? Math.max(1, Math.min(5, Math.floor(Number(ctrl.getFruitAmount(plant)) || 1)))
-          : Math.max(1, Math.min(5, Math.floor(Number(plant.fruitAmount) || 1)));
+        const fruitCount = resolvePlantFruitAmount(plant);
         const fruitBlockId = Math.max(1, Math.floor(Number(plant.yieldBlockId) || TREE_YIELD_BLOCK_ID));
         const fruitDef = blockDefs[fruitBlockId] || null;
         if (growth.mature) {
@@ -9627,6 +9635,9 @@
                   yieldBlockId: seedCfg.yieldBlockId || TREE_YIELD_BLOCK_ID,
                   fruitAmount: 1 + Math.floor(Math.random() * 5)
                 };
+            if (!seedPlant.fruitAmount || Number(seedPlant.fruitAmount) <= 0) {
+              seedPlant.fruitAmount = resolvePlantFruitAmount(seedPlant);
+            }
             saveTreePlant(tx, ty, seedPlant);
           }
           saveInventory(false);
@@ -9756,6 +9767,10 @@
 
         if (isPlantSeedBlockId(id)) {
           const plant = getLocalTreePlant(tx, ty);
+          const fixedFruitAmount = resolvePlantFruitAmount(plant);
+          if (plant && Number(plant.fruitAmount) !== fixedFruitAmount) {
+            saveTreePlant(tx, ty, { ...plant, fruitAmount: fixedFruitAmount });
+          }
           const ctrl = getPlantsController();
           const baseHarvest = (ctrl && typeof ctrl.getHarvestReward === "function")
             ? ctrl.getHarvestReward(plant, Math.random)
@@ -9765,13 +9780,18 @@
             return;
           }
           const rewardsCtrl = getRewardsController();
-          const harvest = (rewardsCtrl && typeof rewardsCtrl.getTreeHarvestRewards === "function")
+          const harvestRaw = (rewardsCtrl && typeof rewardsCtrl.getTreeHarvestRewards === "function")
             ? rewardsCtrl.getTreeHarvestRewards(baseHarvest, Math.random)
             : {
                 blockId: Math.max(1, Math.floor(Number(baseHarvest.blockId) || TREE_YIELD_BLOCK_ID)),
                 amount: Math.max(1, Math.floor(Number(baseHarvest.amount) || 1)),
                 gems: 1 + Math.floor(Math.random() * 4)
               };
+          const harvest = {
+            blockId: Math.max(1, Math.floor(Number(harvestRaw && harvestRaw.blockId) || TREE_YIELD_BLOCK_ID)),
+            amount: fixedFruitAmount,
+            gems: Math.max(0, Math.floor(Number(harvestRaw && harvestRaw.gems) || 0))
+          };
           const rewardBlockId = Math.max(1, Math.floor(Number(harvest.blockId) || TREE_YIELD_BLOCK_ID));
           const rewardAmount = Math.max(1, Math.floor(Number(harvest.amount) || 1));
           const gemReward = Math.max(0, Math.floor(Number(harvest.gems) || 0));
