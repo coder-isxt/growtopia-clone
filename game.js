@@ -10531,7 +10531,7 @@
       }
 
       function hasFirebaseConfig(config) {
-        return Boolean(config && config.apiKey && config.projectId && config.databaseURL);
+        return Boolean(config && config.projectId && config.databaseURL);
       }
 
       function parseTileKey(key) {

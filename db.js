@@ -38,7 +38,7 @@ window.GTModules.db = (function createDbModule() {
   }
 
   function hasFirebaseConfig(config) {
-    return Boolean(config && config.apiKey && config.projectId && config.databaseURL);
+    return Boolean(config && config.projectId && config.databaseURL);
   }
 
   function getSessionStorageValue(key, fallbackPrefix) {
