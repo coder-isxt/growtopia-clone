@@ -2,6 +2,10 @@ window.GTModules = window.GTModules || {};
 
 window.GTModules.db = (function createDbModule() {
   let appCheckActivated = false;
+  let writeProxyInstalled = false;
+  let dbWriteTransport = null;
+  const DB_PROXY_CLIENT_KEY = "gt_db_proxy_client_id";
+  const DB_PROXY_SESSION_KEY = "gt_db_proxy_session_id";
 
   function isLocalRuntime() {
     const host = (window.location && window.location.hostname || "").toLowerCase();
@@ -37,6 +41,184 @@ window.GTModules.db = (function createDbModule() {
     return Boolean(config && config.apiKey && config.projectId && config.databaseURL);
   }
 
+  function getSessionStorageValue(key, fallbackPrefix) {
+    try {
+      const raw = String(sessionStorage.getItem(key) || "").trim();
+      if (raw) return raw;
+      const generated = String(fallbackPrefix || "id") + "_" + Math.random().toString(36).slice(2, 12);
+      sessionStorage.setItem(key, generated);
+      return generated;
+    } catch {
+      return String(fallbackPrefix || "id") + "_" + Math.random().toString(36).slice(2, 12);
+    }
+  }
+
+  function wrapPromiseCallback(promise, cb) {
+    const p = Promise.resolve(promise);
+    if (typeof cb === "function") {
+      p.then(() => cb(null)).catch((err) => cb(err));
+    }
+    return p;
+  }
+
+  function getRefPath(ref) {
+    if (!ref) return "/";
+    try {
+      if (ref.path && typeof ref.path.toString === "function") {
+        let p = String(ref.path.toString() || "").trim();
+        if (!p.startsWith("/")) p = "/" + p;
+        p = p.replace(/\/+$/, "");
+        return p || "/";
+      }
+    } catch {
+      // fallback below
+    }
+    try {
+      const raw = String(typeof ref.toString === "function" ? ref.toString() : "").trim();
+      if (raw) {
+        const u = new URL(raw);
+        let p = String(u.pathname || "/").trim();
+        p = p.replace(/\/+$/, "");
+        return p || "/";
+      }
+    } catch {
+      // fallback below
+    }
+    return "/";
+  }
+
+  function shouldProxyPath(path) {
+    const p = String(path || "");
+    if (!p) return false;
+    if (p === "/.info" || p.startsWith("/.info/")) return false;
+    return true;
+  }
+
+  function getDbWriteTransport() {
+    if (dbWriteTransport) return dbWriteTransport;
+    const endpoint = resolvePacketEndpoint();
+    if (!endpoint) return null;
+    const clientId = getSessionStorageValue(DB_PROXY_CLIENT_KEY, "dbclient");
+    const sessionId = getSessionStorageValue(DB_PROXY_SESSION_KEY, "dbsession");
+    dbWriteTransport = createPacketClient({
+      endpoint,
+      getPlayerId: () => clientId,
+      getSessionId: () => sessionId,
+      getSessionToken: () => ("pkt." + sessionId + "." + clientId)
+    });
+    return dbWriteTransport;
+  }
+
+  function installAuthoritativeWriteProxy(db) {
+    if (writeProxyInstalled || !db || typeof db.ref !== "function") return;
+    const transport = getDbWriteTransport();
+    if (!transport || typeof transport.send !== "function") return;
+
+    const sampleRef = db.ref("/");
+    if (!sampleRef) return;
+    const proto = Object.getPrototypeOf(sampleRef);
+    if (!proto || proto.__gtAuthoritativeWriteProxyInstalled) {
+      writeProxyInstalled = true;
+      return;
+    }
+
+    const original = {
+      set: typeof proto.set === "function" ? proto.set : null,
+      update: typeof proto.update === "function" ? proto.update : null,
+      remove: typeof proto.remove === "function" ? proto.remove : null,
+      push: typeof proto.push === "function" ? proto.push : null,
+      transaction: typeof proto.transaction === "function" ? proto.transaction : null
+    };
+
+    if (original.set) {
+      proto.set = function patchedSet(value, onComplete) {
+        const path = getRefPath(this);
+        if (!shouldProxyPath(path)) {
+          return original.set.call(this, value, onComplete);
+        }
+        const p = transport.send("DB_WRITE", { op: "set", path, value }).then(() => null);
+        return wrapPromiseCallback(p, onComplete);
+      };
+    }
+
+    if (original.update) {
+      proto.update = function patchedUpdate(value, onComplete) {
+        const path = getRefPath(this);
+        if (!shouldProxyPath(path)) {
+          return original.update.call(this, value, onComplete);
+        }
+        const patch = (value && typeof value === "object") ? value : {};
+        const p = transport.send("DB_WRITE", { op: "update", path, value: patch }).then(() => null);
+        return wrapPromiseCallback(p, onComplete);
+      };
+    }
+
+    if (original.remove) {
+      proto.remove = function patchedRemove(onComplete) {
+        const path = getRefPath(this);
+        if (!shouldProxyPath(path)) {
+          return original.remove.call(this, onComplete);
+        }
+        const p = transport.send("DB_WRITE", { op: "remove", path }).then(() => null);
+        return wrapPromiseCallback(p, onComplete);
+      };
+    }
+
+    if (original.push) {
+      proto.push = function patchedPush(value, onComplete) {
+        if (arguments.length === 0 || value === undefined) {
+          return original.push.call(this);
+        }
+        const childRef = original.push.call(this);
+        const writePromise = Promise.resolve(childRef.set(value, onComplete)).then(() => childRef);
+        writePromise.key = childRef && childRef.key ? childRef.key : null;
+        return writePromise;
+      };
+    }
+
+    if (original.transaction) {
+      proto.transaction = function patchedTransaction(updateFn, onComplete) {
+        if (typeof updateFn !== "function") {
+          const err = new Error("transaction update function required");
+          if (typeof onComplete === "function") onComplete(err, false, null);
+          return Promise.reject(err);
+        }
+        const ref = this;
+        const run = Promise.resolve(ref.once("value")).then((snapshot) => {
+          const current = snapshot && typeof snapshot.val === "function" ? snapshot.val() : null;
+          let next;
+          try {
+            next = updateFn(current);
+          } catch (error) {
+            if (typeof onComplete === "function") onComplete(error, false, snapshot);
+            throw error;
+          }
+          if (next === undefined) {
+            if (typeof onComplete === "function") onComplete(null, false, snapshot);
+            return { committed: false, snapshot };
+          }
+          return Promise.resolve(ref.set(next)).then(() => {
+            const fakeSnapshot = { val: () => next };
+            if (typeof onComplete === "function") onComplete(null, true, fakeSnapshot);
+            return { committed: true, snapshot: fakeSnapshot };
+          });
+        });
+        return run.catch((error) => {
+          if (typeof onComplete === "function") onComplete(error, false, null);
+          throw error;
+        });
+      };
+    }
+
+    Object.defineProperty(proto, "__gtAuthoritativeWriteProxyInstalled", {
+      value: true,
+      configurable: false,
+      enumerable: false,
+      writable: false
+    });
+    writeProxyInstalled = true;
+  }
+
   async function getOrInitAuthDb(options) {
     const opts = options || {};
     const network = opts.network || {};
@@ -66,6 +248,7 @@ window.GTModules.db = (function createDbModule() {
     if (!network.authDb) {
       network.authDb = firebaseRef.database();
     }
+    installAuthoritativeWriteProxy(network.authDb);
     return network.authDb;
   }
 
@@ -282,81 +465,87 @@ window.GTModules.db = (function createDbModule() {
       : () => "";
     const fetchImpl = typeof opts.fetchImpl === "function" ? opts.fetchImpl : fetch.bind(window);
     let seq = Math.max(0, Math.floor(Number(opts.initialSeq) || 0));
+    let sendQueue = Promise.resolve();
 
     function nextSeq() {
       seq += 1;
       return seq;
     }
 
-    async function send(type, data, extra) {
-      const cfg = extra || {};
-      if (!endpoint) throw new Error("Packet endpoint is not configured.");
+    function send(type, data, extra) {
+      const execute = async () => {
+        const cfg = extra || {};
+        if (!endpoint) throw new Error("Packet endpoint is not configured.");
 
-      const playerId = String(cfg.playerId || getPlayerId() || "").trim();
-      const session = String(cfg.session || getSessionId() || "").trim();
-      if (!playerId || !session) {
-        throw new Error("Missing packet playerId/session.");
-      }
+        const playerId = String(cfg.playerId || getPlayerId() || "").trim();
+        const session = String(cfg.session || getSessionId() || "").trim();
+        if (!playerId || !session) {
+          throw new Error("Missing packet playerId/session.");
+        }
 
-      const packet = {
-        type: String(type || "").trim(),
-        playerId,
-        session,
-        seq: typeof cfg.seq === "number" ? Math.max(0, Math.floor(cfg.seq)) : nextSeq(),
-        t: Date.now(),
-        data: (data && typeof data === "object") ? data : {}
-      };
-      const token = String(cfg.sessionToken || getSessionToken() || "").trim();
-      const headers = {
-        "Content-Type": "application/json"
-      };
-      if (token) headers.Authorization = "Bearer " + token;
-
-      const trySend = async (pkt) => {
-        const res = await fetchImpl(endpoint, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(pkt),
-          credentials: "omit"
-        });
-        const body = await res.json().catch(() => ({}));
-        return { res, body };
-      };
-
-      let attempt = await trySend(packet);
-      let { res, body } = attempt;
-
-      const code = body && body.error && body.error.code ? String(body.error.code) : "";
-      const currentSeq = Number(
-        body && body.error && body.error.details && body.error.details.currentSeq
-      );
-      const canReplayRecover = !res.ok
-        && res.status === 409
-        && code === "REPLAY_DETECTED"
-        && Number.isFinite(currentSeq);
-      if (canReplayRecover) {
-        const next = Math.max(0, Math.floor(currentSeq + 1));
-        setSeq(next);
-        const retryPacket = {
-          ...packet,
-          seq: nextSeq(),
-          t: Date.now()
+        const packet = {
+          type: String(type || "").trim(),
+          playerId,
+          session,
+          seq: typeof cfg.seq === "number" ? Math.max(0, Math.floor(cfg.seq)) : nextSeq(),
+          t: Date.now(),
+          data: (data && typeof data === "object") ? data : {}
         };
-        attempt = await trySend(retryPacket);
-        res = attempt.res;
-        body = attempt.body;
-      }
+        const token = String(cfg.sessionToken || getSessionToken() || "").trim();
+        const headers = {
+          "Content-Type": "application/json"
+        };
+        if (token) headers.Authorization = "Bearer " + token;
 
-      if (!res.ok || !body || body.ok !== true) {
-        const message = body && body.error && body.error.message
-          ? String(body.error.message)
-          : ("HTTP " + res.status);
-        const err = new Error(message);
-        err.status = res.status;
-        err.payload = body;
-        throw err;
-      }
-      return body;
+        const trySend = async (pkt) => {
+          const res = await fetchImpl(endpoint, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(pkt),
+            credentials: "omit"
+          });
+          const body = await res.json().catch(() => ({}));
+          return { res, body };
+        };
+
+        let attempt = await trySend(packet);
+        let { res, body } = attempt;
+
+        const code = body && body.error && body.error.code ? String(body.error.code) : "";
+        const currentSeq = Number(
+          body && body.error && body.error.details && body.error.details.currentSeq
+        );
+        const canReplayRecover = !res.ok
+          && res.status === 409
+          && code === "REPLAY_DETECTED"
+          && Number.isFinite(currentSeq);
+        if (canReplayRecover) {
+          const next = Math.max(0, Math.floor(currentSeq + 1));
+          setSeq(next);
+          const retryPacket = {
+            ...packet,
+            seq: nextSeq(),
+            t: Date.now()
+          };
+          attempt = await trySend(retryPacket);
+          res = attempt.res;
+          body = attempt.body;
+        }
+
+        if (!res.ok || !body || body.ok !== true) {
+          const message = body && body.error && body.error.message
+            ? String(body.error.message)
+            : ("HTTP " + res.status);
+          const err = new Error(message);
+          err.status = res.status;
+          err.payload = body;
+          throw err;
+        }
+        return body;
+      };
+      const run = sendQueue.then(execute, execute);
+      sendQueue = run.catch(() => {});
+      return run;
     }
 
     return {
