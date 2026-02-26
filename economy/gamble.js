@@ -2439,11 +2439,11 @@ window.GTModules = window.GTModules || {};
             post(
               "Collected " + amountLocal + " WL from machine (" +
               (amountLocal - localTax) + " WL to machine owner, " +
-              localTax + " WL tax sent to tax block at " + Math.max(0, Math.floor(Number(splitLocal.percent) || 0)) + "%)."
+              localTax + " WL tax sent to Tax Machine at " + Math.max(0, Math.floor(Number(splitLocal.percent) || 0)) + "%)."
             );
           } else {
             post(
-              "Collected " + amountLocal + " WL from machine. Tax block unavailable, so " +
+              "Collected " + amountLocal + " WL from machine. Tax Machine unavailable, so " +
               localTax + " WL tax was refunded to machine owner."
             );
           }
@@ -2523,15 +2523,15 @@ window.GTModules = window.GTModules || {};
           post(
             "Collected " + done.collected + " WL from machine (" +
             (done.collected - ownerShare) + " WL to machine owner, " +
-            ownerShare + " WL tax sent to tax block at " + Math.max(0, Math.floor(Number(split.percent) || 0)) + "%)."
+            ownerShare + " WL tax sent to Tax Machine at " + Math.max(0, Math.floor(Number(split.percent) || 0)) + "%)."
           );
           return;
         }
         post("Collected " + done.collected + " WL from machine.");
         if (split.refunded) {
-          post("Tax block transfer failed. Tax amount was refunded to collector.");
+          post("Tax Machine transfer failed. Tax amount was refunded to collector.");
         } else if (split.refundFailed) {
-          post("Tax block transfer failed and automatic refund also failed.");
+          post("Tax Machine transfer failed and automatic refund also failed.");
         }
       }).catch(() => {
         post("Failed to collect earnings.");
@@ -2820,11 +2820,11 @@ window.GTModules = window.GTModules || {};
               post(
                 "Collected " + localBank + " WL from gambling machine (" +
                 (localBank - localTax) + " WL to machine owner, " +
-                localTax + " WL tax sent to tax block at " + Math.max(0, Math.floor(Number(splitLocal.percent) || 0)) + "%)."
+                localTax + " WL tax sent to Tax Machine at " + Math.max(0, Math.floor(Number(splitLocal.percent) || 0)) + "%)."
               );
             } else {
               post(
-                "Collected " + localBank + " WL from gambling machine. Tax block unavailable, so " +
+                "Collected " + localBank + " WL from gambling machine. Tax Machine unavailable, so " +
                 localTax + " WL tax was refunded to machine owner."
               );
             }
@@ -2857,11 +2857,11 @@ window.GTModules = window.GTModules || {};
               post(
                 "Collected " + localBank + " WL from gambling machine (" +
                 (localBank - localTax) + " WL to machine owner, " +
-                localTax + " WL tax sent to tax block at " + Math.max(0, Math.floor(Number(splitLocal.percent) || 0)) + "%)."
+                localTax + " WL tax sent to Tax Machine at " + Math.max(0, Math.floor(Number(splitLocal.percent) || 0)) + "%)."
               );
             } else {
               post(
-                "Collected " + localBank + " WL from gambling machine. Tax block unavailable, so " +
+                "Collected " + localBank + " WL from gambling machine. Tax Machine unavailable, so " +
                 localTax + " WL tax was refunded to machine owner."
               );
             }
@@ -2939,15 +2939,15 @@ window.GTModules = window.GTModules || {};
           post(
             "Collected " + done.claimed + " WL from gambling machine (" +
             (done.claimed - ownerShare) + " WL to machine owner, " +
-            ownerShare + " WL tax sent to tax block at " + Math.max(0, Math.floor(Number(split.percent) || 0)) + "%)."
+            ownerShare + " WL tax sent to Tax Machine at " + Math.max(0, Math.floor(Number(split.percent) || 0)) + "%)."
           );
           return;
         }
         post("Collected " + done.claimed + " WL from gambling machine.");
         if (split.refunded) {
-          post("Tax block transfer failed. Tax amount was refunded to collector.");
+          post("Tax Machine transfer failed. Tax amount was refunded to collector.");
         } else if (split.refundFailed) {
-          post("Tax block transfer failed and automatic refund also failed.");
+          post("Tax Machine transfer failed and automatic refund also failed.");
         }
       }).catch(() => {
         closeAndClear();

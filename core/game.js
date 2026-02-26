@@ -7048,7 +7048,7 @@
         }
         const profileId = String(playerProfileId || "");
         if (!network.enabled || !network.ownerTaxRef || !network.db || !profileId) {
-          addLocksLocal(inventory, amount);
+          addLockValue(inventory, amount);
           setLocalWorldTax({ ...currentTax, earningsLocks: 0, updatedAt: Date.now() });
           if (typeof saveInventory === "function") saveInventory(false);
           if (typeof refreshToolbar === "function") refreshToolbar(true);
@@ -7088,7 +7088,7 @@
           const invRef = network.db.ref(BASE_PATH + "/player-inventories/" + profileId);
           return invRef.transaction((currentRaw) => {
             const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
-            addLocksLocal(current, collected);
+            addLockValue(current, collected);
             return current;
           }).then(() => ({ collected })).catch(() => {
             return network.ownerTaxRef.transaction((currentRaw) => {
