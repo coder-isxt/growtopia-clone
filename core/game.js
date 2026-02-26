@@ -449,6 +449,79 @@
           saveInventory,
           refreshToolbar,
           hasOwnerRole: () => normalizeAdminRole(currentAdminRole) === "owner",
+          grantQuestReward: (reward, ctx) => {
+            const row = reward && typeof reward === "object" ? reward : {};
+            const parts = [];
+            let inventoryChanged = false;
+            let needsSync = false;
+
+            const gems = Math.max(0, Math.floor(Number(row.gems) || 0));
+            if (gems > 0) {
+              const gained = addPlayerGems(gems, true);
+              if (gained > 0) parts.push(gained + " gems");
+            }
+
+            let blockId = Math.floor(Number(row.blockId) || 0);
+            if (!blockId) {
+              blockId = parseBlockRef(row.blockKey || row.block || "");
+            }
+            const blockAmount = Math.max(1, Math.floor(Number(row.blockAmount || 0) || 0));
+            if (blockId > 0 && blockAmount > 0) {
+              const txRaw = Number(ctx && ctx.tx);
+              const tyRaw = Number(ctx && ctx.ty);
+              const tx = Number.isFinite(txRaw)
+                ? Math.max(0, Math.min(WORLD_W - 1, Math.floor(txRaw)))
+                : Math.max(0, Math.min(WORLD_W - 1, Math.floor((player.x + PLAYER_W * 0.5) / TILE)));
+              const ty = Number.isFinite(tyRaw)
+                ? Math.max(0, Math.min(WORLD_H - 1, Math.floor(tyRaw)))
+                : Math.max(0, Math.min(WORLD_H - 1, Math.floor((player.y + PLAYER_H * 0.5) / TILE)));
+              const granted = grantGachaBlockReward(blockId, blockAmount, tx, ty);
+              if (granted > 0) {
+                const def = blockDefs[blockId];
+                const label = def && def.name ? def.name : ("Block " + blockId);
+                parts.push(granted + "x " + label);
+                inventoryChanged = true;
+              }
+            }
+
+            const cosmeticId = String(row.cosmeticId || "").trim();
+            const cosmeticAmount = Math.max(1, Math.floor(Number(row.cosmeticAmount || 0) || 0));
+            if (cosmeticId && cosmeticAmount > 0) {
+              const granted = grantGachaCosmeticReward(cosmeticId, cosmeticAmount);
+              if (granted > 0) {
+                const item = COSMETIC_ITEMS.find((it) => it && it.id === cosmeticId);
+                parts.push(granted + "x " + (item && item.name ? item.name : cosmeticId));
+                inventoryChanged = true;
+                needsSync = true;
+              }
+            }
+
+            const titleId = String(row.titleId || "").trim();
+            if (titleId) {
+              const granted = grantGachaTitleReward(titleId, Math.max(1, Math.floor(Number(row.titleAmount || 1) || 1)));
+              const titleDef = TITLE_LOOKUP[titleId] || null;
+              const titleName = titleDef && titleDef.name ? titleDef.name : titleId;
+              if (granted > 0) {
+                parts.push("title " + titleName);
+                inventoryChanged = true;
+                needsSync = true;
+              } else if ((titleInventory[titleId] || 0) > 0) {
+                parts.push("title " + titleName + " (already owned)");
+              }
+            }
+
+            if (inventoryChanged) {
+              saveInventory(false);
+              refreshToolbar(true);
+            }
+            if (needsSync) {
+              syncPlayer(true);
+            }
+            return {
+              ok: true,
+              rewardText: parts.join(", ")
+            };
+          },
           clearTileDamage,
           syncBlock,
           respawnPlayerAtDoor,

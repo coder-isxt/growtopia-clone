@@ -1,7 +1,7 @@
 window.GTModules = window.GTModules || {};
 
 window.GTModules.questWorld = (function createQuestWorldModule() {
-  const DEFAULT_PATH_ID = "starter_path";
+  const DEFAULT_PATH_ID = "hero_reward_path";
 
   function createController(options) {
     const opts = options || {};
@@ -170,35 +170,63 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
     }
 
     function buildDefaultQuestPaths() {
+      const heroQuestList = [
+        {
+          id: "hero_path_01_wood",
+          title: "Bring me 50 wood blocks",
+          description: "Gather wood and bring 50 blocks to me.",
+          rewardText: "Reward: 1x Mystery Block",
+          objective: {
+            type: "bring_block",
+            blockId: 4,
+            amount: 50
+          },
+          reward: {
+            blockKey: "mystery_block",
+            blockAmount: 1
+          }
+        },
+        {
+          id: "hero_path_02_stone",
+          title: "Bring me 80 stone blocks",
+          description: "Great, now bring sturdy stone for the next ritual.",
+          rewardText: "Reward: 1x Sun Shirt",
+          objective: {
+            type: "bring_block",
+            blockId: 3,
+            amount: 80
+          },
+          reward: {
+            cosmeticId: "sun_shirt",
+            cosmeticAmount: 1
+          }
+        },
+        {
+          id: "hero_path_03_brick",
+          title: "Bring me 120 brick blocks",
+          description: "Final step. Deliver 120 bricks and claim your title.",
+          rewardText: "Reward: title {username} of Legend",
+          objective: {
+            type: "bring_block",
+            blockId: 6,
+            amount: 120
+          },
+          reward: {
+            titleId: "legendary",
+            titleAmount: 1
+          }
+        }
+      ];
       return [
         {
           id: DEFAULT_PATH_ID,
+          name: "Hero Reward Path",
+          quests: heroQuestList
+        },
+        {
+          id: "starter_path",
           name: "Starter Path",
-          quests: [
-            {
-              id: "bring_50_wood",
-              title: "Bring me 50 wood blocks",
-              description: "Gather wood and bring 50 blocks to me.",
-              rewardText: "Reward: Starter reward (configure later)",
-              objective: {
-                type: "bring_block",
-                blockId: 4,
-                amount: 50
-              }
-            },
-            {
-              id: "ring_master_trial",
-              title: "Ring Master Trial",
-              description: "Break 10 blocks in this quest world.",
-              rewardText: "Reward: 1x World Lock"
-            },
-            {
-              id: "legendary_wizard_path",
-              title: "Legendary Wizard Path",
-              description: "Harvest 5 trees.",
-              rewardText: "Reward: 1x Mystery Block"
-            }
-          ]
+          quests: heroQuestList
         }
       ];
     }
@@ -220,15 +248,66 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       };
     }
 
+    function normalizeQuestReward(value) {
+      const row = value && typeof value === "object" ? value : {};
+      const out = {};
+      const gems = Math.max(0, Math.floor(Number(row.gems) || 0));
+      if (gems > 0) out.gems = gems;
+
+      const titleId = String(row.titleId || row.title || "").trim().toLowerCase().slice(0, 64);
+      if (titleId) {
+        out.titleId = titleId;
+        out.titleAmount = Math.max(1, Math.floor(Number(row.titleAmount || row.amount) || 1));
+      }
+
+      const cosmeticId = String(row.cosmeticId || row.itemId || "").trim().toLowerCase().slice(0, 64);
+      if (cosmeticId) {
+        out.cosmeticId = cosmeticId;
+        out.cosmeticAmount = Math.max(1, Math.floor(Number(row.cosmeticAmount || row.amount) || 1));
+      }
+
+      let blockId = Math.floor(Number(row.blockId) || 0);
+      if (!blockId) {
+        blockId = parseBlockRef(row.blockKey || row.block || "");
+      }
+      if (blockId > 0) {
+        out.blockId = blockId;
+        out.blockAmount = Math.max(1, Math.floor(Number(row.blockAmount || row.amount) || 1));
+      }
+
+      return Object.keys(out).length ? out : null;
+    }
+
+    function describeQuestReward(reward) {
+      const row = reward && typeof reward === "object" ? reward : null;
+      if (!row) return "";
+      const parts = [];
+      const gems = Math.max(0, Math.floor(Number(row.gems) || 0));
+      if (gems > 0) parts.push(gems + " gems");
+      const blockId = Math.floor(Number(row.blockId) || 0);
+      const blockAmount = Math.max(1, Math.floor(Number(row.blockAmount) || 1));
+      if (blockId > 0) parts.push(blockAmount + "x " + getBlockNameById(blockId));
+      const cosmeticId = String(row.cosmeticId || "").trim();
+      const cosmeticAmount = Math.max(1, Math.floor(Number(row.cosmeticAmount) || 1));
+      if (cosmeticId) parts.push(cosmeticAmount + "x " + cosmeticId);
+      const titleId = String(row.titleId || "").trim();
+      if (titleId) parts.push("title " + titleId);
+      return parts.join(", ");
+    }
+
     function normalizeQuestRow(value, index) {
       const row = value && typeof value === "object" ? value : {};
       const fallbackId = "quest_" + Math.max(1, index + 1);
       const objective = normalizeQuestObjective(row.objective || row.requirement || {});
+      const reward = normalizeQuestReward(row.reward || row.rewards || {});
       const id = normalizeQuestId(row.id, fallbackId);
       const title = String(row.title || row.name || id).trim().slice(0, 80) || id;
       const description = String(row.description || "Quest objective placeholder.").trim().slice(0, 320) || "Quest objective placeholder.";
-      const rewardText = String(row.rewardText || row.reward || "Reward placeholder").trim().slice(0, 180) || "Reward placeholder";
-      return { id, title, description, rewardText, objective };
+      const rewardTextRaw = typeof row.rewardText === "string"
+        ? row.rewardText
+        : (typeof row.reward === "string" ? row.reward : "");
+      const rewardText = String(rewardTextRaw || describeQuestReward(reward) || "Reward placeholder").trim().slice(0, 180) || "Reward placeholder";
+      return { id, title, description, rewardText, objective, reward };
     }
 
     function normalizeQuestList(value, fallbackToDefaults) {
@@ -669,6 +748,37 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       return { ok: true, consumeMessage: "" };
     }
 
+    function grantQuestReward(quest) {
+      const reward = quest && quest.reward && typeof quest.reward === "object" ? quest.reward : null;
+      if (!reward) {
+        return {
+          ok: true,
+          rewardText: String(quest && quest.rewardText || "").trim()
+        };
+      }
+      const tx = modalCtx && Number.isFinite(Number(modalCtx.tx)) ? Math.floor(Number(modalCtx.tx)) : 0;
+      const ty = modalCtx && Number.isFinite(Number(modalCtx.ty)) ? Math.floor(Number(modalCtx.ty)) : 0;
+      const result = call("grantQuestReward", reward, {
+        questId: String(quest && quest.id || ""),
+        worldId: activeWorldId,
+        tx,
+        ty
+      });
+      if (result && typeof result === "object" && result.ok === false) {
+        return {
+          ok: false,
+          message: String(result.message || "Failed to grant quest reward.")
+        };
+      }
+      const rewardText = result && typeof result === "object" && typeof result.rewardText === "string"
+        ? String(result.rewardText).trim()
+        : describeQuestReward(reward);
+      return {
+        ok: true,
+        rewardText: rewardText || String(quest && quest.rewardText || "").trim()
+      };
+    }
+
     function claimQuest(questId) {
       const config = getCurrentConfig();
       if (!config) return false;
@@ -691,11 +801,18 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         renderModal();
         return true;
       }
+      const rewardResult = grantQuestReward(quest);
+      if (!rewardResult.ok) {
+        call("postLocalSystemChat", rewardResult.message || "Failed to grant quest reward.");
+        renderModal();
+        return true;
+      }
       state.claimed[qid] = true;
       if (objectiveResult.consumeMessage) {
         call("postLocalSystemChat", objectiveResult.consumeMessage);
       }
-      call("postLocalSystemChat", "Claimed reward for " + (quest.title || qid) + ".");
+      const rewardSuffix = rewardResult.rewardText ? (" -> " + rewardResult.rewardText) : "";
+      call("postLocalSystemChat", "Claimed reward for " + (quest.title || qid) + rewardSuffix + ".");
       renderModal();
       return true;
     }
