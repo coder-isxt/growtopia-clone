@@ -6,7 +6,7 @@ window.GTModules.cosmetics = (function createCosmeticsModule() {
     shirts: { x: 4, y: 12, w: 14, h: 10, mode: "contain", alignX: 0.5, alignY: 0.5, mirror: false },
     pants: { x: 5, y: 21, w: 12, h: 8, mode: "contain", alignX: 0.5, alignY: 0.5, mirror: false },
     shoes: { y: 26, w: 6, h: 4, leftX: 5, rightX: 13, mode: "contain", alignX: 0.5, alignY: 1, mirror: true },
-    hats: { x: 2, y: -3, w: 18, h: 9, mode: "contain", alignX: 0.5, alignY: 1, mirror: true },
+    hats: { x: 1, y: -4, w: 19, h: 10, mode: "contain", alignX: 0.5, alignY: 1, mirror: true },
     // Golden Angel Wings defaults used as baseline for all wings.
     wings: { offsetX: 4, offsetY: -3, wingH: 19, mode: "contain", alignX: 0.5, alignY: 0.5, mirror: true },
     swords: { mode: "contain", alignX: 0.5, alignY: 0.5, mirror: true }
