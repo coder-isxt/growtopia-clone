@@ -65,6 +65,12 @@ window.GT_SETTINGS = {
     { id: "sunset", name: "Sunset", url: "./assets/weather/sunset.png" },
     { id: "night", name: "Night", url: "./assets/weather/night.png" }
   ],
+  // Optional per-seed grow speed overrides (milliseconds).
+  // Keys can be numeric block ids (e.g. 43) or block keys (e.g. "star").
+  SEED_GROW_MS_BY_BLOCK: {
+    // 43: 45000,
+    // star: 45000
+  },
 
   PLAYER_SYNC_MIN_MS: 50,
   GLOBAL_SYNC_MIN_MS: 250

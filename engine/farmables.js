@@ -3,7 +3,7 @@ window.GTModules = window.GTModules || {};
 window.GTModules.farmables = (function createFarmablesModule() {
   const BLOCK_ASSET_BASE = "./assets/blocks";
   const FARMABLE_LIST = [
-    { id: 43, key: "star", name: "Star", color: "#d0ce5f", solid: true, farmable: true, durability: 3, icon: "S", faIcon: "fa-solid fa-seedling", image: "farmables/star.png" },
+    { id: 43, key: "star", name: "Star", color: "#d0ce5f", solid: true, farmable: true, durability: 3, seedGrowMs: 45000, icon: "S", faIcon: "fa-solid fa-seedling", image: "farmables/star.png" },
   ];
   const DEFAULT_FARMABLES = [
     { key: "star", xp: 10, gemMin: 3, gemMax: 12 },

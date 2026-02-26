@@ -86,6 +86,7 @@
       const seedRegistry = typeof seedsModule.createSeedRegistry === "function"
         ? seedsModule.createSeedRegistry(worldBlockDefs, {
             growMs: TREE_GROW_MS,
+            growMsByYieldId: SETTINGS.SEED_GROW_MS_BY_BLOCK || {},
             forceSeedForBlockIds: Array.isArray(farmableRegistry.ids) ? farmableRegistry.ids : []
           })
         : { defs: {}, config: {} };

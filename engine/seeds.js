@@ -52,9 +52,38 @@ window.GTModules.seeds = (function createSeedsModule() {
     return id;
   }
 
+  function normalizeGrowMs(value, fallbackMs) {
+    const parsed = Math.floor(Number(value));
+    if (Number.isFinite(parsed) && parsed >= 5000) return parsed;
+    return Math.max(5000, Math.floor(Number(fallbackMs) || DEFAULT_GROW_MS));
+  }
+
+  function resolveSeedGrowMs(yieldId, def, growMsByYieldId, fallbackGrowMs) {
+    const sourceDef = def && typeof def === "object" ? def : {};
+    const overrides = growMsByYieldId && typeof growMsByYieldId === "object" ? growMsByYieldId : null;
+    let candidate;
+    if (overrides) {
+      if (overrides[yieldId] !== undefined) {
+        candidate = overrides[yieldId];
+      } else {
+        const key = String(sourceDef.key || "").trim().toLowerCase();
+        if (key && overrides[key] !== undefined) {
+          candidate = overrides[key];
+        }
+      }
+    }
+    if (candidate === undefined && sourceDef.seedGrowMs !== undefined) {
+      candidate = sourceDef.seedGrowMs;
+    }
+    return normalizeGrowMs(candidate, fallbackGrowMs);
+  }
+
   function createSeedRegistry(blockDefs, options) {
     const opts = options && typeof options === "object" ? options : {};
-    const growMs = Math.max(5000, Math.floor(Number(opts.growMs) || DEFAULT_GROW_MS));
+    const growMs = normalizeGrowMs(opts.growMs, DEFAULT_GROW_MS);
+    const growMsByYieldId = opts.growMsByYieldId && typeof opts.growMsByYieldId === "object"
+      ? opts.growMsByYieldId
+      : null;
     const forcedIds = new Set(
       (Array.isArray(opts.forceSeedForBlockIds) ? opts.forceSeedForBlockIds : [])
         .map((id) => Math.floor(Number(id)))
@@ -84,7 +113,7 @@ window.GTModules.seeds = (function createSeedsModule() {
 
       const label = String((legacy && legacy.label) || def.seedLabel || (def.name ? (def.name + " Seed") : "Seed")).trim().slice(0, 40);
       const seedKey = String((legacy && legacy.seedKey) || def.seedKey || makeSeedKey(def)).trim().toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 40) || ("seed_" + String(seedId));
-      const imagePath = String(def.seedImagePath || ("./assets/blocks/special/" + seedKey + ".png")).trim();
+      const imagePath = String(def.seedImagePath || ("./assets/blocks/seeds/" + seedKey + ".png")).trim();
       defs[seedId] = {
         id: seedId,
         key: seedKey,
@@ -101,7 +130,7 @@ window.GTModules.seeds = (function createSeedsModule() {
       config[seedId] = {
         yieldBlockId: yieldId,
         dropFromBlockId: yieldId,
-        growMs,
+        growMs: resolveSeedGrowMs(yieldId, def, growMsByYieldId, growMs),
         label
       };
     }
