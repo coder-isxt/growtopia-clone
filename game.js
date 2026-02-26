@@ -1,8 +1,10 @@
     (() => {
       const modules = window.GTModules || {};
       const stateModule = modules.state || {};
+      const remoteSyncModule = modules.remoteSync || {};
       const STATE_FALLBACK_INJECT_KEY = "gt_state_fallback_injected_v2";
       const STATE_FALLBACK_RELOAD_KEY = "gt_state_fallback_reloaded_v2";
+      let remotePlayerSyncController = null;
       function tryLoadStateFallbackOnce(reason) {
         try {
           if (sessionStorage.getItem(STATE_FALLBACK_INJECT_KEY) !== "1") {
@@ -695,6 +697,20 @@
           postLocalSystemChat
         });
         return dropsController;
+      }
+
+      function getRemotePlayerSyncController() {
+        if (remotePlayerSyncController) return remotePlayerSyncController;
+        if (typeof remoteSyncModule.createController !== "function") return null;
+        const workerVersion = encodeURIComponent(String(window.GT_ASSET_VERSION || "dev"));
+        remotePlayerSyncController = remoteSyncModule.createController({
+          remotePlayers,
+          workerPath: "remote_sync_worker.js?v=" + workerVersion,
+          interpolationDelayMs: Math.max(16, Number(SETTINGS.REMOTE_SYNC_INTERPOLATION_MS) || 85),
+          maxExtrapolationMs: Math.max(0, Number(SETTINGS.REMOTE_SYNC_MAX_EXTRAPOLATION_MS) || 120),
+          snapDistancePx: Math.max(TILE * 2, Number(SETTINGS.REMOTE_SYNC_SNAP_DISTANCE_PX) || (TILE * 4))
+        });
+        return remotePlayerSyncController;
       }
 
       function getDrawController() {
@@ -4932,7 +4948,12 @@
       }
 
       function resetForWorldChange() {
-        remotePlayers.clear();
+        const remoteSyncCtrl = getRemotePlayerSyncController();
+        if (remoteSyncCtrl && typeof remoteSyncCtrl.reset === "function") {
+          remoteSyncCtrl.reset();
+        } else {
+          remotePlayers.clear();
+        }
         clearWorldDrops();
         if (particleController && typeof particleController.clear === "function") {
           particleController.clear();
@@ -8681,7 +8702,12 @@
         );
         addClientLog("Left world: " + currentWorldId + ".");
         detachCurrentWorldListeners();
-        remotePlayers.clear();
+        const remoteSyncCtrl = getRemotePlayerSyncController();
+        if (remoteSyncCtrl && typeof remoteSyncCtrl.reset === "function") {
+          remoteSyncCtrl.reset();
+        } else {
+          remotePlayers.clear();
+        }
         overheadChatByPlayer.clear();
         touchControls.left = false;
         touchControls.right = false;
@@ -8980,6 +9006,35 @@
             playerId,
             normalizeRemoteEquippedCosmetics,
             updateOnlineCount,
+            onRemotePlayerUpsert: (nextPlayer) => {
+              const ctrl = getRemotePlayerSyncController();
+              if (ctrl && typeof ctrl.upsert === "function") {
+                ctrl.upsert(nextPlayer);
+                return;
+              }
+              if (!nextPlayer || !nextPlayer.id) return;
+              remotePlayers.set(nextPlayer.id, nextPlayer);
+            },
+            onRemotePlayerRemove: (id) => {
+              const ctrl = getRemotePlayerSyncController();
+              if (ctrl && typeof ctrl.remove === "function") {
+                ctrl.remove(id);
+                return;
+              }
+              if (remotePlayers && typeof remotePlayers.delete === "function") {
+                remotePlayers.delete(id);
+              }
+            },
+            onRemotePlayersReset: () => {
+              const ctrl = getRemotePlayerSyncController();
+              if (ctrl && typeof ctrl.reset === "function") {
+                ctrl.reset();
+                return;
+              }
+              if (remotePlayers && typeof remotePlayers.clear === "function") {
+                remotePlayers.clear();
+              }
+            },
             parseTileKey,
             applyBlockValue,
             clearBlockValue,
@@ -11499,6 +11554,12 @@
             if (antiCheatController && typeof antiCheatController.onFrame === "function") {
               antiCheatController.onFrame();
             }
+            if (inWorld) {
+              const remoteSyncCtrl = getRemotePlayerSyncController();
+              if (remoteSyncCtrl && typeof remoteSyncCtrl.sample === "function") {
+                remoteSyncCtrl.sample(now);
+              }
+            }
             render();
           }
           requestAnimationFrame(tick);
@@ -11538,6 +11599,9 @@
         setAuthStatus(message, true);
       });
       eventsModule.on(window, "beforeunload", () => {
+        if (remotePlayerSyncController && typeof remotePlayerSyncController.dispose === "function") {
+          remotePlayerSyncController.dispose();
+        }
         releaseAccountSession();
       });
       applySavedCredentialsToForm();

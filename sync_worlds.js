@@ -101,6 +101,9 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
       ? opts.normalizeRemoteEquippedCosmetics
       : (v) => v || {};
     const updateOnlineCount = typeof opts.updateOnlineCount === "function" ? opts.updateOnlineCount : () => {};
+    const onRemotePlayerUpsert = typeof opts.onRemotePlayerUpsert === "function" ? opts.onRemotePlayerUpsert : null;
+    const onRemotePlayerRemove = typeof opts.onRemotePlayerRemove === "function" ? opts.onRemotePlayerRemove : null;
+    const onRemotePlayersReset = typeof opts.onRemotePlayersReset === "function" ? opts.onRemotePlayersReset : null;
     const parseTileKey = typeof opts.parseTileKey === "function" ? opts.parseTileKey : () => null;
     const applyBlockValue = typeof opts.applyBlockValue === "function" ? opts.applyBlockValue : () => {};
     const clearBlockValue = typeof opts.clearBlockValue === "function" ? opts.clearBlockValue : () => {};
@@ -121,9 +124,7 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
         }
       };
     };
-    const setRemotePlayer = (id, p) => {
-      if (!remotePlayers || typeof remotePlayers.set !== "function") return;
-      remotePlayers.set(id, {
+    const normalizeRemotePlayer = (id, p) => ({
         id,
         accountId: (p.accountId || "").toString(),
         x: p.x,
@@ -134,13 +135,23 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
         title: normalizeTitle(p.title),
         danceUntil: Math.max(0, Math.floor(Number(p.danceUntil) || 0))
       });
+    const setRemotePlayer = (id, p) => {
+      const normalized = normalizeRemotePlayer(id, p);
+      if (onRemotePlayerUpsert) {
+        onRemotePlayerUpsert(normalized);
+        return;
+      }
+      if (!remotePlayers || typeof remotePlayers.set !== "function") return;
+      remotePlayers.set(id, normalized);
     };
     const applyPlayerSnapshot = (snapshot) => {
       const id = String(snapshot && snapshot.key || "");
       if (!id || id === playerId) return;
       const p = snapshot && typeof snapshot.val === "function" ? snapshot.val() : null;
       if (!p || typeof p.x !== "number" || typeof p.y !== "number") {
-        if (remotePlayers && typeof remotePlayers.delete === "function") {
+        if (onRemotePlayerRemove) {
+          onRemotePlayerRemove(id);
+        } else if (remotePlayers && typeof remotePlayers.delete === "function") {
           remotePlayers.delete(id);
         }
         updateOnlineCount();
@@ -157,13 +168,17 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
     handlers.playerRemoved = (snapshot) => {
       const id = String(snapshot && snapshot.key || "");
       if (!id || id === playerId) return;
-      if (remotePlayers && typeof remotePlayers.delete === "function") {
+      if (onRemotePlayerRemove) {
+        onRemotePlayerRemove(id);
+      } else if (remotePlayers && typeof remotePlayers.delete === "function") {
         remotePlayers.delete(id);
       }
       updateOnlineCount();
     };
     handlers.players = (snapshot) => {
-      if (remotePlayers && typeof remotePlayers.clear === "function") {
+      if (onRemotePlayersReset) {
+        onRemotePlayersReset();
+      } else if (remotePlayers && typeof remotePlayers.clear === "function") {
         remotePlayers.clear();
       }
       const players = snapshot.val() || {};
