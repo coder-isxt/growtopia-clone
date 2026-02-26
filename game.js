@@ -550,6 +550,226 @@
       }
       const TITLE_DEFAULT_ID = (TITLE_CATALOG.find((title) => title.defaultUnlocked) || TITLE_CATALOG[0] || {}).id || "";
       if (typeof stateModule.initRuntimeState !== "function") {
+        stateModule.initRuntimeState = function initRuntimeStateCompat(options) {
+          const opts = options || {};
+          const root = window.GTState && typeof window.GTState === "object" ? window.GTState : (window.GTState = {});
+          const inventoryIds = Array.isArray(opts.inventoryIds) ? opts.inventoryIds : [];
+          const titleCatalog = Array.isArray(opts.titleCatalog) ? opts.titleCatalog : [];
+          const cosmeticItems = Array.isArray(opts.cosmeticItems) ? opts.cosmeticItems : [];
+          const cosmeticSlots = Array.isArray(opts.cosmeticSlots) ? opts.cosmeticSlots : [];
+          function buildWeatherPresetsCompat(images) {
+            const rows = Array.isArray(images) ? images : [];
+            const out = [{ id: "none", name: "Default Sky", url: "" }];
+            const seen = new Set(["none"]);
+            for (let i = 0; i < rows.length; i++) {
+              const row = rows[i] || {};
+              const id = String(row.id || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+              const name = String(row.name || "").trim().slice(0, 36);
+              const url = String(row.url || "").trim().slice(0, 420);
+              if (!id || seen.has(id)) continue;
+              out.push({ id, name: name || id, url });
+              seen.add(id);
+            }
+            return out;
+          }
+          function ensureRuntime(name, initFactory) {
+            if (!Object.prototype.hasOwnProperty.call(root, name)) {
+              if (Object.prototype.hasOwnProperty.call(globalThis, name)) {
+                root[name] = globalThis[name];
+              } else {
+                root[name] = typeof initFactory === "function" ? initFactory() : initFactory;
+              }
+            }
+            globalThis[name] = root[name];
+            return root[name];
+          }
+          ensureRuntime("cosmeticImageCache", () => new Map());
+          ensureRuntime("blockImageCache", () => new Map());
+          ensureRuntime("waterFramePathCache", () => []);
+          ensureRuntime("WATER_FRAME_MS", () => Math.max(80, Number(opts.waterFrameMs) || 170));
+          ensureRuntime("WEATHER_PRESETS", () => buildWeatherPresetsCompat(opts.weatherPresetImages));
+          ensureRuntime("WEATHER_PRESET_MAP", () => new Map((root.WEATHER_PRESETS || []).map((preset) => [preset.id, preset])));
+          ensureRuntime("inventory", () => {
+            const inv = {};
+            for (let i = 0; i < inventoryIds.length; i++) inv[inventoryIds[i]] = 0;
+            return inv;
+          });
+          ensureRuntime("selectedSlot", () => 0);
+          ensureRuntime("keys", () => ({}));
+          ensureRuntime("playerId", () => "p_" + Math.random().toString(36).slice(2, 10));
+          ensureRuntime("playerName", () => "");
+          ensureRuntime("playerProfileId", () => "");
+          ensureRuntime("playerSessionRef", () => null);
+          ensureRuntime("playerSessionId", () => "");
+          ensureRuntime("playerSessionStartedAt", () => 0);
+          ensureRuntime("progressionXp", () => 0);
+          ensureRuntime("progressionLevel", () => 1);
+          ensureRuntime("progressionXpIntoLevel", () => 0);
+          ensureRuntime("progressionXpForNext", () => 100);
+          ensureRuntime("progressionSaveTimer", () => 0);
+          ensureRuntime("achievementsState", () => null);
+          ensureRuntime("achievementsSaveTimer", () => 0);
+          ensureRuntime("questsState", () => null);
+          ensureRuntime("questsSaveTimer", () => 0);
+          ensureRuntime("worldChatStartedAt", () => 0);
+          ensureRuntime("desktopLeftPanelWidth", () => Math.floor(Number(opts.desktopPanelLeftDefault) || 0));
+          ensureRuntime("desktopRightPanelWidth", () => Math.floor(Number(opts.desktopPanelRightDefault) || 0));
+          ensureRuntime("layoutResizeSide", () => "");
+          ensureRuntime("gameBootstrapped", () => false);
+          ensureRuntime("pendingTeleportSelf", () => null);
+          ensureRuntime("lastHandledTeleportCommandId", () => "");
+          ensureRuntime("hasSeenInitialTeleportCommandSnapshot", () => false);
+          ensureRuntime("lastHandledReachCommandId", () => "");
+          ensureRuntime("lastPrivateMessageFrom", () => null);
+          ensureRuntime("worldJoinRequestToken", () => 0);
+          ensureRuntime("remotePlayers", () => new Map());
+          ensureRuntime("remoteAnimationTracker", () => {
+            const moduleRef = opts.animationsModule || {};
+            return typeof moduleRef.createTracker === "function" ? moduleRef.createTracker() : new Map();
+          });
+          ensureRuntime("remoteHitTracker", () => {
+            const moduleRef = opts.syncHitsModule || {};
+            return typeof moduleRef.createRemoteHitTracker === "function" ? moduleRef.createRemoteHitTracker() : new Map();
+          });
+          ensureRuntime("overheadChatByPlayer", () => new Map());
+          ensureRuntime("displayItemsByTile", () => new Map());
+          ensureRuntime("doorAccessByTile", () => new Map());
+          ensureRuntime("antiGravityByTile", () => new Map());
+          ensureRuntime("cameraConfigsByTile", () => new Map());
+          ensureRuntime("cameraLogsByTile", () => new Map());
+          ensureRuntime("localWeatherByWorld", () => new Map());
+          ensureRuntime("worldOccupancy", () => new Map());
+          ensureRuntime("worldLockOwnerCache", () => new Map());
+          ensureRuntime("worldIndexMetaById", () => ({}));
+          ensureRuntime("ownedWorldScanInFlight", () => false);
+          ensureRuntime("ownedWorldScanToken", () => 0);
+          ensureRuntime("vendingController", () => null);
+          ensureRuntime("gambleController", () => null);
+          ensureRuntime("donationController", () => null);
+          ensureRuntime("chestController", () => null);
+          ensureRuntime("friendsController", () => null);
+          ensureRuntime("tradeController", () => null);
+          ensureRuntime("messagesController", () => null);
+          ensureRuntime("shopController", () => null);
+          ensureRuntime("signController", () => null);
+          ensureRuntime("plantsController", () => null);
+          ensureRuntime("gemsController", () => null);
+          ensureRuntime("rewardsController", () => null);
+          ensureRuntime("dropsController", () => null);
+          ensureRuntime("drawController", () => null);
+          ensureRuntime("adminPanelController", () => null);
+          ensureRuntime("cameraX", () => 0);
+          ensureRuntime("cameraY", () => 0);
+          ensureRuntime("cameraZoom", () => (typeof opts.loadCameraZoomPref === "function" ? (Number(opts.loadCameraZoomPref()) || 1) : 1));
+          ensureRuntime("mouseWorld", () => ({ tx: 0, ty: 0 }));
+          ensureRuntime("editReachTiles", () => Number(opts.defaultEditReachTiles) || 0);
+          ensureRuntime("worldLockEditContext", () => null);
+          ensureRuntime("doorEditContext", () => null);
+          ensureRuntime("cameraEditContext", () => null);
+          ensureRuntime("weatherEditContext", () => null);
+          ensureRuntime("currentWorldWeather", () => null);
+          ensureRuntime("knownWorldIds", () => []);
+          ensureRuntime("totalOnlinePlayers", () => 0);
+          ensureRuntime("hasRenderedMenuWorldList", () => false);
+          ensureRuntime("currentWorldLock", () => null);
+          ensureRuntime("lastLockDeniedNoticeAt", () => 0);
+          ensureRuntime("lastHandledForceReloadEventId", () => (typeof opts.loadForceReloadMarker === "function" ? String(opts.loadForceReloadMarker() || "") : ""));
+          ensureRuntime("lastHandledAnnouncementEventId", () => "");
+          ensureRuntime("lastHandledFreezeCommandId", () => "");
+          ensureRuntime("lastHandledGodModeCommandId", () => "");
+          ensureRuntime("lastHandledPrivateAnnouncementId", () => "");
+          ensureRuntime("announcementHideTimer", () => 0);
+          ensureRuntime("serverMainPageNoticeText", () => "");
+          ensureRuntime("localUpdateNoticeText", () => "");
+          ensureRuntime("publicMainNoticeDb", () => null);
+          ensureRuntime("publicMainNoticeRef", () => null);
+          ensureRuntime("publicMainNoticeHandler", () => null);
+          ensureRuntime("isCoarsePointer", () => (typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)").matches : false));
+          ensureRuntime("isMobileUi", () => false);
+          ensureRuntime("isChatOpen", () => false);
+          ensureRuntime("suppressChatOpenUntilMs", () => 0);
+          ensureRuntime("isLogsOpen", () => false);
+          ensureRuntime("canViewAccountLogs", () => false);
+          ensureRuntime("canUseAdminPanel", () => false);
+          ensureRuntime("currentAdminRole", () => "none");
+          ensureRuntime("adminDataListening", () => false);
+          ensureRuntime("adminSearchQuery", () => "");
+          ensureRuntime("adminAuditActionFilter", () => "");
+          ensureRuntime("adminAuditActorFilter", () => "");
+          ensureRuntime("adminAuditTargetFilter", () => "");
+          ensureRuntime("adminBackupList", () => []);
+          ensureRuntime("adminBackupSelectedId", () => "");
+          ensureRuntime("adminBackupLoading", () => false);
+          ensureRuntime("isAdminOpen", () => false);
+          ensureRuntime("adminCommandsMenuOpen", () => false);
+          ensureRuntime("hasSeenAdminRoleSnapshot", () => false);
+          ensureRuntime("adminCommandLastUsedAt", () => new Map());
+          ensureRuntime("chatMessages", () => []);
+          ensureRuntime("recentChatFingerprintAt", () => new Map());
+          ensureRuntime("logsMessages", () => []);
+          ensureRuntime("antiCheatMessages", () => []);
+          ensureRuntime("CHAT_BUBBLE_FULL_MS", () => 5000);
+          ensureRuntime("CHAT_BUBBLE_FADE_MS", () => 1500);
+          ensureRuntime("CHAT_BUBBLE_MS", () => root.CHAT_BUBBLE_FULL_MS + root.CHAT_BUBBLE_FADE_MS);
+          ensureRuntime("CHAT_BUBBLE_MAX_WIDTH", () => 190);
+          ensureRuntime("CHAT_BUBBLE_LINE_HEIGHT", () => 13);
+          ensureRuntime("DROP_PICKUP_RADIUS", () => 26);
+          ensureRuntime("DROP_MAX_PER_WORLD", () => 220);
+          ensureRuntime("PLAYER_NAME_FONT", () => "12px 'Trebuchet MS', sans-serif");
+          ensureRuntime("playerWrenchHitboxes", () => []);
+          ensureRuntime("localPlayerWrenchHitbox", () => []);
+          ensureRuntime("worldDrops", () => new Map());
+          ensureRuntime("tileDamageByKey", () => new Map());
+          ensureRuntime("lastDropAtMs", () => 0);
+          ensureRuntime("inventoryDrag", () => ({ active: false, pointerId: null, startX: 0, startY: 0, lastX: 0, lastY: 0, moved: false, amount: 1, maxAmount: 1, entry: null, ghostEl: null }));
+          ensureRuntime("toolbarRenderQueued", () => false);
+          ensureRuntime("toolbarRenderRafId", () => 0);
+          ensureRuntime("lastToolbarRefresh", () => 0);
+          ensureRuntime("suppressInventoryClickUntilMs", () => 0);
+          ensureRuntime("pickupInventoryFlushTimer", () => 0);
+          ensureRuntime("inventorySaveTimer", () => 0);
+          ensureRuntime("manualLockConvertHoldUntilMs", () => 0);
+          ensureRuntime("lastInventoryFullHintAt", () => 0);
+          ensureRuntime("isPointerDown", () => false);
+          ensureRuntime("currentWorldId", () => (typeof opts.getInitialWorldId === "function" ? opts.getInitialWorldId() : "START"));
+          ensureRuntime("world", () => (typeof opts.makeWorld === "function" ? opts.makeWorld(root.currentWorldId) : []));
+          ensureRuntime("inWorld", () => false);
+          ensureRuntime("player", () => {
+            const tile = Number(opts.tileSize) || 32;
+            return { x: tile * 8, y: tile * 11, vx: 0, vy: 0, grounded: false, facing: 1 };
+          });
+          ensureRuntime("currentPhysicsLimits", () => ({
+            maxMoveSpeedPerTick: Math.max(0.01, Number(opts.maxMoveSpeed) || 0),
+            maxFallSpeedPerTick: Math.max(0.01, Number(opts.maxFallSpeed) || 0),
+            gravityPerTick: Math.max(0.001, Number(opts.gravity) || 0),
+            jumpVelocityPerTick: Math.abs(Number(opts.jumpVelocity) || 0),
+            inWater: false,
+            inAntiGravity: false
+          }));
+          const cosmeticState = (opts.cosmeticsModule && typeof opts.cosmeticsModule.createInventoryState === "function")
+            ? opts.cosmeticsModule.createInventoryState(cosmeticItems, cosmeticSlots)
+            : { cosmeticInventory: {}, equippedCosmetics: {} };
+          ensureRuntime("cosmeticInventory", () => cosmeticState.cosmeticInventory || {});
+          ensureRuntime("titleInventory", () => {
+            const out = {};
+            for (let i = 0; i < titleCatalog.length; i++) {
+              const title = titleCatalog[i] || {};
+              const id = String(title.id || "");
+              if (!id) continue;
+              out[id] = title.defaultUnlocked ? 1 : 0;
+            }
+            return out;
+          });
+          ensureRuntime("equippedCosmetics", () => cosmeticState.equippedCosmetics || { shirts: "", pants: "", shoes: "", hats: "", wings: "", swords: "" });
+          ensureRuntime("equippedTitleId", () => String(opts.titleDefaultId || ""));
+          if (!root.equippedTitleId && opts.titleDefaultId && root.titleInventory && root.titleInventory[opts.titleDefaultId]) {
+            root.equippedTitleId = String(opts.titleDefaultId);
+            globalThis.equippedTitleId = root.equippedTitleId;
+          }
+          return root;
+        };
+      }
+      if (typeof stateModule.initRuntimeState !== "function") {
         throw new Error("state.js module missing: GTModules.state.initRuntimeState");
       }
       stateModule.initRuntimeState({
