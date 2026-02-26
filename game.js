@@ -1,14 +1,28 @@
     (() => {
       const modules = window.GTModules || {};
       const stateModule = modules.state || {};
-      const RELOAD_GUARD_KEY = "gt_state_api_reload_once_v2";
-      function reloadWithFreshVersionOnce() {
+      const STATE_FALLBACK_GUARD_KEY = "gt_state_fallback_once_v1";
+      function tryLoadStateFallbackOnce(reason) {
         try {
-          if (sessionStorage.getItem(RELOAD_GUARD_KEY) === "1") return false;
-          sessionStorage.setItem(RELOAD_GUARD_KEY, "1");
-          const url = new URL(window.location.href);
-          url.searchParams.set("v", String(Date.now()));
-          window.location.replace(url.toString());
+          if (sessionStorage.getItem(STATE_FALLBACK_GUARD_KEY) === "1") return false;
+          sessionStorage.setItem(STATE_FALLBACK_GUARD_KEY, "1");
+          const script = document.createElement("script");
+          script.src = "state_fallback.js?v=" + encodeURIComponent(String(Date.now()));
+          script.onload = function () {
+            const refreshedStateModule = (window.GTModules || {}).state || {};
+            const ok = typeof refreshedStateModule.initDefaultDomRefs === "function"
+              && typeof refreshedStateModule.initDefaultModuleRefs === "function"
+              && typeof refreshedStateModule.initCoreState === "function"
+              && typeof refreshedStateModule.initRuntimeState === "function";
+            if (!ok) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set("v", String(Date.now()));
+            window.location.replace(url.toString());
+          };
+          script.onerror = function () {
+            console.error("Failed to load state_fallback.js (" + String(reason || "unknown") + ").");
+          };
+          document.head.appendChild(script);
           return true;
         } catch (error) {
           return false;
@@ -19,11 +33,11 @@
         || typeof stateModule.initDefaultModuleRefs !== "function"
         || typeof stateModule.initCoreState !== "function";
       if (missingBaseStateApi) {
-        if (reloadWithFreshVersionOnce()) return;
+        if (tryLoadStateFallbackOnce("missing-base-api")) return;
         throw new Error("state.js missing required init APIs (initDefaultDomRefs/initDefaultModuleRefs/initCoreState).");
       }
       try {
-        sessionStorage.removeItem(RELOAD_GUARD_KEY);
+        sessionStorage.removeItem(STATE_FALLBACK_GUARD_KEY);
       } catch (error) {
         // ignore storage errors
       }
@@ -152,7 +166,7 @@
       }
       const TITLE_DEFAULT_ID = (TITLE_CATALOG.find((title) => title.defaultUnlocked) || TITLE_CATALOG[0] || {}).id || "";
       if (typeof stateModule.initRuntimeState !== "function") {
-        if (reloadWithFreshVersionOnce()) return;
+        if (tryLoadStateFallbackOnce("missing-runtime-api")) return;
         throw new Error("state.js missing required initRuntimeState API.");
       }
       stateModule.initRuntimeState({
