@@ -7896,8 +7896,18 @@
           if (particleController && typeof particleController.emitBlockBreak === "function") {
             particleController.emitBlockBreak(tx * TILE + TILE * 0.5, ty * TILE + TILE * 0.5, 11);
           }
+          let treeRewardDroppedToWorld = false;
           if (INVENTORY_IDS.includes(rewardBlockId)) {
-            inventory[rewardBlockId] = (inventory[rewardBlockId] || 0) + rewardAmount;
+            treeRewardDroppedToWorld = spawnWorldDropEntry(
+              { type: "block", blockId: rewardBlockId },
+              rewardAmount,
+              tx * TILE,
+              ty * TILE
+            );
+            if (!treeRewardDroppedToWorld) {
+              // Fallback to inventory so rewards are never lost.
+              inventory[rewardBlockId] = (inventory[rewardBlockId] || 0) + rewardAmount;
+            }
           }
           addPlayerGems(gemReward, true);
           saveInventory(false);
@@ -7907,7 +7917,11 @@
           applyQuestEvent("break_block", { count: 1 });
           const rewardDef = blockDefs[rewardBlockId];
           const rewardName = rewardDef && rewardDef.name ? rewardDef.name : ("Block " + rewardBlockId);
-          postLocalSystemChat("Harvested seed: +" + rewardAmount + " " + rewardName + " and +" + gemReward + " gems.");
+          if (treeRewardDroppedToWorld) {
+            postLocalSystemChat("Harvested seed: dropped " + rewardAmount + " " + rewardName + " and +" + gemReward + " gems.");
+          } else {
+            postLocalSystemChat("Harvested seed: +" + rewardAmount + " " + rewardName + " and +" + gemReward + " gems.");
+          }
           return;
         }
 
@@ -8024,19 +8038,12 @@
           const dropId = getInventoryDropId(id);
           const shouldReturnBrokenItem = Math.random() < BREAK_RETURN_ITEM_CHANCE;
           if (shouldReturnBrokenItem && INVENTORY_IDS.includes(dropId)) {
-            const currentCount = Math.max(0, Math.floor(Number(inventory[dropId]) || 0));
-            if (currentCount >= INVENTORY_ITEM_LIMIT) {
-              if (Math.random() < (1 / 3)) {
-                spawnWorldDropEntry(
-                  { type: "block", blockId: dropId },
-                  1,
-                  tx * TILE,
-                  ty * TILE
-                );
-              }
-            } else {
-              inventory[dropId] = currentCount + 1;
-            }
+            spawnWorldDropEntry(
+              { type: "block", blockId: dropId },
+              1,
+              tx * TILE,
+              ty * TILE
+            );
           }
           const seedDropId = SEED_DROP_BY_BLOCK_ID[id] || 0;
           if (seedDropId && !isWorldLockBlockId(id) && Math.random() < SEED_DROP_CHANCE) {
