@@ -172,7 +172,7 @@ window.GTModules.animations = (function createAnimationsModule() {
       bodyTilt = clamp(vy * 0.012, -0.11, 0.11);
       if (fallDown) {
         // Falling: keep wings opened and lifted upward.
-        wingFlap = -0.22 - airStrength * 0.2 + Math.sin(wingPhase) * (0.08 + airStrength * 0.12);
+        wingFlap = 0.22 + airStrength * 0.2 + Math.sin(wingPhase) * (0.08 + airStrength * 0.12);
         wingOpen = 0.84 + airStrength * 0.14;
       } else {
         wingFlap = Math.sin(wingPhase) * (0.22 + airStrength * 0.34);
