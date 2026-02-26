@@ -388,16 +388,17 @@ window.GTModules.state = (function createStateModule() {
     const moduleRoleConfig = typeof adminModuleRef.createRoleConfig === "function"
       ? (adminModuleRef.createRoleConfig(settings) || {})
       : {};
+    const hasEntries = (value) => Boolean(value && typeof value === "object" && Object.keys(value).length);
     setValue("adminRoleConfig", {
       roleRank: settings.ADMIN_ROLE_RANK && typeof settings.ADMIN_ROLE_RANK === "object"
         ? settings.ADMIN_ROLE_RANK
-        : (moduleRoleConfig.roleRank && typeof moduleRoleConfig.roleRank === "object" ? moduleRoleConfig.roleRank : DEFAULT_ADMIN_ROLE_RANK),
+        : (hasEntries(moduleRoleConfig.roleRank) ? moduleRoleConfig.roleRank : DEFAULT_ADMIN_ROLE_RANK),
       permissions: settings.ADMIN_PERMISSIONS && typeof settings.ADMIN_PERMISSIONS === "object"
         ? settings.ADMIN_PERMISSIONS
-        : (moduleRoleConfig.permissions && typeof moduleRoleConfig.permissions === "object" ? moduleRoleConfig.permissions : DEFAULT_ADMIN_PERMISSIONS),
+        : (hasEntries(moduleRoleConfig.permissions) ? moduleRoleConfig.permissions : DEFAULT_ADMIN_PERMISSIONS),
       commandCooldownsMs: settings.ADMIN_COMMAND_COOLDOWNS_MS && typeof settings.ADMIN_COMMAND_COOLDOWNS_MS === "object"
         ? settings.ADMIN_COMMAND_COOLDOWNS_MS
-        : (moduleRoleConfig.commandCooldownsMs && typeof moduleRoleConfig.commandCooldownsMs === "object" ? moduleRoleConfig.commandCooldownsMs : DEFAULT_ADMIN_COMMAND_COOLDOWNS_MS),
+        : (hasEntries(moduleRoleConfig.commandCooldownsMs) ? moduleRoleConfig.commandCooldownsMs : DEFAULT_ADMIN_COMMAND_COOLDOWNS_MS),
       roleByUsername: settings.ADMIN_ROLE_BY_USERNAME && typeof settings.ADMIN_ROLE_BY_USERNAME === "object"
         ? settings.ADMIN_ROLE_BY_USERNAME
         : (moduleRoleConfig.roleByUsername && typeof moduleRoleConfig.roleByUsername === "object" ? moduleRoleConfig.roleByUsername : {}),
