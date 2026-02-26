@@ -230,6 +230,7 @@
       const signModule = modules.sign || {};
       const gambleModule = modules.gambling || modules.gamble || {};
       const dropsModule = modules.drops || {};
+      const adminPanelModule = modules.adminPanel || {};
 
       const SETTINGS = window.GT_SETTINGS || {};
       const TILE = Number(SETTINGS.TILE_SIZE) || 32;
@@ -533,6 +534,7 @@
       let gemsController = null;
       let rewardsController = null;
       let dropsController = null;
+      let adminPanelController = null;
       let editReachTiles = DEFAULT_EDIT_REACH_TILES;
       let worldLockEditContext = null;
       let doorEditContext = null;
@@ -1140,6 +1142,54 @@
           postLocalSystemChat
         });
         return dropsController;
+      }
+
+      function getAdminPanelController() {
+        if (adminPanelController) return adminPanelController;
+        if (typeof adminPanelModule.createController !== "function") return null;
+        adminPanelController = adminPanelModule.createController({
+          getNetwork: () => network,
+          getBackupModule: () => backupModule,
+          getFirebase: () => (typeof firebase !== "undefined" ? firebase : (window.firebase || null)),
+          getBasePath: () => BASE_PATH,
+          getPlayerProfileId: () => playerProfileId,
+          getPlayerName: () => playerName,
+          getInWorld: () => inWorld,
+          getCurrentWorldId: () => currentWorldId,
+          getIsAdminOpen: () => isAdminOpen,
+          getAdminState: () => adminState,
+          getAdminAccountsEl: () => adminAccountsEl,
+          getAdminAuditActionFilterEl: () => adminAuditActionFilterEl,
+          getAdminBackupUploadInput: () => adminBackupUploadInput,
+          getAdminBackupList: () => adminBackupList,
+          setAdminBackupList: (value) => {
+            adminBackupList = Array.isArray(value) ? value : [];
+          },
+          getAdminBackupSelectedId: () => adminBackupSelectedId,
+          setAdminBackupSelectedId: (value) => {
+            adminBackupSelectedId = String(value || "").trim();
+          },
+          getAdminBackupLoading: () => adminBackupLoading,
+          setAdminBackupLoading: (value) => {
+            adminBackupLoading = Boolean(value);
+          },
+          getAdminAuditActionFilter: () => adminAuditActionFilter,
+          setAdminAuditActionFilter: (value) => {
+            adminAuditActionFilter = String(value || "").trim().toLowerCase();
+          },
+          getAdminAuditActorFilter: () => adminAuditActorFilter,
+          getAdminAuditTargetFilter: () => adminAuditTargetFilter,
+          hasAdminPermission,
+          formatChatTimestamp,
+          escapeHtml,
+          renderAdminPanel,
+          refreshAdminBackups,
+          logAdminAudit,
+          pushAdminAuditEntry,
+          postLocalSystemChat,
+          switchWorld
+        });
+        return adminPanelController;
       }
 
       function logAntiCheatEvent(rule, severity, details) {
@@ -2319,222 +2369,56 @@
       }
 
       function getAdminBackupOptionsMarkup() {
-        if (!adminBackupList.length) {
-          return "<option value=''>No backups found</option>";
+        const ctrl = getAdminPanelController();
+        if (ctrl && typeof ctrl.getAdminBackupOptionsMarkup === "function") {
+          return ctrl.getAdminBackupOptionsMarkup();
         }
-        return adminBackupList.map((row) => {
-          const createdAt = Number(row.createdAt) || 0;
-          const when = createdAt > 0 ? formatChatTimestamp(createdAt) : "--:--";
-          const by = String(row.createdByUsername || "").trim() || "unknown";
-          const label = row.id + " | " + when + " | @" + by;
-          const selected = row.id === adminBackupSelectedId ? " selected" : "";
-          return "<option value='" + escapeHtml(row.id) + "'" + selected + ">" + escapeHtml(label) + "</option>";
-        }).join("");
+        if (!adminBackupList.length) return "<option value=''>No backups found</option>";
+        return adminBackupList.map((row) => "<option value='" + escapeHtml(row.id) + "'>" + escapeHtml(String(row.id || "")) + "</option>").join("");
       }
 
       function refreshAdminBackups(force) {
-        if (!hasAdminPermission("db_restore")) return Promise.resolve([]);
-        if (!network.db) return Promise.resolve([]);
-        if (adminBackupLoading && !force) return Promise.resolve(adminBackupList.slice());
-        adminBackupLoading = true;
-        const listFn = typeof backupModule.listBackups === "function"
-          ? backupModule.listBackups({
-            db: network.db,
-            basePath: BASE_PATH,
-            limit: 80
-          })
-          : network.db.ref(BASE_PATH + "/backups").limitToLast(80).once("value").then((snapshot) => {
-            const data = snapshot && snapshot.val ? (snapshot.val() || {}) : {};
-            return Object.keys(data).map((id) => {
-              const value = data[id] || {};
-              return {
-                id: String(id || ""),
-                createdAt: Number(value.createdAt) || 0,
-                createdByUsername: (value.createdByUsername || "").toString()
-              };
-            }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-          });
-        return Promise.resolve(listFn).then((rows) => {
-          adminBackupList = Array.isArray(rows) ? rows.filter((row) => row && row.id) : [];
-          if (!adminBackupList.some((row) => row.id === adminBackupSelectedId)) {
-            adminBackupSelectedId = adminBackupList.length ? adminBackupList[0].id : "";
-          }
-          if (isAdminOpen) {
-            renderAdminPanel();
-          }
-          return adminBackupList.slice();
-        }).catch(() => {
-          if (isAdminOpen) {
-            postLocalSystemChat("Failed to load backups.");
-          }
-          return [];
-        }).finally(() => {
-          adminBackupLoading = false;
-        });
+        const ctrl = getAdminPanelController();
+        if (ctrl && typeof ctrl.refreshAdminBackups === "function") {
+          return ctrl.refreshAdminBackups(force);
+        }
+        return Promise.resolve([]);
       }
 
       function runDatabaseBackup(sourceTag) {
-        if (!network.db || !hasAdminPermission("db_backup")) {
-          postLocalSystemChat("Permission denied.");
-          return;
+        const ctrl = getAdminPanelController();
+        if (ctrl && typeof ctrl.runDatabaseBackup === "function") {
+          ctrl.runDatabaseBackup(sourceTag);
         }
-        postLocalSystemChat("Creating database backup...");
-        const createFn = typeof backupModule.createBackup === "function"
-          ? backupModule.createBackup({
-            db: network.db,
-            firebase,
-            basePath: BASE_PATH,
-            createdByAccountId: playerProfileId || "",
-            createdByUsername: playerName || ""
-          })
-          : Promise.reject(new Error("backup module unavailable"));
-        Promise.resolve(createFn).then((result) => {
-          const backupId = (result && result.id ? result.id : "").toString();
-          if (backupId) {
-            adminBackupSelectedId = backupId;
-          }
-          logAdminAudit("Admin(" + (sourceTag || "panel") + ") created database backup " + backupId + ".");
-          pushAdminAuditEntry("db_backup", "", "backupId=" + backupId);
-          postLocalSystemChat("Backup created: " + backupId + ".");
-          refreshAdminBackups(true);
-        }).catch((error) => {
-          const msg = error && error.message ? error.message : "unknown error";
-          postLocalSystemChat("Backup failed: " + msg + ".");
-        });
       }
 
       function runDatabaseRestore(backupId, sourceTag) {
-        const safeBackupId = String(backupId || "").trim();
-        if (!network.db || !hasAdminPermission("db_restore")) {
-          postLocalSystemChat("Permission denied.");
-          return;
+        const ctrl = getAdminPanelController();
+        if (ctrl && typeof ctrl.runDatabaseRestore === "function") {
+          ctrl.runDatabaseRestore(backupId, sourceTag);
         }
-        if (!safeBackupId) {
-          postLocalSystemChat("Select a backup to restore.");
-          return;
-        }
-        const accepted = window.confirm("Restore backup " + safeBackupId + "? This replaces current game data but keeps backups.");
-        if (!accepted) return;
-        postLocalSystemChat("Restoring backup " + safeBackupId + "...");
-        const restoreFn = typeof backupModule.restoreBackup === "function"
-          ? backupModule.restoreBackup({
-            db: network.db,
-            firebase,
-            basePath: BASE_PATH,
-            backupId: safeBackupId
-          })
-          : Promise.reject(new Error("backup module unavailable"));
-        Promise.resolve(restoreFn).then(() => {
-          adminBackupSelectedId = safeBackupId;
-          logAdminAudit("Admin(" + (sourceTag || "panel") + ") restored database backup " + safeBackupId + ".");
-          pushAdminAuditEntry("db_restore", "", "backupId=" + safeBackupId);
-          postLocalSystemChat("Backup restored: " + safeBackupId + ".");
-          refreshAdminBackups(true);
-          if (inWorld && currentWorldId) {
-            setTimeout(() => {
-              if (!inWorld || !currentWorldId) return;
-              switchWorld(currentWorldId, true);
-            }, 220);
-          }
-        }).catch((error) => {
-          const msg = error && error.message ? error.message : "unknown error";
-          postLocalSystemChat("Restore failed: " + msg + ".");
-        });
       }
 
       function getSelectedBackupId() {
-        const backupEl = adminAccountsEl.querySelector(".admin-console-backup");
-        const fromUi = backupEl instanceof HTMLSelectElement ? String(backupEl.value || "").trim() : "";
-        if (fromUi) {
-          adminBackupSelectedId = fromUi;
-          return fromUi;
+        const ctrl = getAdminPanelController();
+        if (ctrl && typeof ctrl.getSelectedBackupId === "function") {
+          return ctrl.getSelectedBackupId();
         }
         return String(adminBackupSelectedId || "").trim();
       }
 
       function downloadSelectedBackupJson() {
-        if (!network.db || !hasAdminPermission("db_restore")) {
-          postLocalSystemChat("Permission denied.");
-          return;
+        const ctrl = getAdminPanelController();
+        if (ctrl && typeof ctrl.downloadSelectedBackupJson === "function") {
+          ctrl.downloadSelectedBackupJson();
         }
-        const backupId = getSelectedBackupId();
-        if (!backupId) {
-          postLocalSystemChat("Select a backup first.");
-          return;
-        }
-        postLocalSystemChat("Preparing backup JSON...");
-        const exportFn = typeof backupModule.exportBackupJson === "function"
-          ? backupModule.exportBackupJson({
-            db: network.db,
-            basePath: BASE_PATH,
-            backupId
-          })
-          : Promise.reject(new Error("backup module unavailable"));
-        Promise.resolve(exportFn).then((payload) => {
-          const json = JSON.stringify(payload || {}, null, 2);
-          const blob = new Blob([json], { type: "application/json" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "gt-backup-" + backupId + ".json";
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
-          logAdminAudit("Admin(panel) downloaded backup JSON " + backupId + ".");
-          pushAdminAuditEntry("db_export_json", "", "backupId=" + backupId);
-          postLocalSystemChat("Downloaded backup JSON: " + backupId + ".");
-        }).catch((error) => {
-          const msg = error && error.message ? error.message : "unknown error";
-          postLocalSystemChat("Download failed: " + msg + ".");
-        });
       }
 
       function importBackupJsonFile(file) {
-        if (!file) return;
-        if (!network.db || !hasAdminPermission("db_backup")) {
-          postLocalSystemChat("Permission denied.");
-          return;
+        const ctrl = getAdminPanelController();
+        if (ctrl && typeof ctrl.importBackupJsonFile === "function") {
+          ctrl.importBackupJsonFile(file);
         }
-        file.text().then((text) => {
-          let parsed = null;
-          try {
-            parsed = JSON.parse(String(text || "{}"));
-          } catch (error) {
-            postLocalSystemChat("Invalid JSON file.");
-            return;
-          }
-          postLocalSystemChat("Importing backup JSON...");
-          const importFn = typeof backupModule.importBackupJson === "function"
-            ? backupModule.importBackupJson({
-              db: network.db,
-              firebase,
-              basePath: BASE_PATH,
-              createdByAccountId: playerProfileId || "",
-              createdByUsername: playerName || "",
-              json: parsed
-            })
-            : Promise.reject(new Error("backup module unavailable"));
-          Promise.resolve(importFn).then((result) => {
-            const backupId = (result && result.id ? result.id : "").toString();
-            if (backupId) {
-              adminBackupSelectedId = backupId;
-            }
-            logAdminAudit("Admin(panel) imported backup JSON as " + backupId + ".");
-            pushAdminAuditEntry("db_import_json", "", "backupId=" + backupId);
-            postLocalSystemChat("Imported backup JSON as " + backupId + ".");
-            refreshAdminBackups(true);
-          }).catch((error) => {
-            const msg = error && error.message ? error.message : "unknown error";
-            postLocalSystemChat("Import failed: " + msg + ".");
-          });
-        }).catch(() => {
-          postLocalSystemChat("Failed to read JSON file.");
-        }).finally(() => {
-          if (adminBackupUploadInput) {
-            adminBackupUploadInput.value = "";
-          }
-        });
       }
 
       function closeFriendModals() {
@@ -3511,41 +3395,17 @@
       }
 
       function refreshAuditActionFilterOptions() {
-        if (!(adminAuditActionFilterEl instanceof HTMLSelectElement)) return;
-        const current = adminAuditActionFilterEl.value || "";
-        const actions = Array.from(new Set((adminState.audit || []).map((entry) => (entry.action || "").toString().trim()).filter(Boolean))).sort();
-        const options = ['<option value="">All actions</option>'].concat(actions.map((action) => {
-          const safe = escapeHtml(action);
-          return '<option value="' + safe + '">' + safe + "</option>";
-        }));
-        adminAuditActionFilterEl.innerHTML = options.join("");
-        adminAuditActionFilterEl.value = actions.includes(current) ? current : "";
+        const ctrl = getAdminPanelController();
+        if (ctrl && typeof ctrl.refreshAuditActionFilterOptions === "function") {
+          ctrl.refreshAuditActionFilterOptions();
+        }
       }
 
       function exportAuditTrail() {
-        if (!hasAdminPermission("view_audit")) {
-          postLocalSystemChat("Permission denied.");
-          return;
+        const ctrl = getAdminPanelController();
+        if (ctrl && typeof ctrl.exportAuditTrail === "function") {
+          ctrl.exportAuditTrail();
         }
-        const rows = (adminState.audit || []).map((entry) => ({
-          createdAt: entry.createdAt || 0,
-          time: entry.time || "",
-          actor: entry.actor || "",
-          action: entry.action || "",
-          target: entry.target || "",
-          details: entry.details || ""
-        }));
-        const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "growtopia-admin-audit-" + stamp + ".json";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        postLocalSystemChat("Audit exported (" + rows.length + " entries).");
       }
 
       function buildAssetVersionTag() {
