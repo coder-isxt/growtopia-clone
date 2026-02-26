@@ -31,7 +31,7 @@ window.GTModules.blocks = (function createBlocksModule() {
     { id: 22, key: "display_block", name: "Display Block", color: "#314154", solid: true, icon: "DP", faIcon: "fa-regular fa-square" },
     { id: 23, key: "wood_plank", name: "Wooden Plank", color: "#b4bcc5", solid: true, icon: "WP", faIcon: "fa-regular fa-square", image: "special/plank.png" },
     { id: 24, key: "obsidian_lock", name: "Obsidian Lock", color: "#5f4b7d", solid: true, worldLock: true, lockValue: 100, lockAutoConvert: true, icon: "OL", faIcon: "fa-solid fa-gem", image: "special/obsidian_lock.png" },
-    { id: 43, key: "splicing_machine", name: "Splicing Machine", color: "#7a5b38", solid: true, icon: "SMX", faIcon: "fa-solid fa-microscope" },
+    { id: 51, key: "splicing_machine", name: "Splicing Machine", color: "#7a5b38", solid: true, icon: "SMX", faIcon: "fa-solid fa-microscope" },
     { id: 32, key: "gamble_machine", name: "Gambling Machine", color: "#7b5db7", solid: true, seedable: false, icon: "GM", faIcon: "fa-solid fa-dice", image: "special/roulette.png" },
     { id: 42, key: "emerald_lock", name: "Emerald Lock", color: "#3dbd70", solid: true, worldLock: true, lockValue: 10000, lockAutoConvert: true, icon: "EL", faIcon: "fa-solid fa-gem", image: "special/emerald_lock.png" },
     

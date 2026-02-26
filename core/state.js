@@ -427,9 +427,26 @@ window.GTModules.state = (function createStateModule() {
     setValue("CAMERA_ZOOM_MAX", Math.max(root.CAMERA_ZOOM_MIN + 0.1, Number(settings.CAMERA_ZOOM_MAX) || 2.2));
     setValue("CAMERA_ZOOM_STEP", Math.max(0.05, Number(settings.CAMERA_ZOOM_STEP) || 0.12));
 
-    setValue("baseBlockDefs", typeof blocksModuleRef.getBlockDefs === "function" ? blocksModuleRef.getBlockDefs() : {});
-    setValue("farmableBlockDefs", typeof farmablesModuleRef.getFarmableDefs === "function" ? farmablesModuleRef.getFarmableDefs() : {});
-    setValue("worldBlockDefs", { ...root.baseBlockDefs, ...root.farmableBlockDefs });
+    const baseDefs = typeof blocksModuleRef.getBlockDefs === "function" ? blocksModuleRef.getBlockDefs() : {};
+    const rawFarmableDefs = typeof farmablesModuleRef.getFarmableDefs === "function" ? farmablesModuleRef.getFarmableDefs() : {};
+    const mergedFarmableDefs = {};
+    const farmableBlockIdCollisions = [];
+    Object.keys(rawFarmableDefs || {}).forEach((idRaw) => {
+      const id = Math.floor(Number(idRaw));
+      if (!Number.isInteger(id) || id < 0) return;
+      if (baseDefs[id]) {
+        farmableBlockIdCollisions.push(id);
+        return;
+      }
+      mergedFarmableDefs[id] = rawFarmableDefs[id];
+    });
+    if (farmableBlockIdCollisions.length) {
+      console.warn("[farmables] Ignoring overlapping farmable ids:", farmableBlockIdCollisions.join(", "));
+    }
+    setValue("baseBlockDefs", baseDefs);
+    setValue("farmableBlockDefs", mergedFarmableDefs);
+    setValue("farmableBlockIdCollisions", farmableBlockIdCollisions);
+    setValue("worldBlockDefs", { ...baseDefs, ...mergedFarmableDefs });
     setValue("SPAWN_TILE_X", 8);
     setValue("SPAWN_TILE_Y", 11);
     setValue("SPAWN_DOOR_ID", 7);
@@ -474,7 +491,7 @@ window.GTModules.state = (function createStateModule() {
     setValue(
       "farmableRegistry",
       typeof farmablesModuleRef.createRegistry === "function"
-        ? farmablesModuleRef.createRegistry(root.worldBlockDefs, {})
+        ? farmablesModuleRef.createRegistry(root.farmableBlockDefs, {})
         : {
             ids: [],
             byId: {},

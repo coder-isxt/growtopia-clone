@@ -131,16 +131,44 @@
       const SPLICER_ID = (() => {
         const machine = Object.values(blockDefs).find((def) => def && def.key === "splicing_machine");
         const id = machine ? Math.floor(Number(machine.id) || 0) : 0;
-        return id > 0 ? id : 43;
+        return id > 0 ? id : 51;
       })();
-      const INVENTORY_IDS = Object.keys(blockDefs)
+      const BASE_BLOCK_INVENTORY_IDS = Object.keys(baseBlockDefs || {})
         .map((id) => Math.floor(Number(id)))
-        .filter((id) => Number.isInteger(id) && id > 0)
+        .filter((id) => Number.isInteger(id) && id > 0 && blockDefs[id])
         .sort((a, b) => a - b);
-      const SEED_INVENTORY_IDS = INVENTORY_IDS.filter((id) => PLANT_SEED_ID_SET.has(id));
-      const BLOCK_ONLY_INVENTORY_IDS = INVENTORY_IDS.filter((id) => !PLANT_SEED_ID_SET.has(id));
-      const FARMABLE_INVENTORY_IDS = BLOCK_ONLY_INVENTORY_IDS.filter((id) => farmableRegistry.isFarmable(id));
-      const NORMAL_BLOCK_INVENTORY_IDS = BLOCK_ONLY_INVENTORY_IDS.filter((id) => !FARMABLE_INVENTORY_IDS.includes(id));
+      const FARMABLE_INVENTORY_IDS = (Array.isArray(farmableRegistry.ids) ? farmableRegistry.ids : [])
+        .map((id) => Math.floor(Number(id)))
+        .filter((id) => Number.isInteger(id) && id > 0 && blockDefs[id])
+        .sort((a, b) => a - b);
+      const SEED_INVENTORY_IDS = Object.keys(seedRegistry.defs || {})
+        .map((id) => Math.floor(Number(id)))
+        .filter((id) => Number.isInteger(id) && id > 0 && blockDefs[id])
+        .sort((a, b) => a - b);
+      const blockOnlyInventorySet = new Set();
+      const BLOCK_ONLY_INVENTORY_IDS = [];
+      for (let i = 0; i < BASE_BLOCK_INVENTORY_IDS.length; i++) {
+        const id = BASE_BLOCK_INVENTORY_IDS[i];
+        if (blockOnlyInventorySet.has(id)) continue;
+        blockOnlyInventorySet.add(id);
+        BLOCK_ONLY_INVENTORY_IDS.push(id);
+      }
+      for (let i = 0; i < FARMABLE_INVENTORY_IDS.length; i++) {
+        const id = FARMABLE_INVENTORY_IDS[i];
+        if (blockOnlyInventorySet.has(id)) continue;
+        blockOnlyInventorySet.add(id);
+        BLOCK_ONLY_INVENTORY_IDS.push(id);
+      }
+      const inventoryIdSet = new Set(BLOCK_ONLY_INVENTORY_IDS);
+      const INVENTORY_IDS = BLOCK_ONLY_INVENTORY_IDS.slice();
+      for (let i = 0; i < SEED_INVENTORY_IDS.length; i++) {
+        const id = SEED_INVENTORY_IDS[i];
+        if (inventoryIdSet.has(id)) continue;
+        inventoryIdSet.add(id);
+        INVENTORY_IDS.push(id);
+      }
+      const farmableInventoryIdSet = new Set(FARMABLE_INVENTORY_IDS);
+      const NORMAL_BLOCK_INVENTORY_IDS = BLOCK_ONLY_INVENTORY_IDS.filter((id) => !farmableInventoryIdSet.has(id));
       const slotOrder = [TOOL_FIST, TOOL_WRENCH].concat(INVENTORY_IDS);
       const cosmeticBundle = typeof cosmeticsModule.buildCatalog === "function"
         ? cosmeticsModule.buildCatalog(itemsModule)
