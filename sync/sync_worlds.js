@@ -109,6 +109,36 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
     const clearBlockValue = typeof opts.clearBlockValue === "function" ? opts.clearBlockValue : () => {};
     const addChatMessage = typeof opts.addChatMessage === "function" ? opts.addChatMessage : () => {};
     const onPlayerHit = typeof opts.onPlayerHit === "function" ? opts.onPlayerHit : () => {};
+    const normalizeGradientColors = (raw) => {
+      const src = Array.isArray(raw) ? raw : (typeof raw === "string" ? raw.split(/[|,]/g) : []);
+      const out = [];
+      for (let i = 0; i < src.length; i++) {
+        const color = String(src[i] || "").trim().slice(0, 24);
+        if (!color) continue;
+        out.push(color);
+        if (out.length >= 6) break;
+      }
+      if (!out.length) {
+        out.push("#8fb4ff", "#f7fbff");
+      } else if (out.length === 1) {
+        out.push("#f7fbff");
+      }
+      return out;
+    };
+    const normalizeTitleStyle = (rawStyle) => {
+      const style = rawStyle && typeof rawStyle === "object" ? rawStyle : {};
+      const angle = Number(style.gradientAngle);
+      return {
+        bold: Boolean(style.bold),
+        glow: Boolean(style.glow),
+        rainbow: Boolean(style.rainbow),
+        glowColor: String(style.glowColor || "").slice(0, 24),
+        gradient: Boolean(style.gradient),
+        gradientShift: style.gradientShift !== false,
+        gradientAngle: Number.isFinite(angle) ? Math.max(-360, Math.min(360, angle)) : 90,
+        gradientColors: normalizeGradientColors(style.gradientColors || style.colors)
+      };
+    };
     const normalizeTitle = (value) => {
       const raw = value && typeof value === "object" ? value : {};
       const rawStyle = raw.style && typeof raw.style === "object" ? raw.style : {};
@@ -116,12 +146,7 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
         id: String(raw.id || "").slice(0, 32),
         name: String(raw.name || "").slice(0, 24),
         color: String(raw.color || "").slice(0, 24),
-        style: {
-          bold: Boolean(rawStyle.bold),
-          glow: Boolean(rawStyle.glow),
-          rainbow: Boolean(rawStyle.rainbow),
-          glowColor: String(rawStyle.glowColor || "").slice(0, 24)
-        }
+        style: normalizeTitleStyle(rawStyle)
       };
     };
     const normalizeRemotePlayer = (id, p) => ({
@@ -214,12 +239,7 @@ window.GTModules.syncWorlds = (function createSyncWorldsModule() {
         titleId: (value.titleId || "").toString().slice(0, 32),
         titleName: (value.titleName || "").toString().slice(0, 24),
         titleColor: (value.titleColor || "").toString().slice(0, 24),
-        titleStyle: {
-          bold: Boolean(rawTitleStyle.bold),
-          glow: Boolean(rawTitleStyle.glow),
-          rainbow: Boolean(rawTitleStyle.rainbow),
-          glowColor: String(rawTitleStyle.glowColor || "").slice(0, 24)
-        },
+        titleStyle: normalizeTitleStyle(rawTitleStyle),
         text: (value.text || "").toString().slice(0, 120),
         createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now()
       });

@@ -612,9 +612,29 @@ canvas {
   animation: chatTitleRainbow 3s linear infinite;
 }
 
+.chat-title-gradient {
+  --title-gradient-angle: 90deg;
+  --title-gradient-colors: #ff7a7a, #ffd166, #63d39b, #70a8ff;
+  background-image: linear-gradient(var(--title-gradient-angle), var(--title-gradient-colors));
+  background-size: 220% 220%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+}
+
+.chat-title-gradient-animated {
+  animation: chatTitleGradientShift 4.2s ease-in-out infinite;
+}
+
 @keyframes chatTitleRainbow {
   0% { background-position: 0% 50%; }
   100% { background-position: 300% 50%; }
+}
+
+@keyframes chatTitleGradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 .chat-input-row {

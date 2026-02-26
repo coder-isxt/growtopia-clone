@@ -80,6 +80,23 @@ window.GTModules.syncPlayer = (function createSyncPlayerModule() {
     const rawTitleStyle = rawTitle && rawTitle.style && typeof rawTitle.style === "object" ? rawTitle.style : {};
     const rawProgression = data && data.progression && typeof data.progression === "object" ? data.progression : {};
     const rawAchievements = data && data.achievements && typeof data.achievements === "object" ? data.achievements : {};
+    const normalizeGradientColors = (raw) => {
+      const src = Array.isArray(raw) ? raw : (typeof raw === "string" ? raw.split(/[|,]/g) : []);
+      const out = [];
+      for (let i = 0; i < src.length; i++) {
+        const color = String(src[i] || "").trim().slice(0, 24);
+        if (!color) continue;
+        out.push(color);
+        if (out.length >= 6) break;
+      }
+      if (!out.length) {
+        out.push("#8fb4ff", "#f7fbff");
+      } else if (out.length === 1) {
+        out.push("#f7fbff");
+      }
+      return out;
+    };
+    const gradientAngle = Number(rawTitleStyle.gradientAngle);
     return {
       name: String(data.name || "").slice(0, 16),
       accountId: String(data.accountId || ""),
@@ -102,7 +119,11 @@ window.GTModules.syncPlayer = (function createSyncPlayerModule() {
           bold: Boolean(rawTitleStyle.bold),
           glow: Boolean(rawTitleStyle.glow),
           rainbow: Boolean(rawTitleStyle.rainbow),
-          glowColor: String(rawTitleStyle.glowColor || "").slice(0, 24)
+          glowColor: String(rawTitleStyle.glowColor || "").slice(0, 24),
+          gradient: Boolean(rawTitleStyle.gradient),
+          gradientShift: rawTitleStyle.gradientShift !== false,
+          gradientAngle: Number.isFinite(gradientAngle) ? Math.max(-360, Math.min(360, gradientAngle)) : 90,
+          gradientColors: normalizeGradientColors(rawTitleStyle.gradientColors || rawTitleStyle.colors)
         }
       },
       progression: {

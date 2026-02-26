@@ -195,6 +195,17 @@
         .map((raw) => {
           const row = raw && typeof raw === "object" ? raw : {};
           const styleRaw = row.style && typeof row.style === "object" ? row.style : {};
+          const rawGradientColors = styleRaw.gradientColors != null ? styleRaw.gradientColors : styleRaw.colors;
+          const gradientSource = Array.isArray(rawGradientColors)
+            ? rawGradientColors
+            : (typeof rawGradientColors === "string" ? rawGradientColors.split(/[|,]/g) : []);
+          const gradientColors = gradientSource
+            .map((color) => String(color || "").trim().slice(0, 24))
+            .filter(Boolean)
+            .slice(0, 6);
+          if (!gradientColors.length) gradientColors.push("#8fb4ff", "#f7fbff");
+          if (gradientColors.length === 1) gradientColors.push("#f7fbff");
+          const gradientAngleRaw = Number(styleRaw.gradientAngle);
           return {
             id: String(row.id || "").trim().slice(0, 32),
             name: String(row.name || "").trim().slice(0, 24),
@@ -204,7 +215,11 @@
               bold: Boolean(styleRaw.bold),
               glow: Boolean(styleRaw.glow),
               rainbow: Boolean(styleRaw.rainbow),
-              glowColor: String(styleRaw.glowColor || "").trim().slice(0, 24)
+              glowColor: String(styleRaw.glowColor || "").trim().slice(0, 24),
+              gradient: Boolean(styleRaw.gradient),
+              gradientShift: styleRaw.gradientShift !== false,
+              gradientAngle: Number.isFinite(gradientAngleRaw) ? Math.max(-360, Math.min(360, gradientAngleRaw)) : 90,
+              gradientColors
             }
           };
         })
@@ -4365,22 +4380,13 @@
           const equipped = equippedTitleId === title.id;
           const previewName = formatTitleWithUsername(title.name || title.id, playerName || "Player");
           const style = normalizeTitleStyle(title.style);
-          const previewClass = "title-menu-preview" + (style.rainbow ? " chat-title-rainbow" : "");
-          const previewStyle = [];
-          if (!style.rainbow) {
-            previewStyle.push("color:" + escapeHtml(title.color || "#8fb4ff"));
-          }
-          if (style.bold) {
-            previewStyle.push("font-weight:800");
-          }
-          if (style.glow) {
-            const glowColor = escapeHtml(style.glowColor || title.color || "#8fb4ff");
-            previewStyle.push("text-shadow:0 0 10px " + glowColor + ",0 0 16px " + glowColor);
-          }
+          const previewView = buildTitleTextView(style, title.color || "#8fb4ff");
+          const previewClass = ["title-menu-preview"].concat(previewView.classes).join(" ");
+          const previewStyleText = previewView.inlineStyles.join(";");
           rows.push(
             "<div class='vending-section'>" +
               "<div class='vending-stat-grid'>" +
-                "<div class='vending-stat'><span>Title</span><strong class='" + previewClass + "'" + (previewStyle.length ? (" style='" + previewStyle.join(";") + "'") : "") + ">" + escapeHtml(previewName) + "</strong></div>" +
+                "<div class='vending-stat'><span>Title</span><strong class='" + previewClass + "'" + (previewStyleText ? (" style='" + escapeHtml(previewStyleText) + "'") : "") + ">" + escapeHtml(previewName) + "</strong></div>" +
                 //"<div class='vending-stat'><span>Status</span><strong>" + (equipped ? "Equipped" : "Unlocked") + "</strong></div>" +
               "</div>" +
               "<div class='vending-actions' style='justify-content:flex-start;'>" +
@@ -4776,12 +4782,91 @@
 
       function normalizeTitleStyle(styleRaw) {
         const style = styleRaw && typeof styleRaw === "object" ? styleRaw : {};
+        const baseColor = sanitizeTitleColorValue(style.color || style.glowColor || "#8fb4ff", "#8fb4ff");
         return {
           bold: Boolean(style.bold),
           glow: Boolean(style.glow),
           rainbow: Boolean(style.rainbow),
-          glowColor: String(style.glowColor || "").trim().slice(0, 24)
+          glowColor: sanitizeTitleColorValue(style.glowColor || "", ""),
+          gradient: Boolean(style.gradient),
+          gradientShift: style.gradientShift !== false,
+          gradientAngle: normalizeTitleGradientAngle(style.gradientAngle),
+          gradientColors: normalizeTitleGradientColors(style.gradientColors || style.colors, baseColor)
         };
+      }
+
+      function sanitizeTitleColorValue(raw, fallback) {
+        const value = String(raw || "").trim().slice(0, 40);
+        if (!value) return String(fallback || "");
+        const HEX = /^#[0-9a-fA-F]{3,8}$/;
+        const RGB = /^rgba?\(\s*[\d.\s,%-]+\)$/i;
+        const HSL = /^hsla?\(\s*[\d.\s,%-]+\)$/i;
+        const NAMED = /^[a-zA-Z]{3,20}$/;
+        if (HEX.test(value) || RGB.test(value) || HSL.test(value) || NAMED.test(value)) {
+          return value;
+        }
+        return String(fallback || "");
+      }
+
+      function normalizeTitleGradientAngle(raw) {
+        const angleNum = Number(raw);
+        if (!Number.isFinite(angleNum)) return 90;
+        return Math.max(-360, Math.min(360, Math.round(angleNum * 100) / 100));
+      }
+
+      function normalizeTitleGradientColors(raw, fallbackColor) {
+        const fallbackA = sanitizeTitleColorValue(fallbackColor, "#8fb4ff");
+        const fallbackB = "#f7fbff";
+        let source = [];
+        if (Array.isArray(raw)) {
+          source = raw;
+        } else if (typeof raw === "string") {
+          source = raw.split(/[|,]/g);
+        }
+        const out = [];
+        for (let i = 0; i < source.length; i++) {
+          const color = sanitizeTitleColorValue(source[i], "");
+          if (!color) continue;
+          out.push(color);
+          if (out.length >= 6) break;
+        }
+        if (!out.length) {
+          return [fallbackA, fallbackB];
+        }
+        if (out.length === 1) {
+          out.push(fallbackB);
+        }
+        return out;
+      }
+
+      function buildTitleTextView(styleInput, baseColorInput) {
+        const baseColor = sanitizeTitleColorValue(baseColorInput, "#8fb4ff");
+        const styleSource = styleInput && typeof styleInput === "object" ? styleInput : {};
+        const style = normalizeTitleStyle(Object.assign({ color: baseColor }, styleSource));
+        const classes = [];
+        const inlineStyles = [];
+        if (style.rainbow) {
+          classes.push("chat-title-rainbow");
+        } else if (style.gradient) {
+          classes.push("chat-title-gradient");
+          if (style.gradientShift) {
+            classes.push("chat-title-gradient-animated");
+          }
+          const gradient = style.gradientColors.join(",");
+          inlineStyles.push("--title-gradient-angle:" + style.gradientAngle + "deg");
+          inlineStyles.push("--title-gradient-colors:" + gradient);
+        } else {
+          inlineStyles.push("color:" + baseColor);
+        }
+        if (style.bold) {
+          inlineStyles.push("font-weight:800");
+        }
+        if (style.glow) {
+          const glowFallback = style.gradient ? style.gradientColors[0] : baseColor;
+          const glowColor = sanitizeTitleColorValue(style.glowColor || "", glowFallback);
+          inlineStyles.push("text-shadow:0 0 10px " + glowColor + ",0 0 16px " + glowColor);
+        }
+        return { classes, inlineStyles };
       }
 
       function getTitleStyleById(titleId) {
@@ -5351,17 +5436,12 @@
           if (titleName) {
             const titleEl = document.createElement("span");
             titleEl.className = "chat-title";
-            if (titleStyle.rainbow) {
-              titleEl.classList.add("chat-title-rainbow");
-            } else {
-              titleEl.style.color = titleColor || "#8fb4ff";
+            const titleView = buildTitleTextView(titleStyle, titleColor || "#8fb4ff");
+            for (let i = 0; i < titleView.classes.length; i++) {
+              titleEl.classList.add(titleView.classes[i]);
             }
-            if (titleStyle.bold) {
-              titleEl.style.fontWeight = "800";
-            }
-            if (titleStyle.glow) {
-              const glowColor = titleStyle.glowColor || titleColor || "#8fb4ff";
-              titleEl.style.textShadow = "0 0 10px " + glowColor + ", 0 0 16px " + glowColor;
+            if (titleView.inlineStyles.length) {
+              titleEl.style.cssText = titleView.inlineStyles.join(";");
             }
             titleEl.textContent = "[" + titleName + "] ";
             row.appendChild(titleEl);
