@@ -1,14 +1,35 @@
     (() => {
       const modules = window.GTModules || {};
       const stateModule = modules.state || {};
-      if (typeof stateModule.initDefaultDomRefs !== "function") {
-        throw new Error("state.js module missing: GTModules.state.initDefaultDomRefs");
+      const missingStateApi = typeof stateModule.initDefaultDomRefs !== "function"
+        || typeof stateModule.initDefaultModuleRefs !== "function"
+        || typeof stateModule.initCoreState !== "function";
+      if (missingStateApi) {
+        // Cache/version mismatch guard: old state.js + new game.js.
+        const retryKey = "gt_state_api_reload_once_v1";
+        let canRetry = false;
+        try {
+          canRetry = sessionStorage.getItem(retryKey) !== "1";
+        } catch (error) {
+          canRetry = false;
+        }
+        if (canRetry) {
+          try {
+            sessionStorage.setItem(retryKey, "1");
+            const url = new URL(window.location.href);
+            url.searchParams.set("v", String(Date.now()));
+            window.location.replace(url.toString());
+            return;
+          } catch (error) {
+            // fall through to hard error
+          }
+        }
+        throw new Error("state.js module missing required init API. Reload with a newer ?v= version.");
       }
-      if (typeof stateModule.initDefaultModuleRefs !== "function") {
-        throw new Error("state.js module missing: GTModules.state.initDefaultModuleRefs");
-      }
-      if (typeof stateModule.initCoreState !== "function") {
-        throw new Error("state.js module missing: GTModules.state.initCoreState");
+      try {
+        sessionStorage.removeItem("gt_state_api_reload_once_v1");
+      } catch (error) {
+        // ignore storage errors
       }
       stateModule.initDefaultDomRefs();
       const ctx = canvas.getContext("2d");
