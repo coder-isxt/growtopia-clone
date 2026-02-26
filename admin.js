@@ -1,51 +1,47 @@
 window.GTModules = window.GTModules || {};
 window.GTModules.admin = {
-  DEFAULT_ROLE_RANK: {
-    none: 0,
-    moderator: 1,
-    admin: 2,
-    manager: 3,
-    owner: 4
-  },
-  DEFAULT_PERMISSIONS: {
-    owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "db_backup", "db_restore", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
-    manager: ["panel_open", "view_logs", "view_audit", "clear_logs", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
-    admin: ["panel_open", "view_logs", "view_audit", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
-    moderator: ["panel_open", "kick", "tp", "reach", "bring", "summon", "announce", "announce_user"],
-    none: []
-  },
-  DEFAULT_COMMAND_COOLDOWNS_MS: {
-    owner: {},
-    manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, give_block: 600, give_item: 600, givetitle: 600, removetitle: 600, tp: 300, reach: 500, bring: 700, summon: 700, setrole: 2000, freeze: 700, unfreeze: 700, godmode: 700, clearworld: 2500, announce: 500, announce_user: 500 },
-    admin: { kick: 900, give_block: 900, give_item: 900, givetitle: 900, removetitle: 900, tp: 400, reach: 600, bring: 900, summon: 900, freeze: 900, unfreeze: 900, godmode: 900, clearworld: 3000, announce: 700, announce_user: 700 },
-    moderator: { kick: 1200, tp: 600, reach: 900, bring: 1200, summon: 1200, announce: 900, announce_user: 900 },
-    none: {}
+  resolveRoleConfig(roleConfig) {
+    if (roleConfig && typeof roleConfig === "object") return roleConfig;
+    const globalCfg = globalThis.adminRoleConfig;
+    if (globalCfg && typeof globalCfg === "object") return globalCfg;
+    return {};
   },
   createRoleConfig(settings) {
+    const base = this.resolveRoleConfig();
     const cfg = settings && typeof settings === "object" ? settings : {};
     return {
-      roleRank: cfg.ADMIN_ROLE_RANK && typeof cfg.ADMIN_ROLE_RANK === "object" ? cfg.ADMIN_ROLE_RANK : this.DEFAULT_ROLE_RANK,
-      permissions: cfg.ADMIN_PERMISSIONS && typeof cfg.ADMIN_PERMISSIONS === "object" ? cfg.ADMIN_PERMISSIONS : this.DEFAULT_PERMISSIONS,
-      commandCooldownsMs: cfg.ADMIN_COMMAND_COOLDOWNS_MS && typeof cfg.ADMIN_COMMAND_COOLDOWNS_MS === "object" ? cfg.ADMIN_COMMAND_COOLDOWNS_MS : this.DEFAULT_COMMAND_COOLDOWNS_MS,
-      roleByUsername: cfg.ADMIN_ROLE_BY_USERNAME && typeof cfg.ADMIN_ROLE_BY_USERNAME === "object" ? cfg.ADMIN_ROLE_BY_USERNAME : {},
-      adminUsernames: Array.isArray(cfg.ADMIN_USERNAMES) ? cfg.ADMIN_USERNAMES : ["isxt"]
+      roleRank: cfg.ADMIN_ROLE_RANK && typeof cfg.ADMIN_ROLE_RANK === "object"
+        ? cfg.ADMIN_ROLE_RANK
+        : (base.roleRank && typeof base.roleRank === "object" ? base.roleRank : {}),
+      permissions: cfg.ADMIN_PERMISSIONS && typeof cfg.ADMIN_PERMISSIONS === "object"
+        ? cfg.ADMIN_PERMISSIONS
+        : (base.permissions && typeof base.permissions === "object" ? base.permissions : {}),
+      commandCooldownsMs: cfg.ADMIN_COMMAND_COOLDOWNS_MS && typeof cfg.ADMIN_COMMAND_COOLDOWNS_MS === "object"
+        ? cfg.ADMIN_COMMAND_COOLDOWNS_MS
+        : (base.commandCooldownsMs && typeof base.commandCooldownsMs === "object" ? base.commandCooldownsMs : {}),
+      roleByUsername: cfg.ADMIN_ROLE_BY_USERNAME && typeof cfg.ADMIN_ROLE_BY_USERNAME === "object"
+        ? cfg.ADMIN_ROLE_BY_USERNAME
+        : (base.roleByUsername && typeof base.roleByUsername === "object" ? base.roleByUsername : {}),
+      adminUsernames: Array.isArray(cfg.ADMIN_USERNAMES)
+        ? cfg.ADMIN_USERNAMES
+        : (Array.isArray(base.adminUsernames) ? base.adminUsernames : [])
     };
   },
   normalizeAdminRole(role, roleConfig) {
-    const cfg = roleConfig || {};
-    const roleRank = cfg.roleRank && typeof cfg.roleRank === "object" ? cfg.roleRank : this.DEFAULT_ROLE_RANK;
+    const cfg = this.resolveRoleConfig(roleConfig);
+    const roleRank = cfg.roleRank && typeof cfg.roleRank === "object" ? cfg.roleRank : {};
     const value = String(role || "").trim().toLowerCase();
     return roleRank[value] !== undefined ? value : "none";
   },
   getRoleRank(role, roleConfig) {
-    const cfg = roleConfig || {};
-    const roleRank = cfg.roleRank && typeof cfg.roleRank === "object" ? cfg.roleRank : this.DEFAULT_ROLE_RANK;
+    const cfg = this.resolveRoleConfig(roleConfig);
+    const roleRank = cfg.roleRank && typeof cfg.roleRank === "object" ? cfg.roleRank : {};
     const normalized = this.normalizeAdminRole(role, cfg);
     return Number(roleRank[normalized]) || 0;
   },
   hasAdminPermission(role, permissionKey, roleConfig) {
-    const cfg = roleConfig || {};
-    const permissions = cfg.permissions && typeof cfg.permissions === "object" ? cfg.permissions : this.DEFAULT_PERMISSIONS;
+    const cfg = this.resolveRoleConfig(roleConfig);
+    const permissions = cfg.permissions && typeof cfg.permissions === "object" ? cfg.permissions : {};
     const normalized = this.normalizeAdminRole(role, cfg);
     const list = Array.isArray(permissions[normalized]) ? permissions[normalized] : [];
     const key = String(permissionKey || "").trim();
@@ -65,22 +61,22 @@ window.GTModules.admin = {
     return fallback.some((alt) => list.includes(alt));
   },
   getConfiguredRoleForUsername(username, roleConfig) {
-    const cfg = roleConfig || {};
+    const cfg = this.resolveRoleConfig(roleConfig);
     const normalized = String(username || "").trim().toLowerCase();
     if (!normalized) return "none";
     const roleByUsername = cfg.roleByUsername && typeof cfg.roleByUsername === "object" ? cfg.roleByUsername : {};
     if (roleByUsername[normalized]) {
       return this.normalizeAdminRole(roleByUsername[normalized], cfg);
     }
-    const adminUsernames = Array.isArray(cfg.adminUsernames) ? cfg.adminUsernames : ["isxt"];
+    const adminUsernames = Array.isArray(cfg.adminUsernames) ? cfg.adminUsernames : [];
     if (adminUsernames.includes(normalized)) return "owner";
     return "none";
   },
   getCommandCooldownMs(role, commandKey, roleConfig) {
-    const cfg = roleConfig || {};
+    const cfg = this.resolveRoleConfig(roleConfig);
     const map = cfg.commandCooldownsMs && typeof cfg.commandCooldownsMs === "object"
       ? cfg.commandCooldownsMs
-      : this.DEFAULT_COMMAND_COOLDOWNS_MS;
+      : {};
     const normalized = this.normalizeAdminRole(role, cfg);
     const roleMap = map[normalized] && typeof map[normalized] === "object" ? map[normalized] : {};
     return Number(roleMap[commandKey]) || 0;

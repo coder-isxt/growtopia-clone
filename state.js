@@ -370,32 +370,41 @@ window.GTModules.state = (function createStateModule() {
     setValue("ANTI_GRAV_AIR_JUMP_COOLDOWN_MS", Math.max(70, Number(settings.ANTI_GRAV_AIR_JUMP_COOLDOWN_MS) || 140));
     setValue("BASE_PATH", typeof settings.BASE_PATH === "string" && settings.BASE_PATH ? settings.BASE_PATH : "growtopia-test");
     setValue("LOG_VIEWER_USERNAMES", Array.isArray(settings.LOG_VIEWER_USERNAMES) ? settings.LOG_VIEWER_USERNAMES : ["isxt"]);
-    setValue(
-      "adminRoleConfig",
-      typeof adminModuleRef.createRoleConfig === "function"
-        ? adminModuleRef.createRoleConfig(settings)
-        : {
-            roleRank: { none: 0, moderator: 1, admin: 2, manager: 3, owner: 4 },
-            permissions: {
-              owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "db_backup", "db_restore", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
-              manager: ["panel_open", "view_logs", "view_audit", "clear_logs", "setrole_limited", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
-              admin: ["panel_open", "view_logs", "view_audit", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
-              moderator: ["panel_open", "kick", "tp", "reach", "bring", "summon", "announce", "announce_user"],
-              none: []
-            },
-            commandCooldownsMs: settings.ADMIN_COMMAND_COOLDOWNS_MS && typeof settings.ADMIN_COMMAND_COOLDOWNS_MS === "object"
-              ? settings.ADMIN_COMMAND_COOLDOWNS_MS
-              : {
-                  owner: {},
-                  manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, give_block: 600, give_item: 600, givetitle: 600, removetitle: 600, tp: 300, reach: 500, bring: 700, summon: 700, setrole: 2000, freeze: 700, unfreeze: 700, godmode: 700, clearworld: 2500, announce: 500, announce_user: 500 },
-                  admin: { kick: 900, give_block: 900, give_item: 900, givetitle: 900, removetitle: 900, tp: 400, reach: 600, bring: 900, summon: 900, freeze: 900, unfreeze: 900, godmode: 900, clearworld: 3000, announce: 700, announce_user: 700 },
-                  moderator: { kick: 1200, tp: 600, reach: 900, bring: 1200, summon: 1200, announce: 900, announce_user: 900 },
-                  none: {}
-                },
-            roleByUsername: settings.ADMIN_ROLE_BY_USERNAME && typeof settings.ADMIN_ROLE_BY_USERNAME === "object" ? settings.ADMIN_ROLE_BY_USERNAME : {},
-            adminUsernames: Array.isArray(settings.ADMIN_USERNAMES) ? settings.ADMIN_USERNAMES : ["isxt"]
-          }
-    );
+    const DEFAULT_ADMIN_ROLE_RANK = { none: 0, moderator: 1, admin: 2, manager: 3, owner: 4 };
+    const DEFAULT_ADMIN_PERMISSIONS = {
+      owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "db_backup", "db_restore", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+      manager: ["panel_open", "view_logs", "view_audit", "clear_logs", "setrole_limited", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+      admin: ["panel_open", "view_logs", "view_audit", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+      moderator: ["panel_open", "kick", "tp", "reach", "bring", "summon", "announce", "announce_user"],
+      none: []
+    };
+    const DEFAULT_ADMIN_COMMAND_COOLDOWNS_MS = {
+      owner: {},
+      manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, give_block: 600, give_item: 600, givetitle: 600, removetitle: 600, tp: 300, reach: 500, bring: 700, summon: 700, setrole: 2000, freeze: 700, unfreeze: 700, godmode: 700, clearworld: 2500, announce: 500, announce_user: 500 },
+      admin: { kick: 900, give_block: 900, give_item: 900, givetitle: 900, removetitle: 900, tp: 400, reach: 600, bring: 900, summon: 900, freeze: 900, unfreeze: 900, godmode: 900, clearworld: 3000, announce: 700, announce_user: 700 },
+      moderator: { kick: 1200, tp: 600, reach: 900, bring: 1200, summon: 1200, announce: 900, announce_user: 900 },
+      none: {}
+    };
+    const moduleRoleConfig = typeof adminModuleRef.createRoleConfig === "function"
+      ? (adminModuleRef.createRoleConfig(settings) || {})
+      : {};
+    setValue("adminRoleConfig", {
+      roleRank: settings.ADMIN_ROLE_RANK && typeof settings.ADMIN_ROLE_RANK === "object"
+        ? settings.ADMIN_ROLE_RANK
+        : (moduleRoleConfig.roleRank && typeof moduleRoleConfig.roleRank === "object" ? moduleRoleConfig.roleRank : DEFAULT_ADMIN_ROLE_RANK),
+      permissions: settings.ADMIN_PERMISSIONS && typeof settings.ADMIN_PERMISSIONS === "object"
+        ? settings.ADMIN_PERMISSIONS
+        : (moduleRoleConfig.permissions && typeof moduleRoleConfig.permissions === "object" ? moduleRoleConfig.permissions : DEFAULT_ADMIN_PERMISSIONS),
+      commandCooldownsMs: settings.ADMIN_COMMAND_COOLDOWNS_MS && typeof settings.ADMIN_COMMAND_COOLDOWNS_MS === "object"
+        ? settings.ADMIN_COMMAND_COOLDOWNS_MS
+        : (moduleRoleConfig.commandCooldownsMs && typeof moduleRoleConfig.commandCooldownsMs === "object" ? moduleRoleConfig.commandCooldownsMs : DEFAULT_ADMIN_COMMAND_COOLDOWNS_MS),
+      roleByUsername: settings.ADMIN_ROLE_BY_USERNAME && typeof settings.ADMIN_ROLE_BY_USERNAME === "object"
+        ? settings.ADMIN_ROLE_BY_USERNAME
+        : (moduleRoleConfig.roleByUsername && typeof moduleRoleConfig.roleByUsername === "object" ? moduleRoleConfig.roleByUsername : {}),
+      adminUsernames: Array.isArray(settings.ADMIN_USERNAMES)
+        ? settings.ADMIN_USERNAMES
+        : (Array.isArray(moduleRoleConfig.adminUsernames) && moduleRoleConfig.adminUsernames.length ? moduleRoleConfig.adminUsernames : ["isxt"])
+    });
     setValue("JUMP_COOLDOWN_MS", Number(settings.JUMP_COOLDOWN_MS) || 200);
     setValue("PLAYER_SYNC_MIN_MS", Math.max(25, Number(settings.PLAYER_SYNC_MIN_MS) || 60));
     setValue("GLOBAL_SYNC_MIN_MS", Math.max(root.PLAYER_SYNC_MIN_MS, Number(settings.GLOBAL_SYNC_MIN_MS) || 170));
