@@ -1064,6 +1064,7 @@
         inventories: {},
         globalPlayers: {}
       };
+      let directAdminRole = "none";
 
       function setAuthStatus(text, isError) {
         authStatusEl.textContent = text;
@@ -1290,6 +1291,21 @@
         return ["none", "moderator", "admin", "manager", "owner"].includes(value) ? value : "none";
       }
 
+      function readAdminRoleValue(rawRole) {
+        if (rawRole === undefined || rawRole === null) return "none";
+        if (typeof rawRole === "string") return normalizeAdminRole(rawRole);
+        if (typeof rawRole === "object") {
+          const row = rawRole || {};
+          const candidate = row.role !== undefined
+            ? row.role
+            : (row.value !== undefined
+              ? row.value
+              : (row.name !== undefined ? row.name : ""));
+          return normalizeAdminRole(candidate);
+        }
+        return normalizeAdminRole(rawRole);
+      }
+
       function getRoleRank(role) {
         if (typeof adminModule.getRoleRank === "function") {
           return adminModule.getRoleRank(role, adminRoleConfig);
@@ -1322,8 +1338,12 @@
       }
 
       function getAccountRole(accountId, username) {
-        if (accountId && adminState.roles[accountId]) {
-          return normalizeAdminRole(adminState.roles[accountId]);
+        const safeAccountId = String(accountId || "").trim();
+        if (safeAccountId && playerProfileId && safeAccountId === playerProfileId && directAdminRole !== "none") {
+          return directAdminRole;
+        }
+        if (safeAccountId && Object.prototype.hasOwnProperty.call(adminState.roles, safeAccountId)) {
+          return readAdminRoleValue(adminState.roles[safeAccountId]);
         }
         return getConfiguredRoleForUsername(username);
       }
@@ -5352,6 +5372,9 @@
         if (network.myFriendRequestsRef && network.handlers.myFriendRequests) {
           network.myFriendRequestsRef.off("value", network.handlers.myFriendRequests);
         }
+        if (network.myAdminRoleRef && network.handlers.myAdminRole) {
+          network.myAdminRoleRef.off("value", network.handlers.myAdminRole);
+        }
         if (network.worldsIndexRef && network.handlers.worldsIndex) {
           network.worldsIndexRef.off("value", network.handlers.worldsIndex);
         }
@@ -5551,6 +5574,7 @@
         ownedWorldScanInFlight = false;
         danceUntilMs = 0;
         currentAdminRole = "none";
+        directAdminRole = "none";
         hasSeenAdminRoleSnapshot = false;
         canUseAdminPanel = false;
         canViewAccountLogs = false;
@@ -10065,6 +10089,7 @@
           network.db = await getAuthDb();
           network.enabled = true;
           hasSeenAdminRoleSnapshot = false;
+          directAdminRole = "none";
           network.connectedRef = network.db.ref(".info/connected");
           network.worldsIndexRef = network.db.ref(BASE_PATH + "/worlds-index");
           network.globalPlayersRef = network.db.ref(BASE_PATH + "/global-players");
@@ -10082,6 +10107,7 @@
           network.myActiveTradeRef = network.db.ref(BASE_PATH + "/active-trades/" + playerProfileId);
           network.myFriendsRef = network.db.ref(BASE_PATH + "/friends/" + playerProfileId);
           network.myFriendRequestsRef = network.db.ref(BASE_PATH + "/friend-requests/" + playerProfileId);
+          network.myAdminRoleRef = network.db.ref(BASE_PATH + "/admin-roles/" + playerProfileId);
           network.inventoryRef = network.db.ref(BASE_PATH + "/player-inventories/" + playerProfileId);
           network.progressRef = network.db.ref(BASE_PATH + "/player-progress/" + playerProfileId);
           network.achievementsRef = network.db.ref(BASE_PATH + "/player-achievements/" + playerProfileId);
@@ -10456,8 +10482,34 @@
             adminState.usernames = snapshot.val() || {};
             renderAdminPanelFromLiveUpdate();
           };
+          network.handlers.myAdminRole = (snapshot) => {
+            const ownRole = readAdminRoleValue(snapshot && snapshot.val ? snapshot.val() : null);
+            directAdminRole = ownRole;
+            if (playerProfileId) {
+              if (ownRole === "none") {
+                delete adminState.roles[playerProfileId];
+              } else {
+                adminState.roles[playerProfileId] = ownRole;
+              }
+            }
+            refreshAdminCapabilities(hasSeenAdminRoleSnapshot);
+            hasSeenAdminRoleSnapshot = true;
+            renderAdminPanelFromLiveUpdate();
+          };
           network.handlers.adminRoles = (snapshot) => {
-            adminState.roles = snapshot.val() || {};
+            const raw = snapshot.val() || {};
+            const nextRoles = {};
+            Object.keys(raw).forEach((accountId) => {
+              const safeAccountId = String(accountId || "").trim();
+              if (!safeAccountId) return;
+              const role = readAdminRoleValue(raw[accountId]);
+              if (role === "none") return;
+              nextRoles[safeAccountId] = role;
+            });
+            if (playerProfileId && directAdminRole !== "none") {
+              nextRoles[playerProfileId] = directAdminRole;
+            }
+            adminState.roles = nextRoles;
             refreshAdminCapabilities(hasSeenAdminRoleSnapshot);
             hasSeenAdminRoleSnapshot = true;
             renderAdminPanelFromLiveUpdate();
@@ -10516,6 +10568,7 @@
           network.myActiveTradeRef.on("value", network.handlers.myActiveTrade);
           network.myFriendsRef.on("value", network.handlers.myFriends);
           network.myFriendRequestsRef.on("value", network.handlers.myFriendRequests);
+          network.myAdminRoleRef.on("value", network.handlers.myAdminRole);
           network.worldsIndexRef.on("value", network.handlers.worldsIndex);
           network.globalPlayersRef.on("value", network.handlers.globalPlayers);
           network.myBanRef.on("value", network.handlers.myBan);
