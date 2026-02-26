@@ -51,6 +51,39 @@ window.GTModules.admins = {
       total += Math.max(0, Number(inv[id]) || 0);
     }
     return total;
+  },
+  canActorAffectTarget(actorRole, targetRole, targetAccountId, actorAccountId, roleConfig) {
+    if (!targetAccountId) return false;
+    if (targetAccountId === actorAccountId) return true;
+    const adminCore = (window.GTModules && window.GTModules.admin) || {};
+    const getRank = typeof adminCore.getRoleRank === "function"
+      ? (role) => adminCore.getRoleRank(role, roleConfig || {})
+      : (role) => {
+          const value = String(role || "").trim().toLowerCase();
+          const map = roleConfig && roleConfig.roleRank && typeof roleConfig.roleRank === "object"
+            ? roleConfig.roleRank
+            : { none: 0, moderator: 1, admin: 2, manager: 3, owner: 4 };
+          return Number(map[value]) || 0;
+        };
+    return getRank(actorRole) > getRank(targetRole);
+  },
+  canSetRoleTo(actorRole, targetRole, targetAccountId, actorAccountId, nextRole, hasSetRoleLimited, roleConfig) {
+    const adminCore = (window.GTModules && window.GTModules.admin) || {};
+    const normalizeRole = typeof adminCore.normalizeAdminRole === "function"
+      ? (role) => adminCore.normalizeAdminRole(role, roleConfig || {})
+      : (role) => {
+          const value = String(role || "").trim().toLowerCase();
+          return ["none", "moderator", "admin", "manager", "owner"].includes(value) ? value : "none";
+        };
+    const normalizedActorRole = normalizeRole(actorRole);
+    const normalizedTargetRole = normalizeRole(targetRole);
+    const desiredRole = normalizeRole(nextRole);
+    if (!targetAccountId || targetAccountId === actorAccountId) return false;
+    if (normalizedActorRole === "owner") return true;
+    if (!hasSetRoleLimited) return false;
+    if (!this.canActorAffectTarget(normalizedActorRole, normalizedTargetRole, targetAccountId, actorAccountId, roleConfig)) {
+      return false;
+    }
+    return desiredRole === "none" || desiredRole === "moderator" || desiredRole === "admin";
   }
 };
-

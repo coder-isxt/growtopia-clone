@@ -197,6 +197,7 @@
       const itemsModule = modules.items || {};
       const cosmeticsModule = modules.cosmetics || {};
       const playerModule = modules.player || {};
+      const adminsModule = modules.admins || {};
       const authModule = modules.auth || {};
       const authStorageModule = modules.authStorage || {};
       const dbModule = modules.db || {};
@@ -228,6 +229,7 @@
       const shopModule = modules.shop || {};
       const signModule = modules.sign || {};
       const gambleModule = modules.gambling || modules.gamble || {};
+      const dropsModule = modules.drops || {};
 
       const SETTINGS = window.GT_SETTINGS || {};
       const TILE = Number(SETTINGS.TILE_SIZE) || 32;
@@ -530,6 +532,7 @@
       let plantsController = null;
       let gemsController = null;
       let rewardsController = null;
+      let dropsController = null;
       let editReachTiles = DEFAULT_EDIT_REACH_TILES;
       let worldLockEditContext = null;
       let doorEditContext = null;
@@ -1083,6 +1086,60 @@
           getTreeGemMax: () => TREE_GEM_MAX
         });
         return rewardsController;
+      }
+
+      function getDropsController() {
+        if (dropsController) return dropsController;
+        if (typeof dropsModule.createController !== "function") return null;
+        dropsController = dropsModule.createController({
+          getWorldDrops: () => worldDrops,
+          getNetwork: () => network,
+          getFirebase: () => (typeof firebase !== "undefined" ? firebase : (window.firebase || null)),
+          getInWorld: () => inWorld,
+          getTileSize: () => TILE,
+          getWorldWidthTiles: () => WORLD_W,
+          getWorldHeightTiles: () => WORLD_H,
+          getDropPickupRadius: () => DROP_PICKUP_RADIUS,
+          getDropMaxPerWorld: () => DROP_MAX_PER_WORLD,
+          getPlayer: () => player,
+          getPlayerWidth: () => PLAYER_W,
+          getPlayerHeight: () => PLAYER_H,
+          getPlayerProfileId: () => playerProfileId,
+          getPlayerSessionId: () => playerSessionId,
+          getPlayerName: () => playerName,
+          getInventory: () => inventory,
+          getInventoryIds: () => INVENTORY_IDS,
+          getCosmeticInventory: () => cosmeticInventory,
+          getCosmeticItems: () => COSMETIC_ITEMS,
+          getEquippedCosmetics: () => equippedCosmetics,
+          getCosmeticSlots: () => COSMETIC_SLOTS,
+          getBlockDefs: () => blockDefs,
+          getInventoryItemLimit: () => INVENTORY_ITEM_LIMIT,
+          getSlotOrder: () => slotOrder,
+          getSelectedSlot: () => selectedSlot,
+          getToolFist: () => TOOL_FIST,
+          getToolWrench: () => TOOL_WRENCH,
+          getCameraX: () => cameraX,
+          getCameraY: () => cameraY,
+          getCameraViewWidth,
+          getCameraViewHeight,
+          getParticleController: () => particleController,
+          getLastDropAtMs: () => lastDropAtMs,
+          setLastDropAtMs: (value) => {
+            lastDropAtMs = Number(value) || 0;
+          },
+          getLastInventoryFullHintAt: () => lastInventoryFullHintAt,
+          setLastInventoryFullHintAt: (value) => {
+            lastInventoryFullHintAt = Number(value) || 0;
+          },
+          clampInventoryCount,
+          schedulePickupInventoryFlush,
+          saveInventory,
+          refreshToolbar,
+          syncPlayer,
+          postLocalSystemChat
+        });
+        return dropsController;
       }
 
       function logAntiCheatEvent(rule, severity, details) {
@@ -1713,6 +1770,15 @@
       }
 
       function canActorAffectTarget(targetAccountId, targetRole) {
+        if (typeof adminsModule.canActorAffectTarget === "function") {
+          return adminsModule.canActorAffectTarget(
+            currentAdminRole,
+            targetRole,
+            targetAccountId,
+            playerProfileId,
+            adminRoleConfig
+          );
+        }
         if (!targetAccountId) return false;
         if (targetAccountId === playerProfileId) return true;
         const actorRank = getRoleRank(currentAdminRole);
@@ -1731,6 +1797,18 @@
       }
 
       function canSetRoleTo(targetAccountId, nextRole) {
+        if (typeof adminsModule.canSetRoleTo === "function") {
+          const targetRoleFromState = getAccountRole(targetAccountId, adminState.accounts[targetAccountId] && adminState.accounts[targetAccountId].username);
+          return adminsModule.canSetRoleTo(
+            currentAdminRole,
+            targetRoleFromState,
+            targetAccountId,
+            playerProfileId,
+            nextRole,
+            hasAdminPermission("setrole_limited"),
+            adminRoleConfig
+          );
+        }
         const actorRole = normalizeAdminRole(currentAdminRole);
         const targetRole = getAccountRole(targetAccountId, adminState.accounts[targetAccountId] && adminState.accounts[targetAccountId].username);
         const actorRank = getRoleRank(actorRole);
@@ -1754,6 +1832,9 @@
       }
 
       function parseDurationToMs(input) {
+        if (typeof adminsModule.parseDurationToMs === "function") {
+          return adminsModule.parseDurationToMs(input);
+        }
         if (typeof adminModule.parseDurationToMs === "function") {
           return adminModule.parseDurationToMs(input);
         }
@@ -1768,6 +1849,9 @@
       }
 
       function formatRemainingMs(ms) {
+        if (typeof adminsModule.formatRemainingMs === "function") {
+          return adminsModule.formatRemainingMs(ms);
+        }
         if (typeof adminModule.formatRemainingMs === "function") {
           return adminModule.formatRemainingMs(ms);
         }
@@ -1812,6 +1896,9 @@
       }
 
       function normalizeBanRecord(record) {
+        if (typeof adminsModule.normalizeBanRecord === "function") {
+          return adminsModule.normalizeBanRecord(record);
+        }
         const value = record || {};
         const typeRaw = String(value.type || "").toLowerCase();
         const type = typeRaw === "permanent" ? "permanent" : "temporary";
@@ -1826,6 +1913,9 @@
       }
 
       function getBanStatus(record, nowMs) {
+        if (typeof adminsModule.getBanStatus === "function") {
+          return adminsModule.getBanStatus(record, nowMs);
+        }
         if (!record) return { active: false, expired: false, type: "temporary", remainingMs: 0, reason: "" };
         const normalized = normalizeBanRecord(record);
         if (normalized.type === "permanent") {
@@ -1874,6 +1964,9 @@
       }
 
       function totalInventoryCount(inv) {
+        if (typeof adminsModule.totalInventoryCount === "function") {
+          return adminsModule.totalInventoryCount(inv, INVENTORY_IDS);
+        }
         if (!inv || typeof inv !== "object") return 0;
         let total = 0;
         for (const id of INVENTORY_IDS) {
@@ -10219,443 +10312,93 @@
       }
 
       function normalizeDropRecord(id, value) {
-        if (!id || !value || typeof value !== "object") return null;
-        const typeRaw = String(value.type || "").trim().toLowerCase();
-        const type = (typeRaw === "cosmetic" || typeRaw === "tool") ? typeRaw : "block";
-        const blockId = Math.max(0, Math.floor(Number(value.blockId) || 0));
-        const cosmeticId = String(value.cosmeticId || "").trim().slice(0, 64);
-        const toolIdRaw = String(value.toolId || "").trim().toLowerCase();
-        const toolId = (toolIdRaw === TOOL_FIST || toolIdRaw === TOOL_WRENCH) ? toolIdRaw : "";
-        const amount = Math.max(1, Math.floor(Number(value.amount) || 1));
-        if (type === "block" && !blockId) return null;
-        if (type === "cosmetic" && !cosmeticId) return null;
-        if (type === "tool" && !toolId) return null;
-        const x = Number(value.x);
-        const y = Number(value.y);
-        if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-        const clampedX = Math.max(0, Math.min(x, WORLD_W * TILE - TILE));
-        const clampedY = Math.max(0, Math.min(y, WORLD_H * TILE - TILE));
-        return {
-          id: String(id),
-          type,
-          blockId,
-          cosmeticId,
-          toolId,
-          amount,
-          x: clampedX,
-          y: clampedY,
-          ownerAccountId: String(value.ownerAccountId || ""),
-          ownerSessionId: String(value.ownerSessionId || ""),
-          ownerName: String(value.ownerName || "").slice(0, 20),
-          createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now(),
-          noPickupUntil: 0
-        };
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.normalizeDropRecord !== "function") return null;
+        return ctrl.normalizeDropRecord(id, value);
       }
 
       function getDropLabel(drop) {
-        if (!drop) return "item";
-        if (drop.type === "tool") {
-          if (drop.toolId === TOOL_WRENCH) return "Wrench";
-          return "Fist";
-        }
-        if (drop.type === "cosmetic") {
-          for (let i = 0; i < COSMETIC_ITEMS.length; i++) {
-            const item = COSMETIC_ITEMS[i];
-            if (item && item.id === drop.cosmeticId) return item.name || drop.cosmeticId;
-          }
-          return drop.cosmeticId || "cosmetic";
-        }
-        const def = blockDefs[drop.blockId];
-        return def && def.name ? def.name : ("Block " + drop.blockId);
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.getDropLabel !== "function") return "item";
+        return ctrl.getDropLabel(drop);
       }
 
       function addOrUpdateWorldDrop(id, value) {
-        const normalized = normalizeDropRecord(id, value);
-        if (!normalized) {
-          worldDrops.delete(String(id || ""));
-          return;
-        }
-        if (normalized.ownerSessionId && normalized.ownerSessionId === playerSessionId) {
-          normalized.noPickupUntil = performance.now() + 550;
-        }
-        worldDrops.set(normalized.id, normalized);
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.addOrUpdateWorldDrop !== "function") return;
+        ctrl.addOrUpdateWorldDrop(id, value);
       }
 
       function clearWorldDrops() {
-        worldDrops.clear();
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.clearWorldDrops !== "function") {
+          worldDrops.clear();
+          return;
+        }
+        ctrl.clearWorldDrops();
       }
 
       function removeWorldDrop(id) {
-        worldDrops.delete(String(id || ""));
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.removeWorldDrop !== "function") {
+          worldDrops.delete(String(id || ""));
+          return;
+        }
+        ctrl.removeWorldDrop(id);
       }
 
       function getMaxDroppableAmount(entry) {
-        if (!entry || !entry.type) return 0;
-        const tradeCtrl = getTradeController();
-        if (tradeCtrl && typeof tradeCtrl.getDragEntryMax === "function") {
-          const maxFromTrade = Math.max(0, Math.floor(Number(tradeCtrl.getDragEntryMax(entry)) || 0));
-          if (maxFromTrade > 0) return maxFromTrade;
-        }
-        if (entry.type === "block") {
-          const blockId = Math.max(0, Math.floor(Number(entry.blockId) || 0));
-          if (!blockId || !INVENTORY_IDS.includes(blockId)) return 0;
-          return Math.max(0, Math.floor(Number(inventory[blockId]) || 0));
-        }
-        if (entry.type === "cosmetic") {
-          const cosmeticId = String(entry.cosmeticId || "");
-          return Math.max(0, Math.floor(Number(cosmeticInventory[cosmeticId]) || 0));
-        }
-        if (entry.type === "tool") {
-          return 0;
-        }
-        return 0;
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.getMaxDroppableAmount !== "function") return 0;
+        return ctrl.getMaxDroppableAmount(entry, getTradeController());
       }
 
       function isSameDropKind(drop, entry) {
-        if (!drop || !entry) return false;
-        if (drop.type !== entry.type) return false;
-        if (drop.type === "block") {
-          return Math.floor(Number(drop.blockId) || 0) === Math.floor(Number(entry.blockId) || 0);
-        }
-        if (drop.type === "cosmetic") {
-          return String(drop.cosmeticId || "") === String(entry.cosmeticId || "");
-        }
-        if (drop.type === "tool") {
-          return String(drop.toolId || "") === String(entry.toolId || "");
-        }
-        return false;
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.isSameDropKind !== "function") return false;
+        return ctrl.isSameDropKind(drop, entry);
       }
 
       function findNearbyDropStackCandidate(entry, x, y) {
-        if (!entry || !worldDrops.size) return null;
-        const tx = Math.floor(x / TILE);
-        const ty = Math.floor(y / TILE);
-        for (const drop of worldDrops.values()) {
-          if (!drop || !drop.id) continue;
-          if (!isSameDropKind(drop, entry)) continue;
-          const dtx = Math.floor(Number(drop.x || 0) / TILE);
-          const dty = Math.floor(Number(drop.y || 0) / TILE);
-          if (dtx === tx && dty === ty) {
-            return drop;
-          }
-        }
-        return null;
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.findNearbyDropStackCandidate !== "function") return null;
+        return ctrl.findNearbyDropStackCandidate(entry, x, y);
       }
 
       function applyStackAmountToLocalDrop(dropId, amountDelta) {
-        const key = String(dropId || "");
-        if (!key || !worldDrops.has(key)) return false;
-        const existing = worldDrops.get(key);
-        if (!existing) return false;
-        const nextAmount = Math.max(
-          1,
-          Math.floor(Number(existing.amount) || 1) + Math.max(1, Math.floor(Number(amountDelta) || 1))
-        );
-        worldDrops.set(key, { ...existing, amount: nextAmount });
-        return true;
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.applyStackAmountToLocalDrop !== "function") return false;
+        return ctrl.applyStackAmountToLocalDrop(dropId, amountDelta);
       }
 
       function spawnWorldDropEntry(entry, amount, dropX, dropY) {
-        if (!inWorld || !entry) return false;
-        const qty = Math.max(1, Math.floor(Number(amount) || 1));
-        const worldX = Number.isFinite(dropX) ? dropX : (player.x + (PLAYER_W / 2) - (TILE / 2));
-        const worldY = Number.isFinite(dropY) ? dropY : (player.y + PLAYER_H - TILE);
-        const clampedX = Math.max(0, Math.min(worldX, WORLD_W * TILE - TILE));
-        const clampedY = Math.max(0, Math.min(worldY, WORLD_H * TILE - TILE));
-
-        const payload = {
-          type: entry.type,
-          blockId: 0,
-          cosmeticId: "",
-          toolId: "",
-          amount: qty,
-          x: clampedX,
-          y: clampedY,
-          ownerAccountId: playerProfileId || "",
-          ownerSessionId: playerSessionId || "",
-          ownerName: (playerName || "").toString().slice(0, 20),
-          createdAt: Date.now()
-        };
-
-        if (entry.type === "block") {
-          payload.blockId = Math.max(0, Math.floor(Number(entry.blockId) || 0));
-        } else if (entry.type === "cosmetic") {
-          payload.cosmeticId = String(entry.cosmeticId || "").trim().slice(0, 64);
-        } else if (entry.type === "tool") {
-          payload.toolId = String(entry.toolId || "").trim();
-        } else {
-          return false;
-        }
-
-        const stackTarget = findNearbyDropStackCandidate(entry, clampedX, clampedY);
-        if (stackTarget) {
-          if (!network.enabled || !network.dropsRef || String(stackTarget.id).startsWith("local_")) {
-            return applyStackAmountToLocalDrop(stackTarget.id, qty);
-          }
-          network.dropsRef.child(stackTarget.id).transaction((current) => {
-            if (!current || typeof current !== "object") return current;
-            const currentType = String(current.type || "").trim().toLowerCase();
-            const safeType = currentType === "cosmetic" || currentType === "tool" ? currentType : "block";
-            if (safeType !== entry.type) return current;
-            if (safeType === "block") {
-              if (Math.floor(Number(current.blockId) || 0) !== Math.floor(Number(entry.blockId) || 0)) return current;
-            } else if (safeType === "cosmetic") {
-              if (String(current.cosmeticId || "") !== String(entry.cosmeticId || "")) return current;
-            } else if (safeType === "tool") {
-              if (String(current.toolId || "") !== String(entry.toolId || "")) return current;
-            }
-            const currentAmount = Math.max(1, Math.floor(Number(current.amount) || 1));
-            return {
-              ...current,
-              amount: currentAmount + qty,
-              updatedAt: firebase.database.ServerValue.TIMESTAMP
-            };
-          }).then((result) => {
-            if (result && result.committed) return;
-            network.dropsRef.push({
-              ...payload,
-              createdAt: firebase.database.ServerValue.TIMESTAMP
-            }).catch(() => {});
-          }).catch(() => {
-            network.dropsRef.push({
-              ...payload,
-              createdAt: firebase.database.ServerValue.TIMESTAMP
-            }).catch(() => {});
-          });
-          return true;
-        }
-
-        if (!network.enabled || !network.dropsRef) {
-          const localId = "local_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
-          addOrUpdateWorldDrop(localId, payload);
-          return true;
-        }
-        network.dropsRef.push({
-          ...payload,
-          createdAt: firebase.database.ServerValue.TIMESTAMP
-        }).catch(() => {});
-        return true;
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.spawnWorldDropEntry !== "function") return false;
+        return ctrl.spawnWorldDropEntry(entry, amount, dropX, dropY);
       }
 
       function dropInventoryEntry(entry, amount, dropX, dropY) {
-        if (!inWorld || !entry) return false;
-        const now = performance.now();
-        if (now - lastDropAtMs < 120) return false;
-        const maxAmount = getMaxDroppableAmount(entry);
-        if (maxAmount <= 0) return false;
-        const qty = Math.max(1, Math.min(maxAmount, Math.floor(Number(amount) || 1)));
-
-        const defaultDropX = player.x + (PLAYER_W / 2) - (TILE / 2);
-        const defaultDropY = player.y + PLAYER_H - TILE;
-        const worldX = Number.isFinite(dropX) ? dropX : defaultDropX;
-        const worldY = Number.isFinite(dropY) ? dropY : defaultDropY;
-        const clampedX = Math.max(0, Math.min(worldX, WORLD_W * TILE - TILE));
-        const clampedY = Math.max(0, Math.min(worldY, WORLD_H * TILE - TILE));
-
-        const payload = {
-          type: entry.type,
-          blockId: 0,
-          cosmeticId: "",
-          toolId: "",
-          amount: qty,
-          x: clampedX,
-          y: clampedY,
-          ownerAccountId: playerProfileId || "",
-          ownerSessionId: playerSessionId || "",
-          ownerName: (playerName || "").toString().slice(0, 20),
-          createdAt: Date.now()
-        };
-
-        let changedInventory = false;
-        if (entry.type === "block") {
-          const blockId = Math.max(0, Math.floor(Number(entry.blockId) || 0));
-          payload.blockId = blockId;
-          inventory[blockId] = Math.max(0, Math.floor((inventory[blockId] || 0) - qty));
-          changedInventory = true;
-        } else if (entry.type === "cosmetic") {
-          const cosmeticId = String(entry.cosmeticId || "").trim().slice(0, 64);
-          payload.cosmeticId = cosmeticId;
-          cosmeticInventory[cosmeticId] = Math.max(0, Math.floor((cosmeticInventory[cosmeticId] || 0) - qty));
-          if ((cosmeticInventory[cosmeticId] || 0) <= 0) {
-            for (let i = 0; i < COSMETIC_SLOTS.length; i++) {
-              const slot = COSMETIC_SLOTS[i];
-              if (equippedCosmetics[slot] === cosmeticId) {
-                equippedCosmetics[slot] = "";
-              }
-            }
-          }
-          changedInventory = true;
-        } else if (entry.type === "tool") {
-          const toolId = String(entry.toolId || "").trim();
-          payload.toolId = toolId;
-        } else {
-          return false;
-        }
-
-        lastDropAtMs = now;
-        if (changedInventory) {
-          saveInventory();
-          refreshToolbar();
-          if (entry.type === "cosmetic") {
-            syncPlayer(true);
-          }
-        }
-
-        const stackTarget = findNearbyDropStackCandidate(entry, clampedX, clampedY);
-        if (stackTarget) {
-          if (!network.enabled || !network.dropsRef || String(stackTarget.id).startsWith("local_")) {
-            if (applyStackAmountToLocalDrop(stackTarget.id, qty)) {
-              return true;
-            }
-          } else {
-            network.dropsRef.child(stackTarget.id).transaction((current) => {
-              if (!current || typeof current !== "object") return current;
-              const currentType = String(current.type || "").trim().toLowerCase();
-              const safeType = currentType === "cosmetic" || currentType === "tool" ? currentType : "block";
-              if (safeType !== entry.type) return current;
-              if (safeType === "block") {
-                if (Math.floor(Number(current.blockId) || 0) !== Math.floor(Number(entry.blockId) || 0)) return current;
-              } else if (safeType === "cosmetic") {
-                if (String(current.cosmeticId || "") !== String(entry.cosmeticId || "")) return current;
-              } else if (safeType === "tool") {
-                if (String(current.toolId || "") !== String(entry.toolId || "")) return current;
-              }
-              const currentAmount = Math.max(1, Math.floor(Number(current.amount) || 1));
-              return {
-                ...current,
-                amount: currentAmount + qty,
-                updatedAt: firebase.database.ServerValue.TIMESTAMP
-              };
-            }).then((result) => {
-              if (result && result.committed) return;
-              network.dropsRef.push({
-                ...payload,
-                createdAt: firebase.database.ServerValue.TIMESTAMP
-              }).catch(() => {});
-            }).catch(() => {
-              network.dropsRef.push({
-                ...payload,
-                createdAt: firebase.database.ServerValue.TIMESTAMP
-              }).catch(() => {});
-            });
-            return true;
-          }
-        }
-
-        if (!network.enabled || !network.dropsRef) {
-          const localId = "local_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
-          addOrUpdateWorldDrop(localId, payload);
-          return true;
-        }
-        network.dropsRef.push({
-          ...payload,
-          createdAt: firebase.database.ServerValue.TIMESTAMP
-        }).catch(() => {});
-        return true;
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.dropInventoryEntry !== "function") return false;
+        return ctrl.dropInventoryEntry(entry, amount, dropX, dropY, getTradeController());
       }
 
       function dropSelectedInventoryItem() {
-        if (!inWorld) return;
-        const selectedId = slotOrder[selectedSlot];
-        if (selectedId === TOOL_FIST || selectedId === TOOL_WRENCH) return;
-        if (typeof selectedId !== "number") return;
-        dropInventoryEntry({ type: "block", blockId: selectedId }, 1);
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.dropSelectedInventoryItem !== "function") return;
+        ctrl.dropSelectedInventoryItem(getTradeController());
       }
 
       function tryPickupWorldDrop(drop) {
-        if (!drop || !drop.id) return;
-        if (drop.noPickupUntil && performance.now() < drop.noPickupUntil) return;
-        const px = player.x + PLAYER_W / 2;
-        const py = player.y + PLAYER_H / 2;
-        const dx = (drop.x + TILE / 2) - px;
-        const dy = (drop.y + TILE / 2) - py;
-        if ((dx * dx + dy * dy) > (DROP_PICKUP_RADIUS * DROP_PICKUP_RADIUS)) return;
-
-        if (drop.type === "block") {
-          const current = Math.max(0, Math.floor(Number(inventory[drop.blockId]) || 0));
-          const incoming = Math.max(1, Math.floor(Number(drop.amount) || 1));
-          if (current >= INVENTORY_ITEM_LIMIT || (current + incoming) > INVENTORY_ITEM_LIMIT) {
-            const now = performance.now();
-            drop.noPickupUntil = now + 320;
-            if ((now - lastInventoryFullHintAt) > 900) {
-              lastInventoryFullHintAt = now;
-              postLocalSystemChat("Inventory full for " + getDropLabel(drop) + " (max " + INVENTORY_ITEM_LIMIT + ").");
-            }
-            return;
-          }
-        } else if (drop.type === "cosmetic") {
-          const current = Math.max(0, Math.floor(Number(cosmeticInventory[drop.cosmeticId]) || 0));
-          const incoming = Math.max(1, Math.floor(Number(drop.amount) || 1));
-          if (current >= INVENTORY_ITEM_LIMIT || (current + incoming) > INVENTORY_ITEM_LIMIT) {
-            const now = performance.now();
-            drop.noPickupUntil = now + 320;
-            if ((now - lastInventoryFullHintAt) > 900) {
-              lastInventoryFullHintAt = now;
-              postLocalSystemChat("Inventory full for " + getDropLabel(drop) + " (max " + INVENTORY_ITEM_LIMIT + ").");
-            }
-            return;
-          }
-        }
-
-        const pickupTargetWorld = {
-          x: cameraX + Math.max(24, getCameraViewWidth() - 18),
-          y: cameraY + Math.max(22, Math.min(getCameraViewHeight() - 22, 56))
-        };
-
-        const applyPickup = () => {
-          if (particleController && typeof particleController.emitPickup === "function") {
-            particleController.emitPickup(
-              drop.x + TILE * 0.5,
-              drop.y + TILE * 0.5,
-              pickupTargetWorld.x,
-              pickupTargetWorld.y,
-              drop.amount,
-              drop.type
-            );
-          }
-          if (drop.type === "cosmetic") {
-            cosmeticInventory[drop.cosmeticId] = clampInventoryCount((cosmeticInventory[drop.cosmeticId] || 0) + drop.amount);
-          } else if (drop.type === "block") {
-            inventory[drop.blockId] = clampInventoryCount((inventory[drop.blockId] || 0) + drop.amount);
-          }
-          if (drop.type !== "tool") {
-            schedulePickupInventoryFlush();
-          }
-          postLocalSystemChat("Picked up " + drop.amount + "x " + getDropLabel(drop) + ".");
-        };
-
-        if (!network.enabled || !network.dropsRef) {
-          removeWorldDrop(drop.id);
-          applyPickup();
-          return;
-        }
-
-        drop.noPickupUntil = performance.now() + 280;
-        const ref = network.dropsRef.child(drop.id);
-        ref.transaction((current) => {
-          if (!current) return current;
-          return null;
-        }).then((result) => {
-          if (!result.committed) return;
-          removeWorldDrop(drop.id);
-          applyPickup();
-        }).catch(() => {});
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.tryPickupWorldDrop !== "function") return;
+        ctrl.tryPickupWorldDrop(drop);
       }
 
       function updateWorldDrops() {
-        if (!inWorld || !worldDrops.size) return;
-        if (worldDrops.size > DROP_MAX_PER_WORLD) {
-          const ids = Array.from(worldDrops.keys());
-          ids.sort();
-          const removeCount = worldDrops.size - DROP_MAX_PER_WORLD;
-          for (let i = 0; i < removeCount; i++) {
-            worldDrops.delete(ids[i]);
-          }
-        }
-        const entries = Array.from(worldDrops.values());
-        for (let i = 0; i < entries.length; i++) {
-          tryPickupWorldDrop(entries[i]);
-        }
+        const ctrl = getDropsController();
+        if (!ctrl || typeof ctrl.updateWorldDrops !== "function") return;
+        ctrl.updateWorldDrops();
       }
 
       function pickRandomWorlds(worldIds, count) {
