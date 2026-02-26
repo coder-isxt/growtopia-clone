@@ -5,4 +5,5 @@ window.GTCosmeticCatalog.hats = [
   { id: "silinter", name: "Silinter", color: "#d7c7a3", icon: "HT", faIcon: "fa-solid fa-hat-cowboy-side", rarity: "common", image: "hats/silinter.png" },
   { id: "chinese", name: "Chinese", color: "#0e0d0c", icon: "CH", faIcon: "fa-solid fa-hat-cowboy-side", rarity: "rare", image: "hats/chinese.png" },
 { id: "flatcap", name: "Flatcap", color: "#0e0d0c", icon: "FC", faIcon: "fa-solid fa-hat-cowboy-side", rarity: "rare", image: "hats/flatcap.png" },
+{ id: "red_outline_flatcap", name: "Red Outline Flatcap", color: "#0e0d0c", icon: "FC", faIcon: "fa-solid fa-hat-cowboy-side", rarity: "rare", image: "hats/red_outline_flatcap.png" },
 ];

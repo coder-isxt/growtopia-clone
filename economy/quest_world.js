@@ -13,6 +13,8 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
     let questWorldHandler = null;
     let questPathsRef = null;
     let questPathsHandler = null;
+    let questPlayerStateRef = null;
+    let questPlayerStateHandler = null;
     let modalCtx = null;
     let domBound = false;
 
@@ -106,6 +108,15 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       const pathsRef = getQuestPathsRef();
       if (!pathsRef || !safePathId) return null;
       return pathsRef.child(safePathId);
+    }
+
+    function getQuestPlayerStateRef(worldId) {
+      const network = getNetwork();
+      const safeWorldId = normalizeWorldId(worldId);
+      const playerId = String(get("getPlayerProfileId", "") || "").trim().slice(0, 64);
+      if (!network || !network.enabled || !network.db || !safeWorldId || !playerId) return null;
+      const basePath = String(get("getBasePath", "growtopia-test") || "growtopia-test");
+      return network.db.ref(basePath + "/player-quest-world-state/" + playerId + "/" + safeWorldId);
     }
 
     function getServerTimestampOrNow() {
@@ -212,7 +223,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
             amount: 120
           },
           reward: {
-            titleId: "is_hero",
+            titleId: "legendary",
             titleAmount: 1
           }
         }
@@ -443,6 +454,25 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       };
     }
 
+    function normalizeQuestStateIdMap(value) {
+      const src = value && typeof value === "object" ? value : {};
+      const out = {};
+      const keys = Object.keys(src);
+      for (let i = 0; i < keys.length; i++) {
+        const qid = normalizeQuestId(keys[i], keys[i]);
+        if (!qid) continue;
+        if (!src[keys[i]]) continue;
+        out[qid] = true;
+      }
+      return out;
+    }
+
+    function normalizeTrackedQuestId(value) {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      return normalizeQuestId(raw, "");
+    }
+
     function getOrCreatePlayerQuestState(worldId) {
       const safeWorldId = normalizeWorldId(worldId);
       if (!safeWorldId) {
@@ -475,6 +505,45 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       };
       playerQuestStateByWorld.set(safeWorldId, created);
       return created;
+    }
+
+    function applyRemotePlayerQuestState(worldId, raw) {
+      const safeWorldId = normalizeWorldId(worldId);
+      if (!safeWorldId) return;
+      const incoming = raw && typeof raw === "object" ? raw : {};
+      const state = getOrCreatePlayerQuestState(safeWorldId);
+      state.accepted = normalizeQuestStateIdMap(incoming.accepted);
+      state.claimed = normalizeQuestStateIdMap(incoming.claimed);
+      state.trackedId = normalizeTrackedQuestId(incoming.trackedId);
+      state.activeQuestId = normalizeTrackedQuestId(incoming.activeQuestId);
+      state.nextQuestIndex = Math.max(0, Math.floor(Number(incoming.nextQuestIndex) || 0));
+      state.pathId = normalizePathId(incoming.pathId || state.pathId || "");
+      playerQuestStateByWorld.set(safeWorldId, state);
+    }
+
+    function buildPlayerQuestStatePayload(worldId) {
+      const safeWorldId = normalizeWorldId(worldId);
+      if (!safeWorldId) return null;
+      const state = getOrCreatePlayerQuestState(safeWorldId);
+      return {
+        accepted: normalizeQuestStateIdMap(state.accepted),
+        claimed: normalizeQuestStateIdMap(state.claimed),
+        trackedId: normalizeTrackedQuestId(state.trackedId),
+        activeQuestId: normalizeTrackedQuestId(state.activeQuestId),
+        nextQuestIndex: Math.max(0, Math.floor(Number(state.nextQuestIndex) || 0)),
+        pathId: normalizePathId(state.pathId || ""),
+        updatedAt: getServerTimestampOrNow()
+      };
+    }
+
+    function persistPlayerQuestState(worldId) {
+      const safeWorldId = normalizeWorldId(worldId);
+      if (!safeWorldId) return;
+      const ref = getQuestPlayerStateRef(safeWorldId);
+      if (!ref) return;
+      const payload = buildPlayerQuestStatePayload(safeWorldId);
+      if (!payload) return;
+      ref.set(payload).catch(() => {});
     }
 
     function computeNextQuestIndex(rows, claimedMap) {
@@ -778,6 +847,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       state.activeQuestId = qid;
       state.accepted[qid] = true;
       state.trackedId = qid;
+      persistPlayerQuestState(activeWorldId);
       call("postLocalSystemChat", "Accepted quest: " + (chain.currentQuest.title || qid) + ".");
       renderModal();
       return true;
@@ -803,6 +873,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         return true;
       }
       state.trackedId = qid;
+      persistPlayerQuestState(activeWorldId);
       call("postLocalSystemChat", "Tracking quest: " + (chain.currentQuest.title || qid) + ".");
       renderModal();
       return true;
@@ -912,6 +983,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       state.trackedId = "";
 
       const afterChain = getQuestChainRuntime(config, state);
+      persistPlayerQuestState(activeWorldId);
       const rewardSuffix = rewardResult.rewardText ? (" -> " + rewardResult.rewardText) : "";
       call("postLocalSystemChat", "Claimed reward for " + (quest.title || qid) + rewardSuffix + ".");
       if (afterChain.completed) {
@@ -974,6 +1046,14 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       if (ref && next) {
         ref.set(buildWorldConfigPayload(next)).catch(() => {});
       }
+      const state = getOrCreatePlayerQuestState(worldId);
+      state.pathId = safePathId;
+      state.accepted = {};
+      state.claimed = {};
+      state.activeQuestId = "";
+      state.trackedId = "";
+      state.nextQuestIndex = 0;
+      persistPlayerQuestState(worldId);
       if (modalCtx) renderModal();
       return { ok: true, worldId, pathId: safePathId };
     }
@@ -1124,6 +1204,14 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       questPathsHandler = null;
     }
 
+    function detachPlayerQuestStateListener() {
+      if (questPlayerStateRef && questPlayerStateHandler) {
+        questPlayerStateRef.off("value", questPlayerStateHandler);
+      }
+      questPlayerStateRef = null;
+      questPlayerStateHandler = null;
+    }
+
     function attachQuestPathsListener() {
       if (questPathsRef && questPathsHandler) return;
       const ref = getQuestPathsRef();
@@ -1150,17 +1238,34 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       ref.on("value", questWorldHandler);
     }
 
+    function attachPlayerQuestStateListener(worldId) {
+      detachPlayerQuestStateListener();
+      const safeWorldId = normalizeWorldId(worldId);
+      if (!safeWorldId) return;
+      const ref = getQuestPlayerStateRef(safeWorldId);
+      if (!ref) return;
+      questPlayerStateRef = ref;
+      questPlayerStateHandler = (snapshot) => {
+        const raw = snapshot && typeof snapshot.val === "function" ? snapshot.val() : null;
+        applyRemotePlayerQuestState(safeWorldId, raw || {});
+        if (modalCtx) renderModal();
+      };
+      ref.on("value", questPlayerStateHandler);
+    }
+
     function onWorldEnter(worldId) {
       activeWorldId = normalizeWorldId(worldId);
       bindModalEvents();
       closeModal();
       attachQuestPathsListener();
       attachWorldConfigListener(activeWorldId);
+      attachPlayerQuestStateListener(activeWorldId);
     }
 
     function onWorldLeave() {
       closeModal();
       detachWorldConfigListener();
+      detachPlayerQuestStateListener();
       activeWorldId = "";
     }
 
@@ -1267,6 +1372,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       closeModal();
       detachWorldConfigListener();
       detachQuestPathsListener();
+      detachPlayerQuestStateListener();
       activeWorldId = "";
       worldConfigById.clear();
       playerQuestStateByWorld.clear();
