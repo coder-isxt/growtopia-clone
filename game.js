@@ -21,17 +21,194 @@
             window.location.replace(url.toString());
             return;
           } catch (error) {
-            // fall through to hard error
+            // fall through to compatibility path
           }
         }
-        throw new Error("state.js module missing required init API. Reload with a newer ?v= version.");
       }
       try {
         sessionStorage.removeItem("gt_state_api_reload_once_v1");
       } catch (error) {
         // ignore storage errors
       }
-      stateModule.initDefaultDomRefs();
+      const DOM_REF_MAP = {
+        authScreenEl: "authScreen",
+        gameShellEl: "gameShell",
+        authUsernameEl: "authUsername",
+        authPasswordEl: "authPassword",
+        authCreateBtn: "authCreateBtn",
+        authLoginBtn: "authLoginBtn",
+        authStatusEl: "authStatus",
+        authMainNoticeEl: "authMainNotice",
+        canvas: "game",
+        toolbarEl: "toolbar",
+        leftPanelResizeHandleEl: "leftPanelResizeHandle",
+        rightPanelResizeHandleEl: "rightPanelResizeHandle",
+        canvasWrapEl: "canvasWrap",
+        menuScreenEl: "menuScreen",
+        menuMainNoticeEl: "menuMainNotice",
+        mobileControlsEl: "mobileControls",
+        mobileLeftBtn: "mobileLeftBtn",
+        mobileRightBtn: "mobileRightBtn",
+        mobileJumpBtn: "mobileJumpBtn",
+        mobilePrimaryBtn: "mobilePrimaryBtn",
+        mobileSecondaryBtn: "mobileSecondaryBtn",
+        mobileFistBtn: "mobileFistBtn",
+        mobileWrenchBtn: "mobileWrenchBtn",
+        mobilePlayModeBtn: "mobilePlayModeBtn",
+        mobileChatBtn: "mobileChatBtn",
+        mobileInventoryBtn: "mobileInventoryBtn",
+        mobileExitBtn: "mobileExitBtn",
+        networkStateEl: "networkState",
+        gemsCountEl: "gemsCount",
+        onlineCountEl: "onlineCount",
+        totalOnlineCountEl: "totalOnlineCount",
+        currentWorldLabelEl: "currentWorldLabel",
+        worldButtonsEl: "worldButtons",
+        worldInputEl: "worldInput",
+        enterWorldBtn: "enterWorldBtn",
+        chatToggleBtn: "chatToggleBtn",
+        friendsToggleBtn: "friendsToggleBtn",
+        titlesToggleBtn: "titlesToggleBtn",
+        questsToggleBtn: "questsToggleBtn",
+        achievementsToggleBtn: "achievementsToggleBtn",
+        shopToggleBtn: "shopToggleBtn",
+        adminToggleBtn: "adminToggleBtn",
+        respawnBtn: "respawnBtn",
+        adminPanelEl: "adminPanel",
+        adminSearchInput: "adminSearchInput",
+        adminAuditActionFilterEl: "adminAuditActionFilter",
+        adminAuditActorFilterEl: "adminAuditActorFilter",
+        adminAuditTargetFilterEl: "adminAuditTargetFilter",
+        adminForceReloadBtn: "adminForceReloadBtn",
+        adminBackupDownloadBtn: "adminBackupDownloadBtn",
+        adminBackupUploadBtn: "adminBackupUploadBtn",
+        adminBackupUploadInput: "adminBackupUploadInput",
+        adminAuditExportBtn: "adminAuditExportBtn",
+        adminCloseBtn: "adminCloseBtn",
+        adminAccountsEl: "adminAccounts",
+        adminInventoryModalEl: "adminInventoryModal",
+        adminInventoryTitleEl: "adminInventoryTitle",
+        adminInventoryBodyEl: "adminInventoryBody",
+        adminInventoryCloseBtn: "adminInventoryCloseBtn",
+        vendingModalEl: "vendingModal",
+        vendingTitleEl: "vendingTitle",
+        vendingBodyEl: "vendingBody",
+        vendingActionsEl: "vendingActions",
+        vendingCloseBtn: "vendingCloseBtn",
+        donationModalEl: "donationModal",
+        donationTitleEl: "donationTitle",
+        donationBodyEl: "donationBody",
+        donationActionsEl: "donationActions",
+        donationCloseBtn: "donationCloseBtn",
+        chestModalEl: "chestModal",
+        chestTitleEl: "chestTitle",
+        chestBodyEl: "chestBody",
+        chestActionsEl: "chestActions",
+        chestCloseBtn: "chestCloseBtn",
+        gambleModalEl: "gambleModal",
+        gambleTitleEl: "gambleTitle",
+        gambleBodyEl: "gambleBody",
+        gambleActionsEl: "gambleActions",
+        gambleCloseBtn: "gambleCloseBtn",
+        signModalEl: "signModal",
+        signTitleEl: "signTitle",
+        signTextInputEl: "signTextInput",
+        signSaveBtn: "signSaveBtn",
+        signCloseBtn: "signCloseBtn",
+        announcementPopupEl: "announcementPopup",
+        announcementTextEl: "announcementText",
+        tradeMenuModalEl: "tradeMenuModal",
+        tradeMenuTitleEl: "tradeMenuTitle",
+        tradeMenuCloseBtn: "tradeMenuCloseBtn",
+        tradeStartBtn: "tradeStartBtn",
+        tradeCancelBtn: "tradeCancelBtn",
+        tradeRequestModalEl: "tradeRequestModal",
+        tradeRequestTextEl: "tradeRequestText",
+        tradeAcceptBtn: "tradeAcceptBtn",
+        tradeDeclineBtn: "tradeDeclineBtn",
+        profileModalEl: "profileModal",
+        profileTitleEl: "profileTitle",
+        profileBodyEl: "profileBody",
+        profileActionsEl: "profileActions",
+        profileCloseBtn: "profileCloseBtn",
+        friendsModalEl: "friendsModal",
+        friendsTitleEl: "friendsTitle",
+        friendsBodyEl: "friendsBody",
+        friendsActionsEl: "friendsActions",
+        friendsCloseBtn: "friendsCloseBtn",
+        titlesModalEl: "titlesModal",
+        titlesTitleEl: "titlesTitle",
+        titlesBodyEl: "titlesBody",
+        titlesActionsEl: "titlesActions",
+        titlesCloseBtn: "titlesCloseBtn",
+        achievementsModalEl: "achievementsModal",
+        achievementsTitleEl: "achievementsTitle",
+        achievementsBodyEl: "achievementsBody",
+        achievementsActionsEl: "achievementsActions",
+        achievementsCloseBtn: "achievementsCloseBtn",
+        questsModalEl: "questsModal",
+        questsTitleEl: "questsTitle",
+        questsBodyEl: "questsBody",
+        questsActionsEl: "questsActions",
+        questsCloseBtn: "questsCloseBtn",
+        worldLockModalEl: "worldLockModal",
+        worldLockTitleEl: "worldLockTitle",
+        worldLockAdminInputEl: "worldLockAdminInput",
+        worldLockAdminAddBtn: "worldLockAdminAddBtn",
+        worldLockAdminsEl: "worldLockAdmins",
+        worldLockBanInputEl: "worldLockBanInput",
+        worldLockBan1hBtn: "worldLockBan1hBtn",
+        worldLockBanPermBtn: "worldLockBanPermBtn",
+        worldLockBansEl: "worldLockBans",
+        worldLockCloseBtn: "worldLockCloseBtn",
+        doorModalEl: "doorModal",
+        doorTitleEl: "doorTitle",
+        doorPublicBtn: "doorPublicBtn",
+        doorOwnerOnlyBtn: "doorOwnerOnlyBtn",
+        doorCloseBtn: "doorCloseBtn",
+        cameraModalEl: "cameraModal",
+        cameraTitleEl: "cameraTitle",
+        cameraCloseBtn: "cameraCloseBtn",
+        cameraSaveBtn: "cameraSaveBtn",
+        cameraEventJoinEl: "cameraEventJoin",
+        cameraEventLeaveEl: "cameraEventLeave",
+        cameraEventVendingEl: "cameraEventVending",
+        cameraFilterStaffEl: "cameraFilterStaff",
+        cameraLogsListEl: "cameraLogsList",
+        weatherModalEl: "weatherModal",
+        weatherTitleEl: "weatherTitle",
+        weatherCloseBtn: "weatherCloseBtn",
+        weatherPresetSelectEl: "weatherPresetSelect",
+        weatherImageUrlInputEl: "weatherImageUrlInput",
+        weatherResolvedLabelEl: "weatherResolvedLabel",
+        weatherPreviewImgEl: "weatherPreviewImg",
+        weatherPreviewEmptyEl: "weatherPreviewEmpty",
+        weatherSaveBtn: "weatherSaveBtn",
+        weatherClearBtn: "weatherClearBtn",
+        updatingOverlayEl: "updatingOverlay",
+        chatPanelEl: "chatPanel",
+        chatMessagesEl: "chatMessages",
+        chatInputRowEl: "chatInputRow",
+        chatInputEl: "chatInput",
+        chatSendBtn: "chatSendBtn",
+        logsMessagesEl: "logsMessages",
+        exitWorldBtn: "exitWorldBtn",
+        logoutBtn: "logoutBtn"
+      };
+      function initDomRefsCompat() {
+        if (typeof stateModule.initDefaultDomRefs === "function") {
+          stateModule.initDefaultDomRefs();
+          return;
+        }
+        if (typeof stateModule.initDomRefs === "function") {
+          stateModule.initDomRefs(DOM_REF_MAP);
+          return;
+        }
+        Object.keys(DOM_REF_MAP).forEach((name) => {
+          globalThis[name] = document.getElementById(DOM_REF_MAP[name]);
+        });
+      }
+      initDomRefsCompat();
       const ctx = canvas.getContext("2d");
 
       function ensureGambleModalDom() {
@@ -54,8 +231,226 @@
       }
       ensureGambleModalDom();
 
-      stateModule.initDefaultModuleRefs(modules);
-      stateModule.initCoreState({ settings: window.GT_SETTINGS || {} });
+      const MODULE_REF_MAP = {
+        adminModule: "admin",
+        blocksModule: "blocks",
+        farmablesModule: "farmables",
+        seedsModule: "seeds",
+        plantsModule: "plants",
+        gemsModule: "gems",
+        rewardsModule: "rewards",
+        texturesModule: "textures",
+        blockKeysModule: "blockKeys",
+        itemsModule: "items",
+        cosmeticsModule: "cosmetics",
+        playerModule: "player",
+        adminsModule: "admins",
+        authModule: "auth",
+        authStorageModule: "authStorage",
+        dbModule: "db",
+        worldModule: "world",
+        physicsModule: "physics",
+        animationsModule: "animations",
+        particlesModule: "particles",
+        drawUtilsModule: "drawUtils",
+        drawModule: "draw",
+        stateModule: "state",
+        eventsModule: {
+          keys: ["events"],
+          fallback: {
+            on(target, type, listener, options) {
+              if (!target || typeof target.addEventListener !== "function") return false;
+              target.addEventListener(type, listener, options);
+              return true;
+            }
+          }
+        },
+        inputUtilsModule: "inputUtils",
+        syncPlayerModule: "syncPlayer",
+        syncBlocksModule: "syncBlocks",
+        syncWorldsModule: "syncWorlds",
+        syncHitsModule: "syncHits",
+        commandsModule: "commands",
+        chatModule: "chat",
+        menuModule: "menu",
+        messagesModule: "messages",
+        anticheatModule: "anticheat",
+        progressionModule: "progression",
+        achievementsModule: "achievements",
+        questsModule: "quests",
+        gachaModule: "gacha",
+        backupModule: "backup",
+        vendingModule: "vending",
+        donationModule: "donation",
+        chestModule: "chest",
+        friendsModule: "friends",
+        tradeModule: "trade",
+        shopModule: "shop",
+        signModule: "sign",
+        gambleModule: ["gambling", "gamble"],
+        dropsModule: "drops",
+        adminPanelModule: "adminPanel"
+      };
+      function resolveModuleSpecCompat(spec) {
+        if (typeof spec === "string") return modules[spec] || {};
+        if (Array.isArray(spec)) {
+          for (let i = 0; i < spec.length; i++) {
+            const key = String(spec[i] || "").trim();
+            if (!key) continue;
+            if (modules[key] !== undefined) return modules[key] || {};
+          }
+          return {};
+        }
+        if (spec && typeof spec === "object") {
+          const keys = Array.isArray(spec.keys) ? spec.keys : [];
+          for (let i = 0; i < keys.length; i++) {
+            const key = String(keys[i] || "").trim();
+            if (!key) continue;
+            if (modules[key] !== undefined) return modules[key] || {};
+          }
+          return spec.fallback !== undefined ? spec.fallback : {};
+        }
+        return {};
+      }
+      function initModuleRefsCompat() {
+        if (typeof stateModule.initDefaultModuleRefs === "function") {
+          stateModule.initDefaultModuleRefs(modules);
+          return;
+        }
+        if (typeof stateModule.initModuleRefs === "function") {
+          stateModule.initModuleRefs({ modules, map: MODULE_REF_MAP });
+          return;
+        }
+        globalThis.modules = modules;
+        Object.keys(MODULE_REF_MAP).forEach((name) => {
+          globalThis[name] = resolveModuleSpecCompat(MODULE_REF_MAP[name]);
+        });
+      }
+      function initCoreStateCompat() {
+        if (typeof stateModule.initCoreState === "function") {
+          stateModule.initCoreState({ settings: window.GT_SETTINGS || {} });
+          return;
+        }
+        const settings = window.GT_SETTINGS || {};
+        const DEFAULT_ADMIN_ROLE_RANK = { none: 0, moderator: 1, admin: 2, manager: 3, owner: 4 };
+        const DEFAULT_ADMIN_PERMISSIONS = {
+          owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "db_backup", "db_restore", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+          manager: ["panel_open", "view_logs", "view_audit", "clear_logs", "setrole_limited", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+          admin: ["panel_open", "view_logs", "view_audit", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+          moderator: ["panel_open", "kick", "tp", "reach", "bring", "summon", "announce", "announce_user"],
+          none: []
+        };
+        const DEFAULT_ADMIN_COMMAND_COOLDOWNS_MS = {
+          owner: {},
+          manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, give_block: 600, give_item: 600, givetitle: 600, removetitle: 600, tp: 300, reach: 500, bring: 700, summon: 700, setrole: 2000, freeze: 700, unfreeze: 700, godmode: 700, clearworld: 2500, announce: 500, announce_user: 500 },
+          admin: { kick: 900, give_block: 900, give_item: 900, givetitle: 900, removetitle: 900, tp: 400, reach: 600, bring: 900, summon: 900, freeze: 900, unfreeze: 900, godmode: 900, clearworld: 3000, announce: 700, announce_user: 700 },
+          moderator: { kick: 1200, tp: 600, reach: 900, bring: 1200, summon: 1200, announce: 900, announce_user: 900 },
+          none: {}
+        };
+        const moduleRoleConfig = typeof adminModule.createRoleConfig === "function" ? (adminModule.createRoleConfig(settings) || {}) : {};
+        globalThis.SETTINGS = settings;
+        globalThis.TILE = Number(settings.TILE_SIZE) || 32;
+        globalThis.WORLD_W = Number(settings.WORLD_WIDTH_TILES) || 140;
+        globalThis.WORLD_H = Number(settings.WORLD_HEIGHT_TILES) || 30;
+        globalThis.GRAVITY = Number(settings.GRAVITY) || 0.32;
+        globalThis.FRICTION = Number(settings.FRICTION_GROUND) || 0.86;
+        globalThis.AIR_CONTROL = Number(settings.AIR_CONTROL) || 0.6;
+        globalThis.AIR_FRICTION = Number(settings.FRICTION_AIR) || 0.94;
+        globalThis.PLAYER_W = Number(settings.PLAYER_WIDTH) || 22;
+        globalThis.PLAYER_H = Number(settings.PLAYER_HEIGHT) || 30;
+        globalThis.WATER_MOVE_MULT = 0.62;
+        globalThis.WATER_GRAVITY_MULT = 0.35;
+        globalThis.WATER_FALL_MULT = 0.52;
+        globalThis.WATER_FRICTION_MULT = 0.86;
+        globalThis.ANTI_GRAV_RADIUS_TILES = Math.max(2, Number(settings.ANTI_GRAV_RADIUS_TILES) || 8);
+        globalThis.ANTI_GRAV_GRAVITY_MULT = Math.max(0.05, Math.min(1, Number(settings.ANTI_GRAV_GRAVITY_MULT) || 0.2));
+        globalThis.ANTI_GRAV_FALL_MULT = Math.max(0.05, Math.min(1, Number(settings.ANTI_GRAV_FALL_MULT) || 0.42));
+        globalThis.ANTI_GRAV_AIR_JUMP_COOLDOWN_MS = Math.max(70, Number(settings.ANTI_GRAV_AIR_JUMP_COOLDOWN_MS) || 140);
+        globalThis.BASE_PATH = typeof settings.BASE_PATH === "string" && settings.BASE_PATH ? settings.BASE_PATH : "growtopia-test";
+        globalThis.LOG_VIEWER_USERNAMES = Array.isArray(settings.LOG_VIEWER_USERNAMES) ? settings.LOG_VIEWER_USERNAMES : ["isxt"];
+        globalThis.adminRoleConfig = {
+          roleRank: settings.ADMIN_ROLE_RANK && typeof settings.ADMIN_ROLE_RANK === "object" ? settings.ADMIN_ROLE_RANK : (moduleRoleConfig.roleRank || DEFAULT_ADMIN_ROLE_RANK),
+          permissions: settings.ADMIN_PERMISSIONS && typeof settings.ADMIN_PERMISSIONS === "object" ? settings.ADMIN_PERMISSIONS : (moduleRoleConfig.permissions || DEFAULT_ADMIN_PERMISSIONS),
+          commandCooldownsMs: settings.ADMIN_COMMAND_COOLDOWNS_MS && typeof settings.ADMIN_COMMAND_COOLDOWNS_MS === "object" ? settings.ADMIN_COMMAND_COOLDOWNS_MS : (moduleRoleConfig.commandCooldownsMs || DEFAULT_ADMIN_COMMAND_COOLDOWNS_MS),
+          roleByUsername: settings.ADMIN_ROLE_BY_USERNAME && typeof settings.ADMIN_ROLE_BY_USERNAME === "object" ? settings.ADMIN_ROLE_BY_USERNAME : (moduleRoleConfig.roleByUsername || {}),
+          adminUsernames: Array.isArray(settings.ADMIN_USERNAMES) ? settings.ADMIN_USERNAMES : (Array.isArray(moduleRoleConfig.adminUsernames) && moduleRoleConfig.adminUsernames.length ? moduleRoleConfig.adminUsernames : ["isxt"])
+        };
+        globalThis.JUMP_COOLDOWN_MS = Number(settings.JUMP_COOLDOWN_MS) || 200;
+        globalThis.PLAYER_SYNC_MIN_MS = Math.max(25, Number(settings.PLAYER_SYNC_MIN_MS) || 60);
+        globalThis.GLOBAL_SYNC_MIN_MS = Math.max(globalThis.PLAYER_SYNC_MIN_MS, Number(settings.GLOBAL_SYNC_MIN_MS) || 170);
+        globalThis.LAYOUT_PREFS_KEY = "gt_layout_panels_v3";
+        globalThis.DESKTOP_PANEL_LEFT_DEFAULT = 302;
+        globalThis.DESKTOP_PANEL_RIGHT_DEFAULT = 375;
+        globalThis.DESKTOP_PANEL_MIN = 140;
+        globalThis.DESKTOP_PANEL_MAX_RATIO = 0.26;
+        globalThis.MOVE_ACCEL = Number(settings.MOVE_ACCEL) || 0.46;
+        globalThis.JUMP_VELOCITY = Number(settings.JUMP_VELOCITY) || -7.2;
+        globalThis.MAX_MOVE_SPEED = Number(settings.MAX_MOVE_SPEED) || 3.7;
+        globalThis.MAX_FALL_SPEED = Number(settings.MAX_FALL_SPEED) || 10;
+        globalThis.WEATHER_PRESET_IMAGES = Array.isArray(settings.WEATHER_PRESET_IMAGES) ? settings.WEATHER_PRESET_IMAGES : [];
+        globalThis.SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
+        globalThis.FORCE_RELOAD_MARKER_KEY = "growtopia_force_reload_marker_v1";
+        globalThis.FORCE_RELOAD_NOTICE_KEY = "growtopia_force_reload_notice_v1";
+        globalThis.CAMERA_ZOOM_PREF_KEY = "growtopia_camera_zoom_v1";
+        globalThis.CAMERA_ZOOM_MIN = Math.max(0.5, Number(settings.CAMERA_ZOOM_MIN) || 0.7);
+        globalThis.CAMERA_ZOOM_MAX = Math.max(globalThis.CAMERA_ZOOM_MIN + 0.1, Number(settings.CAMERA_ZOOM_MAX) || 2.2);
+        globalThis.CAMERA_ZOOM_STEP = Math.max(0.05, Number(settings.CAMERA_ZOOM_STEP) || 0.12);
+        globalThis.baseBlockDefs = typeof blocksModule.getBlockDefs === "function" ? blocksModule.getBlockDefs() : {};
+        globalThis.farmableBlockDefs = typeof farmablesModule.getFarmableDefs === "function" ? farmablesModule.getFarmableDefs() : {};
+        globalThis.worldBlockDefs = { ...globalThis.baseBlockDefs, ...globalThis.farmableBlockDefs };
+        globalThis.SPAWN_TILE_X = 8;
+        globalThis.SPAWN_TILE_Y = 11;
+        globalThis.SPAWN_DOOR_ID = 7;
+        globalThis.SPAWN_BASE_ID = 8;
+        globalThis.SPAWN_MOVER_ID = 40;
+        globalThis.WORLD_LOCK_ID = 9;
+        globalThis.DOOR_BLOCK_ID = 10;
+        globalThis.WATER_ID = 11;
+        globalThis.PLATFORM_ID = 12;
+        globalThis.STAIR_BASE_ID = 13;
+        globalThis.STAIR_ROTATION_IDS = [13, 14, 15, 16];
+        globalThis.SPIKE_BASE_ID = 33;
+        globalThis.SPIKE_ROTATION_IDS = [33, 37, 38, 39];
+        globalThis.VENDING_ID = 17;
+        globalThis.GAMBLE_ID = 32;
+        globalThis.SIGN_ID = 18;
+        globalThis.ANTI_GRAV_ID = 19;
+        globalThis.CAMERA_ID = 20;
+        globalThis.WEATHER_MACHINE_ID = 21;
+        globalThis.DISPLAY_BLOCK_ID = 22;
+        globalThis.WOOD_PLANK_ID = 23;
+        globalThis.OBSIDIAN_LOCK_ID = 24;
+        globalThis.EMERALD_LOCK_ID = 42;
+        globalThis.DONATION_BOX_ID = 34;
+        globalThis.STORAGE_CHEST_ID = 36;
+        globalThis.TREE_YIELD_BLOCK_ID = 4;
+        globalThis.TREE_GROW_MS = Math.max(5000, Number(settings.TREE_GROW_MS) || 120000);
+        globalThis.TREE_STAGE_COUNT = 4;
+        globalThis.TREE_GEM_MIN = Math.max(0, Math.floor(Number(settings.TREE_GEM_MIN) || 1));
+        globalThis.TREE_GEM_MAX = Math.max(globalThis.TREE_GEM_MIN, Math.floor(Number(settings.TREE_GEM_MAX) || 4));
+        globalThis.SEED_DROP_CHANCE = 1 / 8;
+        globalThis.BREAK_RETURN_ITEM_CHANCE = 1 / 5;
+        globalThis.PASSIVE_LOCK_AUTOCONVERT = Boolean(settings.PASSIVE_LOCK_AUTOCONVERT);
+        globalThis.INVENTORY_ITEM_LIMIT = 300;
+        globalThis.spawnTileX = globalThis.SPAWN_TILE_X;
+        globalThis.spawnTileY = globalThis.SPAWN_TILE_Y;
+        globalThis.DEFAULT_EDIT_REACH_TILES = 4.5;
+        globalThis.MIN_EDIT_REACH_TILES = 1;
+        globalThis.MAX_EDIT_REACH_TILES = 16;
+        globalThis.TOOL_FIST = "fist";
+        globalThis.TOOL_WRENCH = "wrench";
+        globalThis.farmableRegistry = typeof farmablesModule.createRegistry === "function"
+          ? farmablesModule.createRegistry(globalThis.worldBlockDefs, {})
+          : {
+              ids: [],
+              byId: {},
+              isFarmable: () => false,
+              rollGems: () => 0,
+              getBreakXp: (_id, fallbackXp) => Math.max(1, Math.floor(Number(fallbackXp) || 1))
+            };
+      }
+      initModuleRefsCompat();
+      initCoreStateCompat();
 
       const seedRegistry = typeof seedsModule.createSeedRegistry === "function"
         ? seedsModule.createSeedRegistry(worldBlockDefs, {
