@@ -179,7 +179,7 @@ canvas {
   border-radius: 10px;
   background: linear-gradient(#4f7fa0, #3f6f92 42%, #315773);
   image-rendering: pixelated;
-  cursor: crosshair;
+  cursor: default;
   touch-action: none;
   outline: 1px solid rgba(255, 255, 255, 0.15);
 }

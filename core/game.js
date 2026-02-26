@@ -5443,7 +5443,7 @@
             if (titleView.inlineStyles.length) {
               titleEl.style.cssText = titleView.inlineStyles.join(";");
             }
-            titleEl.textContent = "[" + titleName + "] ";
+            titleEl.textContent = titleName + " ";
             row.appendChild(titleEl);
           }
           if (showNameLabel) {
