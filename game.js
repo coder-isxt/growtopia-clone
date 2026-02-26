@@ -197,6 +197,7 @@
       const itemsModule = modules.items || {};
       const cosmeticsModule = modules.cosmetics || {};
       const playerModule = modules.player || {};
+      const authModule = modules.auth || {};
       const authStorageModule = modules.authStorage || {};
       const dbModule = modules.db || {};
       const worldModule = modules.world || {};
@@ -4109,101 +4110,7 @@
         }, rawText);
       }
 
-      function validateCredentials(username, password) {
-        if (!/^[a-z0-9_]{3,20}$/.test(username)) {
-          return "Username must be 3-20 chars: a-z, 0-9, _.";
-        }
-        if (password.length < 4 || password.length > 64) {
-          return "Password must be 4-64 characters.";
-        }
-        return "";
-      }
-
-      function sha256HexJs(text) {
-        function rightRotate(value, amount) {
-          return (value >>> amount) | (value << (32 - amount));
-        }
-        function utf8Bytes(str) {
-          const out = [];
-          for (let i = 0; i < str.length; i++) {
-            let code = str.charCodeAt(i);
-            if (code < 0x80) {
-              out.push(code);
-            } else if (code < 0x800) {
-              out.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
-            } else if (code >= 0xd800 && code <= 0xdbff) {
-              i++;
-              const low = str.charCodeAt(i);
-              const cp = ((code - 0xd800) << 10) + (low - 0xdc00) + 0x10000;
-              out.push(
-                0xf0 | (cp >> 18),
-                0x80 | ((cp >> 12) & 0x3f),
-                0x80 | ((cp >> 6) & 0x3f),
-                0x80 | (cp & 0x3f)
-              );
-            } else {
-              out.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
-            }
-          }
-          return out;
-        }
-        const k = [
-          0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-          0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-          0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-          0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-          0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-          0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-          0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-          0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
-        ];
-        const h = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
-        const bytes = utf8Bytes(text);
-        const bitLenHi = Math.floor((bytes.length * 8) / 0x100000000);
-        const bitLenLo = (bytes.length * 8) >>> 0;
-        bytes.push(0x80);
-        while ((bytes.length % 64) !== 56) bytes.push(0);
-        bytes.push((bitLenHi >>> 24) & 0xff, (bitLenHi >>> 16) & 0xff, (bitLenHi >>> 8) & 0xff, bitLenHi & 0xff);
-        bytes.push((bitLenLo >>> 24) & 0xff, (bitLenLo >>> 16) & 0xff, (bitLenLo >>> 8) & 0xff, bitLenLo & 0xff);
-        const w = new Array(64);
-        for (let i = 0; i < bytes.length; i += 64) {
-          for (let t = 0; t < 16; t++) {
-            const j = i + t * 4;
-            w[t] = ((bytes[j] << 24) | (bytes[j + 1] << 16) | (bytes[j + 2] << 8) | bytes[j + 3]) >>> 0;
-          }
-          for (let t = 16; t < 64; t++) {
-            const s0 = rightRotate(w[t - 15], 7) ^ rightRotate(w[t - 15], 18) ^ (w[t - 15] >>> 3);
-            const s1 = rightRotate(w[t - 2], 17) ^ rightRotate(w[t - 2], 19) ^ (w[t - 2] >>> 10);
-            w[t] = (((w[t - 16] + s0) >>> 0) + ((w[t - 7] + s1) >>> 0)) >>> 0;
-          }
-          let a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];
-          for (let t = 0; t < 64; t++) {
-            const S1 = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
-            const ch = (e & f) ^ (~e & g);
-            const temp1 = (((((hh + S1) >>> 0) + ch) >>> 0) + ((k[t] + w[t]) >>> 0)) >>> 0;
-            const S0 = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
-            const maj = (a & b) ^ (a & c) ^ (b & c);
-            const temp2 = (S0 + maj) >>> 0;
-            hh = g; g = f; f = e; e = (d + temp1) >>> 0;
-            d = c; c = b; b = a; a = (temp1 + temp2) >>> 0;
-          }
-          h[0] = (h[0] + a) >>> 0; h[1] = (h[1] + b) >>> 0; h[2] = (h[2] + c) >>> 0; h[3] = (h[3] + d) >>> 0;
-          h[4] = (h[4] + e) >>> 0; h[5] = (h[5] + f) >>> 0; h[6] = (h[6] + g) >>> 0; h[7] = (h[7] + hh) >>> 0;
-        }
-        return h.map((n) => n.toString(16).padStart(8, "0")).join("");
-      }
-
-      async function sha256Hex(text) {
-        const subtle = (globalThis.crypto && globalThis.crypto.subtle) ? globalThis.crypto.subtle : null;
-        if (subtle) {
-          const bytes = new TextEncoder().encode(text);
-          const hash = await subtle.digest("SHA-256", bytes);
-          const array = Array.from(new Uint8Array(hash));
-          return array.map((b) => b.toString(16).padStart(2, "0")).join("");
-        }
-        return sha256HexJs(text);
-      }
-
+      // Auth orchestration is delegated to auth.js via a controller.
       async function getAuthDb() {
         if (typeof dbModule.getOrInitAuthDb === "function") {
           return dbModule.getOrInitAuthDb({
@@ -4213,128 +4120,83 @@
             getFirebaseApiKey: window.getFirebaseApiKey
           });
         }
-        const withTimeout = (promise, timeoutMs, label) => {
-          const ms = Math.max(1000, Number(timeoutMs) || 8000);
-          let timer = null;
-          const timeoutPromise = new Promise((_, reject) => {
-            timer = setTimeout(() => reject(new Error(label + " timed out.")), ms);
-          });
-          return Promise.race([Promise.resolve(promise), timeoutPromise]).finally(() => {
-            if (timer) clearTimeout(timer);
-          });
-        };
         if (!window.firebase) {
           throw new Error("Firebase SDK not loaded.");
         }
-
         const firebaseConfig = window.FIREBASE_CONFIG;
-
-        // If apiKey missing, try to fetch it at runtime
         if (firebaseConfig && !firebaseConfig.apiKey && typeof window.getFirebaseApiKey === "function") {
-          try {
-            const fetched = await withTimeout(window.getFirebaseApiKey(), 8000, "API key fetch");
-
-            // Support BOTH formats:
-            // 1) new API: { ok: true, key: "..." }
-            // 2) old API: "..."
-            const apiKey =
-              (fetched && typeof fetched === "object" && fetched.ok && typeof fetched.key === "string" && fetched.key) ||
-              (typeof fetched === "string" && fetched.trim()) ||
-              null;
-
-            if (!apiKey) {
-              throw new Error("Invalid API key response format.");
-            }
-
-            firebaseConfig.apiKey = apiKey;
-          } catch (error) {
-            throw new Error("Failed to fetch Firebase API key at runtime. " + (error?.message || error));
-          }
+          const fetched = await window.getFirebaseApiKey();
+          const apiKey =
+            (fetched && typeof fetched === "object" && fetched.ok && typeof fetched.key === "string" && fetched.key) ||
+            (typeof fetched === "string" && fetched.trim()) ||
+            "";
+          if (!apiKey) throw new Error("Failed to fetch Firebase API key at runtime.");
+          firebaseConfig.apiKey = apiKey;
         }
-
         if (!hasFirebaseConfig(firebaseConfig)) {
           throw new Error("Set firebase-config.js first.");
         }
-
         if (!firebase.apps.length) {
           firebase.initializeApp(firebaseConfig);
         }
-
         if (!network.authDb) {
           network.authDb = firebase.database();
         }
-
         return network.authDb;
       }
 
-      function withAuthTimeout(promise, label, timeoutMs) {
-        const ms = Math.max(1000, Number(timeoutMs) || 12000);
-        let timer = null;
-        const timeoutPromise = new Promise((_, reject) => {
-          timer = setTimeout(() => {
-            reject(new Error((label || "Auth operation") + " timed out."));
-          }, ms);
-        });
-        return Promise.race([Promise.resolve(promise), timeoutPromise]).finally(() => {
-          if (timer) clearTimeout(timer);
-        });
-      }
+      let authController = null;
 
-      async function readAuthValueWithRetry(path, label) {
-        const safePath = String(path || "").trim();
-        if (!safePath) throw new Error("Invalid auth read path.");
-        const firstDb = await withAuthTimeout(getAuthDb(), "Auth DB init", 16000);
-        try {
-          return await withAuthTimeout(firstDb.ref(safePath).once("value"), label, 18000);
-        } catch (error) {
-          const message = String((error && error.message) || "");
-          if (!/timed out/i.test(message)) throw error;
-          setAuthStatus((label || "Auth read") + " is slow, retrying...", false);
-          try {
-            if (firstDb && typeof firstDb.goOffline === "function") firstDb.goOffline();
-            if (firstDb && typeof firstDb.goOnline === "function") firstDb.goOnline();
-          } catch (e) {
-            // ignore reconnect hint failures
-          }
-          const secondDb = await withAuthTimeout(getAuthDb(), "Auth DB reconnect", 20000);
-          return withAuthTimeout(secondDb.ref(safePath).once("value"), label + " retry", 28000);
-        }
-      }
-
-      async function reserveAccountSession(db, accountId, username) {
-        const sessionRef = db.ref(BASE_PATH + "/account-sessions/" + accountId);
-        const sessionId = "s_" + Math.random().toString(36).slice(2, 12);
-        const startedAtLocal = Date.now();
-        const result = await withAuthTimeout(sessionRef.transaction((current) => {
-          if (current && current.sessionId) {
-            return;
-          }
-          return {
-            sessionId,
-            username,
-            startedAt: firebase.database.ServerValue.TIMESTAMP
-          };
-        }), "Session reservation", 12000);
-        if (!result.committed) {
-          addClientLog("Session denied for @" + username + " (already active).");
-          throw new Error("This account is already active in another client.");
-        }
-        await withAuthTimeout(sessionRef.onDisconnect().remove(), "Session onDisconnect", 6000);
-        playerSessionRef = sessionRef;
-        playerSessionId = sessionId;
-        playerSessionStartedAt = startedAtLocal;
-        chatMessages.length = 0;
-        recentChatFingerprintAt.clear();
-        renderChatMessages();
-        addClientLog("Session created for @" + username + " (" + sessionId + ").", accountId, username, sessionId);
+      function getAuthController() {
+        if (authController) return authController;
+        if (typeof authModule.createController !== "function") return null;
+        authController = authModule.createController({
+          getNetwork: () => network,
+          getFirebase: () => (typeof firebase !== "undefined" ? firebase : window.firebase || null),
+          getBasePath: () => BASE_PATH,
+          getCredentialsInput: () => ({
+            username: authUsernameEl.value || "",
+            password: authPasswordEl.value || ""
+          }),
+          normalizeUsername,
+          setAuthBusy,
+          setAuthStatus,
+          onAuthSuccess,
+          saveCredentials,
+          addClientLog,
+          getBanStatus,
+          formatRemainingMs,
+          onDbReady: (db) => {
+            network.db = db;
+          },
+          getSession: () => ({
+            ref: playerSessionRef,
+            sessionId: playerSessionId,
+            startedAt: playerSessionStartedAt
+          }),
+          setSession: (ref, sessionId, startedAt) => {
+            playerSessionRef = ref || null;
+            playerSessionId = sessionId || "";
+            playerSessionStartedAt = Math.max(0, Number(startedAt) || 0);
+          },
+          onChatSessionReset: () => {
+            chatMessages.length = 0;
+            recentChatFingerprintAt.clear();
+            renderChatMessages();
+          },
+          getPlayerName: () => (playerName || "")
+        });
+        return authController;
       }
 
       function releaseAccountSession() {
+        const ctrl = getAuthController();
+        if (ctrl && typeof ctrl.releaseAccountSession === "function") {
+          ctrl.releaseAccountSession();
+          return;
+        }
         if (playerSessionRef) {
           playerSessionRef.remove().catch(() => {});
-          if (playerName) {
-            addClientLog("Session released for @" + playerName + ".");
-          }
         }
         playerSessionRef = null;
         playerSessionId = "";
@@ -4342,95 +4204,21 @@
       }
 
       async function createAccountAndLogin() {
-        const username = normalizeUsername(authUsernameEl.value);
-        const password = authPasswordEl.value || "";
-        const validation = validateCredentials(username, password);
-        if (validation) {
-          setAuthStatus(validation, true);
+        const ctrl = getAuthController();
+        if (!ctrl || typeof ctrl.createAccountAndLogin !== "function") {
+          setAuthStatus("Auth module missing.", true);
           return;
         }
-        setAuthBusy(true);
-        setAuthStatus("Creating account...", false);
-        try {
-          const db = await withAuthTimeout(getAuthDb(), "Auth DB init", 12000);
-          network.db = db;
-          const usernameRef = db.ref(BASE_PATH + "/usernames/" + username);
-          const accountId = "acc_" + Math.random().toString(36).slice(2, 12);
-          const reserve = await withAuthTimeout(usernameRef.transaction((current) => {
-            if (current) return;
-            return accountId;
-          }), "Username reservation", 12000);
-          if (!reserve.committed) {
-            throw new Error("Username already exists.");
-          }
-          const passwordHash = await withAuthTimeout(sha256Hex(password), "Password hashing", 8000);
-          await withAuthTimeout(db.ref(BASE_PATH + "/accounts/" + accountId).set({
-            username,
-            passwordHash,
-            createdAt: firebase.database.ServerValue.TIMESTAMP
-          }), "Account create write", 12000);
-          addClientLog("Account created: @" + username + " (" + accountId + ").", accountId, username, "");
-          await withAuthTimeout(reserveAccountSession(db, accountId, username), "Session create", 12000);
-          saveCredentials(username, password);
-          onAuthSuccess(accountId, username);
-          setAuthStatus("Account created.", false);
-        } catch (error) {
-          setAuthStatus(error.message || "Account creation failed.", true);
-        } finally {
-          setAuthBusy(false);
-        }
+        await ctrl.createAccountAndLogin();
       }
 
       async function loginWithAccount() {
-        const username = normalizeUsername(authUsernameEl.value);
-        const password = authPasswordEl.value || "";
-        const validation = validateCredentials(username, password);
-        if (validation) {
-          setAuthStatus(validation, true);
+        const ctrl = getAuthController();
+        if (!ctrl || typeof ctrl.loginWithAccount !== "function") {
+          setAuthStatus("Auth module missing.", true);
           return;
         }
-        setAuthBusy(true);
-        setAuthStatus("Logging in...", false);
-        try {
-          const db = await withAuthTimeout(getAuthDb(), "Auth DB init", 12000);
-          network.db = db;
-          const usernameSnap = await readAuthValueWithRetry(BASE_PATH + "/usernames/" + username, "Lookup username");
-          const accountId = usernameSnap.val();
-          if (!accountId) {
-            throw new Error("Account not found.");
-          }
-          const accountSnap = await readAuthValueWithRetry(BASE_PATH + "/accounts/" + accountId, "Load account");
-          const account = accountSnap.val() || {};
-          const passwordHash = await withAuthTimeout(sha256Hex(password), "Password hashing", 8000);
-          if (account.passwordHash !== passwordHash) {
-            addClientLog("Login failed for @" + username + " (invalid password).", accountId, username, "");
-            throw new Error("Invalid password.");
-          }
-          const banSnap = await readAuthValueWithRetry(BASE_PATH + "/bans/" + accountId, "Load ban status");
-          if (banSnap.exists()) {
-            const banValue = banSnap.val();
-            const status = getBanStatus(banValue, Date.now());
-            if (status.expired) {
-              await withAuthTimeout(db.ref(BASE_PATH + "/bans/" + accountId).remove(), "Clear expired ban", 12000);
-            } else if (status.active) {
-              addClientLog("Login blocked for @" + username + " (banned).", accountId, username, "");
-              const reasonText = status.reason ? " Reason: " + status.reason + "." : "";
-              if (status.type === "permanent") {
-                throw new Error("This account is permanently banned." + reasonText);
-              }
-              throw new Error("This account is temporarily banned for " + formatRemainingMs(status.remainingMs) + "." + reasonText);
-            }
-          }
-          await withAuthTimeout(reserveAccountSession(db, accountId, username), "Session create", 12000);
-          saveCredentials(username, password);
-          onAuthSuccess(accountId, username);
-          addClientLog("Login success: @" + username + ".");
-          setAuthStatus("Logged in.", false);
-        } catch (error) {
-          setAuthStatus(error.message || "Login failed.", true);
-        } finally {
-          setAuthBusy(false);
-        }
+        await ctrl.loginWithAccount();
       }
 
       function onAuthSuccess(accountId, username) {
