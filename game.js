@@ -1,29 +1,39 @@
     (() => {
       const modules = window.GTModules || {};
       const stateModule = modules.state || {};
-      const STATE_FALLBACK_GUARD_KEY = "gt_state_fallback_once_v1";
+      const STATE_FALLBACK_INJECT_KEY = "gt_state_fallback_injected_v2";
+      const STATE_FALLBACK_RELOAD_KEY = "gt_state_fallback_reloaded_v2";
       function tryLoadStateFallbackOnce(reason) {
         try {
-          if (sessionStorage.getItem(STATE_FALLBACK_GUARD_KEY) === "1") return false;
-          sessionStorage.setItem(STATE_FALLBACK_GUARD_KEY, "1");
-          const script = document.createElement("script");
-          script.src = "state_fallback.js?v=" + encodeURIComponent(String(Date.now()));
-          script.onload = function () {
-            const refreshedStateModule = (window.GTModules || {}).state || {};
-            const ok = typeof refreshedStateModule.initDefaultDomRefs === "function"
-              && typeof refreshedStateModule.initDefaultModuleRefs === "function"
-              && typeof refreshedStateModule.initCoreState === "function"
-              && typeof refreshedStateModule.initRuntimeState === "function";
-            if (!ok) return;
+          if (sessionStorage.getItem(STATE_FALLBACK_INJECT_KEY) !== "1") {
+            sessionStorage.setItem(STATE_FALLBACK_INJECT_KEY, "1");
+            const script = document.createElement("script");
+            script.src = "state_fallback.js?v=" + encodeURIComponent(String(Date.now()));
+            script.onload = function () {
+              const refreshedStateModule = (window.GTModules || {}).state || {};
+              const ok = typeof refreshedStateModule.initDefaultDomRefs === "function"
+                && typeof refreshedStateModule.initDefaultModuleRefs === "function"
+                && typeof refreshedStateModule.initCoreState === "function"
+                && typeof refreshedStateModule.initRuntimeState === "function";
+              if (!ok) return;
+              const url = new URL(window.location.href);
+              url.searchParams.set("v", String(Date.now()));
+              window.location.replace(url.toString());
+            };
+            script.onerror = function () {
+              console.error("Failed to load state_fallback.js (" + String(reason || "unknown") + ").");
+            };
+            document.head.appendChild(script);
+            return true;
+          }
+          if (sessionStorage.getItem(STATE_FALLBACK_RELOAD_KEY) !== "1") {
+            sessionStorage.setItem(STATE_FALLBACK_RELOAD_KEY, "1");
             const url = new URL(window.location.href);
             url.searchParams.set("v", String(Date.now()));
             window.location.replace(url.toString());
-          };
-          script.onerror = function () {
-            console.error("Failed to load state_fallback.js (" + String(reason || "unknown") + ").");
-          };
-          document.head.appendChild(script);
-          return true;
+            return true;
+          }
+          return false;
         } catch (error) {
           return false;
         }
@@ -37,7 +47,8 @@
         throw new Error("state.js missing required init APIs (initDefaultDomRefs/initDefaultModuleRefs/initCoreState).");
       }
       try {
-        sessionStorage.removeItem(STATE_FALLBACK_GUARD_KEY);
+        sessionStorage.removeItem(STATE_FALLBACK_INJECT_KEY);
+        sessionStorage.removeItem(STATE_FALLBACK_RELOAD_KEY);
       } catch (error) {
         // ignore storage errors
       }
