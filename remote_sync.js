@@ -31,8 +31,8 @@ window.GTModules.remoteSync = (function createRemoteSyncModule() {
   function createController(options) {
     const opts = options || {};
     const remotePlayers = opts.remotePlayers;
-    const interpolationDelayMs = Math.max(16, Math.floor(toNumber(opts.interpolationDelayMs, 90)));
-    const maxExtrapolationMs = Math.max(0, Math.floor(toNumber(opts.maxExtrapolationMs, 130)));
+    const interpolationDelayMs = Math.max(16, Math.floor(toNumber(opts.interpolationDelayMs, 85)));
+    const maxExtrapolationMs = Math.max(0, Math.floor(toNumber(opts.maxExtrapolationMs, 0)));
     const snapDistancePx = Math.max(16, toNumber(opts.snapDistancePx, 140));
     const workerPath = String(opts.workerPath || "").trim();
 

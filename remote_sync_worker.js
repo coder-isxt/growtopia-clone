@@ -1,7 +1,7 @@
 "use strict";
 
 const DEFAULT_INTERPOLATION_DELAY_MS = 90;
-const DEFAULT_MAX_EXTRAPOLATION_MS = 130;
+const DEFAULT_MAX_EXTRAPOLATION_MS = 0;
 const DEFAULT_SNAP_DISTANCE_PX = 140;
 
 const state = {
@@ -61,11 +61,11 @@ function samplePlayer(entry, nowMs) {
   }
 
   const velocityX = (entry.toX - entry.fromX) / span;
-  const velocityY = (entry.toY - entry.fromY) / span;
   const extraMs = clamp(nowMs - toTime, 0, state.maxExtrapolationMs);
   return {
     x: entry.toX + velocityX * extraMs,
-    y: entry.toY + velocityY * extraMs
+    // Avoid vertical overshoot into tiles while falling/landing.
+    y: entry.toY
   };
 }
 
@@ -95,11 +95,16 @@ function upsertPlayer(raw) {
   }
 
   const sampled = samplePlayer(current, nowMs);
-  const dist = Math.hypot(input.x - sampled.x, input.y - sampled.y);
-  const shouldSnap = dist >= state.snapDistancePx;
+  const deltaX = Math.abs(input.x - sampled.x);
+  const deltaY = Math.abs(input.y - sampled.y);
+  const dist = Math.hypot(deltaX, deltaY);
+  const shouldSnap = dist >= state.snapDistancePx || deltaY >= 42;
   const nextFromX = shouldSnap ? input.x : sampled.x;
   const nextFromY = shouldSnap ? input.y : sampled.y;
-  const nextToTime = shouldSnap ? nowMs : (nowMs + state.interpolationDelayMs);
+  const dynamicDelay = deltaY >= 20
+    ? Math.min(state.interpolationDelayMs, 28)
+    : state.interpolationDelayMs;
+  const nextToTime = shouldSnap ? nowMs : (nowMs + dynamicDelay);
 
   current.accountId = input.accountId;
   current.facing = input.facing;

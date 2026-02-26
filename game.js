@@ -703,12 +703,21 @@
         if (remotePlayerSyncController) return remotePlayerSyncController;
         if (typeof remoteSyncModule.createController !== "function") return null;
         const workerVersion = encodeURIComponent(String(window.GT_ASSET_VERSION || "dev"));
+        const configuredInterpolationMs = Number(SETTINGS.REMOTE_SYNC_INTERPOLATION_MS);
+        const configuredMaxExtrapolationMs = Number(SETTINGS.REMOTE_SYNC_MAX_EXTRAPOLATION_MS);
+        const configuredSnapDistancePx = Number(SETTINGS.REMOTE_SYNC_SNAP_DISTANCE_PX);
         remotePlayerSyncController = remoteSyncModule.createController({
           remotePlayers,
           workerPath: "remote_sync_worker.js?v=" + workerVersion,
-          interpolationDelayMs: Math.max(16, Number(SETTINGS.REMOTE_SYNC_INTERPOLATION_MS) || 85),
-          maxExtrapolationMs: Math.max(0, Number(SETTINGS.REMOTE_SYNC_MAX_EXTRAPOLATION_MS) || 120),
-          snapDistancePx: Math.max(TILE * 2, Number(SETTINGS.REMOTE_SYNC_SNAP_DISTANCE_PX) || (TILE * 4))
+          interpolationDelayMs: Number.isFinite(configuredInterpolationMs)
+            ? Math.max(16, configuredInterpolationMs)
+            : 85,
+          maxExtrapolationMs: Number.isFinite(configuredMaxExtrapolationMs)
+            ? Math.max(0, configuredMaxExtrapolationMs)
+            : 0,
+          snapDistancePx: Number.isFinite(configuredSnapDistancePx)
+            ? Math.max(TILE * 2, configuredSnapDistancePx)
+            : (TILE * 4)
         });
         return remotePlayerSyncController;
       }
