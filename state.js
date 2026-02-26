@@ -27,6 +27,12 @@ window.GTModules.state = (function createStateModule() {
     return root[name];
   }
 
+  function setValue(name, value) {
+    root[name] = value;
+    aliasGlobal(name);
+    return value;
+  }
+
   function buildWeatherPresets(images) {
     const rows = Array.isArray(images) ? images : [];
     const out = [{ id: "none", name: "Default Sky", url: "" }];
@@ -41,6 +47,434 @@ window.GTModules.state = (function createStateModule() {
       seen.add(id);
     }
     return out;
+  }
+
+  const DEFAULT_DOM_REF_MAP = {
+    authScreenEl: "authScreen",
+    gameShellEl: "gameShell",
+    authUsernameEl: "authUsername",
+    authPasswordEl: "authPassword",
+    authCreateBtn: "authCreateBtn",
+    authLoginBtn: "authLoginBtn",
+    authStatusEl: "authStatus",
+    authMainNoticeEl: "authMainNotice",
+    canvas: "game",
+    toolbarEl: "toolbar",
+    leftPanelResizeHandleEl: "leftPanelResizeHandle",
+    rightPanelResizeHandleEl: "rightPanelResizeHandle",
+    canvasWrapEl: "canvasWrap",
+    menuScreenEl: "menuScreen",
+    menuMainNoticeEl: "menuMainNotice",
+    mobileControlsEl: "mobileControls",
+    mobileLeftBtn: "mobileLeftBtn",
+    mobileRightBtn: "mobileRightBtn",
+    mobileJumpBtn: "mobileJumpBtn",
+    mobilePrimaryBtn: "mobilePrimaryBtn",
+    mobileSecondaryBtn: "mobileSecondaryBtn",
+    mobileFistBtn: "mobileFistBtn",
+    mobileWrenchBtn: "mobileWrenchBtn",
+    mobilePlayModeBtn: "mobilePlayModeBtn",
+    mobileChatBtn: "mobileChatBtn",
+    mobileInventoryBtn: "mobileInventoryBtn",
+    mobileExitBtn: "mobileExitBtn",
+    networkStateEl: "networkState",
+    gemsCountEl: "gemsCount",
+    onlineCountEl: "onlineCount",
+    totalOnlineCountEl: "totalOnlineCount",
+    currentWorldLabelEl: "currentWorldLabel",
+    worldButtonsEl: "worldButtons",
+    worldInputEl: "worldInput",
+    enterWorldBtn: "enterWorldBtn",
+    chatToggleBtn: "chatToggleBtn",
+    friendsToggleBtn: "friendsToggleBtn",
+    titlesToggleBtn: "titlesToggleBtn",
+    questsToggleBtn: "questsToggleBtn",
+    achievementsToggleBtn: "achievementsToggleBtn",
+    shopToggleBtn: "shopToggleBtn",
+    adminToggleBtn: "adminToggleBtn",
+    respawnBtn: "respawnBtn",
+    adminPanelEl: "adminPanel",
+    adminSearchInput: "adminSearchInput",
+    adminAuditActionFilterEl: "adminAuditActionFilter",
+    adminAuditActorFilterEl: "adminAuditActorFilter",
+    adminAuditTargetFilterEl: "adminAuditTargetFilter",
+    adminForceReloadBtn: "adminForceReloadBtn",
+    adminBackupDownloadBtn: "adminBackupDownloadBtn",
+    adminBackupUploadBtn: "adminBackupUploadBtn",
+    adminBackupUploadInput: "adminBackupUploadInput",
+    adminAuditExportBtn: "adminAuditExportBtn",
+    adminCloseBtn: "adminCloseBtn",
+    adminAccountsEl: "adminAccounts",
+    adminInventoryModalEl: "adminInventoryModal",
+    adminInventoryTitleEl: "adminInventoryTitle",
+    adminInventoryBodyEl: "adminInventoryBody",
+    adminInventoryCloseBtn: "adminInventoryCloseBtn",
+    vendingModalEl: "vendingModal",
+    vendingTitleEl: "vendingTitle",
+    vendingBodyEl: "vendingBody",
+    vendingActionsEl: "vendingActions",
+    vendingCloseBtn: "vendingCloseBtn",
+    donationModalEl: "donationModal",
+    donationTitleEl: "donationTitle",
+    donationBodyEl: "donationBody",
+    donationActionsEl: "donationActions",
+    donationCloseBtn: "donationCloseBtn",
+    chestModalEl: "chestModal",
+    chestTitleEl: "chestTitle",
+    chestBodyEl: "chestBody",
+    chestActionsEl: "chestActions",
+    chestCloseBtn: "chestCloseBtn",
+    gambleModalEl: "gambleModal",
+    gambleTitleEl: "gambleTitle",
+    gambleBodyEl: "gambleBody",
+    gambleActionsEl: "gambleActions",
+    gambleCloseBtn: "gambleCloseBtn",
+    signModalEl: "signModal",
+    signTitleEl: "signTitle",
+    signTextInputEl: "signTextInput",
+    signSaveBtn: "signSaveBtn",
+    signCloseBtn: "signCloseBtn",
+    announcementPopupEl: "announcementPopup",
+    announcementTextEl: "announcementText",
+    tradeMenuModalEl: "tradeMenuModal",
+    tradeMenuTitleEl: "tradeMenuTitle",
+    tradeMenuCloseBtn: "tradeMenuCloseBtn",
+    tradeStartBtn: "tradeStartBtn",
+    tradeCancelBtn: "tradeCancelBtn",
+    tradeRequestModalEl: "tradeRequestModal",
+    tradeRequestTextEl: "tradeRequestText",
+    tradeAcceptBtn: "tradeAcceptBtn",
+    tradeDeclineBtn: "tradeDeclineBtn",
+    profileModalEl: "profileModal",
+    profileTitleEl: "profileTitle",
+    profileBodyEl: "profileBody",
+    profileActionsEl: "profileActions",
+    profileCloseBtn: "profileCloseBtn",
+    friendsModalEl: "friendsModal",
+    friendsTitleEl: "friendsTitle",
+    friendsBodyEl: "friendsBody",
+    friendsActionsEl: "friendsActions",
+    friendsCloseBtn: "friendsCloseBtn",
+    titlesModalEl: "titlesModal",
+    titlesTitleEl: "titlesTitle",
+    titlesBodyEl: "titlesBody",
+    titlesActionsEl: "titlesActions",
+    titlesCloseBtn: "titlesCloseBtn",
+    achievementsModalEl: "achievementsModal",
+    achievementsTitleEl: "achievementsTitle",
+    achievementsBodyEl: "achievementsBody",
+    achievementsActionsEl: "achievementsActions",
+    achievementsCloseBtn: "achievementsCloseBtn",
+    questsModalEl: "questsModal",
+    questsTitleEl: "questsTitle",
+    questsBodyEl: "questsBody",
+    questsActionsEl: "questsActions",
+    questsCloseBtn: "questsCloseBtn",
+    worldLockModalEl: "worldLockModal",
+    worldLockTitleEl: "worldLockTitle",
+    worldLockAdminInputEl: "worldLockAdminInput",
+    worldLockAdminAddBtn: "worldLockAdminAddBtn",
+    worldLockAdminsEl: "worldLockAdmins",
+    worldLockBanInputEl: "worldLockBanInput",
+    worldLockBan1hBtn: "worldLockBan1hBtn",
+    worldLockBanPermBtn: "worldLockBanPermBtn",
+    worldLockBansEl: "worldLockBans",
+    worldLockCloseBtn: "worldLockCloseBtn",
+    doorModalEl: "doorModal",
+    doorTitleEl: "doorTitle",
+    doorPublicBtn: "doorPublicBtn",
+    doorOwnerOnlyBtn: "doorOwnerOnlyBtn",
+    doorCloseBtn: "doorCloseBtn",
+    cameraModalEl: "cameraModal",
+    cameraTitleEl: "cameraTitle",
+    cameraCloseBtn: "cameraCloseBtn",
+    cameraSaveBtn: "cameraSaveBtn",
+    cameraEventJoinEl: "cameraEventJoin",
+    cameraEventLeaveEl: "cameraEventLeave",
+    cameraEventVendingEl: "cameraEventVending",
+    cameraFilterStaffEl: "cameraFilterStaff",
+    cameraLogsListEl: "cameraLogsList",
+    weatherModalEl: "weatherModal",
+    weatherTitleEl: "weatherTitle",
+    weatherCloseBtn: "weatherCloseBtn",
+    weatherPresetSelectEl: "weatherPresetSelect",
+    weatherImageUrlInputEl: "weatherImageUrlInput",
+    weatherResolvedLabelEl: "weatherResolvedLabel",
+    weatherPreviewImgEl: "weatherPreviewImg",
+    weatherPreviewEmptyEl: "weatherPreviewEmpty",
+    weatherSaveBtn: "weatherSaveBtn",
+    weatherClearBtn: "weatherClearBtn",
+    updatingOverlayEl: "updatingOverlay",
+    chatPanelEl: "chatPanel",
+    chatMessagesEl: "chatMessages",
+    chatInputRowEl: "chatInputRow",
+    chatInputEl: "chatInput",
+    chatSendBtn: "chatSendBtn",
+    logsMessagesEl: "logsMessages",
+    exitWorldBtn: "exitWorldBtn",
+    logoutBtn: "logoutBtn"
+  };
+
+  function buildDefaultModuleRefMap() {
+    return {
+      adminModule: "admin",
+      blocksModule: "blocks",
+      farmablesModule: "farmables",
+      seedsModule: "seeds",
+      plantsModule: "plants",
+      gemsModule: "gems",
+      rewardsModule: "rewards",
+      texturesModule: "textures",
+      blockKeysModule: "blockKeys",
+      itemsModule: "items",
+      cosmeticsModule: "cosmetics",
+      playerModule: "player",
+      adminsModule: "admins",
+      authModule: "auth",
+      authStorageModule: "authStorage",
+      dbModule: "db",
+      worldModule: "world",
+      physicsModule: "physics",
+      animationsModule: "animations",
+      particlesModule: "particles",
+      drawUtilsModule: "drawUtils",
+      drawModule: "draw",
+      stateModule: "state",
+      eventsModule: {
+        keys: ["events"],
+        fallback: {
+          on(target, type, listener, options) {
+            if (!target || typeof target.addEventListener !== "function") return false;
+            target.addEventListener(type, listener, options);
+            return true;
+          }
+        }
+      },
+      inputUtilsModule: "inputUtils",
+      syncPlayerModule: "syncPlayer",
+      syncBlocksModule: "syncBlocks",
+      syncWorldsModule: "syncWorlds",
+      syncHitsModule: "syncHits",
+      commandsModule: "commands",
+      chatModule: "chat",
+      menuModule: "menu",
+      messagesModule: "messages",
+      anticheatModule: "anticheat",
+      progressionModule: "progression",
+      achievementsModule: "achievements",
+      questsModule: "quests",
+      gachaModule: "gacha",
+      backupModule: "backup",
+      vendingModule: "vending",
+      donationModule: "donation",
+      chestModule: "chest",
+      friendsModule: "friends",
+      tradeModule: "trade",
+      shopModule: "shop",
+      signModule: "sign",
+      gambleModule: ["gambling", "gamble"],
+      dropsModule: "drops",
+      adminPanelModule: "adminPanel"
+    };
+  }
+
+  function initDomRefs(refMap) {
+    const map = refMap && typeof refMap === "object" ? refMap : {};
+    const keys = Object.keys(map);
+    for (let i = 0; i < keys.length; i++) {
+      const name = keys[i];
+      const id = String(map[name] || "").trim();
+      if (!id) continue;
+      root[name] = document.getElementById(id);
+      aliasGlobal(name);
+    }
+    return root;
+  }
+
+  function initDefaultDomRefs() {
+    return initDomRefs(DEFAULT_DOM_REF_MAP);
+  }
+
+  function resolveModuleSpec(modules, spec) {
+    if (typeof spec === "string") {
+      return modules[spec] || {};
+    }
+    if (Array.isArray(spec)) {
+      for (let i = 0; i < spec.length; i++) {
+        const key = String(spec[i] || "").trim();
+        if (!key) continue;
+        if (modules[key] !== undefined) return modules[key] || {};
+      }
+      return {};
+    }
+    if (spec && typeof spec === "object") {
+      const keys = Array.isArray(spec.keys) ? spec.keys : [];
+      for (let i = 0; i < keys.length; i++) {
+        const key = String(keys[i] || "").trim();
+        if (!key) continue;
+        if (modules[key] !== undefined) return modules[key] || {};
+      }
+      return spec.fallback !== undefined ? spec.fallback : {};
+    }
+    return {};
+  }
+
+  function initModuleRefs(options) {
+    const opts = options || {};
+    const modules = opts.modules && typeof opts.modules === "object" ? opts.modules : {};
+    const map = opts.map && typeof opts.map === "object" ? opts.map : {};
+    const names = Object.keys(map);
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i];
+      root[name] = resolveModuleSpec(modules, map[name]);
+      aliasGlobal(name);
+    }
+    return root;
+  }
+
+  function initDefaultModuleRefs(modules) {
+    const moduleBag = modules && typeof modules === "object" ? modules : (window.GTModules || {});
+    setValue("modules", moduleBag);
+    return initModuleRefs({
+      modules: moduleBag,
+      map: buildDefaultModuleRefMap()
+    });
+  }
+
+  function initCoreState(options) {
+    const opts = options || {};
+    const settings = opts.settings && typeof opts.settings === "object"
+      ? opts.settings
+      : (window.GT_SETTINGS || {});
+    const adminModuleRef = root.adminModule && typeof root.adminModule === "object" ? root.adminModule : {};
+    const blocksModuleRef = root.blocksModule && typeof root.blocksModule === "object" ? root.blocksModule : {};
+    const farmablesModuleRef = root.farmablesModule && typeof root.farmablesModule === "object" ? root.farmablesModule : {};
+
+    setValue("SETTINGS", settings);
+    setValue("TILE", Number(settings.TILE_SIZE) || 32);
+    setValue("WORLD_W", Number(settings.WORLD_WIDTH_TILES) || 140);
+    setValue("WORLD_H", Number(settings.WORLD_HEIGHT_TILES) || 30);
+    setValue("GRAVITY", Number(settings.GRAVITY) || 0.32);
+    setValue("FRICTION", Number(settings.FRICTION_GROUND) || 0.86);
+    setValue("AIR_CONTROL", Number(settings.AIR_CONTROL) || 0.6);
+    setValue("AIR_FRICTION", Number(settings.FRICTION_AIR) || 0.94);
+    setValue("PLAYER_W", Number(settings.PLAYER_WIDTH) || 22);
+    setValue("PLAYER_H", Number(settings.PLAYER_HEIGHT) || 30);
+    setValue("WATER_MOVE_MULT", 0.62);
+    setValue("WATER_GRAVITY_MULT", 0.35);
+    setValue("WATER_FALL_MULT", 0.52);
+    setValue("WATER_FRICTION_MULT", 0.86);
+    setValue("ANTI_GRAV_RADIUS_TILES", Math.max(2, Number(settings.ANTI_GRAV_RADIUS_TILES) || 8));
+    setValue("ANTI_GRAV_GRAVITY_MULT", Math.max(0.05, Math.min(1, Number(settings.ANTI_GRAV_GRAVITY_MULT) || 0.2)));
+    setValue("ANTI_GRAV_FALL_MULT", Math.max(0.05, Math.min(1, Number(settings.ANTI_GRAV_FALL_MULT) || 0.42)));
+    setValue("ANTI_GRAV_AIR_JUMP_COOLDOWN_MS", Math.max(70, Number(settings.ANTI_GRAV_AIR_JUMP_COOLDOWN_MS) || 140));
+    setValue("BASE_PATH", typeof settings.BASE_PATH === "string" && settings.BASE_PATH ? settings.BASE_PATH : "growtopia-test");
+    setValue("LOG_VIEWER_USERNAMES", Array.isArray(settings.LOG_VIEWER_USERNAMES) ? settings.LOG_VIEWER_USERNAMES : ["isxt"]);
+    setValue(
+      "adminRoleConfig",
+      typeof adminModuleRef.createRoleConfig === "function"
+        ? adminModuleRef.createRoleConfig(settings)
+        : {
+            roleRank: { none: 0, moderator: 1, admin: 2, manager: 3, owner: 4 },
+            permissions: {
+              owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "db_backup", "db_restore", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+              manager: ["panel_open", "view_logs", "view_audit", "clear_logs", "setrole_limited", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+              admin: ["panel_open", "view_logs", "view_audit", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
+              moderator: ["panel_open", "kick", "tp", "reach", "bring", "summon", "announce", "announce_user"],
+              none: []
+            },
+            commandCooldownsMs: settings.ADMIN_COMMAND_COOLDOWNS_MS && typeof settings.ADMIN_COMMAND_COOLDOWNS_MS === "object"
+              ? settings.ADMIN_COMMAND_COOLDOWNS_MS
+              : {
+                  owner: {},
+                  manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, give_block: 600, give_item: 600, givetitle: 600, removetitle: 600, tp: 300, reach: 500, bring: 700, summon: 700, setrole: 2000, freeze: 700, unfreeze: 700, godmode: 700, clearworld: 2500, announce: 500, announce_user: 500 },
+                  admin: { kick: 900, give_block: 900, give_item: 900, givetitle: 900, removetitle: 900, tp: 400, reach: 600, bring: 900, summon: 900, freeze: 900, unfreeze: 900, godmode: 900, clearworld: 3000, announce: 700, announce_user: 700 },
+                  moderator: { kick: 1200, tp: 600, reach: 900, bring: 1200, summon: 1200, announce: 900, announce_user: 900 },
+                  none: {}
+                },
+            roleByUsername: settings.ADMIN_ROLE_BY_USERNAME && typeof settings.ADMIN_ROLE_BY_USERNAME === "object" ? settings.ADMIN_ROLE_BY_USERNAME : {},
+            adminUsernames: Array.isArray(settings.ADMIN_USERNAMES) ? settings.ADMIN_USERNAMES : ["isxt"]
+          }
+    );
+    setValue("JUMP_COOLDOWN_MS", Number(settings.JUMP_COOLDOWN_MS) || 200);
+    setValue("PLAYER_SYNC_MIN_MS", Math.max(25, Number(settings.PLAYER_SYNC_MIN_MS) || 60));
+    setValue("GLOBAL_SYNC_MIN_MS", Math.max(root.PLAYER_SYNC_MIN_MS, Number(settings.GLOBAL_SYNC_MIN_MS) || 170));
+    setValue("LAYOUT_PREFS_KEY", "gt_layout_panels_v3");
+    setValue("DESKTOP_PANEL_LEFT_DEFAULT", 302);
+    setValue("DESKTOP_PANEL_RIGHT_DEFAULT", 375);
+    setValue("DESKTOP_PANEL_MIN", 140);
+    setValue("DESKTOP_PANEL_MAX_RATIO", 0.26);
+    setValue("MOVE_ACCEL", Number(settings.MOVE_ACCEL) || 0.46);
+    setValue("JUMP_VELOCITY", Number(settings.JUMP_VELOCITY) || -7.2);
+    setValue("MAX_MOVE_SPEED", Number(settings.MAX_MOVE_SPEED) || 3.7);
+    setValue("MAX_FALL_SPEED", Number(settings.MAX_FALL_SPEED) || 10);
+    setValue("WEATHER_PRESET_IMAGES", Array.isArray(settings.WEATHER_PRESET_IMAGES) ? settings.WEATHER_PRESET_IMAGES : []);
+    setValue("SAVED_AUTH_KEY", "growtopia_saved_auth_v1");
+    setValue("FORCE_RELOAD_MARKER_KEY", "growtopia_force_reload_marker_v1");
+    setValue("FORCE_RELOAD_NOTICE_KEY", "growtopia_force_reload_notice_v1");
+    setValue("CAMERA_ZOOM_PREF_KEY", "growtopia_camera_zoom_v1");
+    setValue("CAMERA_ZOOM_MIN", Math.max(0.5, Number(settings.CAMERA_ZOOM_MIN) || 0.7));
+    setValue("CAMERA_ZOOM_MAX", Math.max(root.CAMERA_ZOOM_MIN + 0.1, Number(settings.CAMERA_ZOOM_MAX) || 2.2));
+    setValue("CAMERA_ZOOM_STEP", Math.max(0.05, Number(settings.CAMERA_ZOOM_STEP) || 0.12));
+
+    setValue("baseBlockDefs", typeof blocksModuleRef.getBlockDefs === "function" ? blocksModuleRef.getBlockDefs() : {});
+    setValue("farmableBlockDefs", typeof farmablesModuleRef.getFarmableDefs === "function" ? farmablesModuleRef.getFarmableDefs() : {});
+    setValue("worldBlockDefs", { ...root.baseBlockDefs, ...root.farmableBlockDefs });
+    setValue("SPAWN_TILE_X", 8);
+    setValue("SPAWN_TILE_Y", 11);
+    setValue("SPAWN_DOOR_ID", 7);
+    setValue("SPAWN_BASE_ID", 8);
+    setValue("SPAWN_MOVER_ID", 40);
+    setValue("WORLD_LOCK_ID", 9);
+    setValue("DOOR_BLOCK_ID", 10);
+    setValue("WATER_ID", 11);
+    setValue("PLATFORM_ID", 12);
+    setValue("STAIR_BASE_ID", 13);
+    setValue("STAIR_ROTATION_IDS", [13, 14, 15, 16]);
+    setValue("SPIKE_BASE_ID", 33);
+    setValue("SPIKE_ROTATION_IDS", [33, 37, 38, 39]);
+    setValue("VENDING_ID", 17);
+    setValue("GAMBLE_ID", 32);
+    setValue("SIGN_ID", 18);
+    setValue("ANTI_GRAV_ID", 19);
+    setValue("CAMERA_ID", 20);
+    setValue("WEATHER_MACHINE_ID", 21);
+    setValue("DISPLAY_BLOCK_ID", 22);
+    setValue("WOOD_PLANK_ID", 23);
+    setValue("OBSIDIAN_LOCK_ID", 24);
+    setValue("EMERALD_LOCK_ID", 42);
+    setValue("DONATION_BOX_ID", 34);
+    setValue("STORAGE_CHEST_ID", 36);
+    setValue("TREE_YIELD_BLOCK_ID", 4);
+    setValue("TREE_GROW_MS", Math.max(5000, Number(settings.TREE_GROW_MS) || 120000));
+    setValue("TREE_STAGE_COUNT", 4);
+    setValue("TREE_GEM_MIN", Math.max(0, Math.floor(Number(settings.TREE_GEM_MIN) || 1)));
+    setValue("TREE_GEM_MAX", Math.max(root.TREE_GEM_MIN, Math.floor(Number(settings.TREE_GEM_MAX) || 4)));
+    setValue("SEED_DROP_CHANCE", 1 / 8);
+    setValue("BREAK_RETURN_ITEM_CHANCE", 1 / 5);
+    setValue("PASSIVE_LOCK_AUTOCONVERT", Boolean(settings.PASSIVE_LOCK_AUTOCONVERT));
+    setValue("INVENTORY_ITEM_LIMIT", 300);
+    setValue("spawnTileX", root.SPAWN_TILE_X);
+    setValue("spawnTileY", root.SPAWN_TILE_Y);
+    setValue("DEFAULT_EDIT_REACH_TILES", 4.5);
+    setValue("MIN_EDIT_REACH_TILES", 1);
+    setValue("MAX_EDIT_REACH_TILES", 16);
+    setValue("TOOL_FIST", "fist");
+    setValue("TOOL_WRENCH", "wrench");
+    setValue(
+      "farmableRegistry",
+      typeof farmablesModuleRef.createRegistry === "function"
+        ? farmablesModuleRef.createRegistry(root.worldBlockDefs, {})
+        : {
+            ids: [],
+            byId: {},
+            isFarmable: () => false,
+            rollGems: () => 0,
+            getBreakXp: (_id, fallbackXp) => Math.max(1, Math.floor(Number(fallbackXp) || 1))
+          }
+    );
+
+    return root;
   }
 
   function initRuntimeState(options) {
@@ -290,6 +724,11 @@ window.GTModules.state = (function createStateModule() {
   }
 
   return {
+    initCoreState,
+    initDefaultDomRefs,
+    initDefaultModuleRefs,
+    initDomRefs,
+    initModuleRefs,
     initRuntimeState
   };
 })();

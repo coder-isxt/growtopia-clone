@@ -1,168 +1,17 @@
-﻿    (() => {
-      const authScreenEl = document.getElementById("authScreen");
-      const gameShellEl = document.getElementById("gameShell");
-      const authUsernameEl = document.getElementById("authUsername");
-      const authPasswordEl = document.getElementById("authPassword");
-      const authCreateBtn = document.getElementById("authCreateBtn");
-      const authLoginBtn = document.getElementById("authLoginBtn");
-      const authStatusEl = document.getElementById("authStatus");
-      const authMainNoticeEl = document.getElementById("authMainNotice");
-      const canvas = document.getElementById("game");
+    (() => {
+      const modules = window.GTModules || {};
+      const stateModule = modules.state || {};
+      if (typeof stateModule.initDefaultDomRefs !== "function") {
+        throw new Error("state.js module missing: GTModules.state.initDefaultDomRefs");
+      }
+      if (typeof stateModule.initDefaultModuleRefs !== "function") {
+        throw new Error("state.js module missing: GTModules.state.initDefaultModuleRefs");
+      }
+      if (typeof stateModule.initCoreState !== "function") {
+        throw new Error("state.js module missing: GTModules.state.initCoreState");
+      }
+      stateModule.initDefaultDomRefs();
       const ctx = canvas.getContext("2d");
-      const toolbar = document.getElementById("toolbar");
-      const leftPanelResizeHandleEl = document.getElementById("leftPanelResizeHandle");
-      const rightPanelResizeHandleEl = document.getElementById("rightPanelResizeHandle");
-      const canvasWrapEl = document.getElementById("canvasWrap");
-      const menuScreenEl = document.getElementById("menuScreen");
-      const menuMainNoticeEl = document.getElementById("menuMainNotice");
-      const mobileControlsEl = document.getElementById("mobileControls");
-      const mobileLeftBtn = document.getElementById("mobileLeftBtn");
-      const mobileRightBtn = document.getElementById("mobileRightBtn");
-      const mobileJumpBtn = document.getElementById("mobileJumpBtn");
-      const mobilePrimaryBtn = document.getElementById("mobilePrimaryBtn");
-      const mobileSecondaryBtn = document.getElementById("mobileSecondaryBtn");
-      const mobileFistBtn = document.getElementById("mobileFistBtn");
-      const mobileWrenchBtn = document.getElementById("mobileWrenchBtn");
-      const mobilePlayModeBtn = document.getElementById("mobilePlayModeBtn");
-      const mobileChatBtn = document.getElementById("mobileChatBtn");
-      const mobileInventoryBtn = document.getElementById("mobileInventoryBtn");
-      const mobileExitBtn = document.getElementById("mobileExitBtn");
-      const networkStateEl = document.getElementById("networkState");
-      const gemsCountEl = document.getElementById("gemsCount");
-      const onlineCountEl = document.getElementById("onlineCount");
-      const totalOnlineCountEl = document.getElementById("totalOnlineCount");
-      const currentWorldLabelEl = document.getElementById("currentWorldLabel");
-      const worldButtonsEl = document.getElementById("worldButtons");
-      const worldInputEl = document.getElementById("worldInput");
-      const enterWorldBtn = document.getElementById("enterWorldBtn");
-      const chatToggleBtn = document.getElementById("chatToggleBtn");
-      const friendsToggleBtn = document.getElementById("friendsToggleBtn");
-      const titlesToggleBtn = document.getElementById("titlesToggleBtn");
-      const questsToggleBtn = document.getElementById("questsToggleBtn");
-      const achievementsToggleBtn = document.getElementById("achievementsToggleBtn");
-      const shopToggleBtn = document.getElementById("shopToggleBtn");
-      const adminToggleBtn = document.getElementById("adminToggleBtn");
-      const respawnBtn = document.getElementById("respawnBtn");
-      const adminPanelEl = document.getElementById("adminPanel");
-      const adminSearchInput = document.getElementById("adminSearchInput");
-      const adminAuditActionFilterEl = document.getElementById("adminAuditActionFilter");
-      const adminAuditActorFilterEl = document.getElementById("adminAuditActorFilter");
-      const adminAuditTargetFilterEl = document.getElementById("adminAuditTargetFilter");
-      const adminForceReloadBtn = document.getElementById("adminForceReloadBtn");
-      const adminBackupDownloadBtn = document.getElementById("adminBackupDownloadBtn");
-      const adminBackupUploadBtn = document.getElementById("adminBackupUploadBtn");
-      const adminBackupUploadInput = document.getElementById("adminBackupUploadInput");
-      const adminAuditExportBtn = document.getElementById("adminAuditExportBtn");
-      const adminCloseBtn = document.getElementById("adminCloseBtn");
-      const adminAccountsEl = document.getElementById("adminAccounts");
-      const adminInventoryModalEl = document.getElementById("adminInventoryModal");
-      const adminInventoryTitleEl = document.getElementById("adminInventoryTitle");
-      const adminInventoryBodyEl = document.getElementById("adminInventoryBody");
-      const adminInventoryCloseBtn = document.getElementById("adminInventoryCloseBtn");
-      const vendingModalEl = document.getElementById("vendingModal");
-      const vendingTitleEl = document.getElementById("vendingTitle");
-      const vendingBodyEl = document.getElementById("vendingBody");
-      const vendingActionsEl = document.getElementById("vendingActions");
-      const vendingCloseBtn = document.getElementById("vendingCloseBtn");
-      const donationModalEl = document.getElementById("donationModal");
-      const donationTitleEl = document.getElementById("donationTitle");
-      const donationBodyEl = document.getElementById("donationBody");
-      const donationActionsEl = document.getElementById("donationActions");
-      const donationCloseBtn = document.getElementById("donationCloseBtn");
-      const chestModalEl = document.getElementById("chestModal");
-      const chestTitleEl = document.getElementById("chestTitle");
-      const chestBodyEl = document.getElementById("chestBody");
-      const chestActionsEl = document.getElementById("chestActions");
-      const chestCloseBtn = document.getElementById("chestCloseBtn");
-      const gambleModalEl = document.getElementById("gambleModal");
-      const gambleTitleEl = document.getElementById("gambleTitle");
-      const gambleBodyEl = document.getElementById("gambleBody");
-      const gambleActionsEl = document.getElementById("gambleActions");
-      const gambleCloseBtn = document.getElementById("gambleCloseBtn");
-      const signModalEl = document.getElementById("signModal");
-      const signTitleEl = document.getElementById("signTitle");
-      const signTextInputEl = document.getElementById("signTextInput");
-      const signSaveBtn = document.getElementById("signSaveBtn");
-      const signCloseBtn = document.getElementById("signCloseBtn");
-      const announcementPopupEl = document.getElementById("announcementPopup");
-      const announcementTextEl = document.getElementById("announcementText");
-      const tradeMenuModalEl = document.getElementById("tradeMenuModal");
-      const tradeMenuTitleEl = document.getElementById("tradeMenuTitle");
-      const tradeMenuCloseBtn = document.getElementById("tradeMenuCloseBtn");
-      const tradeStartBtn = document.getElementById("tradeStartBtn");
-      const tradeCancelBtn = document.getElementById("tradeCancelBtn");
-      const tradeRequestModalEl = document.getElementById("tradeRequestModal");
-      const tradeRequestTextEl = document.getElementById("tradeRequestText");
-      const tradeAcceptBtn = document.getElementById("tradeAcceptBtn");
-      const tradeDeclineBtn = document.getElementById("tradeDeclineBtn");
-      const profileModalEl = document.getElementById("profileModal");
-      const profileTitleEl = document.getElementById("profileTitle");
-      const profileBodyEl = document.getElementById("profileBody");
-      const profileActionsEl = document.getElementById("profileActions");
-      const profileCloseBtn = document.getElementById("profileCloseBtn");
-      const friendsModalEl = document.getElementById("friendsModal");
-      const friendsTitleEl = document.getElementById("friendsTitle");
-      const friendsBodyEl = document.getElementById("friendsBody");
-      const friendsActionsEl = document.getElementById("friendsActions");
-      const friendsCloseBtn = document.getElementById("friendsCloseBtn");
-      const titlesModalEl = document.getElementById("titlesModal");
-      const titlesTitleEl = document.getElementById("titlesTitle");
-      const titlesBodyEl = document.getElementById("titlesBody");
-      const titlesActionsEl = document.getElementById("titlesActions");
-      const titlesCloseBtn = document.getElementById("titlesCloseBtn");
-      const achievementsModalEl = document.getElementById("achievementsModal");
-      const achievementsTitleEl = document.getElementById("achievementsTitle");
-      const achievementsBodyEl = document.getElementById("achievementsBody");
-      const achievementsActionsEl = document.getElementById("achievementsActions");
-      const achievementsCloseBtn = document.getElementById("achievementsCloseBtn");
-      const questsModalEl = document.getElementById("questsModal");
-      const questsTitleEl = document.getElementById("questsTitle");
-      const questsBodyEl = document.getElementById("questsBody");
-      const questsActionsEl = document.getElementById("questsActions");
-      const questsCloseBtn = document.getElementById("questsCloseBtn");
-      const worldLockModalEl = document.getElementById("worldLockModal");
-      const worldLockTitleEl = document.getElementById("worldLockTitle");
-      const worldLockAdminInputEl = document.getElementById("worldLockAdminInput");
-      const worldLockAdminAddBtn = document.getElementById("worldLockAdminAddBtn");
-      const worldLockAdminsEl = document.getElementById("worldLockAdmins");
-      const worldLockBanInputEl = document.getElementById("worldLockBanInput");
-      const worldLockBan1hBtn = document.getElementById("worldLockBan1hBtn");
-      const worldLockBanPermBtn = document.getElementById("worldLockBanPermBtn");
-      const worldLockBansEl = document.getElementById("worldLockBans");
-      const worldLockCloseBtn = document.getElementById("worldLockCloseBtn");
-      const doorModalEl = document.getElementById("doorModal");
-      const doorTitleEl = document.getElementById("doorTitle");
-      const doorPublicBtn = document.getElementById("doorPublicBtn");
-      const doorOwnerOnlyBtn = document.getElementById("doorOwnerOnlyBtn");
-      const doorCloseBtn = document.getElementById("doorCloseBtn");
-      const cameraModalEl = document.getElementById("cameraModal");
-      const cameraTitleEl = document.getElementById("cameraTitle");
-      const cameraCloseBtn = document.getElementById("cameraCloseBtn");
-      const cameraSaveBtn = document.getElementById("cameraSaveBtn");
-      const cameraEventJoinEl = document.getElementById("cameraEventJoin");
-      const cameraEventLeaveEl = document.getElementById("cameraEventLeave");
-      const cameraEventVendingEl = document.getElementById("cameraEventVending");
-      const cameraFilterStaffEl = document.getElementById("cameraFilterStaff");
-      const cameraLogsListEl = document.getElementById("cameraLogsList");
-      const weatherModalEl = document.getElementById("weatherModal");
-      const weatherTitleEl = document.getElementById("weatherTitle");
-      const weatherCloseBtn = document.getElementById("weatherCloseBtn");
-      const weatherPresetSelectEl = document.getElementById("weatherPresetSelect");
-      const weatherImageUrlInputEl = document.getElementById("weatherImageUrlInput");
-      const weatherResolvedLabelEl = document.getElementById("weatherResolvedLabel");
-      const weatherPreviewImgEl = document.getElementById("weatherPreviewImg");
-      const weatherPreviewEmptyEl = document.getElementById("weatherPreviewEmpty");
-      const weatherSaveBtn = document.getElementById("weatherSaveBtn");
-      const weatherClearBtn = document.getElementById("weatherClearBtn");
-      const updatingOverlayEl = document.getElementById("updatingOverlay");
-      const chatPanelEl = document.getElementById("chatPanel");
-      const chatMessagesEl = document.getElementById("chatMessages");
-      const chatInputRowEl = document.getElementById("chatInputRow");
-      const chatInputEl = document.getElementById("chatInput");
-      const chatSendBtn = document.getElementById("chatSendBtn");
-      const logsMessagesEl = document.getElementById("logsMessages");
-      const exitWorldBtn = document.getElementById("exitWorldBtn");
-      const logoutBtn = document.getElementById("logoutBtn");
 
       function ensureGambleModalDom() {
         if (document.getElementById("gambleModal")) return;
@@ -184,182 +33,9 @@
       }
       ensureGambleModalDom();
 
-      const modules = window.GTModules || {};
-      const adminModule = modules.admin || {};
-      const blocksModule = modules.blocks || {};
-      const farmablesModule = modules.farmables || {};
-      const seedsModule = modules.seeds || {};
-      const plantsModule = modules.plants || {};
-      const gemsModule = modules.gems || {};
-      const rewardsModule = modules.rewards || {};
-      const texturesModule = modules.textures || {};
-      const blockKeysModule = modules.blockKeys || {};
-      const itemsModule = modules.items || {};
-      const cosmeticsModule = modules.cosmetics || {};
-      const playerModule = modules.player || {};
-      const adminsModule = modules.admins || {};
-      const authModule = modules.auth || {};
-      const authStorageModule = modules.authStorage || {};
-      const dbModule = modules.db || {};
-      const worldModule = modules.world || {};
-      const physicsModule = modules.physics || {};
-      const animationsModule = modules.animations || {};
-      const particlesModule = modules.particles || {};
-      const drawUtilsModule = modules.drawUtils || {};
-      const drawModule = modules.draw || {};
-      const eventsModule = modules.events || {
-        on(target, type, listener, options) {
-          if (!target || typeof target.addEventListener !== "function") return false;
-          target.addEventListener(type, listener, options);
-          return true;
-        }
-      };
-      const inputUtilsModule = modules.inputUtils || {};
-      const syncPlayerModule = modules.syncPlayer || {};
-      const syncBlocksModule = modules.syncBlocks || {};
-      const syncWorldsModule = modules.syncWorlds || {};
-      const syncHitsModule = modules.syncHits || {};
-      const commandsModule = modules.commands || {};
-      const chatModule = modules.chat || {};
-      const menuModule = modules.menu || {};
-      const messagesModule = modules.messages || {};
-      const anticheatModule = modules.anticheat || {};
-      const progressionModule = modules.progression || {};
-      const achievementsModule = modules.achievements || {};
-      const questsModule = modules.quests || {};
-      const gachaModule = modules.gacha || {};
-      const backupModule = modules.backup || {};
-      const vendingModule = modules.vending || {};
-      const donationModule = modules.donation || {};
-      const chestModule = modules.chest || {};
-      const friendsModule = modules.friends || {};
-      const tradeModule = modules.trade || {};
-      const shopModule = modules.shop || {};
-      const signModule = modules.sign || {};
-      const gambleModule = modules.gambling || modules.gamble || {};
-      const dropsModule = modules.drops || {};
-      const adminPanelModule = modules.adminPanel || {};
+      stateModule.initDefaultModuleRefs(modules);
+      stateModule.initCoreState({ settings: window.GT_SETTINGS || {} });
 
-      const SETTINGS = window.GT_SETTINGS || {};
-      const TILE = Number(SETTINGS.TILE_SIZE) || 32;
-      const WORLD_W = Number(SETTINGS.WORLD_WIDTH_TILES) || 140;
-      const WORLD_H = Number(SETTINGS.WORLD_HEIGHT_TILES) || 30;
-      const GRAVITY = Number(SETTINGS.GRAVITY) || 0.32;
-      const FRICTION = Number(SETTINGS.FRICTION_GROUND) || 0.86;
-      const AIR_CONTROL = Number(SETTINGS.AIR_CONTROL) || 0.6;
-      const AIR_FRICTION = Number(SETTINGS.FRICTION_AIR) || 0.94;
-      const PLAYER_W = Number(SETTINGS.PLAYER_WIDTH) || 22;
-      const PLAYER_H = Number(SETTINGS.PLAYER_HEIGHT) || 30;
-      const WATER_MOVE_MULT = 0.62;
-      const WATER_GRAVITY_MULT = 0.35;
-      const WATER_FALL_MULT = 0.52;
-      const WATER_FRICTION_MULT = 0.86;
-      const ANTI_GRAV_RADIUS_TILES = Math.max(2, Number(SETTINGS.ANTI_GRAV_RADIUS_TILES) || 8);
-      const ANTI_GRAV_GRAVITY_MULT = Math.max(0.05, Math.min(1, Number(SETTINGS.ANTI_GRAV_GRAVITY_MULT) || 0.2));
-      const ANTI_GRAV_FALL_MULT = Math.max(0.05, Math.min(1, Number(SETTINGS.ANTI_GRAV_FALL_MULT) || 0.42));
-      const ANTI_GRAV_AIR_JUMP_COOLDOWN_MS = Math.max(70, Number(SETTINGS.ANTI_GRAV_AIR_JUMP_COOLDOWN_MS) || 140);
-      const BASE_PATH = typeof SETTINGS.BASE_PATH === "string" && SETTINGS.BASE_PATH ? SETTINGS.BASE_PATH : "growtopia-test";
-      const LOG_VIEWER_USERNAMES = Array.isArray(SETTINGS.LOG_VIEWER_USERNAMES) ? SETTINGS.LOG_VIEWER_USERNAMES : ["isxt"];
-      const adminRoleConfig = typeof adminModule.createRoleConfig === "function"
-        ? adminModule.createRoleConfig(SETTINGS)
-        : {
-            roleRank: { none: 0, moderator: 1, admin: 2, manager: 3, owner: 4 },
-            permissions: {
-              owner: ["panel_open", "view_logs", "view_audit", "clear_logs", "force_reload", "db_backup", "db_restore", "setrole", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
-              manager: ["panel_open", "view_logs", "view_audit", "clear_logs", "setrole_limited", "tempban", "permban", "unban", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
-              admin: ["panel_open", "view_logs", "view_audit", "kick", "resetinv", "givex", "give_block", "give_item", "give_title", "remove_title", "tp", "reach", "bring", "summon", "freeze", "unfreeze", "godmode", "clearworld", "announce", "announce_user"],
-              moderator: ["panel_open", "kick", "tp", "reach", "bring", "summon", "announce", "announce_user"],
-              none: []
-            },
-            commandCooldownsMs: SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS && typeof SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS === "object"
-              ? SETTINGS.ADMIN_COMMAND_COOLDOWNS_MS
-              : {
-                  owner: {},
-                  manager: { tempban: 2000, permban: 2000, unban: 1000, kick: 700, give_block: 600, give_item: 600, givetitle: 600, removetitle: 600, tp: 300, reach: 500, bring: 700, summon: 700, setrole: 2000, freeze: 700, unfreeze: 700, godmode: 700, clearworld: 2500, announce: 500, announce_user: 500 },
-                  admin: { kick: 900, give_block: 900, give_item: 900, givetitle: 900, removetitle: 900, tp: 400, reach: 600, bring: 900, summon: 900, freeze: 900, unfreeze: 900, godmode: 900, clearworld: 3000, announce: 700, announce_user: 700 },
-                  moderator: { kick: 1200, tp: 600, reach: 900, bring: 1200, summon: 1200, announce: 900, announce_user: 900 },
-                  none: {}
-                },
-            roleByUsername: SETTINGS.ADMIN_ROLE_BY_USERNAME && typeof SETTINGS.ADMIN_ROLE_BY_USERNAME === "object" ? SETTINGS.ADMIN_ROLE_BY_USERNAME : {},
-            adminUsernames: Array.isArray(SETTINGS.ADMIN_USERNAMES) ? SETTINGS.ADMIN_USERNAMES : ["isxt"]
-          };
-      const JUMP_COOLDOWN_MS = Number(SETTINGS.JUMP_COOLDOWN_MS) || 200;
-      const PLAYER_SYNC_MIN_MS = Math.max(25, Number(SETTINGS.PLAYER_SYNC_MIN_MS) || 60);
-      const GLOBAL_SYNC_MIN_MS = Math.max(PLAYER_SYNC_MIN_MS, Number(SETTINGS.GLOBAL_SYNC_MIN_MS) || 170);
-      const LAYOUT_PREFS_KEY = "gt_layout_panels_v3";
-      const DESKTOP_PANEL_LEFT_DEFAULT = 302;
-      const DESKTOP_PANEL_RIGHT_DEFAULT = 375;
-      const DESKTOP_PANEL_MIN = 140;
-      const DESKTOP_PANEL_MAX_RATIO = 0.26;
-      const MOVE_ACCEL = Number(SETTINGS.MOVE_ACCEL) || 0.46;
-      const JUMP_VELOCITY = Number(SETTINGS.JUMP_VELOCITY) || -7.2;
-      const MAX_MOVE_SPEED = Number(SETTINGS.MAX_MOVE_SPEED) || 3.7;
-      const MAX_FALL_SPEED = Number(SETTINGS.MAX_FALL_SPEED) || 10;
-      const WEATHER_PRESET_IMAGES = Array.isArray(SETTINGS.WEATHER_PRESET_IMAGES)
-        ? SETTINGS.WEATHER_PRESET_IMAGES
-        : [];
-      const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
-      const FORCE_RELOAD_MARKER_KEY = "growtopia_force_reload_marker_v1";
-      const FORCE_RELOAD_NOTICE_KEY = "growtopia_force_reload_notice_v1";
-      const CAMERA_ZOOM_PREF_KEY = "growtopia_camera_zoom_v1";
-      const CAMERA_ZOOM_MIN = Math.max(0.5, Number(SETTINGS.CAMERA_ZOOM_MIN) || 0.7);
-      const CAMERA_ZOOM_MAX = Math.max(CAMERA_ZOOM_MIN + 0.1, Number(SETTINGS.CAMERA_ZOOM_MAX) || 2.2);
-      const CAMERA_ZOOM_STEP = Math.max(0.05, Number(SETTINGS.CAMERA_ZOOM_STEP) || 0.12);
-
-      const baseBlockDefs = typeof blocksModule.getBlockDefs === "function" ? blocksModule.getBlockDefs() : {};
-      const farmableBlockDefs = typeof farmablesModule.getFarmableDefs === "function" ? farmablesModule.getFarmableDefs() : {};
-      const worldBlockDefs = { ...baseBlockDefs, ...farmableBlockDefs };
-      const SPAWN_TILE_X = 8;
-      const SPAWN_TILE_Y = 11;
-      const SPAWN_DOOR_ID = 7;
-      const SPAWN_BASE_ID = 8;
-      const SPAWN_MOVER_ID = 40;
-
-      const WORLD_LOCK_ID = 9;
-      const DOOR_BLOCK_ID = 10;
-      const WATER_ID = 11;
-      const PLATFORM_ID = 12;
-      const STAIR_BASE_ID = 13;
-      const STAIR_ROTATION_IDS = [13, 14, 15, 16];
-      const SPIKE_BASE_ID = 33;
-      const SPIKE_ROTATION_IDS = [33, 37, 38, 39];
-      const VENDING_ID = 17;
-      const GAMBLE_ID = 32;
-      const SIGN_ID = 18;
-      const ANTI_GRAV_ID = 19;
-      const CAMERA_ID = 20;
-      const WEATHER_MACHINE_ID = 21;
-      const DISPLAY_BLOCK_ID = 22;
-      const WOOD_PLANK_ID = 23;
-      const OBSIDIAN_LOCK_ID = 24;
-      const EMERALD_LOCK_ID = 42;
-      const DONATION_BOX_ID = 34;
-      const STORAGE_CHEST_ID = 36;
-      const TREE_YIELD_BLOCK_ID = 4;
-      const TREE_GROW_MS = Math.max(5000, Number(SETTINGS.TREE_GROW_MS) || 120000);
-      const TREE_STAGE_COUNT = 4;
-      const TREE_GEM_MIN = Math.max(0, Math.floor(Number(SETTINGS.TREE_GEM_MIN) || 1));
-      const TREE_GEM_MAX = Math.max(TREE_GEM_MIN, Math.floor(Number(SETTINGS.TREE_GEM_MAX) || 4));
-      const SEED_DROP_CHANCE = 1 / 8;
-      const BREAK_RETURN_ITEM_CHANCE = 1 / 5;
-      const PASSIVE_LOCK_AUTOCONVERT = Boolean(SETTINGS.PASSIVE_LOCK_AUTOCONVERT);
-      const INVENTORY_ITEM_LIMIT = 300;
-      let spawnTileX = SPAWN_TILE_X;
-      let spawnTileY = SPAWN_TILE_Y;
-      const DEFAULT_EDIT_REACH_TILES = 4.5;
-      const MIN_EDIT_REACH_TILES = 1;
-      const MAX_EDIT_REACH_TILES = 16;
-      const TOOL_FIST = "fist";
-      const TOOL_WRENCH = "wrench";
-      const farmableRegistry = typeof farmablesModule.createRegistry === "function"
-        ? farmablesModule.createRegistry(worldBlockDefs, {})
-        : {
-            ids: [],
-            byId: {},
-            isFarmable: () => false,
-            rollGems: () => 0,
-            getBreakXp: (_id, fallbackXp) => Math.max(1, Math.floor(Number(fallbackXp) || 1))
-          };
       const seedRegistry = typeof seedsModule.createSeedRegistry === "function"
         ? seedsModule.createSeedRegistry(worldBlockDefs, {
             growMs: TREE_GROW_MS,
@@ -457,209 +133,33 @@
         TITLE_LOOKUP[title.id] = title;
       }
       const TITLE_DEFAULT_ID = (TITLE_CATALOG.find((title) => title.defaultUnlocked) || TITLE_CATALOG[0] || {}).id || "";
-      const cosmeticImageCache = new Map();
-      const blockImageCache = new Map();
-      const waterFramePathCache = [];
-      const WATER_FRAME_MS = Math.max(80, Number(SETTINGS.WATER_FRAME_MS) || 170);
-      const WEATHER_PRESETS = (() => {
-        const out = [];
-        const seen = new Set();
-        out.push({ id: "none", name: "Default Sky", url: "" });
-        seen.add("none");
-        for (let i = 0; i < WEATHER_PRESET_IMAGES.length; i++) {
-          const row = WEATHER_PRESET_IMAGES[i] || {};
-          const id = String(row.id || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
-          const name = String(row.name || "").trim().slice(0, 36);
-          const url = String(row.url || "").trim().slice(0, 420);
-          if (!id || seen.has(id)) continue;
-          out.push({ id, name: name || id, url });
-          seen.add(id);
-        }
-        return out;
-      })();
-      const WEATHER_PRESET_MAP = new Map(WEATHER_PRESETS.map((preset) => [preset.id, preset]));
-      const inventory = {};
-      for (let i = 0; i < INVENTORY_IDS.length; i++) {
-        inventory[INVENTORY_IDS[i]] = 0;
+      if (typeof stateModule.initRuntimeState !== "function") {
+        throw new Error("state.js module missing: GTModules.state.initRuntimeState");
       }
-      let selectedSlot = 0;
-      const keys = {};
-      const playerId = "p_" + Math.random().toString(36).slice(2, 10);
-      let playerName = "";
-      let playerProfileId = "";
-      let playerSessionRef = null;
-      let playerSessionId = "";
-      let playerSessionStartedAt = 0;
-      let progressionXp = 0;
-      let progressionLevel = 1;
-      let progressionXpIntoLevel = 0;
-      let progressionXpForNext = 100;
-      let progressionSaveTimer = 0;
-      let achievementsState = null;
-      let achievementsSaveTimer = 0;
-      let questsState = null;
-      let questsSaveTimer = 0;
-      let worldChatStartedAt = 0;
-      let desktopLeftPanelWidth = DESKTOP_PANEL_LEFT_DEFAULT;
-      let desktopRightPanelWidth = DESKTOP_PANEL_RIGHT_DEFAULT;
-      let layoutResizeSide = "";
-      let gameBootstrapped = false;
-      let pendingTeleportSelf = null;
-      let lastHandledTeleportCommandId = "";
-      let hasSeenInitialTeleportCommandSnapshot = false;
-      let lastHandledReachCommandId = "";
-      let lastPrivateMessageFrom = null;
-      let worldJoinRequestToken = 0;
-      const remotePlayers = new Map();
-      const remoteAnimationTracker = typeof animationsModule.createTracker === "function"
-        ? animationsModule.createTracker()
-        : new Map();
-      const remoteHitTracker = typeof syncHitsModule.createRemoteHitTracker === "function"
-        ? syncHitsModule.createRemoteHitTracker()
-        : new Map();
-      const overheadChatByPlayer = new Map();
-      const displayItemsByTile = new Map();
-      const doorAccessByTile = new Map();
-      const antiGravityByTile = new Map();
-      const cameraConfigsByTile = new Map();
-      const cameraLogsByTile = new Map();
-      const localWeatherByWorld = new Map();
-      const worldOccupancy = new Map();
-      const worldLockOwnerCache = new Map();
-      let worldIndexMetaById = {};
-      let ownedWorldScanInFlight = false;
-      let ownedWorldScanToken = 0;
-      let vendingController = null;
-      let gambleController = null;
-      let donationController = null;
-      let chestController = null;
-      let friendsController = null;
-      let tradeController = null;
-      let messagesController = null;
-      let shopController = null;
-      let signController = null;
-      let plantsController = null;
-      let gemsController = null;
-      let rewardsController = null;
-      let dropsController = null;
-      let drawController = null;
-      let adminPanelController = null;
-      let editReachTiles = DEFAULT_EDIT_REACH_TILES;
-      let worldLockEditContext = null;
-      let doorEditContext = null;
-      let cameraEditContext = null;
-      let weatherEditContext = null;
-      let currentWorldWeather = null;
-      let knownWorldIds = [];
-      let totalOnlinePlayers = 0;
-      let hasRenderedMenuWorldList = false;
-      let currentWorldLock = null;
-      let lastLockDeniedNoticeAt = 0;
-      let lastHandledForceReloadEventId = loadForceReloadMarker();
-      let lastHandledAnnouncementEventId = "";
-      let lastHandledFreezeCommandId = "";
-      let lastHandledGodModeCommandId = "";
-      let lastHandledPrivateAnnouncementId = "";
-      let announcementHideTimer = 0;
-      let serverMainPageNoticeText = "";
-      let localUpdateNoticeText = "";
-      let publicMainNoticeDb = null;
-      let publicMainNoticeRef = null;
-      let publicMainNoticeHandler = null;
-      let isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
-      let isMobileUi = false;
-      let isChatOpen = false;
-      let suppressChatOpenUntilMs = 0;
-      let isLogsOpen = false;
-      let canViewAccountLogs = false;
-      let canUseAdminPanel = false;
-      let currentAdminRole = "none";
-      let adminDataListening = false;
-      let adminSearchQuery = "";
-      let adminAuditActionFilter = "";
-      let adminAuditActorFilter = "";
-      let adminAuditTargetFilter = "";
-      let adminBackupList = [];
-      let adminBackupSelectedId = "";
-      let adminBackupLoading = false;
-      let isAdminOpen = false;
-      let adminCommandsMenuOpen = false;
-      let hasSeenAdminRoleSnapshot = false;
-      const adminCommandLastUsedAt = new Map();
-      const chatMessages = [];
-      const recentChatFingerprintAt = new Map();
-      const logsMessages = [];
-      const antiCheatMessages = [];
-      const CHAT_BUBBLE_FULL_MS = 5000;
-      const CHAT_BUBBLE_FADE_MS = 1500;
-      const CHAT_BUBBLE_MS = CHAT_BUBBLE_FULL_MS + CHAT_BUBBLE_FADE_MS;
-      const CHAT_BUBBLE_MAX_WIDTH = 190;
-      const CHAT_BUBBLE_LINE_HEIGHT = 13;
-      const DROP_PICKUP_RADIUS = 26;
-      const DROP_MAX_PER_WORLD = 220;
-      const PLAYER_NAME_FONT = "12px 'Trebuchet MS', sans-serif";
-      const playerWrenchHitboxes = [];
-      const localPlayerWrenchHitbox = [];
-      const worldDrops = new Map();
-      const tileDamageByKey = new Map();
-      let lastDropAtMs = 0;
-      const inventoryDrag = {
-        active: false,
-        pointerId: null,
-        startX: 0,
-        startY: 0,
-        lastX: 0,
-        lastY: 0,
-        moved: false,
-        amount: 1,
-        maxAmount: 1,
-        entry: null,
-        ghostEl: null
-      };
-      let toolbarRenderQueued = false;
-      let toolbarRenderRafId = 0;
-      let lastToolbarRefresh = 0;
-      let suppressInventoryClickUntilMs = 0;
-      let pickupInventoryFlushTimer = 0;
-      let inventorySaveTimer = 0;
-      let manualLockConvertHoldUntilMs = 0;
-      let lastInventoryFullHintAt = 0;
-      let isPointerDown = false;
-
-      let currentWorldId = getInitialWorldId();
-      let world = makeWorld(currentWorldId);
-      let inWorld = false;
-
-      const player = {
-        x: TILE * 8,
-        y: TILE * 11,
-        vx: 0,
-        vy: 0,
-        grounded: false,
-        facing: 1
-      };
-      let currentPhysicsLimits = {
-        maxMoveSpeedPerTick: Math.max(0.01, Number(MAX_MOVE_SPEED) || 0),
-        maxFallSpeedPerTick: Math.max(0.01, Number(MAX_FALL_SPEED) || 0),
-        gravityPerTick: Math.max(0.001, Number(GRAVITY) || 0),
-        jumpVelocityPerTick: Math.abs(Number(JUMP_VELOCITY) || 0),
-        inWater: false,
-        inAntiGravity: false
-      };
-      const cosmeticState = typeof cosmeticsModule.createInventoryState === "function"
-        ? cosmeticsModule.createInventoryState(COSMETIC_ITEMS, COSMETIC_SLOTS)
-        : { cosmeticInventory: {}, equippedCosmetics: {} };
-      const cosmeticInventory = cosmeticState.cosmeticInventory || {};
-      const titleInventory = {};
-      const equippedCosmetics = cosmeticState.equippedCosmetics || { shirts: "", pants: "", shoes: "", hats: "", wings: "", swords: "" };
-      let equippedTitleId = "";
-      for (const title of TITLE_CATALOG) {
-        titleInventory[title.id] = title.defaultUnlocked ? 1 : 0;
-      }
-      if (TITLE_DEFAULT_ID) {
-        equippedTitleId = TITLE_DEFAULT_ID;
-      }
-
+      stateModule.initRuntimeState({
+        weatherPresetImages: WEATHER_PRESET_IMAGES,
+        waterFrameMs: Math.max(80, Number(SETTINGS.WATER_FRAME_MS) || 170),
+        inventoryIds: INVENTORY_IDS,
+        desktopPanelLeftDefault: DESKTOP_PANEL_LEFT_DEFAULT,
+        desktopPanelRightDefault: DESKTOP_PANEL_RIGHT_DEFAULT,
+        defaultEditReachTiles: DEFAULT_EDIT_REACH_TILES,
+        loadForceReloadMarker,
+        animationsModule,
+        syncHitsModule,
+        tileSize: TILE,
+        maxMoveSpeed: MAX_MOVE_SPEED,
+        maxFallSpeed: MAX_FALL_SPEED,
+        gravity: GRAVITY,
+        jumpVelocity: JUMP_VELOCITY,
+        getInitialWorldId,
+        makeWorld,
+        cosmeticItems: COSMETIC_ITEMS,
+        cosmeticSlots: COSMETIC_SLOTS,
+        titleCatalog: TITLE_CATALOG,
+        titleDefaultId: TITLE_DEFAULT_ID,
+        loadCameraZoomPref,
+        cosmeticsModule
+      });
       function getVendingController() {
         if (vendingController) return vendingController;
         if (typeof vendingModule.createController !== "function") return null;
@@ -976,7 +476,7 @@
           getTradePanelBodyEl: () => document.getElementById("tradePanelBody"),
           getTradePanelActionsEl: () => document.getElementById("tradePanelActions"),
           getTradePanelCloseBtnEl: () => document.getElementById("tradePanelCloseBtn"),
-          getToolbarEl: () => toolbar,
+          getToolbarEl: () => toolbarEl,
           getFriendsController: () => getFriendsController(),
           startInventoryDragFromTrade: (entry, event) => {
             startInventoryDrag(entry, event);
@@ -1315,10 +815,6 @@
         }).catch(() => {});
       }
 
-      let cameraX = 0;
-      let cameraY = 0;
-      let cameraZoom = loadCameraZoomPref();
-      let mouseWorld = { tx: 0, ty: 0 };
       const antiCheatController = typeof anticheatModule.createController === "function"
         ? anticheatModule.createController({
           getPlayerName: () => playerName,
@@ -5712,7 +5208,7 @@
         const showChatPanel = !gameShellEl.classList.contains("hidden") && (!isMobileUi || isChatOpen);
         chatPanelEl.classList.toggle("hidden", !showChatPanel);
         const showToolbar = inWorld && (!isMobileUi || isMobileInventoryOpen || hasPassiveInventoryModalOpen);
-        toolbar.classList.toggle("hidden", !showToolbar);
+        toolbarEl.classList.toggle("hidden", !showToolbar);
         mobileControlsEl.classList.toggle("hidden", !(inWorld && isMobileUi));
       }
 
@@ -11316,7 +10812,7 @@
 
       function getInventorySignature() {
         // Creates a quick string to check if we have NEW items (which requires a full DOM rebuild).
-        // Use slotOrder for blocks (toolbar order) instead of full INVENTORY_IDS for fewer iterations.
+        // Use slotOrder for blocks (toolbarEl order) instead of full INVENTORY_IDS for fewer iterations.
         let sig = selectedSlot + ";";
         for (const id of slotOrder) {
           if (id === TOOL_FIST || id === TOOL_WRENCH) sig += id + ",";
@@ -11342,14 +10838,14 @@
         
         // --- OPTIMIZATION: Check if we only need to update the numbers ---
         const currentSig = getInventorySignature();
-        if (lastInventorySignature === currentSig && toolbar.innerHTML !== "") {
+        if (lastInventorySignature === currentSig && toolbarEl.innerHTML !== "") {
           fastUpdateToolbarCounts();
           return;
         }
         lastInventorySignature = currentSig;
         // ----------------------------------------------------------------
 
-        toolbar.innerHTML = "";
+        toolbarEl.innerHTML = "";
         const blockSection = createInventorySection("Blocks & Tools", "Click to select (1: Fist, 2: Wrench)");
         const farmableSection = createInventorySection("Farmables", "Separate from normal blocks: higher XP + gem drops");
         let hasFarmableEntries = false;
@@ -11399,9 +10895,9 @@
             blockSection.grid.appendChild(slotEl);
           }
         }
-        toolbar.appendChild(blockSection.section);
+        toolbarEl.appendChild(blockSection.section);
         if (hasFarmableEntries) {
-          toolbar.appendChild(farmableSection.section);
+          toolbarEl.appendChild(farmableSection.section);
         }
 
 
@@ -11450,7 +10946,7 @@
             });
             cosmeticSection.grid.appendChild(slotEl);
           }
-          toolbar.appendChild(cosmeticSection.section);
+          toolbarEl.appendChild(cosmeticSection.section);
         }
         const donationCtrl = getDonationController();
         if (donationCtrl && typeof donationCtrl.isOpen === "function" && donationCtrl.isOpen()) {
@@ -11616,7 +11112,7 @@
       }
 
       function applyToolbarPosition() {
-        toolbar.style.transform = "none";
+        toolbarEl.style.transform = "none";
       }
 
       function clampPanelWidths(leftValue, rightValue) {
@@ -12122,4 +11618,6 @@
       startPublicMainNoticeListener();
       setAuthStatus("Create or login to continue.", false);
     })();
+
+
 
