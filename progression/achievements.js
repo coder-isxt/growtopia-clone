@@ -24,6 +24,13 @@ window.GTModules.achievements = (function createAchievementsModule() {
       event: "tree_harvest"
     },
     {
+      id: "break_10000_blocks",
+      label: "Break 10k blocks",
+      target: 10000,
+      metric: "blocksBreaked",
+      event: "break_block"
+    },
+    {
       id: "earn_10k_gems",
       label: "Earn 10,000 Gems",
       target: 10000,

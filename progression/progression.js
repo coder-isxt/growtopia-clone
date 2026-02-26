@@ -3,9 +3,9 @@ window.GTModules = window.GTModules || {};
 window.GTModules.progression = (function createProgressionModule() {
   const DEFAULT_LEVEL = 1;
   const DEFAULT_XP = 0;
-  const MAX_LEVEL = 100;
-  const BASE_XP_PER_LEVEL = 100;
-  const XP_GROWTH_PER_LEVEL = 35;
+  const MAX_LEVEL = 150;
+  const BASE_XP_PER_LEVEL = 110;
+  const XP_GROWTH_PER_LEVEL = 60;
   const TITLE_UNLOCKS = {
     3: ["novice"],
     10: ["big"],

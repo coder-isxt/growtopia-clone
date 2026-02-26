@@ -14,14 +14,14 @@ window.GTModules.quests = (function createQuestsModule() {
       label: "Visit 3 worlds",
       target: 3,
       event: "visit_world",
-      rewards: { cosmeticId: "cloth_tunic", cosmeticAmount: 1 }
+      rewards: { gems: 30 }
     },
     {
       id: "trade_once",
       label: "Trade once",
       target: 1,
       event: "trade_complete",
-      rewards: { titleId: "trader", titleAmount: 1, gems: 25 }
+      rewards: { gems: 25 }
     }
   ];
   const OTHER_QUESTS = [
@@ -31,7 +31,7 @@ window.GTModules.quests = (function createQuestsModule() {
       target: 500,
       event: "break_block",
       category: "other",
-      rewards: { gems: 220 }
+      rewards: { cosmeticId: "sun_shirt", cosmeticAmount: 1, gems: 200 }
     },
     {
       id: "visit_25_worlds_total",
@@ -41,14 +41,14 @@ window.GTModules.quests = (function createQuestsModule() {
       category: "other",
       rewards: { titleId: "traveler", titleAmount: 1, gems: 120 }
     },
-    {
-      id: "trade_10_times_total",
-      label: "Trade 10 times",
-      target: 10,
-      event: "trade_complete",
-      category: "other",
-      rewards: { cosmeticId: "swift_sneakers", cosmeticAmount: 1, gems: 140 }
-    }
+    // {
+    //   id: "trade_10_times_total",
+    //   label: "Trade 10 times",
+    //   target: 10,
+    //   event: "trade_complete",
+    //   category: "other",
+    //   rewards: { cosmeticId: "swift_sneakers", cosmeticAmount: 1, gems: 140 }
+    // }
   ];
   const ALL_QUESTS = DAILY_QUESTS
     .map((q) => ({ ...q, category: "daily" }))

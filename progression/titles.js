@@ -15,7 +15,8 @@ window.GTModules.titles = (function createTitlesModule() {
 
 
     //Quests
-    { id: "legendary", name: "{username} of Legend", color: "#ffee57", style: { glow: true, glowColor: "#ffee57" } },
+    { id: "legendary", name: "{username} of Legend", color: "#ffee57", style: { glow: true, glowColor: "#ffaf03" } },
+    { id: "is_hero", name: "{username} is Hero", color: "#7b57ff", style: { glow: true, glowColor: "#5b03ff" } },
   ];
   
   function getCatalog() {

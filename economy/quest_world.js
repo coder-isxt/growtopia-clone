@@ -212,7 +212,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
             amount: 120
           },
           reward: {
-            titleId: "legendary",
+            titleId: "is_hero",
             titleAmount: 1
           }
         }
@@ -446,13 +446,93 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
     function getOrCreatePlayerQuestState(worldId) {
       const safeWorldId = normalizeWorldId(worldId);
       if (!safeWorldId) {
-        return { accepted: {}, claimed: {}, trackedId: "" };
+        return {
+          accepted: {},
+          claimed: {},
+          trackedId: "",
+          activeQuestId: "",
+          nextQuestIndex: 0,
+          pathId: ""
+        };
       }
       const existing = playerQuestStateByWorld.get(safeWorldId);
-      if (existing && typeof existing === "object") return existing;
-      const created = { accepted: {}, claimed: {}, trackedId: "" };
+      if (existing && typeof existing === "object") {
+        if (!existing.accepted || typeof existing.accepted !== "object") existing.accepted = {};
+        if (!existing.claimed || typeof existing.claimed !== "object") existing.claimed = {};
+        if (typeof existing.trackedId !== "string") existing.trackedId = "";
+        if (typeof existing.activeQuestId !== "string") existing.activeQuestId = "";
+        if (!Number.isFinite(existing.nextQuestIndex)) existing.nextQuestIndex = 0;
+        if (typeof existing.pathId !== "string") existing.pathId = "";
+        return existing;
+      }
+      const created = {
+        accepted: {},
+        claimed: {},
+        trackedId: "",
+        activeQuestId: "",
+        nextQuestIndex: 0,
+        pathId: ""
+      };
       playerQuestStateByWorld.set(safeWorldId, created);
       return created;
+    }
+
+    function computeNextQuestIndex(rows, claimedMap) {
+      const list = Array.isArray(rows) ? rows : [];
+      const claimed = claimedMap && typeof claimedMap === "object" ? claimedMap : {};
+      let index = 0;
+      while (index < list.length) {
+        const row = list[index] || {};
+        const qid = String(row.id || "");
+        if (!qid || !claimed[qid]) break;
+        index++;
+      }
+      return Math.max(0, Math.min(list.length, index));
+    }
+
+    function getQuestChainRuntime(config, state) {
+      const rows = resolveQuestListForConfig(config);
+      const total = rows.length;
+      const pathId = normalizePathId((config && config.questPathId) || "") || DEFAULT_PATH_ID;
+
+      if (state.pathId !== pathId) {
+        state.pathId = pathId;
+        state.accepted = {};
+        state.claimed = {};
+        state.trackedId = "";
+        state.activeQuestId = "";
+        state.nextQuestIndex = 0;
+      }
+
+      const nextIndex = computeNextQuestIndex(rows, state.claimed);
+      state.nextQuestIndex = nextIndex;
+
+      const completed = nextIndex >= total;
+      const currentQuest = completed ? null : (rows[nextIndex] || null);
+      const currentQuestId = currentQuest ? String(currentQuest.id || "") : "";
+      if (completed || !currentQuestId) {
+        state.activeQuestId = "";
+        state.trackedId = "";
+      } else {
+        if (state.accepted[currentQuestId] && !state.activeQuestId) {
+          state.activeQuestId = currentQuestId;
+        }
+        if (state.activeQuestId && state.activeQuestId !== currentQuestId) {
+          state.activeQuestId = "";
+        }
+        if (state.trackedId && state.trackedId !== currentQuestId) {
+          state.trackedId = "";
+        }
+      }
+
+      return {
+        rows,
+        total,
+        nextIndex,
+        completed,
+        currentQuest,
+        currentQuestId
+      };
     }
 
     function setLocalWorldConfig(worldId, value) {
@@ -644,44 +724,62 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         return;
       }
       const state = getOrCreatePlayerQuestState(activeWorldId);
-      const rows = resolveQuestListForConfig(config);
+      const chain = getQuestChainRuntime(config, state);
       const currentPath = resolveQuestPathForConfig(config);
+      const progressLine = chain.total
+        ? (chain.completed ? "Path completed (" + chain.total + "/" + chain.total + ")." : ("Quest " + (chain.nextIndex + 1) + "/" + chain.total + "."))
+        : "No quests configured.";
       const pathLine = currentPath
-        ? '<div class="vending-section"><div class="vending-section-title">Quest Path</div><div class="sign-hint">' + esc(currentPath.name) + " (" + esc(currentPath.id) + ")</div></div>"
-        : "";
-      const listHtml = rows.length
-        ? rows.map((quest) => {
-            const qid = String(quest.id || "");
-            const accepted = Boolean(state.accepted[qid]);
-            const claimed = Boolean(state.claimed[qid]);
-            const tracked = state.trackedId === qid;
-            const status = claimed
-              ? "Claimed"
-              : (accepted ? (tracked ? "Accepted + Tracking" : "Accepted") : (tracked ? "Tracking" : "Not accepted"));
-            const objectiveLabel = getQuestObjectiveLabel(quest);
-            const progressLabel = getQuestObjectiveProgressLabel(quest);
-            return (
-              '<div class="vending-section">' +
-                '<div class="vending-section-title">' + esc(quest.title || qid) + "</div>" +
-                '<div class="sign-hint">' + esc(quest.description || "Quest objective placeholder.") + "</div>" +
-                (objectiveLabel ? ('<div class="sign-hint"><strong>Objective:</strong> ' + esc(objectiveLabel) + "</div>") : "") +
-                (progressLabel ? ('<div class="sign-hint">' + esc(progressLabel) + "</div>") : "") +
-                '<div class="sign-hint"><strong>' + esc(quest.rewardText || "Reward placeholder") + "</strong></div>" +
-                '<div class="sign-hint">Status: ' + esc(status) + "</div>" +
-                '<div class="vending-actions">' +
-                  '<button type="button" data-quest-act="accept" data-quest-id="' + esc(qid) + '"' + (accepted ? " disabled" : "") + '>Accept Quest</button>' +
-                  '<button type="button" data-quest-act="track" data-quest-id="' + esc(qid) + '"' + (tracked ? " disabled" : "") + '>Track Quest</button>' +
-                  '<button type="button" data-quest-act="claim" data-quest-id="' + esc(qid) + '"' + ((!accepted || claimed) ? " disabled" : "") + '>Claim Reward</button>' +
-                "</div>" +
-              "</div>"
-            );
-          }).join("")
+        ? (
+            '<div class="vending-section">' +
+              '<div class="vending-section-title">Quest Path</div>' +
+              '<div class="sign-hint">' + esc(currentPath.name) + " (" + esc(currentPath.id) + ")</div>" +
+              '<div class="sign-hint">' + esc(progressLine) + "</div>" +
+            "</div>"
+          )
         : (
+            '<div class="vending-section">' +
+              '<div class="vending-section-title">Quest Path</div>' +
+              '<div class="sign-hint">' + esc(progressLine) + "</div>" +
+            "</div>"
+          );
+
+      let listHtml = "";
+      if (!chain.total) {
+        listHtml =
           '<div class="vending-section">' +
             '<div class="vending-section-title">No quests configured</div>' +
             '<div class="sign-hint">Ask an owner admin to configure quest path data.</div>' +
-          "</div>"
-        );
+          "</div>";
+      } else if (chain.completed || !chain.currentQuest) {
+        listHtml =
+          '<div class="vending-section">' +
+            '<div class="vending-section-title">Quest Path Complete</div>' +
+            '<div class="sign-hint">You completed this quest chain.</div>' +
+          "</div>";
+      } else {
+        const quest = chain.currentQuest;
+        const qid = String(quest.id || "");
+        const accepted = Boolean(state.accepted[qid]) && state.activeQuestId === qid;
+        const tracked = state.trackedId === qid;
+        const status = accepted ? (tracked ? "Accepted + Tracking" : "Accepted") : "Not accepted";
+        const objectiveLabel = getQuestObjectiveLabel(quest);
+        const progressLabel = getQuestObjectiveProgressLabel(quest);
+        listHtml =
+          '<div class="vending-section">' +
+            '<div class="vending-section-title">' + esc(quest.title || qid) + "</div>" +
+            '<div class="sign-hint">' + esc(quest.description || "Quest objective placeholder.") + "</div>" +
+            (objectiveLabel ? ('<div class="sign-hint"><strong>Objective:</strong> ' + esc(objectiveLabel) + "</div>") : "") +
+            (progressLabel ? ('<div class="sign-hint">' + esc(progressLabel) + "</div>") : "") +
+            '<div class="sign-hint"><strong>' + esc(quest.rewardText || "Reward placeholder") + "</strong></div>" +
+            '<div class="sign-hint">Status: ' + esc(status) + "</div>" +
+            '<div class="vending-actions">' +
+              '<button type="button" data-quest-act="accept" data-quest-id="' + esc(qid) + '"' + (accepted ? " disabled" : "") + '>Accept Quest</button>' +
+              '<button type="button" data-quest-act="track" data-quest-id="' + esc(qid) + '"' + ((!accepted || tracked) ? " disabled" : "") + '>Track Quest</button>' +
+              '<button type="button" data-quest-act="claim" data-quest-id="' + esc(qid) + '"' + (!accepted ? " disabled" : "") + '>Claim Reward</button>' +
+            "</div>" +
+          "</div>";
+      }
       els.title.textContent = "Quest Menu (" + modalCtx.tx + "," + modalCtx.ty + ")";
       els.body.innerHTML = pathLine + listHtml + renderOwnerControls(config);
       els.modal.classList.remove("hidden");
@@ -690,18 +788,26 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
     function acceptQuest(questId) {
       const config = getCurrentConfig();
       if (!config) return false;
-      const quest = getQuestRowById(config, questId);
-      if (!quest) return false;
       const state = getOrCreatePlayerQuestState(activeWorldId);
-      const qid = String(quest.id || "");
-      if (!qid) return false;
-      if (state.accepted[qid]) {
-        call("postLocalSystemChat", "Quest already accepted: " + (quest.title || qid) + ".");
+      const chain = getQuestChainRuntime(config, state);
+      if (chain.completed || !chain.currentQuest) {
+        call("postLocalSystemChat", "This quest path is already completed.");
         return true;
       }
+      const qid = String(chain.currentQuestId || "");
+      if (!qid) return false;
+      if (String(questId || "").trim().toLowerCase() !== qid.toLowerCase()) {
+        call("postLocalSystemChat", "Complete quests in order. Only the current chain quest can be accepted.");
+        return true;
+      }
+      if (state.accepted[qid] && state.activeQuestId === qid) {
+        call("postLocalSystemChat", "Quest already accepted: " + (chain.currentQuest.title || qid) + ".");
+        return true;
+      }
+      state.activeQuestId = qid;
       state.accepted[qid] = true;
-      if (!state.trackedId) state.trackedId = qid;
-      call("postLocalSystemChat", "Accepted quest: " + (quest.title || qid) + ".");
+      state.trackedId = qid;
+      call("postLocalSystemChat", "Accepted quest: " + (chain.currentQuest.title || qid) + ".");
       renderModal();
       return true;
     }
@@ -709,13 +815,24 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
     function trackQuest(questId) {
       const config = getCurrentConfig();
       if (!config) return false;
-      const quest = getQuestRowById(config, questId);
-      if (!quest) return false;
       const state = getOrCreatePlayerQuestState(activeWorldId);
-      const qid = String(quest.id || "");
+      const chain = getQuestChainRuntime(config, state);
+      if (chain.completed || !chain.currentQuest) {
+        call("postLocalSystemChat", "This quest path is already completed.");
+        return true;
+      }
+      const qid = String(chain.currentQuestId || "");
       if (!qid) return false;
+      if (String(questId || "").trim().toLowerCase() !== qid.toLowerCase()) {
+        call("postLocalSystemChat", "Only the current chain quest can be tracked.");
+        return true;
+      }
+      if (!(state.accepted[qid] && state.activeQuestId === qid)) {
+        call("postLocalSystemChat", "Accept the current quest first.");
+        return true;
+      }
       state.trackedId = qid;
-      call("postLocalSystemChat", "Tracking quest: " + (quest.title || qid) + ".");
+      call("postLocalSystemChat", "Tracking quest: " + (chain.currentQuest.title || qid) + ".");
       renderModal();
       return true;
     }
@@ -782,12 +899,20 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
     function claimQuest(questId) {
       const config = getCurrentConfig();
       if (!config) return false;
-      const quest = getQuestRowById(config, questId);
-      if (!quest) return false;
       const state = getOrCreatePlayerQuestState(activeWorldId);
-      const qid = String(quest.id || "");
+      const chain = getQuestChainRuntime(config, state);
+      if (chain.completed || !chain.currentQuest) {
+        call("postLocalSystemChat", "This quest path is already completed.");
+        return true;
+      }
+      const quest = chain.currentQuest;
+      const qid = String(chain.currentQuestId || "");
       if (!qid) return false;
-      if (!state.accepted[qid]) {
+      if (String(questId || "").trim().toLowerCase() !== qid.toLowerCase()) {
+        call("postLocalSystemChat", "Only the current chain quest can be claimed.");
+        return true;
+      }
+      if (!(state.accepted[qid] && state.activeQuestId === qid)) {
         call("postLocalSystemChat", "Accept the quest first.");
         return true;
       }
@@ -811,8 +936,18 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       if (objectiveResult.consumeMessage) {
         call("postLocalSystemChat", objectiveResult.consumeMessage);
       }
+      state.accepted[qid] = false;
+      state.activeQuestId = "";
+      state.trackedId = "";
+
+      const afterChain = getQuestChainRuntime(config, state);
       const rewardSuffix = rewardResult.rewardText ? (" -> " + rewardResult.rewardText) : "";
       call("postLocalSystemChat", "Claimed reward for " + (quest.title || qid) + rewardSuffix + ".");
+      if (afterChain.completed) {
+        call("postLocalSystemChat", "Quest path complete. You earned the final chain reward.");
+      } else if (afterChain.currentQuest) {
+        call("postLocalSystemChat", "Next quest unlocked: " + (afterChain.currentQuest.title || afterChain.currentQuestId) + ".");
+      }
       renderModal();
       return true;
     }
