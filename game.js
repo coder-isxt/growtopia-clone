@@ -207,6 +207,13 @@
       const particlesModule = modules.particles || {};
       const drawUtilsModule = modules.drawUtils || {};
       const drawModule = modules.draw || {};
+      const eventsModule = modules.events || {
+        on(target, type, listener, options) {
+          if (!target || typeof target.addEventListener !== "function") return false;
+          target.addEventListener(type, listener, options);
+          return true;
+        }
+      };
       const inputUtilsModule = modules.inputUtils || {};
       const syncPlayerModule = modules.syncPlayer || {};
       const syncBlocksModule = modules.syncBlocks || {};
@@ -8999,7 +9006,7 @@
             button.type = "button";
             button.className = "world-chip" + (owned ? " owned" : "");
             button.textContent = count > 0 ? id + " [" + count + "]" : id;
-            button.addEventListener("click", () => {
+            eventsModule.on(button, "click", () => {
               switchWorld(id, true);
             });
             worldButtonsEl.appendChild(button);
@@ -10006,8 +10013,8 @@
       }
 
       function bindWorldControls() {
-        enterWorldBtn.addEventListener("click", enterWorldFromInput);
-        chatToggleBtn.addEventListener("click", () => {
+        eventsModule.on(enterWorldBtn, "click", enterWorldFromInput);
+        eventsModule.on(chatToggleBtn, "click", () => {
           if (!inWorld) return;
           if (isMobileUi) {
             setChatOpen(!isChatOpen);
@@ -10016,51 +10023,51 @@
           }
         });
         if (shopToggleBtn) {
-          shopToggleBtn.addEventListener("click", () => {
+          eventsModule.on(shopToggleBtn, "click", () => {
             const ctrl = getShopController();
             if (!ctrl || typeof ctrl.openModal !== "function") return;
             ctrl.openModal();
           });
         }
         if (achievementsToggleBtn) {
-          achievementsToggleBtn.addEventListener("click", () => {
+          eventsModule.on(achievementsToggleBtn, "click", () => {
             openAchievementsMenu();
           });
         }
         if (questsToggleBtn) {
-          questsToggleBtn.addEventListener("click", () => {
+          eventsModule.on(questsToggleBtn, "click", () => {
             openQuestsMenu();
           });
         }
         if (titlesToggleBtn) {
-          titlesToggleBtn.addEventListener("click", () => {
+          eventsModule.on(titlesToggleBtn, "click", () => {
             openTitlesMenu();
           });
         }
         if (achievementsCloseBtn) {
-          achievementsCloseBtn.addEventListener("click", () => {
+          eventsModule.on(achievementsCloseBtn, "click", () => {
             closeAchievementsMenu();
           });
         }
         if (questsCloseBtn) {
-          questsCloseBtn.addEventListener("click", () => {
+          eventsModule.on(questsCloseBtn, "click", () => {
             closeQuestsMenu();
           });
         }
         if (titlesCloseBtn) {
-          titlesCloseBtn.addEventListener("click", () => {
+          eventsModule.on(titlesCloseBtn, "click", () => {
             closeTitlesMenu();
           });
         }
         if (achievementsModalEl) {
-          achievementsModalEl.addEventListener("click", (event) => {
+          eventsModule.on(achievementsModalEl, "click", (event) => {
             if (event.target === achievementsModalEl) {
               closeAchievementsMenu();
             }
           });
         }
         if (achievementsActionsEl) {
-          achievementsActionsEl.addEventListener("click", (event) => {
+          eventsModule.on(achievementsActionsEl, "click", (event) => {
             const target = event.target;
             if (!(target instanceof HTMLElement)) return;
             if (String(target.dataset.achAct || "") === "close") {
@@ -10069,21 +10076,21 @@
           });
         }
         if (questsModalEl) {
-          questsModalEl.addEventListener("click", (event) => {
+          eventsModule.on(questsModalEl, "click", (event) => {
             if (event.target === questsModalEl) {
               closeQuestsMenu();
             }
           });
         }
         if (titlesModalEl) {
-          titlesModalEl.addEventListener("click", (event) => {
+          eventsModule.on(titlesModalEl, "click", (event) => {
             if (event.target === titlesModalEl) {
               closeTitlesMenu();
             }
           });
         }
         if (questsActionsEl) {
-          questsActionsEl.addEventListener("click", (event) => {
+          eventsModule.on(questsActionsEl, "click", (event) => {
             const target = event.target;
             if (!(target instanceof HTMLElement)) return;
             if (String(target.dataset.questAct || "") === "close") {
@@ -10092,7 +10099,7 @@
           });
         }
         if (titlesActionsEl) {
-          titlesActionsEl.addEventListener("click", (event) => {
+          eventsModule.on(titlesActionsEl, "click", (event) => {
             const target = event.target;
             if (!(target instanceof HTMLElement)) return;
             if (String(target.dataset.titleAct || "") === "close") {
@@ -10101,7 +10108,7 @@
           });
         }
         if (titlesBodyEl) {
-          titlesBodyEl.addEventListener("click", (event) => {
+          eventsModule.on(titlesBodyEl, "click", (event) => {
             const target = event.target;
             if (!(target instanceof HTMLElement)) return;
             const titleId = String(target.dataset.titleEquip || "").trim();
@@ -10110,27 +10117,27 @@
             renderTitlesMenu();
           });
         }
-        adminToggleBtn.addEventListener("click", () => {
+        eventsModule.on(adminToggleBtn, "click", () => {
           setAdminOpen(!isAdminOpen);
         });
-        adminCloseBtn.addEventListener("click", () => {
+        eventsModule.on(adminCloseBtn, "click", () => {
           setAdminOpen(false);
         });
         if (adminInventoryCloseBtn) {
-          adminInventoryCloseBtn.addEventListener("click", () => {
+          eventsModule.on(adminInventoryCloseBtn, "click", () => {
             closeAdminInventoryModal();
           });
         }
         if (adminInventoryModalEl) {
-          adminInventoryModalEl.addEventListener("click", (event) => {
+          eventsModule.on(adminInventoryModalEl, "click", (event) => {
             if (event.target === adminInventoryModalEl) {
               closeAdminInventoryModal();
             }
           });
         }
         if (adminInventoryBodyEl) {
-          adminInventoryBodyEl.addEventListener("click", handleAdminInventoryModalAction);
-          adminInventoryBodyEl.addEventListener("change", handleAdminInventoryModalChange);
+          eventsModule.on(adminInventoryBodyEl, "click", handleAdminInventoryModalAction);
+          eventsModule.on(adminInventoryBodyEl, "change", handleAdminInventoryModalChange);
         }
         const vendingCtrl = getVendingController();
         if (vendingCtrl && typeof vendingCtrl.bindModalEvents === "function") {
@@ -10149,19 +10156,19 @@
           gambleCtrl.bindModalEvents();
         }
         if (signCloseBtn) {
-          signCloseBtn.addEventListener("click", () => {
+          eventsModule.on(signCloseBtn, "click", () => {
             closeSignModal();
           });
         }
         if (signModalEl) {
-          signModalEl.addEventListener("click", (event) => {
+          eventsModule.on(signModalEl, "click", (event) => {
             if (event.target === signModalEl) {
               closeSignModal();
             }
           });
         }
         if (signSaveBtn) {
-          signSaveBtn.addEventListener("click", () => {
+          eventsModule.on(signSaveBtn, "click", () => {
             const signCtrl = getSignController();
             if (!signCtrl || typeof signCtrl.getEditContext !== "function" || !signTextInputEl) return;
             const editCtx = signCtrl.getEditContext();
@@ -10184,12 +10191,12 @@
           });
         }
         if (worldLockCloseBtn) {
-          worldLockCloseBtn.addEventListener("click", () => {
+          eventsModule.on(worldLockCloseBtn, "click", () => {
             closeWorldLockModal();
           });
         }
         if (worldLockModalEl) {
-          worldLockModalEl.addEventListener("click", (event) => {
+          eventsModule.on(worldLockModalEl, "click", (event) => {
             if (event.target === worldLockModalEl) {
               closeWorldLockModal();
               return;
@@ -10208,51 +10215,51 @@
           });
         }
         if (worldLockAdminAddBtn) {
-          worldLockAdminAddBtn.addEventListener("click", () => {
+          eventsModule.on(worldLockAdminAddBtn, "click", () => {
             if (!worldLockAdminInputEl) return;
             addWorldAdminByUsername(worldLockAdminInputEl.value || "");
           });
         }
         if (worldLockAdminInputEl) {
-          worldLockAdminInputEl.addEventListener("keydown", (event) => {
+          eventsModule.on(worldLockAdminInputEl, "keydown", (event) => {
             if (event.key !== "Enter") return;
             event.preventDefault();
             addWorldAdminByUsername(worldLockAdminInputEl.value || "");
           });
         }
         if (worldLockBan1hBtn) {
-          worldLockBan1hBtn.addEventListener("click", () => {
+          eventsModule.on(worldLockBan1hBtn, "click", () => {
             if (!worldLockBanInputEl) return;
             setWorldBanByUsername(worldLockBanInputEl.value || "", 60 * 60 * 1000);
           });
         }
         if (worldLockBanPermBtn) {
-          worldLockBanPermBtn.addEventListener("click", () => {
+          eventsModule.on(worldLockBanPermBtn, "click", () => {
             if (!worldLockBanInputEl) return;
             setWorldBanByUsername(worldLockBanInputEl.value || "", 0);
           });
         }
         if (worldLockBanInputEl) {
-          worldLockBanInputEl.addEventListener("keydown", (event) => {
+          eventsModule.on(worldLockBanInputEl, "keydown", (event) => {
             if (event.key !== "Enter") return;
             event.preventDefault();
             setWorldBanByUsername(worldLockBanInputEl.value || "", 60 * 60 * 1000);
           });
         }
         if (doorCloseBtn) {
-          doorCloseBtn.addEventListener("click", () => {
+          eventsModule.on(doorCloseBtn, "click", () => {
             closeDoorModal();
           });
         }
         if (doorModalEl) {
-          doorModalEl.addEventListener("click", (event) => {
+          eventsModule.on(doorModalEl, "click", (event) => {
             if (event.target === doorModalEl) {
               closeDoorModal();
             }
           });
         }
         if (doorPublicBtn) {
-          doorPublicBtn.addEventListener("click", () => {
+          eventsModule.on(doorPublicBtn, "click", () => {
             if (!doorEditContext) return;
             const tx = Number(doorEditContext.tx);
             const ty = Number(doorEditContext.ty);
@@ -10272,7 +10279,7 @@
           });
         }
         if (doorOwnerOnlyBtn) {
-          doorOwnerOnlyBtn.addEventListener("click", () => {
+          eventsModule.on(doorOwnerOnlyBtn, "click", () => {
             if (!doorEditContext) return;
             const tx = Number(doorEditContext.tx);
             const ty = Number(doorEditContext.ty);
@@ -10292,19 +10299,19 @@
           });
         }
         if (cameraCloseBtn) {
-          cameraCloseBtn.addEventListener("click", () => {
+          eventsModule.on(cameraCloseBtn, "click", () => {
             closeCameraModal();
           });
         }
         if (cameraModalEl) {
-          cameraModalEl.addEventListener("click", (event) => {
+          eventsModule.on(cameraModalEl, "click", (event) => {
             if (event.target === cameraModalEl) {
               closeCameraModal();
             }
           });
         }
         if (cameraSaveBtn) {
-          cameraSaveBtn.addEventListener("click", () => {
+          eventsModule.on(cameraSaveBtn, "click", () => {
             if (!cameraEditContext) return;
             const tx = Number(cameraEditContext.tx);
             const ty = Number(cameraEditContext.ty);
@@ -10331,39 +10338,39 @@
           });
         }
         if (weatherPreviewImgEl && weatherPreviewEmptyEl) {
-          weatherPreviewImgEl.addEventListener("error", () => {
+          eventsModule.on(weatherPreviewImgEl, "error", () => {
             weatherPreviewImgEl.classList.add("hidden");
             if (weatherPreviewEmptyEl) weatherPreviewEmptyEl.classList.remove("hidden");
           });
-          weatherPreviewImgEl.addEventListener("load", () => {
+          eventsModule.on(weatherPreviewImgEl, "load", () => {
             weatherPreviewImgEl.classList.remove("hidden");
             if (weatherPreviewEmptyEl) weatherPreviewEmptyEl.classList.add("hidden");
           });
         }
         if (weatherCloseBtn) {
-          weatherCloseBtn.addEventListener("click", () => {
+          eventsModule.on(weatherCloseBtn, "click", () => {
             closeWeatherModal();
           });
         }
         if (weatherModalEl) {
-          weatherModalEl.addEventListener("click", (event) => {
+          eventsModule.on(weatherModalEl, "click", (event) => {
             if (event.target === weatherModalEl) {
               closeWeatherModal();
             }
           });
         }
         if (weatherPresetSelectEl) {
-          weatherPresetSelectEl.addEventListener("change", () => {
+          eventsModule.on(weatherPresetSelectEl, "change", () => {
             refreshWeatherPreview();
           });
         }
         if (weatherImageUrlInputEl) {
-          weatherImageUrlInputEl.addEventListener("input", () => {
+          eventsModule.on(weatherImageUrlInputEl, "input", () => {
             refreshWeatherPreview();
           });
         }
         if (weatherSaveBtn) {
-          weatherSaveBtn.addEventListener("click", () => {
+          eventsModule.on(weatherSaveBtn, "click", () => {
             if (!weatherEditContext) return;
             const tx = Number(weatherEditContext.tx);
             const ty = Number(weatherEditContext.ty);
@@ -10385,7 +10392,7 @@
           });
         }
         if (weatherClearBtn) {
-          weatherClearBtn.addEventListener("click", () => {
+          eventsModule.on(weatherClearBtn, "click", () => {
             if (!weatherEditContext) return;
             const accepted = window.confirm("Clear world weather and return to default sky?");
             if (!accepted) return;
@@ -10403,41 +10410,41 @@
           friendCtrl.bindUiEvents();
         }
         if (adminSearchInput) {
-          adminSearchInput.addEventListener("input", () => {
+          eventsModule.on(adminSearchInput, "input", () => {
             adminSearchQuery = (adminSearchInput.value || "").trim().toLowerCase();
             renderAdminPanel();
           });
         }
         if (adminAuditActionFilterEl) {
-          adminAuditActionFilterEl.addEventListener("change", () => {
+          eventsModule.on(adminAuditActionFilterEl, "change", () => {
             adminAuditActionFilter = (adminAuditActionFilterEl.value || "").trim().toLowerCase();
             renderAdminPanel();
           });
         }
         if (adminAuditActorFilterEl) {
-          adminAuditActorFilterEl.addEventListener("input", () => {
+          eventsModule.on(adminAuditActorFilterEl, "input", () => {
             adminAuditActorFilter = (adminAuditActorFilterEl.value || "").trim().toLowerCase();
             renderAdminPanel();
           });
         }
         if (adminAuditTargetFilterEl) {
-          adminAuditTargetFilterEl.addEventListener("input", () => {
+          eventsModule.on(adminAuditTargetFilterEl, "input", () => {
             adminAuditTargetFilter = (adminAuditTargetFilterEl.value || "").trim().toLowerCase();
             renderAdminPanel();
           });
         }
         if (adminAuditExportBtn) {
-          adminAuditExportBtn.addEventListener("click", () => {
+          eventsModule.on(adminAuditExportBtn, "click", () => {
             exportAuditTrail();
           });
         }
         if (adminBackupDownloadBtn) {
-          adminBackupDownloadBtn.addEventListener("click", () => {
+          eventsModule.on(adminBackupDownloadBtn, "click", () => {
             downloadSelectedBackupJson();
           });
         }
         if (adminBackupUploadBtn) {
-          adminBackupUploadBtn.addEventListener("click", () => {
+          eventsModule.on(adminBackupUploadBtn, "click", () => {
             if (!hasAdminPermission("db_backup")) return;
             if (adminBackupUploadInput) {
               adminBackupUploadInput.click();
@@ -10445,7 +10452,7 @@
           });
         }
         if (adminBackupUploadInput) {
-          adminBackupUploadInput.addEventListener("change", () => {
+          eventsModule.on(adminBackupUploadInput, "change", () => {
             const files = adminBackupUploadInput.files;
             const file = files && files[0] ? files[0] : null;
             if (!file) return;
@@ -10453,36 +10460,36 @@
           });
         }
         if (adminForceReloadBtn) {
-          adminForceReloadBtn.addEventListener("click", () => {
+          eventsModule.on(adminForceReloadBtn, "click", () => {
             if (!hasAdminPermission("force_reload")) return;
             const accepted = window.confirm("Force reload all currently connected clients?");
             if (!accepted) return;
             triggerForceReloadAll("panel");
           });
         }
-        adminAccountsEl.addEventListener("click", handleAdminAction);
-        adminAccountsEl.addEventListener("change", handleAdminInputChange);
-        adminAccountsEl.addEventListener("input", handleAdminInputChange);
-        chatSendBtn.addEventListener("click", () => {
+        eventsModule.on(adminAccountsEl, "click", handleAdminAction);
+        eventsModule.on(adminAccountsEl, "change", handleAdminInputChange);
+        eventsModule.on(adminAccountsEl, "input", handleAdminInputChange);
+        eventsModule.on(chatSendBtn, "click", () => {
           sendChatMessage();
         });
-        chatInputEl.addEventListener("keydown", (event) => {
+        eventsModule.on(chatInputEl, "keydown", (event) => {
           if (event.key === "Enter") {
             event.preventDefault();
             event.stopPropagation();
             sendChatMessage();
           }
         });
-        exitWorldBtn.addEventListener("click", () => {
+        eventsModule.on(exitWorldBtn, "click", () => {
           leaveCurrentWorld();
         });
-        respawnBtn.addEventListener("click", () => {
+        eventsModule.on(respawnBtn, "click", () => {
           respawnPlayerAtDoor();
         });
-        logoutBtn.addEventListener("click", () => {
+        eventsModule.on(logoutBtn, "click", () => {
           forceLogout("Logged out.");
         });
-        worldInputEl.addEventListener("keydown", (event) => {
+        eventsModule.on(worldInputEl, "keydown", (event) => {
           if (event.key === "Enter") {
             enterWorldFromInput();
           }
@@ -10972,7 +10979,7 @@
           }
           syncAdminDataListeners();
 
-          window.addEventListener("beforeunload", () => {
+          eventsModule.on(window, "beforeunload", () => {
             saveInventory();
             scheduleProgressionSave(true);
             scheduleAchievementsSave(true);
@@ -11057,10 +11064,10 @@
           img.alt = "";
           img.loading = "lazy";
           img.decoding = "async";
-          img.addEventListener("load", () => {
+          eventsModule.on(img, "load", () => {
             icon.classList.add("image-ready");
           });
-          img.addEventListener("error", () => {
+          eventsModule.on(img, "error", () => {
             icon.classList.remove("image-ready");
             img.remove();
           });
@@ -11276,13 +11283,13 @@
           slot.appendChild(badge);
         }
         if (typeof opts.getDragEntry === "function") {
-          slot.addEventListener("pointerdown", (event) => {
+          eventsModule.on(slot, "pointerdown", (event) => {
             if (typeof event.button === "number" && event.button !== 0) return;
             startInventoryDrag(opts.getDragEntry(), event);
           });
         }
         if (typeof opts.onClick === "function") {
-          slot.addEventListener("click", (event) => {
+          eventsModule.on(slot, "click", (event) => {
             if (performance.now() < suppressInventoryClickUntilMs) {
               event.preventDefault();
               return;
@@ -11291,7 +11298,7 @@
           });
         }
         if (typeof opts.onDoubleClick === "function") {
-          slot.addEventListener("dblclick", (event) => {
+          eventsModule.on(slot, "dblclick", (event) => {
             if (performance.now() < suppressInventoryClickUntilMs) {
               event.preventDefault();
               return;
@@ -11529,12 +11536,12 @@
           event.preventDefault();
           touchControls[key] = false;
         };
-        button.addEventListener("touchstart", setOn, { passive: false });
-        button.addEventListener("touchend", setOff, { passive: false });
-        button.addEventListener("touchcancel", setOff, { passive: false });
-        button.addEventListener("mousedown", setOn);
-        button.addEventListener("mouseup", setOff);
-        button.addEventListener("mouseleave", setOff);
+        eventsModule.on(button, "touchstart", setOn, { passive: false });
+        eventsModule.on(button, "touchend", setOff, { passive: false });
+        eventsModule.on(button, "touchcancel", setOff, { passive: false });
+        eventsModule.on(button, "mousedown", setOn);
+        eventsModule.on(button, "mouseup", setOff);
+        eventsModule.on(button, "mouseleave", setOff);
       }
 
       function setMobileTouchActionMode(nextMode) {
@@ -11571,8 +11578,8 @@
             event.preventDefault();
             onTap();
           };
-          button.addEventListener("touchstart", run, { passive: false });
-          button.addEventListener("click", run);
+          eventsModule.on(button, "touchstart", run, { passive: false });
+          eventsModule.on(button, "click", run);
         };
         bindHoldButton(mobileLeftBtn, "left");
         bindHoldButton(mobileRightBtn, "right");
@@ -11764,11 +11771,11 @@
         applyToolbarPosition();
       }
 
-      window.addEventListener("resize", resizeCanvas);
+      eventsModule.on(window, "resize", resizeCanvas);
       resizeCanvas();
       initDesktopLayoutResize();
 
-      window.addEventListener("keydown", (e) => {
+      eventsModule.on(window, "keydown", (e) => {
         const activeEl = document.activeElement;
         const isTypingContext = Boolean(
           activeEl &&
@@ -11931,22 +11938,22 @@
         keys[e.code] = true;
       });
 
-      window.addEventListener("keyup", (e) => {
+      eventsModule.on(window, "keyup", (e) => {
         keys[e.code] = false;
       });
 
-      canvas.addEventListener("mousemove", (e) => {
+      eventsModule.on(canvas, "mousemove", (e) => {
         mouseWorld = worldFromPointer(e);
       });
 
-      canvas.addEventListener("wheel", (e) => {
+      eventsModule.on(canvas, "wheel", (e) => {
         if (!inWorld) return;
         if (e.ctrlKey) return;
         e.preventDefault();
         changeCameraZoom(e.deltaY < 0 ? CAMERA_ZOOM_STEP : -CAMERA_ZOOM_STEP);
       }, { passive: false });
 
-      canvas.addEventListener("mousedown", (e) => {
+      eventsModule.on(canvas, "mousedown", (e) => {
         if (!inWorld) return;
         const pos = worldFromPointer(e);
         mouseWorld = pos;
@@ -11961,11 +11968,11 @@
         }
       });
 
-      window.addEventListener("mouseup", () => {
+      eventsModule.on(window, "mouseup", () => {
         isPointerDown = false;
       });
 
-      canvas.addEventListener("touchstart", (e) => {
+      eventsModule.on(canvas, "touchstart", (e) => {
         if (!inWorld) return;
         e.preventDefault();
         const touch = e.changedTouches[0];
@@ -11984,7 +11991,7 @@
         }
       }, { passive: false });
 
-      canvas.addEventListener("touchmove", (e) => {
+      eventsModule.on(canvas, "touchmove", (e) => {
         if (!inWorld) return;
         e.preventDefault();
         const touch = e.touches[0];
@@ -11993,17 +12000,17 @@
         mouseWorld = pos;
       }, { passive: false });
 
-      window.addEventListener("touchend", () => { isPointerDown = false; });
-      window.addEventListener("touchcancel", () => { isPointerDown = false; });
+      eventsModule.on(window, "touchend", () => { isPointerDown = false; });
+      eventsModule.on(window, "touchcancel", () => { isPointerDown = false; });
 
-      window.addEventListener("pointermove", onInventoryDragMove, { passive: true });
-      window.addEventListener("pointerup", onInventoryDragEnd);
-      window.addEventListener("pointercancel", onInventoryDragEnd);
-      window.addEventListener("wheel", onInventoryDragWheel, { passive: false, capture: true });
+      eventsModule.on(window, "pointermove", onInventoryDragMove, { passive: true });
+      eventsModule.on(window, "pointerup", onInventoryDragEnd);
+      eventsModule.on(window, "pointercancel", onInventoryDragEnd);
+      eventsModule.on(window, "wheel", onInventoryDragWheel, { passive: false, capture: true });
 
-      canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-      mobileControlsEl.addEventListener("touchstart", (e) => e.preventDefault(), { passive: false });
-      mobileControlsEl.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+      eventsModule.on(canvas, "contextmenu", (e) => e.preventDefault());
+      eventsModule.on(mobileControlsEl, "touchstart", (e) => e.preventDefault(), { passive: false });
+      eventsModule.on(mobileControlsEl, "touchmove", (e) => e.preventDefault(), { passive: false });
 
       function bootstrapGame() {
         loadInventoryFromLocal();
@@ -12076,30 +12083,30 @@
         requestAnimationFrame(tick);
       }
 
-      authCreateBtn.addEventListener("click", () => {
+      eventsModule.on(authCreateBtn, "click", () => {
         createAccountAndLogin();
       });
-      authLoginBtn.addEventListener("click", () => {
+      eventsModule.on(authLoginBtn, "click", () => {
         loginWithAccount();
       });
-      authPasswordEl.addEventListener("keydown", (event) => {
+      eventsModule.on(authPasswordEl, "keydown", (event) => {
         if (event.key === "Enter") {
           loginWithAccount();
         }
       });
-      authUsernameEl.addEventListener("keydown", (event) => {
+      eventsModule.on(authUsernameEl, "keydown", (event) => {
         if (event.key === "Enter") {
           authPasswordEl.focus();
         }
       });
-      window.addEventListener("unhandledrejection", (event) => {
+      eventsModule.on(window, "unhandledrejection", (event) => {
         if (!event || !event.reason) return;
         const message = (event.reason && event.reason.message) ? event.reason.message : String(event.reason);
         if (!gameShellEl.classList.contains("hidden")) return;
         setAuthBusy(false);
         setAuthStatus(message || "Unexpected error.", true);
       });
-      window.addEventListener("error", (event) => {
+      eventsModule.on(window, "error", (event) => {
         if (!event) return;
         const message = event.message || (event.error && event.error.message) || "";
         if (!message) return;
@@ -12107,7 +12114,7 @@
         setAuthBusy(false);
         setAuthStatus(message, true);
       });
-      window.addEventListener("beforeunload", () => {
+      eventsModule.on(window, "beforeunload", () => {
         releaseAccountSession();
       });
       applySavedCredentialsToForm();
