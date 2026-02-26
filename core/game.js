@@ -6966,7 +6966,7 @@
 
       function saveOwnerTaxConfig(tx, ty, percent) {
         if (!world[ty] || world[ty][tx] !== TAX_BLOCK_ID) {
-          postLocalSystemChat("Owner tax block not found.");
+          postLocalSystemChat("Owner Tax Machine not found.");
           return;
         }
         if (!isWorldLocked()) {
@@ -7052,7 +7052,7 @@
           setLocalWorldTax({ ...currentTax, earningsLocks: 0, updatedAt: Date.now() });
           if (typeof saveInventory === "function") saveInventory(false);
           if (typeof refreshToolbar === "function") refreshToolbar(true);
-          postLocalSystemChat("Collected " + amount + " WL from owner tax block.");
+          postLocalSystemChat("Collected " + amount + " WL from owner Tax Machine.");
           return;
         }
 
@@ -7121,7 +7121,7 @@
           if (!done) return;
           if (typeof saveInventory === "function") saveInventory(false);
           if (typeof refreshToolbar === "function") refreshToolbar(true);
-          postLocalSystemChat("Collected " + done.collected + " WL from owner tax block.");
+          postLocalSystemChat("Collected " + done.collected + " WL from owner Tax Machine.");
         }).catch(() => {
           postLocalSystemChat("Failed to collect owner tax earnings.");
         });
@@ -7159,7 +7159,7 @@
         const currentBank = currentTax && currentTax.tx === tx && currentTax.ty === ty
           ? Math.max(0, Math.floor(Number(currentTax.earningsLocks) || 0))
           : 0;
-        ownerTaxTitleEl.textContent = "Owner Tax Block (" + tx + "," + ty + ")";
+        ownerTaxTitleEl.textContent = "Owner Tax Machine (" + tx + "," + ty + ")";
         ownerTaxPercentInputEl.value = String(currentPercent);
         ownerTaxBankLabelEl.textContent = currentBank + " WL";
         if (ownerTaxCollectBtn) ownerTaxCollectBtn.disabled = currentBank <= 0;
@@ -8065,12 +8065,12 @@
             return;
           }
           if (id === TAX_BLOCK_ID) {
-            notifyOwnerOnlyWorldEdit("owner tax block");
+            notifyOwnerOnlyWorldEdit("owner Tax Machine");
             return;
           }
         }
         if (id === TAX_BLOCK_ID && hasOwnerTaxBlockInWorld()) {
-          postLocalSystemChat("Only one owner tax block is allowed per world.");
+          postLocalSystemChat("Only one owner Tax Machine is allowed per world.");
           return;
         }
 
@@ -8255,7 +8255,7 @@
           return;
         }
         if (id === TAX_BLOCK_ID && isWorldLocked() && !isWorldLockOwner()) {
-          notifyOwnerOnlyWorldEdit("owner tax block");
+          notifyOwnerOnlyWorldEdit("owner Tax Machine");
           return;
         }
         if (isDonationBoxBlockId(id)) {
