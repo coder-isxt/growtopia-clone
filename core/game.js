@@ -7824,7 +7824,10 @@
           wasJumpHeld = jump;
           return;
         }
-        const hasWingDoubleJump = Boolean(equippedCosmetics.wings);
+        const equippedWings = typeof cosmeticsModule.getEquippedItem === "function"
+          ? cosmeticsModule.getEquippedItem("wings", equippedCosmetics, COSMETIC_LOOKUP)
+          : null;
+        const hasWingDoubleJump = Boolean(equippedWings && equippedWings.doubleJump);
         const equippedShoes = typeof cosmeticsModule.getEquippedItem === "function"
           ? cosmeticsModule.getEquippedItem("shoes", equippedCosmetics, COSMETIC_LOOKUP)
           : null;

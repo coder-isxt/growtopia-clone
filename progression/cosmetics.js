@@ -2,6 +2,89 @@ window.GTModules = window.GTModules || {};
 
 window.GTModules.cosmetics = (function createCosmeticsModule() {
   const DEFAULT_SLOTS = ["shirts", "pants", "shoes", "hats", "wings", "swords"];
+  const DEFAULT_RENDER_SETTINGS = {
+    shirts: { x: 5, y: 11, w: 10, h: 12, mode: "contain", alignX: 0.5, alignY: 0.5, mirror: false },
+    pants: { x: 5, y: 21, w: 10, h: 8, mode: "contain", alignX: 0.5, alignY: 0.5, mirror: false },
+    shoes: { y: 26, w: 6, h: 4, leftX: 5, rightX: 11, mode: "contain", alignX: 0.5, alignY: 1, mirror: true },
+    hats: { x: -2, y: -11, w: 24, h: 12, mode: "contain", alignX: 0.5, alignY: 1, mirror: true },
+    // Golden Angel Wings defaults used as baseline for all wings.
+    wings: { offsetX: 4, offsetY: -3, wingH: 19, mode: "contain", alignX: 0.5, alignY: 0.5, mirror: true },
+    swords: { mode: "contain", alignX: 0.5, alignY: 0.5, mirror: true }
+  };
+
+  function normalizeNumber(value, fallback, min, max) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function normalizeRender(slot, item) {
+    const src = item && typeof item === "object" ? item : {};
+    const base = DEFAULT_RENDER_SETTINGS[slot] && typeof DEFAULT_RENDER_SETTINGS[slot] === "object"
+      ? DEFAULT_RENDER_SETTINGS[slot]
+      : {};
+    const provided = src.render && typeof src.render === "object" ? src.render : {};
+    const merged = {
+      ...base,
+      ...provided
+    };
+    // Backward compatibility for older wing offsets.
+    if (slot === "wings") {
+      if (Number.isFinite(Number(src.offsetX))) merged.offsetX = Number(src.offsetX);
+      if (Number.isFinite(Number(src.offsetY))) merged.offsetY = Number(src.offsetY);
+    }
+    return {
+      x: normalizeNumber(merged.x, normalizeNumber(base.x, 0, -64, 64), -64, 64),
+      y: normalizeNumber(merged.y, normalizeNumber(base.y, 0, -64, 64), -64, 64),
+      w: normalizeNumber(merged.w, normalizeNumber(base.w, 0, 0, 128), 0, 128),
+      h: normalizeNumber(merged.h, normalizeNumber(base.h, 0, 0, 128), 0, 128),
+      leftX: normalizeNumber(merged.leftX, normalizeNumber(base.leftX, 0, -64, 64), -64, 64),
+      rightX: normalizeNumber(merged.rightX, normalizeNumber(base.rightX, 0, -64, 64), -64, 64),
+      offsetX: normalizeNumber(merged.offsetX, normalizeNumber(base.offsetX, 0, -64, 64), -64, 64),
+      offsetY: normalizeNumber(merged.offsetY, normalizeNumber(base.offsetY, 0, -64, 64), -64, 64),
+      wingH: normalizeNumber(merged.wingH, normalizeNumber(base.wingH, 19, 2, 128), 2, 128),
+      mode: String(merged.mode || base.mode || "contain") === "fill" ? "fill" : "contain",
+      alignX: normalizeNumber(merged.alignX, normalizeNumber(base.alignX, 0.5, 0, 1), 0, 1),
+      alignY: normalizeNumber(merged.alignY, normalizeNumber(base.alignY, 0.5, 0, 1), 0, 1),
+      mirror: merged.mirror !== false
+    };
+  }
+
+  function normalizeStats(slot, item) {
+    const src = item && typeof item === "object" ? item : {};
+    const stats = src.stats && typeof src.stats === "object" ? src.stats : {};
+    const speedBoost = normalizeNumber(
+      Number.isFinite(Number(stats.speedBoost)) ? stats.speedBoost : src.speedBoost,
+      0,
+      -0.3,
+      1.5
+    );
+    const jumpBoost = normalizeNumber(
+      Number.isFinite(Number(stats.jumpBoost)) ? stats.jumpBoost : src.jumpBoost,
+      0,
+      -0.25,
+      1
+    );
+    const breakMultiplier = normalizeNumber(
+      Number.isFinite(Number(stats.breakMultiplier)) ? stats.breakMultiplier : src.breakMultiplier,
+      1,
+      1,
+      999
+    );
+    const instantBreak = Boolean(
+      (Object.prototype.hasOwnProperty.call(stats, "instantBreak") ? stats.instantBreak : src.instantBreak)
+    );
+    const doubleJump = slot === "wings"
+      ? true
+      : Boolean(Object.prototype.hasOwnProperty.call(stats, "doubleJump") ? stats.doubleJump : src.doubleJump);
+    return {
+      speedBoost,
+      jumpBoost,
+      breakMultiplier,
+      instantBreak,
+      doubleJump
+    };
+  }
 
   function resolveImagePath(basePath, imagePath) {
     const raw = String(imagePath || "").trim();
@@ -30,10 +113,22 @@ window.GTModules.cosmetics = (function createCosmeticsModule() {
       const map = {};
       const slotItems = Array.isArray(catalog[slot]) ? catalog[slot] : [];
       for (const item of slotItems) {
+        const stats = normalizeStats(slot, item);
+        const render = normalizeRender(slot, item);
+        const fx = (item && typeof item.fx === "object") ? { ...item.fx } : {};
         const normalized = {
           slot,
           ...(item && typeof item === "object" ? item : {}),
-          imagePath: resolveImagePath(assetBase, item && item.image)
+          imagePath: resolveImagePath(assetBase, item && item.image),
+          stats,
+          render,
+          fx,
+          // Backward-compatible flattened fields used by existing gameplay code.
+          speedBoost: stats.speedBoost,
+          jumpBoost: stats.jumpBoost,
+          breakMultiplier: stats.breakMultiplier,
+          instantBreak: stats.instantBreak,
+          doubleJump: stats.doubleJump
         };
         const id = String(normalized.id || "");
         if (!id) continue;
