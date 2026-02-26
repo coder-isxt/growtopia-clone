@@ -971,150 +971,33 @@
         return envelope * direction * wingFlapPulseStrength;
       }
 
-      const network = {
-        enabled: false,
-        connected: false,
-        db: null,
-        connectedRef: null,
-        worldsIndexRef: null,
-        globalPlayersRef: null,
-        globalPlayerRef: null,
-        playerRef: null,
-        mySessionRef: null,
-        myCommandRef: null,
-        myReachRef: null,
-        myFreezeRef: null,
-        myGodModeRef: null,
-        myPrivateAnnouncementRef: null,
-        myPmRef: null,
-        myPmFeedRef: null,
-        myTradeRequestRef: null,
-        myTradeResponseRef: null,
-        myActiveTradeRef: null,
-        myFriendsRef: null,
-        myFriendRequestsRef: null,
-        playersRef: null,
-        blocksRef: null,
-        hitsRef: null,
-        dropsRef: null,
-        dropFeedRef: null,
-        vendingRef: null,
-        gambleRef: null,
-        donationRef: null,
-        chestsRef: null,
-        signsRef: null,
-        displaysRef: null,
-        doorsRef: null,
-        antiGravRef: null,
-        plantsRef: null,
-        weatherRef: null,
-        camerasRef: null,
-        cameraLogsRef: null,
-        cameraLogsFeedRef: null,
-        spawnMetaRef: null,
-        lockRef: null,
-        chatRef: null,
-        chatFeedRef: null,
-        inventoryRef: null,
-        progressRef: null,
-        achievementsRef: null,
-        questsRef: null,
-        accountLogsRef: null,
-        accountLogsFeedRef: null,
-        accountLogsRootRef: null,
-        antiCheatLogsRef: null,
-        forceReloadRef: null,
-        announcementRef: null,
-        myBanRef: null,
-        accountsRef: null,
-        usernamesRef: null,
-        adminRolesRef: null,
-        adminAuditRef: null,
-        bansRef: null,
-        sessionsRootRef: null,
-        inventoriesRootRef: null,
-        authDb: null,
-        handlers: {
-          connected: null,
-          worldsIndex: null,
-          globalPlayers: null,
-          inventory: null,
-          progression: null,
-          achievements: null,
-          quests: null,
-          mySession: null,
-          myCommand: null,
-          myReach: null,
-          myFreeze: null,
-          myGodMode: null,
-          myPrivateAnnouncement: null,
-          myPmAdded: null,
-          myTradeRequest: null,
-          myTradeResponse: null,
-          myActiveTrade: null,
-          myFriends: null,
-          myFriendRequests: null,
-          players: null,
-          playerAdded: null,
-          playerChanged: null,
-          playerRemoved: null,
-          blockAdded: null,
-          blockChanged: null,
-          blockRemoved: null,
-          hitAdded: null,
-          hitChanged: null,
-          hitRemoved: null,
-          dropAdded: null,
-          dropChanged: null,
-          dropRemoved: null,
-          vendingAdded: null,
-          vendingChanged: null,
-          vendingRemoved: null,
-          gambleAdded: null,
-          gambleChanged: null,
-          gambleRemoved: null,
-          donationAdded: null,
-          donationChanged: null,
-          donationRemoved: null,
-          chestAdded: null,
-          chestChanged: null,
-          chestRemoved: null,
-          signAdded: null,
-          signChanged: null,
-          signRemoved: null,
-          displayAdded: null,
-          displayChanged: null,
-          displayRemoved: null,
-          doorAdded: null,
-          doorChanged: null,
-          doorRemoved: null,
-          antiGravAdded: null,
-          antiGravChanged: null,
-          antiGravRemoved: null,
-          plantAdded: null,
-          plantChanged: null,
-          plantRemoved: null,
-          worldWeather: null,
-          cameraAdded: null,
-          cameraChanged: null,
-          cameraRemoved: null,
-          cameraLogAdded: null,
-          worldLock: null,
-          chatAdded: null,
-          accountLogAdded: null,
-          antiCheatLogAdded: null,
-          forceReload: null,
-          announcement: null,
-          myBan: null,
-          adminAccounts: null,
-          adminUsernames: null,
-          adminRoles: null,
-          adminAudit: null,
-          adminBans: null,
-          adminSessions: null,
-          adminInventories: null
+      const networkModule = modules.network || {};
+      if (typeof networkModule.createNetworkState !== "function") {
+        const reloadKey = "gt_network_module_reload_once_v1";
+        try {
+          if (sessionStorage.getItem(reloadKey) !== "1") {
+            sessionStorage.setItem(reloadKey, "1");
+            const script = document.createElement("script");
+            script.src = "network.js?v=" + encodeURIComponent(String(Date.now()));
+            script.onload = function () {
+              const url = new URL(window.location.href);
+              url.searchParams.set("v", String(Date.now()));
+              window.location.replace(url.toString());
+            };
+            document.head.appendChild(script);
+            return;
+          }
+        } catch (error) {
+          // ignore storage/script injection failures and throw below
         }
-      };
+        throw new Error("network.js module missing: GTModules.network.createNetworkState");
+      }
+      const network = networkModule.createNetworkState();
+      try {
+        sessionStorage.removeItem("gt_network_module_reload_once_v1");
+      } catch (error) {
+        // ignore storage errors
+      }
 
       const adminState = {
         accounts: {},
