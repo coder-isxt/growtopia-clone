@@ -648,7 +648,7 @@ window.GTModules = window.GTModules || {};
       return normalizeTaxPolicy(raw);
     }
 
-    function getTaxSplit(totalLocks, collectorAccountId) {
+    function getTaxSplit(totalLocks, _collectorAccountId) {
       const total = Math.max(0, Math.floor(Number(totalLocks) || 0));
       const policy = getWorldTaxPolicy();
       if (!policy.enabled || total <= 0) {
@@ -720,6 +720,21 @@ window.GTModules = window.GTModules || {};
         if (!txn || !txn.committed) return { ok: false, reason: "tax-transaction-not-committed" };
         return { ok: true, applied: true };
       }).catch(() => ({ ok: false, reason: "tax-transaction-failed" }));
+    }
+
+    function depositTaxToLocalTaxMachine(split) {
+      const ownerShare = Math.max(0, Math.floor(Number(split && split.ownerShare) || 0));
+      if (ownerShare <= 0) return { ok: true, applied: false };
+      const fn = typeof opts.addWorldTaxToLocalBank === "function"
+        ? opts.addWorldTaxToLocalBank
+        : null;
+      if (!fn) return { ok: false, reason: "missing-local-tax-handler" };
+      try {
+        const ok = Boolean(fn(ownerShare));
+        return ok ? { ok: true, applied: true } : { ok: false, reason: "local-tax-handler-rejected" };
+      } catch (_error) {
+        return { ok: false, reason: "local-tax-handler-error" };
+      }
     }
 
     function canBreakAt(tx, ty) {
@@ -2405,18 +2420,33 @@ window.GTModules = window.GTModules || {};
       if (!network || !network.enabled || !network.db || !basePath || !profileId) {
         const splitLocal = getTaxSplit(amountLocal, profileId);
         addLocksLocal(inventory, Math.max(0, Math.floor(Number(splitLocal.collectorShare) || 0)));
+        const localTax = Math.max(0, Math.floor(Number(splitLocal.ownerShare) || 0));
+        let localTaxToBank = true;
+        if (localTax > 0) {
+          const localTaxResult = depositTaxToLocalTaxMachine(splitLocal);
+          localTaxToBank = Boolean(localTaxResult && localTaxResult.ok);
+          if (!localTaxToBank) {
+            addLocksLocal(inventory, localTax);
+          }
+        }
         const nextMachine = { ...machine, earningsLocks: 0, updatedAt: Date.now() };
         setLocal(tx, ty, nextMachine);
         if (typeof opts.saveInventory === "function") opts.saveInventory();
         if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
         renderModal(tx, ty, nextMachine);
-        const localTax = Math.max(0, Math.floor(Number(splitLocal.ownerShare) || 0));
         if (localTax > 0) {
-          post(
-            "Collected " + amountLocal + " WL from machine (" +
-            (amountLocal - localTax) + " WL to machine owner, " +
-            localTax + " WL tax queued; tax block bank updates online)."
-          );
+          if (localTaxToBank) {
+            post(
+              "Collected " + amountLocal + " WL from machine (" +
+              (amountLocal - localTax) + " WL to machine owner, " +
+              localTax + " WL tax sent to tax block at " + Math.max(0, Math.floor(Number(splitLocal.percent) || 0)) + "%)."
+            );
+          } else {
+            post(
+              "Collected " + amountLocal + " WL from machine. Tax block unavailable, so " +
+              localTax + " WL tax was refunded to machine owner."
+            );
+          }
           return;
         }
         post("Collected " + amountLocal + " WL from machine.");
@@ -2774,15 +2804,30 @@ window.GTModules = window.GTModules || {};
         if (localBank > 0) {
           const splitLocal = getTaxSplit(localBank, profileId);
           addLocksLocal(inventory, Math.max(0, Math.floor(Number(splitLocal.collectorShare) || 0)));
+          const localTax = Math.max(0, Math.floor(Number(splitLocal.ownerShare) || 0));
+          let localTaxToBank = true;
+          if (localTax > 0) {
+            const localTaxResult = depositTaxToLocalTaxMachine(splitLocal);
+            localTaxToBank = Boolean(localTaxResult && localTaxResult.ok);
+            if (!localTaxToBank) {
+              addLocksLocal(inventory, localTax);
+            }
+          }
           if (typeof opts.saveInventory === "function") opts.saveInventory();
           if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
-          const localTax = Math.max(0, Math.floor(Number(splitLocal.ownerShare) || 0));
           if (localTax > 0) {
-            post(
-              "Collected " + localBank + " WL from gambling machine (" +
-              (localBank - localTax) + " WL to machine owner, " +
-              localTax + " WL tax queued; tax block bank updates online)."
-            );
+            if (localTaxToBank) {
+              post(
+                "Collected " + localBank + " WL from gambling machine (" +
+                (localBank - localTax) + " WL to machine owner, " +
+                localTax + " WL tax sent to tax block at " + Math.max(0, Math.floor(Number(splitLocal.percent) || 0)) + "%)."
+              );
+            } else {
+              post(
+                "Collected " + localBank + " WL from gambling machine. Tax block unavailable, so " +
+                localTax + " WL tax was refunded to machine owner."
+              );
+            }
           } else {
             post("Collected " + localBank + " WL from gambling machine.");
           }
@@ -2796,15 +2841,30 @@ window.GTModules = window.GTModules || {};
         if (localBank > 0) {
           const splitLocal = getTaxSplit(localBank, profileId);
           addLocksLocal(inventory, Math.max(0, Math.floor(Number(splitLocal.collectorShare) || 0)));
+          const localTax = Math.max(0, Math.floor(Number(splitLocal.ownerShare) || 0));
+          let localTaxToBank = true;
+          if (localTax > 0) {
+            const localTaxResult = depositTaxToLocalTaxMachine(splitLocal);
+            localTaxToBank = Boolean(localTaxResult && localTaxResult.ok);
+            if (!localTaxToBank) {
+              addLocksLocal(inventory, localTax);
+            }
+          }
           if (typeof opts.saveInventory === "function") opts.saveInventory();
           if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
-          const localTax = Math.max(0, Math.floor(Number(splitLocal.ownerShare) || 0));
           if (localTax > 0) {
-            post(
-              "Collected " + localBank + " WL from gambling machine (" +
-              (localBank - localTax) + " WL to machine owner, " +
-              localTax + " WL tax queued; tax block bank updates online)."
-            );
+            if (localTaxToBank) {
+              post(
+                "Collected " + localBank + " WL from gambling machine (" +
+                (localBank - localTax) + " WL to machine owner, " +
+                localTax + " WL tax sent to tax block at " + Math.max(0, Math.floor(Number(splitLocal.percent) || 0)) + "%)."
+              );
+            } else {
+              post(
+                "Collected " + localBank + " WL from gambling machine. Tax block unavailable, so " +
+                localTax + " WL tax was refunded to machine owner."
+              );
+            }
           } else {
             post("Collected " + localBank + " WL from gambling machine.");
           }

@@ -180,6 +180,13 @@ window.GTModules.state = (function createStateModule() {
     worldLockBanPermBtn: "worldLockBanPermBtn",
     worldLockBansEl: "worldLockBans",
     worldLockCloseBtn: "worldLockCloseBtn",
+    ownerTaxModalEl: "ownerTaxModal",
+    ownerTaxTitleEl: "ownerTaxTitle",
+    ownerTaxPercentInputEl: "ownerTaxPercentInput",
+    ownerTaxBankLabelEl: "ownerTaxBankLabel",
+    ownerTaxSaveBtn: "ownerTaxSaveBtn",
+    ownerTaxCollectBtn: "ownerTaxCollectBtn",
+    ownerTaxCloseBtn: "ownerTaxCloseBtn",
     doorModalEl: "doorModal",
     doorTitleEl: "doorTitle",
     doorPublicBtn: "doorPublicBtn",
@@ -606,6 +613,7 @@ window.GTModules.state = (function createStateModule() {
     ensure("mouseWorld", () => ({ tx: 0, ty: 0 }));
     ensure("editReachTiles", () => Number(opts.defaultEditReachTiles) || 0);
     ensure("worldLockEditContext", () => null);
+    ensure("ownerTaxEditContext", () => null);
     ensure("doorEditContext", () => null);
     ensure("cameraEditContext", () => null);
     ensure("weatherEditContext", () => null);

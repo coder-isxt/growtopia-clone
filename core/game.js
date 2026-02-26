@@ -389,6 +389,7 @@
           isWorldLockOwner: () => isWorldLockOwner(),
           isWorldLockAdmin: () => isWorldLockAdmin(),
           getWorldTaxPolicy: () => getCurrentWorldTaxPolicy(),
+          addWorldTaxToLocalBank: (amount) => addOwnerTaxToLocalBank(amount),
           clampInventoryCount,
           saveInventory,
           refreshToolbar,
@@ -5066,6 +5067,7 @@
         cameraLogsByTile.clear();
         closeSignModal();
         closeWorldLockModal();
+        closeOwnerTaxModal();
         closeDoorModal();
         closeCameraModal();
         closeWeatherModal();
@@ -5131,6 +5133,7 @@
           closeGambleModal();
           closeSignModal();
           closeWorldLockModal();
+          closeOwnerTaxModal();
           closeDoorModal();
           closeCameraModal();
           closeWeatherModal();
@@ -6900,6 +6903,9 @@
 
       function setLocalWorldTax(value) {
         currentWorldTax = normalizeOwnerTaxRecord(value);
+        if (ownerTaxModalEl && !ownerTaxModalEl.classList.contains("hidden")) {
+          renderOwnerTaxModal();
+        }
       }
 
       function hasOwnerTaxBlockInWorld(exceptTx, exceptTy) {
@@ -6936,6 +6942,26 @@
           ty: tax ? tax.ty : -1,
           earningsLocks: tax ? Math.max(0, Math.floor(Number(tax.earningsLocks) || 0)) : 0
         };
+      }
+
+      function addOwnerTaxToLocalBank(amountRaw) {
+        const amount = Math.max(0, Math.floor(Number(amountRaw) || 0));
+        if (amount <= 0) return true;
+        const policy = getCurrentWorldTaxPolicy();
+        if (!policy.enabled) return false;
+        if (!world[policy.ty] || world[policy.ty][policy.tx] !== TAX_BLOCK_ID) return false;
+        const currentTax = normalizeOwnerTaxRecord(currentWorldTax);
+        const nextBank = Math.max(0, Math.floor(Number(currentTax && currentTax.earningsLocks) || 0)) + amount;
+        setLocalWorldTax({
+          tx: policy.tx,
+          ty: policy.ty,
+          taxPercent: Math.max(0, Math.min(100, Math.floor(Number(policy.percent) || 0))),
+          ownerAccountId: String(policy.ownerAccountId || "").trim(),
+          ownerName: String(policy.ownerName || "").trim().slice(0, 20),
+          earningsLocks: nextBank,
+          updatedAt: Date.now()
+        });
+        return true;
       }
 
       function saveOwnerTaxConfig(tx, ty, percent) {
@@ -7101,14 +7127,29 @@
         });
       }
 
-      function openOwnerTaxEditor(tx, ty) {
-        if (!world[ty] || world[ty][tx] !== TAX_BLOCK_ID) return;
-        if (!isWorldLocked()) {
-          postLocalSystemChat("Owner tax needs an active world lock.");
+      function closeOwnerTaxModal() {
+        ownerTaxEditContext = null;
+        if (ownerTaxModalEl) ownerTaxModalEl.classList.add("hidden");
+      }
+
+      function renderOwnerTaxModal() {
+        if (!ownerTaxModalEl || !ownerTaxTitleEl || !ownerTaxPercentInputEl || !ownerTaxBankLabelEl) return;
+        if (!ownerTaxEditContext) {
+          closeOwnerTaxModal();
           return;
         }
-        if (!isWorldLockOwner()) {
-          notifyOwnerOnlyWorldEdit("owner tax settings");
+        const tx = Number(ownerTaxEditContext.tx);
+        const ty = Number(ownerTaxEditContext.ty);
+        if (!Number.isInteger(tx) || !Number.isInteger(ty)) {
+          closeOwnerTaxModal();
+          return;
+        }
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H || !world[ty] || world[ty][tx] !== TAX_BLOCK_ID) {
+          closeOwnerTaxModal();
+          return;
+        }
+        if (!isWorldLocked() || !isWorldLockOwner()) {
+          closeOwnerTaxModal();
           return;
         }
         const currentTax = normalizeOwnerTaxRecord(currentWorldTax);
@@ -7118,28 +7159,26 @@
         const currentBank = currentTax && currentTax.tx === tx && currentTax.ty === ty
           ? Math.max(0, Math.floor(Number(currentTax.earningsLocks) || 0))
           : 0;
-        const raw = window.prompt(
-          "Owner Tax Block\nTax: " + currentPercent + "%\nBank: " + currentBank + " WL\nType 0-100 to set tax, or type collect to claim bank.",
-          String(currentPercent)
-        );
-        if (raw === null) return;
-        const text = String(raw || "").trim();
-        if (!text) return;
-        if (text.toLowerCase() === "collect") {
-          collectOwnerTaxEarnings(tx, ty);
+        ownerTaxTitleEl.textContent = "Owner Tax Block (" + tx + "," + ty + ")";
+        ownerTaxPercentInputEl.value = String(currentPercent);
+        ownerTaxBankLabelEl.textContent = currentBank + " WL";
+        if (ownerTaxCollectBtn) ownerTaxCollectBtn.disabled = currentBank <= 0;
+      }
+
+      function openOwnerTaxModal(tx, ty) {
+        if (!ownerTaxModalEl || !ownerTaxTitleEl) return;
+        if (!world[ty] || world[ty][tx] !== TAX_BLOCK_ID) return;
+        if (!isWorldLocked()) {
+          postLocalSystemChat("Owner tax needs an active world lock.");
           return;
         }
-        const parsed = Number(raw);
-        if (!Number.isFinite(parsed)) {
-          postLocalSystemChat("Enter a number from 0 to 100, or type collect.");
+        if (!isWorldLockOwner()) {
+          notifyOwnerOnlyWorldEdit("owner tax settings");
           return;
         }
-        const nextPercent = Math.floor(parsed);
-        if (nextPercent < 0 || nextPercent > 100) {
-          postLocalSystemChat("Owner tax must be between 0 and 100.");
-          return;
-        }
-        saveOwnerTaxConfig(tx, ty, nextPercent);
+        ownerTaxEditContext = { tx, ty };
+        renderOwnerTaxModal();
+        ownerTaxModalEl.classList.remove("hidden");
       }
 
       function getWorldBanStatusForAccount(lock, accountId, nowMs) {
@@ -7869,6 +7908,7 @@
         closeDoorModal();
         closeCameraModal();
         closeWeatherModal();
+        closeOwnerTaxModal();
         closeGambleModal();
         closeSplicingModal();
         if (network.enabled) {
@@ -7888,6 +7928,7 @@
           if (network.antiGravRef) dbOps.push(network.antiGravRef.remove());
           if (network.plantsRef) dbOps.push(network.plantsRef.remove());
           if (network.weatherRef) dbOps.push(network.weatherRef.remove());
+          if (network.ownerTaxRef) dbOps.push(network.ownerTaxRef.remove());
           if (network.camerasRef) dbOps.push(network.camerasRef.remove());
           if (network.cameraLogsRef) dbOps.push(network.cameraLogsRef.remove());
           Promise.allSettled(dbOps).finally(() => {
@@ -8427,6 +8468,7 @@
         }
         if (id === TAX_BLOCK_ID) {
           setLocalWorldTax(null);
+          closeOwnerTaxModal();
           if (network.enabled && network.ownerTaxRef) {
             network.ownerTaxRef.remove().catch(() => {});
           }
@@ -8443,14 +8485,20 @@
           resolveGachaBreak(id, tx, ty);
         } else {
           const dropId = getInventoryDropId(id);
-          const shouldReturnBrokenItem = Math.random() < BREAK_RETURN_ITEM_CHANCE;
-          if (shouldReturnBrokenItem && INVENTORY_IDS.includes(dropId)) {
-            spawnWorldDropEntry(
-              { type: "block", blockId: dropId },
-              1,
-              tx * TILE,
-              ty * TILE
-            );
+          const blockDef = blockDefs[id] || {};
+          const alwaysDropToInventory = Boolean(blockDef.alwaysDrop === true);
+          if (alwaysDropToInventory && INVENTORY_IDS.includes(dropId)) {
+            inventory[dropId] = Math.max(0, Math.floor(Number(inventory[dropId] || 0) + 1));
+          } else {
+            const shouldReturnBrokenItem = Math.random() < BREAK_RETURN_ITEM_CHANCE;
+            if (shouldReturnBrokenItem && INVENTORY_IDS.includes(dropId)) {
+              spawnWorldDropEntry(
+                { type: "block", blockId: dropId },
+                1,
+                tx * TILE,
+                ty * TILE
+              );
+            }
           }
           const seedDropId = SEED_DROP_BY_BLOCK_ID[id] || 0;
           if (seedDropId && !isWorldLockBlockId(id) && Math.random() < SEED_DROP_CHANCE) {
@@ -8597,7 +8645,7 @@
           return;
         }
         if (id === TAX_BLOCK_ID) {
-          openOwnerTaxEditor(tx, ty);
+          openOwnerTaxModal(tx, ty);
           return;
         }
         if (id === SIGN_ID) {
@@ -9122,6 +9170,7 @@
         clearWorldDrops();
         closeSignModal();
         closeWorldLockModal();
+        closeOwnerTaxModal();
         closeDoorModal();
         closeCameraModal();
         closeWeatherModal();
@@ -10187,6 +10236,60 @@
             if (event.key !== "Enter") return;
             event.preventDefault();
             setWorldBanByUsername(worldLockBanInputEl.value || "", 60 * 60 * 1000);
+          });
+        }
+        if (ownerTaxCloseBtn) {
+          eventsModule.on(ownerTaxCloseBtn, "click", () => {
+            closeOwnerTaxModal();
+          });
+        }
+        if (ownerTaxModalEl) {
+          eventsModule.on(ownerTaxModalEl, "click", (event) => {
+            if (event.target === ownerTaxModalEl) {
+              closeOwnerTaxModal();
+            }
+          });
+        }
+        if (ownerTaxSaveBtn) {
+          eventsModule.on(ownerTaxSaveBtn, "click", () => {
+            if (!ownerTaxEditContext) return;
+            const tx = Number(ownerTaxEditContext.tx);
+            const ty = Number(ownerTaxEditContext.ty);
+            if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
+            if (!isWorldLocked() || !isWorldLockOwner()) {
+              notifyWorldLockedDenied();
+              closeOwnerTaxModal();
+              return;
+            }
+            if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H || world[ty][tx] !== TAX_BLOCK_ID) {
+              closeOwnerTaxModal();
+              return;
+            }
+            const raw = ownerTaxPercentInputEl ? ownerTaxPercentInputEl.value : "";
+            const parsed = Math.floor(Number(raw));
+            if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+              postLocalSystemChat("Owner tax must be between 0 and 100.");
+              return;
+            }
+            saveOwnerTaxConfig(tx, ty, parsed);
+          });
+        }
+        if (ownerTaxCollectBtn) {
+          eventsModule.on(ownerTaxCollectBtn, "click", () => {
+            if (!ownerTaxEditContext) return;
+            const tx = Number(ownerTaxEditContext.tx);
+            const ty = Number(ownerTaxEditContext.ty);
+            if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
+            collectOwnerTaxEarnings(tx, ty);
+          });
+        }
+        if (ownerTaxPercentInputEl) {
+          eventsModule.on(ownerTaxPercentInputEl, "keydown", (event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            if (ownerTaxSaveBtn && typeof ownerTaxSaveBtn.click === "function") {
+              ownerTaxSaveBtn.click();
+            }
           });
         }
         if (doorCloseBtn) {
@@ -11792,6 +11895,11 @@
         if (e.key === "Escape" && worldLockModalEl && !worldLockModalEl.classList.contains("hidden")) {
           e.preventDefault();
           closeWorldLockModal();
+          return;
+        }
+        if (e.key === "Escape" && ownerTaxModalEl && !ownerTaxModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeOwnerTaxModal();
           return;
         }
         if (e.key === "Escape" && doorModalEl && !doorModalEl.classList.contains("hidden")) {

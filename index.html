@@ -219,6 +219,25 @@
         </div>
       </div>
     </div>
+    <div id="ownerTaxModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="ownerTaxTitle">Owner Tax Block</strong>
+          <button id="ownerTaxCloseBtn" type="button">Close</button>
+        </div>
+        <div class="worldlock-body">
+          <div class="sign-hint">Tax applies to all gambling machines in this world.</div>
+          <div class="worldlock-add-row">
+            <input id="ownerTaxPercentInput" type="number" min="0" max="100" step="1" placeholder="tax percent">
+            <button id="ownerTaxSaveBtn" type="button">Save Tax %</button>
+          </div>
+          <div class="sign-hint">Tax Bank: <strong id="ownerTaxBankLabel">0 WL</strong></div>
+        </div>
+        <div class="vending-actions">
+          <button id="ownerTaxCollectBtn" type="button">Collect Tax Bank</button>
+        </div>
+      </div>
+    </div>
     <div id="doorModal" class="vending-modal hidden">
       <div class="vending-card sign-card">
         <div class="vending-header">
