@@ -429,6 +429,31 @@
         return splicingController;
       }
 
+      function getQuestWorldController() {
+        if (questWorldController) return questWorldController;
+        if (typeof questWorldModule.createController !== "function") return null;
+        questWorldController = questWorldModule.createController({
+          normalizeWorldId,
+          getNetwork: () => network,
+          getBasePath: () => BASE_PATH,
+          getCurrentWorldId: () => currentWorldId,
+          getWorld: () => world,
+          getWorldSize: () => ({ w: WORLD_W, h: WORLD_H }),
+          getQuestNpcId: () => QUEST_NPC_ID,
+          getPlayerName: () => playerName,
+          getPlayerProfileId: () => playerProfileId,
+          getFirebase: () => (typeof firebase !== "undefined" ? firebase : null),
+          clearTileDamage,
+          syncBlock,
+          respawnPlayerAtDoor,
+          postLocalSystemChat
+        });
+        if (typeof questWorldController.bindModalEvents === "function") {
+          questWorldController.bindModalEvents();
+        }
+        return questWorldController;
+      }
+
       function getPresenceByAccountId(accountId) {
         const targetId = String(accountId || "");
         if (!targetId) return null;
@@ -1689,6 +1714,7 @@
         if (hasAdminPermission("reach")) list.push("/reach <user> <amount>");
         if (hasAdminPermission("setrole") || hasAdminPermission("setrole_limited")) list.push("/setrole <user> <none|moderator|admin|manager|owner>", "/role <user>");
         if (hasAdminPermission("clear_logs")) list.push("/clearaudit", "/clearlogs");
+        if (normalizeAdminRole(currentAdminRole) === "owner") list.push("/questworld", "/questworldoff");
         return list;
       }
 
@@ -3637,6 +3663,7 @@
           WORLD_H,
           hasAdminPermission,
           currentAdminRole,
+          normalizeAdminRole,
           totalOnlinePlayers,
           remotePlayers,
           currentWorldId,
@@ -3677,13 +3704,31 @@
           getCosmeticItems: () => COSMETIC_ITEMS,
           TOOL_FIST,
           TOOL_WRENCH,
+          QUEST_NPC_ID,
           spawnWorldDropEntry,
           applyInventoryGrant,
           applyCosmeticItemGrant,
           applyTitleGrant,
+          getPlayerCenterTile: () => ({
+            tx: Math.max(0, Math.min(WORLD_W - 1, Math.floor((player.x + PLAYER_W * 0.5) / TILE))),
+            ty: Math.max(0, Math.min(WORLD_H - 1, Math.floor((player.y + PLAYER_H * 0.5) / TILE)))
+          }),
+          enableQuestWorldAtTile: (tx, ty) => {
+            const ctrl = getQuestWorldController();
+            if (!ctrl || typeof ctrl.enableWorld !== "function") return { ok: false, reason: "missing_controller" };
+            return ctrl.enableWorld(tx, ty);
+          },
+          disableQuestWorldMode: () => {
+            const ctrl = getQuestWorldController();
+            if (!ctrl || typeof ctrl.disableWorld !== "function") return { ok: false, reason: "missing_controller" };
+            return ctrl.disableWorld();
+          },
+          isQuestWorldActive: () => {
+            const ctrl = getQuestWorldController();
+            return Boolean(ctrl && typeof ctrl.isActive === "function" && ctrl.isActive());
+          },
           parseDurationToMs,
           applyAdminRoleChange,
-          normalizeAdminRole,
           handlePrivateMessageCommand: (command, parts) => {
             const ctrl = getMessagesController();
             if (!ctrl || typeof ctrl.handleCommand !== "function") return false;
@@ -5075,6 +5120,12 @@
         closeDonationModal();
         closeChestModal();
         closeSplicingModal();
+        {
+          const questCtrl = getQuestWorldController();
+          if (questCtrl && typeof questCtrl.closeModal === "function") {
+            questCtrl.closeModal();
+          }
+        }
         closeTradeMenuModal();
         closeTradeRequestModal();
         closeFriendModals();
@@ -7232,11 +7283,25 @@
       }
 
       function canEditCurrentWorld() {
+        const questCtrl = getQuestWorldController();
+        const questWorldActive = Boolean(questCtrl && typeof questCtrl.isActive === "function" && questCtrl.isActive());
+        if (questWorldActive) {
+          return normalizeAdminRole(currentAdminRole) === "owner";
+        }
         if (!isWorldLocked()) return true;
         return isWorldLockOwner() || isWorldLockAdmin();
       }
 
       function notifyWorldLockedDenied() {
+        const questCtrl = getQuestWorldController();
+        const questWorldActive = Boolean(questCtrl && typeof questCtrl.isActive === "function" && questCtrl.isActive());
+        if (questWorldActive && normalizeAdminRole(currentAdminRole) !== "owner") {
+          const nowQuest = performance.now();
+          if (nowQuest - lastLockDeniedNoticeAt < 900) return;
+          lastLockDeniedNoticeAt = nowQuest;
+          postLocalSystemChat("Quest world is read-only. Only owner admins can edit it.");
+          return;
+        }
         const now = performance.now();
         if (now - lastLockDeniedNoticeAt < 900) return;
         lastLockDeniedNoticeAt = now;
@@ -7784,6 +7849,11 @@
       }
 
       function openWrenchMenuFromNameIcon(clientX, clientY) {
+        const questCtrl = getQuestWorldController();
+        const questWorldActive = Boolean(questCtrl && typeof questCtrl.isActive === "function" && questCtrl.isActive());
+        if (questWorldActive && normalizeAdminRole(currentAdminRole) !== "owner") {
+          return false;
+        }
         const ctrl = getDrawController();
         if (ctrl && typeof ctrl.openWrenchMenuFromNameIcon === "function") {
           return Boolean(ctrl.openWrenchMenuFromNameIcon(clientX, clientY));
@@ -7917,6 +7987,12 @@
         closeOwnerTaxModal();
         closeGambleModal();
         closeSplicingModal();
+        {
+          const questCtrl = getQuestWorldController();
+          if (questCtrl && typeof questCtrl.isActive === "function" && questCtrl.isActive() && typeof questCtrl.disableWorld === "function") {
+            questCtrl.disableWorld();
+          }
+        }
         if (network.enabled) {
           const dbOps = [];
           if (network.blocksRef && Object.keys(updates).length) {
@@ -8478,6 +8554,12 @@
         if (isPlantSeedBlockId(id)) {
           saveTreePlant(tx, ty, null);
         }
+        if (id === QUEST_NPC_ID) {
+          const questCtrl = getQuestWorldController();
+          if (questCtrl && typeof questCtrl.onNpcBroken === "function") {
+            questCtrl.onNpcBroken(tx, ty);
+          }
+        }
 
         world[ty][tx] = 0;
         if (particleController && typeof particleController.emitBlockBreak === "function") {
@@ -8611,6 +8693,18 @@
       function interactWithWrench(tx, ty) {
         if (!canEditTarget(tx, ty)) return;
         const id = world[ty][tx];
+        const questCtrl = getQuestWorldController();
+        const questWorldActive = Boolean(questCtrl && typeof questCtrl.isActive === "function" && questCtrl.isActive());
+        const ownerRole = normalizeAdminRole(currentAdminRole) === "owner";
+        if (questWorldActive && !ownerRole) {
+          if (id === QUEST_NPC_ID && questCtrl && typeof questCtrl.interact === "function") {
+            questCtrl.interact(tx, ty);
+          }
+          return;
+        }
+        if (id === QUEST_NPC_ID && questCtrl && typeof questCtrl.interact === "function") {
+          if (questCtrl.interact(tx, ty)) return;
+        }
         if (isWorldLockBlockId(id)) {
           openWorldLockModal(tx, ty);
           return;
@@ -9158,6 +9252,12 @@
         cameraLogsByTile.clear();
         currentWorldWeather = null;
         currentWorldTax = null;
+        {
+          const questCtrl = getQuestWorldController();
+          if (questCtrl && typeof questCtrl.onWorldLeave === "function") {
+            questCtrl.onWorldLeave();
+          }
+        }
         clearWorldDrops();
         closeSignModal();
         closeWorldLockModal();
@@ -9294,6 +9394,12 @@
           resetSpawnStructureTile();
           setCurrentWorldUI();
           resetForWorldChange();
+          {
+            const questCtrl = getQuestWorldController();
+            if (questCtrl && typeof questCtrl.onWorldEnter === "function") {
+              questCtrl.onWorldEnter(worldId);
+            }
+          }
           refreshWorldButtons([worldId]);
           addChatMessage({
             name: "[System]",
@@ -9360,6 +9466,12 @@
             ? network.chatRef.orderByChild("createdAt").startAt(worldChatStartedAt).limitToLast(100)
             : network.chatRef.limitToLast(100));
         network.playerRef = network.playersRef.child(playerId);
+        {
+          const questCtrl = getQuestWorldController();
+          if (questCtrl && typeof questCtrl.onWorldEnter === "function") {
+            questCtrl.onWorldEnter(worldId);
+          }
+        }
         network.handlers.worldLock = (snapshot) => {
           currentWorldLock = normalizeWorldLock(snapshot.val());
           syncWorldIndexLockOwner(currentWorldId, currentWorldLock);

@@ -48,7 +48,11 @@ window.GTModules.commands = {
         return true;
       }
       if(c.discordUsername !== "")
-        return true;
+        {
+          c.postLocalSystemChat("You are already verified.");
+          return true;
+        }
+
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       c.network.db.ref(c.BASE_PATH + "/verify-codes/" + c.playerName.toLowerCase()).set({
         code: code,
@@ -142,6 +146,7 @@ window.GTModules.commands = {
       if (c.hasAdminPermission("reach")) available.push("/reach");
       if (c.hasAdminPermission("bring")) available.push("/bring", "/summon");
       if (c.hasAdminPermission("setrole") || c.hasAdminPermission("setrole_limited")) available.push("/setrole", "/role");
+      if (c.normalizeAdminRole && c.normalizeAdminRole(c.currentAdminRole) === "owner") available.push("/questworld", "/questworldoff");
       c.postLocalSystemChat("Role: " + c.currentAdminRole + " | Commands: " + (available.join(", ") || "none"));
       return true;
     }
@@ -152,6 +157,64 @@ window.GTModules.commands = {
     if (command === "/online") {
       const worldOnline = c.inWorld ? (c.remotePlayers.size + 1) : 0;
       c.postLocalSystemChat("Online now: " + c.totalOnlinePlayers + " total | " + worldOnline + " in " + (c.inWorld ? c.currentWorldId : "menu"));
+      return true;
+    }
+    if (command === "/questworld" || command === "/questworldoff" || command === "/normalworld") {
+      if (!c.inWorld) {
+        c.postLocalSystemChat("Enter a world first.");
+        return true;
+      }
+      const role = c.normalizeAdminRole ? c.normalizeAdminRole(c.currentAdminRole) : String(c.currentAdminRole || "").toLowerCase();
+      if (role !== "owner") {
+        c.postLocalSystemChat("Only owner role can use this command.");
+        return true;
+      }
+      const sub = String(parts[1] || "").trim().toLowerCase();
+      const shouldDisable = command === "/questworldoff" || command === "/normalworld" || sub === "off" || sub === "disable" || sub === "normal";
+      if (shouldDisable) {
+        if (typeof c.disableQuestWorldMode !== "function") {
+          c.postLocalSystemChat("Quest world controller is unavailable.");
+          return true;
+        }
+        const result = c.disableQuestWorldMode();
+        if (!result || !result.ok) {
+          c.postLocalSystemChat("Failed to disable quest world mode.");
+          return true;
+        }
+        c.postLocalSystemChat("Quest world mode disabled. World is normal again.");
+        c.logAdminAudit("Admin(chat) disabled quest world mode in " + c.currentWorldId + ".");
+        c.pushAdminAuditEntry("questworld_off", "", "world=" + c.currentWorldId);
+        return true;
+      }
+
+      if (typeof c.enableQuestWorldAtTile !== "function") {
+        c.postLocalSystemChat("Quest world controller is unavailable.");
+        return true;
+      }
+      let tx = 0;
+      let ty = 0;
+      if (typeof c.getPlayerCenterTile === "function") {
+        const tile = c.getPlayerCenterTile() || {};
+        tx = Math.max(0, Math.floor(Number(tile.tx) || 0));
+        ty = Math.max(0, Math.floor(Number(tile.ty) || 0));
+      }
+      if (parts.length >= 3) {
+        const parsedTx = Math.floor(Number(parts[1]));
+        const parsedTy = Math.floor(Number(parts[2]));
+        if (Number.isInteger(parsedTx) && Number.isInteger(parsedTy)) {
+          tx = Math.max(0, parsedTx);
+          ty = Math.max(0, parsedTy);
+        }
+      }
+      const result = c.enableQuestWorldAtTile(tx, ty);
+      if (!result || !result.ok) {
+        c.postLocalSystemChat("Failed to enable quest world mode.");
+        return true;
+      }
+      c.postLocalSystemChat("Quest world mode enabled. Quest block placed at " + result.tx + "," + result.ty + ".");
+      c.postLocalSystemChat("Only owner role can edit this world while quest mode is active.");
+      c.logAdminAudit("Admin(chat) enabled quest world mode in " + c.currentWorldId + " at " + result.tx + "," + result.ty + ".");
+      c.pushAdminAuditEntry("questworld_on", "", "world=" + c.currentWorldId + " npc=" + result.tx + "," + result.ty);
       return true;
     }
     if (!c.canUseAdminPanel) {

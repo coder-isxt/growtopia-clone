@@ -281,7 +281,8 @@ window.GTModules.state = (function createStateModule() {
       signModule: "sign",
       gambleModule: ["gambling", "gamble"],
       dropsModule: "drops",
-      adminPanelModule: "adminPanel"
+      adminPanelModule: "adminPanel",
+      questWorldModule: "questWorld"
     };
   }
 
@@ -478,6 +479,7 @@ window.GTModules.state = (function createStateModule() {
     setValue("OBSIDIAN_LOCK_ID", 24);
     setValue("EMERALD_LOCK_ID", 42);
     setValue("TAX_BLOCK_ID", 52);
+    setValue("QUEST_NPC_ID", 53);
     setValue("DONATION_BOX_ID", 34);
     setValue("STORAGE_CHEST_ID", 36);
     setValue("TREE_YIELD_BLOCK_ID", 4);
@@ -602,6 +604,7 @@ window.GTModules.state = (function createStateModule() {
     ensure("dropsController", () => null);
     ensure("drawController", () => null);
     ensure("adminPanelController", () => null);
+    ensure("questWorldController", () => null);
     ensure("cameraX", () => 0);
     ensure("cameraY", () => 0);
     ensure("cameraZoom", () => {
