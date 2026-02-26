@@ -1094,6 +1094,24 @@ function drawBackground() {
         };
       }
 
+      function normalizeAdminRoleForRender(roleRaw) {
+        if (typeof normalizeAdminRole === "function") {
+          return normalizeAdminRole(roleRaw);
+        }
+        const safeRole = String(roleRaw || "").trim().toLowerCase();
+        return safeRole && safeRole !== "none" ? safeRole : "none";
+      }
+
+      function getDisplayNameWithAdminPrefix(rawName, roleRaw) {
+        const baseName = String(rawName || "Player").slice(0, 20);
+        if (!baseName) return "Player";
+        const safeRole = normalizeAdminRoleForRender(roleRaw);
+        if (safeRole !== "none" && baseName.charAt(0) !== "@") {
+          return "@" + baseName;
+        }
+        return baseName;
+      }
+
       function drawPlayer() {
         localPlayerWrenchHitbox.length = 0;
         const nowMs = performance.now();
@@ -1152,11 +1170,16 @@ function drawBackground() {
         drawSword(px, basePy, cosmetics.swords, player.facing, pose.swordSwing || 0, pose.hitDirectionY, pose.hitStrength);
         ctx.restore();
         const titleDef = getEquippedTitleDef();
-        const nameText = String(playerName || "Player").slice(0, 20);
+        const baseNameText = String(playerName || "Player").slice(0, 20);
+        const localRole = typeof getAccountRole === "function"
+          ? getAccountRole(playerProfileId || "", baseNameText)
+          : currentAdminRole;
+        const nameText = getDisplayNameWithAdminPrefix(baseNameText, localRole);
         const nameY = basePy - 8;
         ctx.font = PLAYER_NAME_FONT;
         const localTitleName = titleDef ? formatTitleWithUsername(titleDef.name, nameText) : "";
-        const showLocalName = shouldShowNameAlongsideTitle(localTitleName, nameText);
+        const showLocalName = shouldShowNameAlongsideTitle(localTitleName, nameText)
+          && shouldShowNameAlongsideTitle(localTitleName, baseNameText);
         const titleText = localTitleName ? (localTitleName + " ") : "";
         const localTitleStyle = normalizeTitleStyle(titleDef && titleDef.style);
         const titleWidth = titleText ? ctx.measureText(titleText).width : 0;
@@ -1256,7 +1279,11 @@ function drawBackground() {
           drawSword(px, basePy, cosmetics.swords || "", other.facing || 1, pose.swordSwing || 0, 0, 0);
           ctx.restore();
 
-          const nameText = String(other.name || "Player").slice(0, 20);
+          const baseNameText = String(other.name || "Player").slice(0, 20);
+          const remoteRole = typeof getAccountRole === "function"
+            ? getAccountRole(other.accountId || "", baseNameText)
+            : "none";
+          const nameText = getDisplayNameWithAdminPrefix(baseNameText, remoteRole);
           const titleRaw = other && other.title && typeof other.title === "object" ? other.title : {};
           const fallbackTitle = getTitleDef(titleRaw.id || "");
           const rawRemoteTitle = String(titleRaw.name || (fallbackTitle && fallbackTitle.name) || "");
@@ -1267,7 +1294,8 @@ function drawBackground() {
               ? titleRaw.style
               : (fallbackTitle && fallbackTitle.style)
           );
-          const showRemoteName = shouldShowNameAlongsideTitle(titleName, nameText);
+          const showRemoteName = shouldShowNameAlongsideTitle(titleName, nameText)
+            && shouldShowNameAlongsideTitle(titleName, baseNameText);
           const nameY = basePy - 8;
           ctx.font = PLAYER_NAME_FONT;
           const titleText = titleName ? (titleName + " ") : "";
@@ -1542,4 +1570,3 @@ function drawBackground() {
         drawSignTopText();
       }
 `;
-

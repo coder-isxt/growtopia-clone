@@ -987,6 +987,9 @@
             scope.normalizeTitleStyle = normalizeTitleStyle;
             scope.getRainbowTitleColor = getRainbowTitleColor;
             scope.getTitleDef = getTitleDef;
+            scope.currentAdminRole = currentAdminRole;
+            scope.normalizeAdminRole = normalizeAdminRole;
+            scope.getAccountRole = getAccountRole;
             scope.getEditReachTiles = getEditReachTiles;
             scope.canEditTarget = canEditTarget;
             scope.getFriendsController = getFriendsController;
