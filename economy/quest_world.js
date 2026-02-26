@@ -1,13 +1,18 @@
 window.GTModules = window.GTModules || {};
 
 window.GTModules.questWorld = (function createQuestWorldModule() {
+  const DEFAULT_PATH_ID = "starter_path";
+
   function createController(options) {
     const opts = options || {};
     const worldConfigById = new Map();
     const playerQuestStateByWorld = new Map();
+    const questPathsById = new Map();
     let activeWorldId = "";
     let questWorldRef = null;
     let questWorldHandler = null;
+    let questPathsRef = null;
+    let questPathsHandler = null;
     let modalCtx = null;
     let domBound = false;
 
@@ -38,6 +43,20 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         return String(opts.normalizeWorldId(value) || "");
       }
       return String(value || "").trim().toUpperCase().slice(0, 24);
+    }
+
+    function normalizePathId(value) {
+      return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "_")
+        .slice(0, 48);
+    }
+
+    function normalizeQuestId(value, fallbackId) {
+      const safeFallback = String(fallbackId || "quest").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 64) || "quest";
+      const normalized = String(value || safeFallback).trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 64);
+      return normalized || safeFallback;
     }
 
     function getCurrentWorldId() {
@@ -75,6 +94,20 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       return network.db.ref(basePath + "/worlds/" + safeWorldId + "/quest-world");
     }
 
+    function getQuestPathsRef() {
+      const network = getNetwork();
+      if (!network || !network.enabled || !network.db) return null;
+      const basePath = String(get("getBasePath", "growtopia-test") || "growtopia-test");
+      return network.db.ref(basePath + "/quest-paths");
+    }
+
+    function getQuestPathRef(pathId) {
+      const safePathId = normalizePathId(pathId);
+      const pathsRef = getQuestPathsRef();
+      if (!pathsRef || !safePathId) return null;
+      return pathsRef.child(safePathId);
+    }
+
     function getServerTimestampOrNow() {
       const firebaseRef = get("getFirebase", null);
       if (
@@ -88,40 +121,117 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       return Date.now();
     }
 
-    function buildDefaultQuestList() {
+    function getBlockDefs() {
+      const defs = get("getBlockDefs", null);
+      return defs && typeof defs === "object" ? defs : {};
+    }
+
+    function getBlockNameById(blockId) {
+      const id = Math.floor(Number(blockId) || 0);
+      const defs = getBlockDefs();
+      const def = defs[id];
+      if (def && def.name) return String(def.name);
+      return "Block " + id;
+    }
+
+    function parseBlockRef(value) {
+      const parser = opts.parseBlockRef;
+      if (typeof parser === "function") {
+        const parsed = Math.floor(Number(parser(value)) || 0);
+        if (parsed > 0) return parsed;
+      }
+      const fallback = Math.floor(Number(value) || 0);
+      return fallback > 0 ? fallback : 0;
+    }
+
+    function getInventoryObject() {
+      const inv = get("getInventory", null);
+      return inv && typeof inv === "object" ? inv : null;
+    }
+
+    function getInventoryBlockCount(blockId) {
+      const inv = getInventoryObject();
+      const id = Math.floor(Number(blockId) || 0);
+      if (!inv || !id) return 0;
+      return Math.max(0, Math.floor(Number(inv[id]) || 0));
+    }
+
+    function consumeInventoryBlock(blockId, amount) {
+      const inv = getInventoryObject();
+      const id = Math.floor(Number(blockId) || 0);
+      const need = Math.max(1, Math.floor(Number(amount) || 0));
+      if (!inv || !id || !need) return false;
+      const have = getInventoryBlockCount(id);
+      if (have < need) return false;
+      inv[id] = Math.max(0, have - need);
+      call("saveInventory", false);
+      call("refreshToolbar", true);
+      return true;
+    }
+
+    function buildDefaultQuestPaths() {
       return [
         {
-          id: "ring_master_trial",
-          title: "Ring Master Trial",
-          description: "Break 10 blocks in this quest world.",
-          rewardText: "Reward: 1x World Lock"
-        },
-        {
-          id: "carnival_hustle",
-          title: "Carnival Hustle",
-          description: "Collect 20 dropped blocks.",
-          rewardText: "Reward: 200 Gems"
-        },
-        {
-          id: "legendary_wizard_path",
-          title: "Legendary Wizard Path",
-          description: "Harvest 5 trees.",
-          rewardText: "Reward: 1x Mystery Block"
+          id: DEFAULT_PATH_ID,
+          name: "Starter Path",
+          quests: [
+            {
+              id: "bring_50_wood",
+              title: "Bring me 50 wood blocks",
+              description: "Gather wood and bring 50 blocks to me.",
+              rewardText: "Reward: Starter reward (configure later)",
+              objective: {
+                type: "bring_block",
+                blockId: 4,
+                amount: 50
+              }
+            },
+            {
+              id: "ring_master_trial",
+              title: "Ring Master Trial",
+              description: "Break 10 blocks in this quest world.",
+              rewardText: "Reward: 1x World Lock"
+            },
+            {
+              id: "legendary_wizard_path",
+              title: "Legendary Wizard Path",
+              description: "Harvest 5 trees.",
+              rewardText: "Reward: 1x Mystery Block"
+            }
+          ]
         }
       ];
+    }
+    function normalizeQuestObjective(value) {
+      const row = value && typeof value === "object" ? value : {};
+      const rawType = String(row.type || row.kind || row.objectiveType || "").trim().toLowerCase();
+      const type = (rawType === "bring_block" || rawType === "bringblock" || rawType === "fetch_block") ? "bring_block" : "";
+      if (!type) return null;
+      let blockId = Math.floor(Number(row.blockId) || 0);
+      if (!blockId) {
+        blockId = parseBlockRef(row.blockKey || row.block || row.item || "");
+      }
+      const amount = Math.max(1, Math.floor(Number(row.amount || row.count) || 1));
+      if (!blockId) return null;
+      return {
+        type: "bring_block",
+        blockId,
+        amount
+      };
     }
 
     function normalizeQuestRow(value, index) {
       const row = value && typeof value === "object" ? value : {};
       const fallbackId = "quest_" + Math.max(1, index + 1);
-      const id = String(row.id || fallbackId).trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 40) || fallbackId;
-      const title = String(row.title || row.name || id).trim().slice(0, 60) || id;
-      const description = String(row.description || "Quest objective placeholder.").trim().slice(0, 220) || "Quest objective placeholder.";
-      const rewardText = String(row.rewardText || row.reward || "Reward placeholder").trim().slice(0, 120) || "Reward placeholder";
-      return { id, title, description, rewardText };
+      const objective = normalizeQuestObjective(row.objective || row.requirement || {});
+      const id = normalizeQuestId(row.id, fallbackId);
+      const title = String(row.title || row.name || id).trim().slice(0, 80) || id;
+      const description = String(row.description || "Quest objective placeholder.").trim().slice(0, 320) || "Quest objective placeholder.";
+      const rewardText = String(row.rewardText || row.reward || "Reward placeholder").trim().slice(0, 180) || "Reward placeholder";
+      return { id, title, description, rewardText, objective };
     }
 
-    function normalizeQuestList(value) {
+    function normalizeQuestList(value, fallbackToDefaults) {
       const src = Array.isArray(value) ? value : [];
       const out = [];
       const used = new Set();
@@ -131,16 +241,79 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         used.add(row.id);
         out.push(row);
       }
-      if (!out.length) {
-        const fallback = buildDefaultQuestList();
-        for (let i = 0; i < fallback.length; i++) {
-          const row = normalizeQuestRow(fallback[i], i);
+      if (!out.length && fallbackToDefaults) {
+        const defaults = buildDefaultQuestPaths();
+        const defaultRows = defaults[0] && defaults[0].quests ? defaults[0].quests : [];
+        for (let i = 0; i < defaultRows.length; i++) {
+          const row = normalizeQuestRow(defaultRows[i], i);
           if (!row.id || used.has(row.id)) continue;
           used.add(row.id);
           out.push(row);
         }
       }
       return out;
+    }
+
+    function normalizeQuestPath(value, fallbackId, fallbackName) {
+      const row = value && typeof value === "object" ? value : {};
+      const id = normalizePathId(row.id || fallbackId || DEFAULT_PATH_ID) || DEFAULT_PATH_ID;
+      const name = String(row.name || row.title || fallbackName || id).trim().slice(0, 80) || id;
+      return {
+        id,
+        name,
+        quests: normalizeQuestList(row.quests, false),
+        updatedAt: Number(row.updatedAt) || 0,
+        updatedByName: String(row.updatedByName || "").trim().slice(0, 20),
+        updatedByAccountId: String(row.updatedByAccountId || "").trim().slice(0, 64)
+      };
+    }
+
+    function resetQuestPathsToDefaults() {
+      questPathsById.clear();
+      const defaults = buildDefaultQuestPaths();
+      for (let i = 0; i < defaults.length; i++) {
+        const normalized = normalizeQuestPath(defaults[i], defaults[i] && defaults[i].id, defaults[i] && defaults[i].name);
+        if (!normalized.id) continue;
+        questPathsById.set(normalized.id, normalized);
+      }
+    }
+
+    function applyQuestPathsSnapshot(value) {
+      const src = value && typeof value === "object" ? value : {};
+      const next = new Map();
+      const defaults = buildDefaultQuestPaths();
+      for (let i = 0; i < defaults.length; i++) {
+        const normalizedDefault = normalizeQuestPath(defaults[i], defaults[i] && defaults[i].id, defaults[i] && defaults[i].name);
+        if (!normalizedDefault.id) continue;
+        next.set(normalizedDefault.id, normalizedDefault);
+      }
+      const keys = Object.keys(src);
+      for (let i = 0; i < keys.length; i++) {
+        const key = normalizePathId(keys[i]);
+        if (!key) continue;
+        const normalized = normalizeQuestPath(src[keys[i]], key, key);
+        if (!normalized.id) continue;
+        next.set(normalized.id, normalized);
+      }
+      questPathsById.clear();
+      next.forEach((row, id) => questPathsById.set(id, row));
+      if (modalCtx) renderModal();
+    }
+
+    function listQuestPaths() {
+      const rows = Array.from(questPathsById.values());
+      rows.sort((a, b) => String(a.id || "").localeCompare(String(b.id || "")));
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        questsCount: Array.isArray(row.quests) ? row.quests.length : 0
+      }));
+    }
+
+    function getQuestPathById(pathId) {
+      const id = normalizePathId(pathId);
+      if (!id) return null;
+      return questPathsById.get(id) || null;
     }
 
     function normalizeWorldConfig(value) {
@@ -153,10 +326,41 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         enabled: true,
         npcTx: tx,
         npcTy: ty,
-        quests: normalizeQuestList(value.quests),
+        questPathId: normalizePathId(value.questPathId || value.pathId || ""),
+        quests: normalizeQuestList(value.quests, false),
         updatedAt: Number(value.updatedAt) || 0,
         updatedByName: String(value.updatedByName || "").trim().slice(0, 20),
         updatedByAccountId: String(value.updatedByAccountId || "").trim().slice(0, 64)
+      };
+    }
+
+    function buildWorldConfigPayload(config) {
+      const row = config && typeof config === "object" ? config : {};
+      const payload = {
+        enabled: true,
+        npcTx: Math.max(0, Math.floor(Number(row.npcTx) || 0)),
+        npcTy: Math.max(0, Math.floor(Number(row.npcTy) || 0)),
+        questPathId: normalizePathId(row.questPathId || ""),
+        updatedAt: getServerTimestampOrNow(),
+        updatedByName: String(get("getPlayerName", "") || "").slice(0, 20),
+        updatedByAccountId: String(get("getPlayerProfileId", "") || "").slice(0, 64)
+      };
+      const legacyQuests = normalizeQuestList(row.quests, false);
+      if (!payload.questPathId && legacyQuests.length) {
+        payload.quests = legacyQuests;
+      }
+      return payload;
+    }
+
+    function buildQuestPathPayload(pathRow) {
+      const normalized = normalizeQuestPath(pathRow, pathRow && pathRow.id, pathRow && pathRow.name);
+      return {
+        id: normalized.id,
+        name: normalized.name,
+        quests: normalized.quests,
+        updatedAt: getServerTimestampOrNow(),
+        updatedByName: String(get("getPlayerName", "") || "").slice(0, 20),
+        updatedByAccountId: String(get("getPlayerProfileId", "") || "").slice(0, 64)
       };
     }
 
@@ -193,6 +397,36 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
     function getCurrentConfig() {
       if (!activeWorldId) return null;
       return worldConfigById.get(activeWorldId) || null;
+    }
+
+    function getCurrentQuestPathId() {
+      const config = getCurrentConfig();
+      if (!config) return "";
+      const pathId = normalizePathId(config.questPathId || "");
+      if (pathId) return pathId;
+      return "";
+    }
+
+    function resolveQuestPathForConfig(config) {
+      if (!config) return null;
+      const pathId = normalizePathId(config.questPathId || "");
+      if (!pathId) return null;
+      return getQuestPathById(pathId);
+    }
+
+    function resolveQuestListForConfig(config) {
+      const path = resolveQuestPathForConfig(config);
+      if (path && Array.isArray(path.quests)) {
+        return normalizeQuestList(path.quests, false);
+      }
+      if (Array.isArray(config && config.quests) && config.quests.length) {
+        return normalizeQuestList(config.quests, false);
+      }
+      const fallbackPath = getQuestPathById(DEFAULT_PATH_ID);
+      if (fallbackPath && Array.isArray(fallbackPath.quests) && fallbackPath.quests.length) {
+        return normalizeQuestList(fallbackPath.quests, false);
+      }
+      return normalizeQuestList([], true);
     }
 
     function isActive() {
@@ -247,15 +481,75 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
     }
 
     function getQuestRowById(config, questId) {
-      if (!config || !Array.isArray(config.quests)) return null;
+      if (!config) return null;
+      const rows = resolveQuestListForConfig(config);
       const safeId = String(questId || "").trim().toLowerCase();
       if (!safeId) return null;
-      for (let i = 0; i < config.quests.length; i++) {
-        const row = config.quests[i];
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
         if (!row || String(row.id || "").toLowerCase() !== safeId) continue;
         return row;
       }
       return null;
+    }
+    function getQuestObjectiveLabel(quest) {
+      const objective = quest && quest.objective && typeof quest.objective === "object" ? quest.objective : null;
+      if (!objective) return "";
+      if (objective.type === "bring_block") {
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        const blockId = Math.floor(Number(objective.blockId) || 0);
+        return "Bring " + amount + "x " + getBlockNameById(blockId);
+      }
+      return "";
+    }
+
+    function getQuestObjectiveProgressLabel(quest) {
+      const objective = quest && quest.objective && typeof quest.objective === "object" ? quest.objective : null;
+      if (!objective) return "";
+      if (objective.type === "bring_block") {
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        const blockId = Math.floor(Number(objective.blockId) || 0);
+        const have = getInventoryBlockCount(blockId);
+        return "Progress: " + have + "/" + amount + " " + getBlockNameById(blockId);
+      }
+      return "";
+    }
+
+    function isOwnerRole() {
+      return Boolean(call("hasOwnerRole"));
+    }
+
+    function renderOwnerControls(config) {
+      if (!isOwnerRole()) return "";
+      const currentPathId = normalizePathId((config && config.questPathId) || "") || DEFAULT_PATH_ID;
+      const currentPath = getQuestPathById(currentPathId);
+      const paths = listQuestPaths();
+      const options = paths.map((row) => {
+        const selected = row.id === currentPathId ? " selected" : "";
+        return '<option value="' + esc(row.id) + '"' + selected + ">" + esc((row.name || row.id) + " (" + row.id + ", " + row.questsCount + " quests)") + "</option>";
+      }).join("");
+      return (
+        '<div class="vending-section">' +
+          '<div class="vending-section-title">Owner Controls</div>' +
+          '<div class="sign-hint">Current path: <strong>' + esc(currentPath ? currentPath.name + " (" + currentPath.id + ")" : currentPathId) + "</strong></div>" +
+          '<div class="sign-hint">Set quest path for this world:</div>' +
+          '<select id="questWorldPathSelect">' + options + "</select>" +
+          '<input id="questWorldPathInput" type="text" placeholder="or type new path id" value="">' +
+          '<div class="vending-actions">' +
+            '<button type="button" data-quest-admin-act="set-path">Set Path</button>' +
+          "</div>" +
+          '<div class="sign-hint">Add fetch quest to a path (unlimited quest chain length):</div>' +
+          '<input id="questWorldFetchPathInput" type="text" placeholder="path id or current" value="' + esc(currentPathId || "current") + '">' +
+          '<input id="questWorldFetchBlockInput" type="text" placeholder="block id or key (e.g. wood_block)" value="wood_block">' +
+          '<input id="questWorldFetchAmountInput" type="number" min="1" step="1" value="50">' +
+          '<input id="questWorldFetchTitleInput" type="text" placeholder="Quest title" value="Bring me 50 wood blocks">' +
+          '<input id="questWorldFetchDescriptionInput" type="text" placeholder="Quest description (optional)" value="">' +
+          '<input id="questWorldFetchRewardInput" type="text" placeholder="Reward text (optional)" value="Reward placeholder">' +
+          '<div class="vending-actions">' +
+            '<button type="button" data-quest-admin-act="add-fetch">Add Fetch Quest</button>' +
+          "</div>" +
+        "</div>"
+      );
     }
 
     function renderModal() {
@@ -271,7 +565,11 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         return;
       }
       const state = getOrCreatePlayerQuestState(activeWorldId);
-      const rows = Array.isArray(config.quests) ? config.quests : [];
+      const rows = resolveQuestListForConfig(config);
+      const currentPath = resolveQuestPathForConfig(config);
+      const pathLine = currentPath
+        ? '<div class="vending-section"><div class="vending-section-title">Quest Path</div><div class="sign-hint">' + esc(currentPath.name) + " (" + esc(currentPath.id) + ")</div></div>"
+        : "";
       const listHtml = rows.length
         ? rows.map((quest) => {
             const qid = String(quest.id || "");
@@ -280,11 +578,15 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
             const tracked = state.trackedId === qid;
             const status = claimed
               ? "Claimed"
-              : (accepted ? (tracked ? "Accepted + Tracking" : "Accepted") : (tracked ? "Tracking (stub)" : "Not accepted"));
+              : (accepted ? (tracked ? "Accepted + Tracking" : "Accepted") : (tracked ? "Tracking" : "Not accepted"));
+            const objectiveLabel = getQuestObjectiveLabel(quest);
+            const progressLabel = getQuestObjectiveProgressLabel(quest);
             return (
               '<div class="vending-section">' +
                 '<div class="vending-section-title">' + esc(quest.title || qid) + "</div>" +
                 '<div class="sign-hint">' + esc(quest.description || "Quest objective placeholder.") + "</div>" +
+                (objectiveLabel ? ('<div class="sign-hint"><strong>Objective:</strong> ' + esc(objectiveLabel) + "</div>") : "") +
+                (progressLabel ? ('<div class="sign-hint">' + esc(progressLabel) + "</div>") : "") +
                 '<div class="sign-hint"><strong>' + esc(quest.rewardText || "Reward placeholder") + "</strong></div>" +
                 '<div class="sign-hint">Status: ' + esc(status) + "</div>" +
                 '<div class="vending-actions">' +
@@ -298,11 +600,11 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         : (
           '<div class="vending-section">' +
             '<div class="vending-section-title">No quests configured</div>' +
-            '<div class="sign-hint">Ask an owner admin to configure quest data.</div>' +
+            '<div class="sign-hint">Ask an owner admin to configure quest path data.</div>' +
           "</div>"
         );
       els.title.textContent = "Quest Menu (" + modalCtx.tx + "," + modalCtx.ty + ")";
-      els.body.innerHTML = listHtml;
+      els.body.innerHTML = pathLine + listHtml + renderOwnerControls(config);
       els.modal.classList.remove("hidden");
     }
 
@@ -339,6 +641,34 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       return true;
     }
 
+    function fulfillQuestObjective(quest) {
+      const objective = quest && quest.objective && typeof quest.objective === "object" ? quest.objective : null;
+      if (!objective) return { ok: true, consumeMessage: "" };
+      if (objective.type === "bring_block") {
+        const blockId = Math.floor(Number(objective.blockId) || 0);
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        const have = getInventoryBlockCount(blockId);
+        const blockName = getBlockNameById(blockId);
+        if (have < amount) {
+          return {
+            ok: false,
+            message: "Bring " + amount + "x " + blockName + " first (" + have + "/" + amount + ")."
+          };
+        }
+        if (!consumeInventoryBlock(blockId, amount)) {
+          return {
+            ok: false,
+            message: "Failed to consume required items for this quest."
+          };
+        }
+        return {
+          ok: true,
+          consumeMessage: "Turned in " + amount + "x " + blockName + "."
+        };
+      }
+      return { ok: true, consumeMessage: "" };
+    }
+
     function claimQuest(questId) {
       const config = getCurrentConfig();
       if (!config) return false;
@@ -355,10 +685,164 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         call("postLocalSystemChat", "Quest reward already claimed.");
         return true;
       }
+      const objectiveResult = fulfillQuestObjective(quest);
+      if (!objectiveResult.ok) {
+        call("postLocalSystemChat", objectiveResult.message || "Quest objective is not completed yet.");
+        renderModal();
+        return true;
+      }
       state.claimed[qid] = true;
-      call("postLocalSystemChat", "Claimed reward for " + (quest.title || qid) + " (stub).");
+      if (objectiveResult.consumeMessage) {
+        call("postLocalSystemChat", objectiveResult.consumeMessage);
+      }
+      call("postLocalSystemChat", "Claimed reward for " + (quest.title || qid) + ".");
       renderModal();
       return true;
+    }
+    function upsertPath(pathId, nextRow) {
+      const safePathId = normalizePathId(pathId);
+      if (!safePathId) return null;
+      const existing = getQuestPathById(safePathId);
+      const merged = normalizeQuestPath({
+        ...(existing || {}),
+        ...(nextRow || {}),
+        id: safePathId
+      }, safePathId, (existing && existing.name) || safePathId);
+      questPathsById.set(safePathId, merged);
+      const ref = getQuestPathRef(safePathId);
+      if (ref) {
+        const payload = buildQuestPathPayload(merged);
+        ref.set(payload).catch(() => {});
+      }
+      return merged;
+    }
+
+    function ensurePath(pathId) {
+      const safePathId = normalizePathId(pathId);
+      if (!safePathId) return null;
+      const existing = getQuestPathById(safePathId);
+      if (existing) return existing;
+      const name = safePathId
+        .split("_")
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+      return upsertPath(safePathId, { id: safePathId, name: name || safePathId, quests: [] });
+    }
+
+    function setWorldQuestPath(pathId) {
+      const worldId = getCurrentWorldId();
+      if (!worldId) return { ok: false, reason: "no_world" };
+      const config = getCurrentConfig();
+      if (!config) return { ok: false, reason: "quest_world_not_enabled" };
+      const safePathId = normalizePathId(pathId);
+      if (!safePathId) return { ok: false, reason: "invalid_path" };
+      const ensured = ensurePath(safePathId);
+      if (!ensured) return { ok: false, reason: "invalid_path" };
+      const next = normalizeWorldConfig({
+        ...config,
+        questPathId: safePathId,
+        updatedAt: Date.now(),
+        updatedByName: String(get("getPlayerName", "") || "").slice(0, 20),
+        updatedByAccountId: String(get("getPlayerProfileId", "") || "").slice(0, 64)
+      });
+      setLocalWorldConfig(worldId, next);
+      const ref = getQuestWorldRef(worldId);
+      if (ref && next) {
+        ref.set(buildWorldConfigPayload(next)).catch(() => {});
+      }
+      if (modalCtx) renderModal();
+      return { ok: true, worldId, pathId: safePathId };
+    }
+
+    function addFetchQuestToPath(pathId, blockRef, amount, title, description, rewardText) {
+      const rawPathId = String(pathId || "").trim().toLowerCase();
+      let safePathId = normalizePathId(rawPathId);
+      if (!safePathId || safePathId === "current") {
+        safePathId = getCurrentQuestPathId() || DEFAULT_PATH_ID;
+      }
+      if (!safePathId) return { ok: false, reason: "invalid_path" };
+      const blockId = parseBlockRef(blockRef);
+      if (!blockId) return { ok: false, reason: "invalid_block" };
+      const safeAmount = Math.max(1, Math.floor(Number(amount) || 0));
+      if (!safeAmount) return { ok: false, reason: "invalid_amount" };
+
+      const path = ensurePath(safePathId);
+      if (!path) return { ok: false, reason: "invalid_path" };
+      const nextQuests = Array.isArray(path.quests) ? path.quests.slice() : [];
+      const safeTitle = String(title || "").trim() || ("Bring me " + safeAmount + " " + getBlockNameById(blockId) + " blocks");
+      const safeDescription = String(description || "").trim() || ("Bring " + safeAmount + "x " + getBlockNameById(blockId) + " to this quest NPC.");
+      const safeRewardText = String(rewardText || "").trim() || "Reward placeholder";
+      const questIdSeed = "bring_" + blockId + "_" + safeAmount + "_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+      const row = normalizeQuestRow({
+        id: questIdSeed,
+        title: safeTitle,
+        description: safeDescription,
+        rewardText: safeRewardText,
+        objective: {
+          type: "bring_block",
+          blockId,
+          amount: safeAmount
+        }
+      }, nextQuests.length);
+      nextQuests.push(row);
+      const updatedPath = upsertPath(safePathId, {
+        ...path,
+        quests: nextQuests
+      });
+      if (!updatedPath) return { ok: false, reason: "save_failed" };
+      if (modalCtx) renderModal();
+      return {
+        ok: true,
+        pathId: safePathId,
+        quest: row
+      };
+    }
+
+    function handleOwnerSetPathFromModal() {
+      if (!isOwnerRole()) return;
+      const typedInput = document.getElementById("questWorldPathInput");
+      const selectInput = document.getElementById("questWorldPathSelect");
+      const typed = typedInput ? String(typedInput.value || "").trim() : "";
+      const selected = selectInput ? String(selectInput.value || "").trim() : "";
+      const nextPathId = normalizePathId(typed || selected);
+      if (!nextPathId) {
+        call("postLocalSystemChat", "Invalid quest path id.");
+        return;
+      }
+      const result = setWorldQuestPath(nextPathId);
+      if (!result || !result.ok) {
+        call("postLocalSystemChat", "Failed to set quest path.");
+        return;
+      }
+      call("postLocalSystemChat", "Quest path set to " + result.pathId + " for this world.");
+      renderModal();
+    }
+
+    function handleOwnerAddFetchFromModal() {
+      if (!isOwnerRole()) return;
+      const pathInput = document.getElementById("questWorldFetchPathInput");
+      const blockInput = document.getElementById("questWorldFetchBlockInput");
+      const amountInput = document.getElementById("questWorldFetchAmountInput");
+      const titleInput = document.getElementById("questWorldFetchTitleInput");
+      const descInput = document.getElementById("questWorldFetchDescriptionInput");
+      const rewardInput = document.getElementById("questWorldFetchRewardInput");
+      const pathId = pathInput ? String(pathInput.value || "").trim() : "current";
+      const blockRef = blockInput ? String(blockInput.value || "").trim() : "";
+      const amount = amountInput ? Number(amountInput.value) : 0;
+      const title = titleInput ? String(titleInput.value || "").trim() : "";
+      const description = descInput ? String(descInput.value || "").trim() : "";
+      const rewardText = rewardInput ? String(rewardInput.value || "").trim() : "";
+      const result = addFetchQuestToPath(pathId, blockRef, amount, title, description, rewardText);
+      if (!result || !result.ok) {
+        call("postLocalSystemChat", "Failed to add fetch quest. Check path, block, and amount.");
+        return;
+      }
+      const currentPath = getCurrentQuestPathId();
+      if (currentPath === result.pathId) {
+        renderModal();
+      }
+      call("postLocalSystemChat", "Added fetch quest to path " + result.pathId + ": " + (result.quest && result.quest.title ? result.quest.title : "quest") + ".");
     }
 
     function bindModalEvents() {
@@ -376,27 +860,57 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         if (!(target instanceof HTMLElement)) return;
         const act = String(target.dataset.questAct || "");
         const questId = String(target.dataset.questId || "");
-        if (!act || !questId) return;
-        if (act === "accept") {
-          acceptQuest(questId);
+        if (act && questId) {
+          if (act === "accept") {
+            acceptQuest(questId);
+            return;
+          }
+          if (act === "track") {
+            trackQuest(questId);
+            return;
+          }
+          if (act === "claim") {
+            claimQuest(questId);
+            return;
+          }
+        }
+        const adminAct = String(target.dataset.questAdminAct || "");
+        if (!adminAct) return;
+        if (adminAct === "set-path") {
+          handleOwnerSetPathFromModal();
           return;
         }
-        if (act === "track") {
-          trackQuest(questId);
-          return;
-        }
-        if (act === "claim") {
-          claimQuest(questId);
+        if (adminAct === "add-fetch") {
+          handleOwnerAddFetchFromModal();
         }
       });
     }
-
     function detachWorldConfigListener() {
       if (questWorldRef && questWorldHandler) {
         questWorldRef.off("value", questWorldHandler);
       }
       questWorldRef = null;
       questWorldHandler = null;
+    }
+
+    function detachQuestPathsListener() {
+      if (questPathsRef && questPathsHandler) {
+        questPathsRef.off("value", questPathsHandler);
+      }
+      questPathsRef = null;
+      questPathsHandler = null;
+    }
+
+    function attachQuestPathsListener() {
+      if (questPathsRef && questPathsHandler) return;
+      const ref = getQuestPathsRef();
+      if (!ref) return;
+      questPathsRef = ref;
+      questPathsHandler = (snapshot) => {
+        const raw = snapshot && typeof snapshot.val === "function" ? snapshot.val() : null;
+        applyQuestPathsSnapshot(raw);
+      };
+      ref.on("value", questPathsHandler);
     }
 
     function attachWorldConfigListener(worldId) {
@@ -417,6 +931,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       activeWorldId = normalizeWorldId(worldId);
       bindModalEvents();
       closeModal();
+      attachQuestPathsListener();
       attachWorldConfigListener(activeWorldId);
     }
 
@@ -452,27 +967,27 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       call("clearTileDamage", safeTx, safeTy);
       call("syncBlock", safeTx, safeTy, questNpcId);
 
-      const payload = {
+      let nextPathId = normalizePathId(previous && previous.questPathId);
+      const hasLegacyInline = Boolean(previous && Array.isArray(previous.quests) && previous.quests.length);
+      if (!nextPathId && !hasLegacyInline) {
+        nextPathId = DEFAULT_PATH_ID;
+        ensurePath(nextPathId);
+      }
+
+      const payload = normalizeWorldConfig({
         enabled: true,
         npcTx: safeTx,
         npcTy: safeTy,
-        quests: normalizeQuestList(previous && previous.quests),
+        questPathId: nextPathId,
+        quests: hasLegacyInline ? previous.quests : [],
         updatedAt: Date.now(),
         updatedByName: String(get("getPlayerName", "") || "").slice(0, 20),
         updatedByAccountId: String(get("getPlayerProfileId", "") || "").slice(0, 64)
-      };
+      });
       setLocalWorldConfig(worldId, payload);
       const ref = getQuestWorldRef(worldId);
-      if (ref) {
-        ref.set({
-          enabled: true,
-          npcTx: safeTx,
-          npcTy: safeTy,
-          quests: payload.quests,
-          updatedAt: getServerTimestampOrNow(),
-          updatedByName: payload.updatedByName,
-          updatedByAccountId: payload.updatedByAccountId
-        }).catch(() => {});
+      if (ref && payload) {
+        ref.set(buildWorldConfigPayload(payload)).catch(() => {});
       }
       call("respawnPlayerAtDoor");
       return { ok: true, tx: safeTx, ty: safeTy, worldId };
@@ -528,20 +1043,28 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
     function clearAll() {
       closeModal();
       detachWorldConfigListener();
+      detachQuestPathsListener();
       activeWorldId = "";
       worldConfigById.clear();
       playerQuestStateByWorld.clear();
+      resetQuestPathsToDefaults();
     }
+
+    resetQuestPathsToDefaults();
 
     return {
       bindModalEvents,
       onWorldEnter,
       onWorldLeave,
       getCurrentConfig,
+      getCurrentQuestPathId,
       isActive,
       isQuestNpcTile,
       enableWorld,
       disableWorld,
+      setWorldQuestPath,
+      addFetchQuestToPath,
+      listQuestPaths,
       onNpcBroken,
       interact,
       closeModal,

@@ -62,7 +62,7 @@ window.GT_SETTINGS = {
   WEATHER_PRESET_IMAGES: [
     { id: "none", name: "Default Sky", url: "" },
     { id: "day", name: "Day", url: "./assets/weather/day.png" },
-    { id: "sunset", name: "Sunset", url: "./assets/weather/sunset.png" },
+    { id: "void", name: "Void", url: "./assets/weather/black_hole.png" },
     { id: "night", name: "Night", url: "./assets/weather/night.png" }
   ],
   // Optional per-seed grow speed overrides (milliseconds).

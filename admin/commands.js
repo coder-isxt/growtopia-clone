@@ -146,7 +146,7 @@ window.GTModules.commands = {
       if (c.hasAdminPermission("reach")) available.push("/reach");
       if (c.hasAdminPermission("bring")) available.push("/bring", "/summon");
       if (c.hasAdminPermission("setrole") || c.hasAdminPermission("setrole_limited")) available.push("/setrole", "/role");
-      if (c.normalizeAdminRole && c.normalizeAdminRole(c.currentAdminRole) === "owner") available.push("/questworld", "/questworldoff");
+      if (c.normalizeAdminRole && c.normalizeAdminRole(c.currentAdminRole) === "owner") available.push("/questworld", "/questworldoff", "/questpath", "/questaddfetch");
       c.postLocalSystemChat("Role: " + c.currentAdminRole + " | Commands: " + (available.join(", ") || "none"));
       return true;
     }
@@ -215,6 +215,97 @@ window.GTModules.commands = {
       c.postLocalSystemChat("Only owner role can edit this world while quest mode is active.");
       c.logAdminAudit("Admin(chat) enabled quest world mode in " + c.currentWorldId + " at " + result.tx + "," + result.ty + ".");
       c.pushAdminAuditEntry("questworld_on", "", "world=" + c.currentWorldId + " npc=" + result.tx + "," + result.ty);
+      return true;
+    }
+    if (command === "/questpath") {
+      if (!c.inWorld) {
+        c.postLocalSystemChat("Enter a world first.");
+        return true;
+      }
+      const role = c.normalizeAdminRole ? c.normalizeAdminRole(c.currentAdminRole) : String(c.currentAdminRole || "").toLowerCase();
+      if (role !== "owner") {
+        c.postLocalSystemChat("Only owner role can use this command.");
+        return true;
+      }
+      if (typeof c.listQuestWorldPaths !== "function" || typeof c.setQuestWorldPath !== "function") {
+        c.postLocalSystemChat("Quest world controller is unavailable.");
+        return true;
+      }
+      const sub = String(parts[1] || "").trim().toLowerCase();
+      if (!sub || sub === "list") {
+        const current = typeof c.getCurrentQuestWorldPathId === "function"
+          ? String(c.getCurrentQuestWorldPathId() || "")
+          : "";
+        const paths = c.listQuestWorldPaths();
+        const rows = Array.isArray(paths)
+          ? paths.map((row) => {
+              const id = row && row.id ? String(row.id) : "";
+              const count = Math.max(0, Math.floor(Number(row && row.questsCount) || 0));
+              if (!id) return "";
+              return id + "(" + count + ")";
+            }).filter(Boolean)
+          : [];
+        c.postLocalSystemChat("Current quest path: " + (current || "none"));
+        c.postLocalSystemChat("Available paths: " + (rows.join(", ") || "none"));
+        c.postLocalSystemChat("Usage: /questpath <path_id>  or  /questpath set <path_id>");
+        return true;
+      }
+      const targetPath = String(sub === "set" ? (parts[2] || "") : (parts[1] || "")).trim();
+      if (!targetPath) {
+        c.postLocalSystemChat("Usage: /questpath <path_id>");
+        return true;
+      }
+      const result = c.setQuestWorldPath(targetPath);
+      if (!result || !result.ok) {
+        if (result && result.reason === "quest_world_not_enabled") {
+          c.postLocalSystemChat("Enable quest world first with /questworld.");
+        } else {
+          c.postLocalSystemChat("Failed to set quest path.");
+        }
+        return true;
+      }
+      c.postLocalSystemChat("Quest path for this world is now: " + result.pathId + ".");
+      c.logAdminAudit("Admin(chat) set quest path in " + c.currentWorldId + " to " + result.pathId + ".");
+      c.pushAdminAuditEntry("questpath_set", "", "world=" + c.currentWorldId + " path=" + result.pathId);
+      return true;
+    }
+    if (command === "/questaddfetch" || command === "/addfetchquest") {
+      if (!c.inWorld) {
+        c.postLocalSystemChat("Enter a world first.");
+        return true;
+      }
+      const role = c.normalizeAdminRole ? c.normalizeAdminRole(c.currentAdminRole) : String(c.currentAdminRole || "").toLowerCase();
+      if (role !== "owner") {
+        c.postLocalSystemChat("Only owner role can use this command.");
+        return true;
+      }
+      if (typeof c.addQuestWorldFetchQuest !== "function") {
+        c.postLocalSystemChat("Quest world controller is unavailable.");
+        return true;
+      }
+      const pathId = String(parts[1] || "current").trim();
+      const blockRef = String(parts[2] || "").trim();
+      const amount = Number(parts[3]);
+      const title = parts.slice(4).join(" ").trim();
+      if (!blockRef || !Number.isFinite(amount) || amount <= 0) {
+        c.postLocalSystemChat("Usage: /questaddfetch <path_id|current> <block_key|block_id> <amount> <title>");
+        return true;
+      }
+      const result = c.addQuestWorldFetchQuest(pathId, blockRef, amount, title, "", "Reward placeholder");
+      if (!result || !result.ok) {
+        if (result && result.reason === "invalid_block") {
+          c.postLocalSystemChat("Unknown block id/key: " + blockRef + ".");
+        } else if (result && result.reason === "invalid_path") {
+          c.postLocalSystemChat("Invalid quest path id.");
+        } else {
+          c.postLocalSystemChat("Failed to add fetch quest.");
+        }
+        return true;
+      }
+      const questTitle = result.quest && result.quest.title ? result.quest.title : ("Bring " + Math.floor(amount) + " " + blockRef);
+      c.postLocalSystemChat("Added fetch quest to path " + result.pathId + ": " + questTitle + ".");
+      c.logAdminAudit("Admin(chat) added fetch quest in path " + result.pathId + " (" + questTitle + ").");
+      c.pushAdminAuditEntry("questpath_add_fetch", "", "path=" + result.pathId + " block=" + blockRef + " amount=" + Math.floor(amount));
       return true;
     }
     if (!c.canUseAdminPanel) {

@@ -440,9 +440,15 @@
           getWorld: () => world,
           getWorldSize: () => ({ w: WORLD_W, h: WORLD_H }),
           getQuestNpcId: () => QUEST_NPC_ID,
+          getBlockDefs: () => blockDefs,
+          getInventory: () => inventory,
+          parseBlockRef,
           getPlayerName: () => playerName,
           getPlayerProfileId: () => playerProfileId,
           getFirebase: () => (typeof firebase !== "undefined" ? firebase : null),
+          saveInventory,
+          refreshToolbar,
+          hasOwnerRole: () => normalizeAdminRole(currentAdminRole) === "owner",
           clearTileDamage,
           syncBlock,
           respawnPlayerAtDoor,
@@ -3726,6 +3732,26 @@
           isQuestWorldActive: () => {
             const ctrl = getQuestWorldController();
             return Boolean(ctrl && typeof ctrl.isActive === "function" && ctrl.isActive());
+          },
+          getCurrentQuestWorldPathId: () => {
+            const ctrl = getQuestWorldController();
+            if (!ctrl || typeof ctrl.getCurrentQuestPathId !== "function") return "";
+            return String(ctrl.getCurrentQuestPathId() || "");
+          },
+          listQuestWorldPaths: () => {
+            const ctrl = getQuestWorldController();
+            if (!ctrl || typeof ctrl.listQuestPaths !== "function") return [];
+            return ctrl.listQuestPaths();
+          },
+          setQuestWorldPath: (pathId) => {
+            const ctrl = getQuestWorldController();
+            if (!ctrl || typeof ctrl.setWorldQuestPath !== "function") return { ok: false, reason: "missing_controller" };
+            return ctrl.setWorldQuestPath(pathId);
+          },
+          addQuestWorldFetchQuest: (pathId, blockRef, amount, title, description, rewardText) => {
+            const ctrl = getQuestWorldController();
+            if (!ctrl || typeof ctrl.addFetchQuestToPath !== "function") return { ok: false, reason: "missing_controller" };
+            return ctrl.addFetchQuestToPath(pathId, blockRef, amount, title, description, rewardText);
           },
           parseDurationToMs,
           applyAdminRoleChange,
