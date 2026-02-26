@@ -3,24 +3,10 @@ window.GTModules = window.GTModules || {};
 window.GTModules.farmables = (function createFarmablesModule() {
   const BLOCK_ASSET_BASE = "./assets/blocks";
   const FARMABLE_LIST = [
-    { id: 43, key: "farmable_grass", name: "Farmable Grass", color: "#5fd062", solid: true, farmable: true, icon: "FG", faIcon: "fa-solid fa-seedling", image: "terrain/grass.png" },
-    { id: 44, key: "farmable_dirt", name: "Farmable Dirt", color: "#9c6a34", solid: true, farmable: true, icon: "FD", faIcon: "fa-solid fa-seedling", image: "terrain/dirt.png" },
-    { id: 45, key: "farmable_stone", name: "Farmable Stone", color: "#95a0aa", solid: true, farmable: true, icon: "FS", faIcon: "fa-solid fa-seedling", image: "terrain/stone.png" },
-    { id: 46, key: "farmable_wood", name: "Farmable Wood", color: "#bf8646", solid: true, farmable: true, icon: "FW", faIcon: "fa-solid fa-seedling", image: "terrain/wood.png" },
-    { id: 47, key: "farmable_sand", name: "Farmable Sand", color: "#f2db95", solid: true, farmable: true, icon: "FSA", faIcon: "fa-solid fa-seedling", image: "terrain/sand.png" },
-    { id: 48, key: "farmable_brick", name: "Farmable Brick", color: "#d06a58", solid: true, farmable: true, icon: "FB", faIcon: "fa-solid fa-seedling", image: "terrain/brick.png" },
-    { id: 49, key: "farmable_leaf", name: "Farmable Leaf", color: "#58a94f", solid: true, farmable: true, icon: "FL", faIcon: "fa-solid fa-seedling", image: "special/leaf.png" },
-    { id: 50, key: "farmable_plank", name: "Farmable Plank", color: "#c8d2dc", solid: true, farmable: true, icon: "FP", faIcon: "fa-solid fa-seedling", image: "special/plank.png" }
+    { id: 43, key: "star", name: "Star", color: "#d0ce5f", solid: true, farmable: true, durability: 3, icon: "S", faIcon: "fa-solid fa-seedling", image: "farmables/star.png" },
   ];
   const DEFAULT_FARMABLES = [
-    { key: "farmable_grass", xp: 8, gemMin: 1, gemMax: 2 },
-    { key: "farmable_dirt", xp: 7, gemMin: 1, gemMax: 2 },
-    { key: "farmable_stone", xp: 9, gemMin: 1, gemMax: 3 },
-    { key: "farmable_wood", xp: 11, gemMin: 2, gemMax: 4 },
-    { key: "farmable_sand", xp: 8, gemMin: 1, gemMax: 2 },
-    { key: "farmable_brick", xp: 10, gemMin: 2, gemMax: 4 },
-    { key: "farmable_leaf", xp: 12, gemMin: 2, gemMax: 5 },
-    { key: "farmable_plank", xp: 9, gemMin: 1, gemMax: 3 }
+    { key: "star", xp: 10, gemMin: 3, gemMax: 12 },
   ];
 
   function toInt(value, fallback) {
