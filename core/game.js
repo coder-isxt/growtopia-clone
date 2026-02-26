@@ -388,6 +388,7 @@
           isWorldLocked: () => isWorldLocked(),
           isWorldLockOwner: () => isWorldLockOwner(),
           isWorldLockAdmin: () => isWorldLockAdmin(),
+          getWorldTaxPolicy: () => getCurrentWorldTaxPolicy(),
           clampInventoryCount,
           saveInventory,
           refreshToolbar,
@@ -6878,6 +6879,269 @@
         };
       }
 
+      function normalizeOwnerTaxRecord(value) {
+        if (!value || typeof value !== "object") return null;
+        const tx = Math.floor(Number(value.tx));
+        const ty = Math.floor(Number(value.ty));
+        if (!Number.isInteger(tx) || !Number.isInteger(ty)) return null;
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return null;
+        const percentRaw = value.taxPercent !== undefined ? value.taxPercent : value.percent;
+        const percent = Math.max(0, Math.min(100, Math.floor(Number(percentRaw) || 0)));
+        return {
+          tx,
+          ty,
+          percent,
+          ownerAccountId: String(value.ownerAccountId || "").trim(),
+          ownerName: String(value.ownerName || "").trim().slice(0, 20),
+          earningsLocks: Math.max(0, Math.floor(Number(value.earningsLocks) || 0)),
+          updatedAt: Number(value.updatedAt) || 0
+        };
+      }
+
+      function setLocalWorldTax(value) {
+        currentWorldTax = normalizeOwnerTaxRecord(value);
+      }
+
+      function hasOwnerTaxBlockInWorld(exceptTx, exceptTy) {
+        const skipTx = Number.isInteger(exceptTx) ? exceptTx : -1;
+        const skipTy = Number.isInteger(exceptTy) ? exceptTy : -1;
+        for (let y = 0; y < WORLD_H; y++) {
+          const row = world[y];
+          if (!row) continue;
+          for (let x = 0; x < WORLD_W; x++) {
+            if (x === skipTx && y === skipTy) continue;
+            if (row[x] === TAX_BLOCK_ID) return true;
+          }
+        }
+        return false;
+      }
+
+      function getCurrentWorldTaxPolicy() {
+        const lockOwnerAccountId = String(currentWorldLock && currentWorldLock.ownerAccountId || "").trim();
+        const lockOwnerName = String(currentWorldLock && currentWorldLock.ownerName || "").trim().slice(0, 20);
+        const tax = normalizeOwnerTaxRecord(currentWorldTax);
+        const hasTaxBlock = Boolean(
+          tax &&
+          world[tax.ty] &&
+          world[tax.ty][tax.tx] === TAX_BLOCK_ID
+        );
+        const percent = tax ? Math.max(0, Math.min(100, Math.floor(Number(tax.percent) || 0))) : 0;
+        const enabled = Boolean(lockOwnerAccountId && hasTaxBlock && percent > 0);
+        return {
+          enabled,
+          percent,
+          ownerAccountId: lockOwnerAccountId,
+          ownerName: lockOwnerName,
+          tx: tax ? tax.tx : -1,
+          ty: tax ? tax.ty : -1,
+          earningsLocks: tax ? Math.max(0, Math.floor(Number(tax.earningsLocks) || 0)) : 0
+        };
+      }
+
+      function saveOwnerTaxConfig(tx, ty, percent) {
+        if (!world[ty] || world[ty][tx] !== TAX_BLOCK_ID) {
+          postLocalSystemChat("Owner tax block not found.");
+          return;
+        }
+        if (!isWorldLocked()) {
+          postLocalSystemChat("Owner tax needs an active world lock.");
+          return;
+        }
+        if (!isWorldLockOwner()) {
+          notifyOwnerOnlyWorldEdit("owner tax settings");
+          return;
+        }
+        const safePercent = Math.max(0, Math.min(100, Math.floor(Number(percent) || 0)));
+        const currentTax = normalizeOwnerTaxRecord(currentWorldTax);
+        const ownerAccountId = String(currentWorldLock && currentWorldLock.ownerAccountId || "").trim();
+        const ownerName = String(currentWorldLock && currentWorldLock.ownerName || "").trim().slice(0, 20);
+        if (network.enabled && network.ownerTaxRef) {
+          network.ownerTaxRef.transaction((currentRaw) => {
+            const current = currentRaw && typeof currentRaw === "object" ? currentRaw : {};
+            const existing = normalizeOwnerTaxRecord(current) || currentTax;
+            const earningsLocks = existing ? Math.max(0, Math.floor(Number(existing.earningsLocks) || 0)) : 0;
+            return {
+              tx,
+              ty,
+              taxPercent: safePercent,
+              ownerAccountId,
+              ownerName,
+              earningsLocks,
+              updatedAt: (
+                typeof firebase !== "undefined" &&
+                firebase &&
+                firebase.database &&
+                firebase.database.ServerValue &&
+                firebase.database.ServerValue.TIMESTAMP
+              ) ? firebase.database.ServerValue.TIMESTAMP : Date.now()
+            };
+          }).then((txn) => {
+            if (!txn || !txn.committed) {
+              postLocalSystemChat("Failed to save owner tax.");
+              return;
+            }
+            setLocalWorldTax(txn.snapshot && typeof txn.snapshot.val === "function" ? txn.snapshot.val() : null);
+            postLocalSystemChat("Owner tax set to " + safePercent + "%.");
+          }).catch(() => {
+            postLocalSystemChat("Failed to save owner tax.");
+          });
+          return;
+        }
+        const payload = {
+          tx,
+          ty,
+          taxPercent: safePercent,
+          ownerAccountId,
+          ownerName,
+          earningsLocks: currentTax ? Math.max(0, Math.floor(Number(currentTax.earningsLocks) || 0)) : 0,
+          updatedAt: Date.now()
+        };
+        setLocalWorldTax(payload);
+        postLocalSystemChat("Owner tax set to " + safePercent + "%.");
+      }
+
+      function collectOwnerTaxEarnings(tx, ty) {
+        if (!world[ty] || world[ty][tx] !== TAX_BLOCK_ID) return;
+        if (!isWorldLocked()) {
+          postLocalSystemChat("Owner tax needs an active world lock.");
+          return;
+        }
+        if (!isWorldLockOwner()) {
+          notifyOwnerOnlyWorldEdit("owner tax earnings");
+          return;
+        }
+        const currentTax = normalizeOwnerTaxRecord(currentWorldTax);
+        if (!currentTax || currentTax.tx !== tx || currentTax.ty !== ty) {
+          postLocalSystemChat("No owner tax data found for this block.");
+          return;
+        }
+        const amount = Math.max(0, Math.floor(Number(currentTax.earningsLocks) || 0));
+        if (amount <= 0) {
+          postLocalSystemChat("No tax earnings to collect.");
+          return;
+        }
+        const profileId = String(playerProfileId || "");
+        if (!network.enabled || !network.ownerTaxRef || !network.db || !profileId) {
+          addLocksLocal(inventory, amount);
+          setLocalWorldTax({ ...currentTax, earningsLocks: 0, updatedAt: Date.now() });
+          if (typeof saveInventory === "function") saveInventory(false);
+          if (typeof refreshToolbar === "function") refreshToolbar(true);
+          postLocalSystemChat("Collected " + amount + " WL from owner tax block.");
+          return;
+        }
+
+        let collected = 0;
+        network.ownerTaxRef.transaction((currentRaw) => {
+          const current = normalizeOwnerTaxRecord(currentRaw);
+          if (!current || current.tx !== tx || current.ty !== ty) return currentRaw;
+          collected = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
+          if (collected <= 0) return currentRaw;
+          return {
+            ...currentRaw,
+            tx: current.tx,
+            ty: current.ty,
+            taxPercent: current.percent,
+            earningsLocks: 0,
+            ownerAccountId: String(current.ownerAccountId || currentWorldLock && currentWorldLock.ownerAccountId || "").trim(),
+            ownerName: String(current.ownerName || currentWorldLock && currentWorldLock.ownerName || "").trim().slice(0, 20),
+            updatedAt: (
+              typeof firebase !== "undefined" &&
+              firebase &&
+              firebase.database &&
+              firebase.database.ServerValue &&
+              firebase.database.ServerValue.TIMESTAMP
+            ) ? firebase.database.ServerValue.TIMESTAMP : Date.now()
+          };
+        }).then((taxTxn) => {
+          if (!taxTxn || !taxTxn.committed || collected <= 0) {
+            postLocalSystemChat("No tax earnings to collect.");
+            return null;
+          }
+          const raw = taxTxn.snapshot && typeof taxTxn.snapshot.val === "function" ? taxTxn.snapshot.val() : null;
+          setLocalWorldTax(raw);
+          const invRef = network.db.ref(BASE_PATH + "/player-inventories/" + profileId);
+          return invRef.transaction((currentRaw) => {
+            const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+            addLocksLocal(current, collected);
+            return current;
+          }).then(() => ({ collected })).catch(() => {
+            return network.ownerTaxRef.transaction((currentRaw) => {
+              const current = normalizeOwnerTaxRecord(currentRaw);
+              if (!current || current.tx !== tx || current.ty !== ty) return currentRaw;
+              return {
+                ...currentRaw,
+                tx: current.tx,
+                ty: current.ty,
+                taxPercent: current.percent,
+                earningsLocks: Math.max(0, Math.floor(Number(current.earningsLocks) || 0)) + collected,
+                ownerAccountId: String(current.ownerAccountId || currentWorldLock && currentWorldLock.ownerAccountId || "").trim(),
+                ownerName: String(current.ownerName || currentWorldLock && currentWorldLock.ownerName || "").trim().slice(0, 20),
+                updatedAt: (
+                  typeof firebase !== "undefined" &&
+                  firebase &&
+                  firebase.database &&
+                  firebase.database.ServerValue &&
+                  firebase.database.ServerValue.TIMESTAMP
+                ) ? firebase.database.ServerValue.TIMESTAMP : Date.now()
+              };
+            }).then((rollbackTxn) => {
+              if (rollbackTxn && rollbackTxn.committed) {
+                setLocalWorldTax(rollbackTxn.snapshot && typeof rollbackTxn.snapshot.val === "function" ? rollbackTxn.snapshot.val() : null);
+              }
+              return null;
+            }).catch(() => null);
+          });
+        }).then((done) => {
+          if (!done) return;
+          if (typeof saveInventory === "function") saveInventory(false);
+          if (typeof refreshToolbar === "function") refreshToolbar(true);
+          postLocalSystemChat("Collected " + done.collected + " WL from owner tax block.");
+        }).catch(() => {
+          postLocalSystemChat("Failed to collect owner tax earnings.");
+        });
+      }
+
+      function openOwnerTaxEditor(tx, ty) {
+        if (!world[ty] || world[ty][tx] !== TAX_BLOCK_ID) return;
+        if (!isWorldLocked()) {
+          postLocalSystemChat("Owner tax needs an active world lock.");
+          return;
+        }
+        if (!isWorldLockOwner()) {
+          notifyOwnerOnlyWorldEdit("owner tax settings");
+          return;
+        }
+        const currentTax = normalizeOwnerTaxRecord(currentWorldTax);
+        const currentPercent = currentTax && currentTax.tx === tx && currentTax.ty === ty
+          ? currentTax.percent
+          : 0;
+        const currentBank = currentTax && currentTax.tx === tx && currentTax.ty === ty
+          ? Math.max(0, Math.floor(Number(currentTax.earningsLocks) || 0))
+          : 0;
+        const raw = window.prompt(
+          "Owner Tax Block\nTax: " + currentPercent + "%\nBank: " + currentBank + " WL\nType 0-100 to set tax, or type collect to claim bank.",
+          String(currentPercent)
+        );
+        if (raw === null) return;
+        const text = String(raw || "").trim();
+        if (!text) return;
+        if (text.toLowerCase() === "collect") {
+          collectOwnerTaxEarnings(tx, ty);
+          return;
+        }
+        const parsed = Number(raw);
+        if (!Number.isFinite(parsed)) {
+          postLocalSystemChat("Enter a number from 0 to 100, or type collect.");
+          return;
+        }
+        const nextPercent = Math.floor(parsed);
+        if (nextPercent < 0 || nextPercent > 100) {
+          postLocalSystemChat("Owner tax must be between 0 and 100.");
+          return;
+        }
+        saveOwnerTaxConfig(tx, ty, nextPercent);
+      }
+
       function getWorldBanStatusForAccount(lock, accountId, nowMs) {
         const now = Number(nowMs) || Date.now();
         const safeAccountId = String(accountId || "").trim();
@@ -7563,6 +7827,7 @@
         cameraConfigsByTile.clear();
         cameraLogsByTile.clear();
         currentWorldWeather = null;
+        currentWorldTax = null;
       }
 
       function clearCurrentWorldToBedrock(sourceTag) {
@@ -7758,6 +8023,14 @@
             notifyOwnerOnlyWorldEdit("vending machines");
             return;
           }
+          if (id === TAX_BLOCK_ID) {
+            notifyOwnerOnlyWorldEdit("owner tax block");
+            return;
+          }
+        }
+        if (id === TAX_BLOCK_ID && hasOwnerTaxBlockInWorld()) {
+          postLocalSystemChat("Only one owner tax block is allowed per world.");
+          return;
         }
 
         const bx = tx * TILE;
@@ -7811,6 +8084,29 @@
             saveCameraConfig(tx, ty, buildDefaultCameraConfig());
           } else if (id === DISPLAY_BLOCK_ID) {
             saveDisplayItem(tx, ty, null);
+          } else if (id === TAX_BLOCK_ID) {
+            const payload = {
+              tx,
+              ty,
+              taxPercent: 0,
+              ownerAccountId: String(currentWorldLock && currentWorldLock.ownerAccountId || "").trim(),
+              ownerName: String(currentWorldLock && currentWorldLock.ownerName || "").trim().slice(0, 20),
+              earningsLocks: 0,
+              updatedAt: Date.now()
+            };
+            setLocalWorldTax(payload);
+            if (network.enabled && network.ownerTaxRef) {
+              network.ownerTaxRef.set({
+                ...payload,
+                updatedAt: (
+                  typeof firebase !== "undefined" &&
+                  firebase &&
+                  firebase.database &&
+                  firebase.database.ServerValue &&
+                  firebase.database.ServerValue.TIMESTAMP
+                ) ? firebase.database.ServerValue.TIMESTAMP : Date.now()
+              }).catch(() => {});
+            }
           } else if (isPlantSeedBlockId(id)) {
             const seedCfg = getPlantSeedConfig(id) || {};
             const ctrl = getPlantsController();
@@ -7915,6 +8211,10 @@
         }
         if (id === VENDING_ID && isWorldLocked() && !isWorldLockOwner()) {
           notifyOwnerOnlyWorldEdit("vending machines");
+          return;
+        }
+        if (id === TAX_BLOCK_ID && isWorldLocked() && !isWorldLockOwner()) {
+          notifyOwnerOnlyWorldEdit("owner tax block");
           return;
         }
         if (isDonationBoxBlockId(id)) {
@@ -8125,6 +8425,12 @@
             }
           }
         }
+        if (id === TAX_BLOCK_ID) {
+          setLocalWorldTax(null);
+          if (network.enabled && network.ownerTaxRef) {
+            network.ownerTaxRef.remove().catch(() => {});
+          }
+        }
         if (isPlantSeedBlockId(id)) {
           saveTreePlant(tx, ty, null);
         }
@@ -8160,8 +8466,12 @@
         syncBlock(tx, ty, 0);
         if (isWorldLockBlockId(id)) {
           currentWorldLock = null;
+          setLocalWorldTax(null);
           if (network.enabled && network.lockRef) {
             network.lockRef.remove().catch(() => {});
+          }
+          if (network.enabled && network.ownerTaxRef) {
+            network.ownerTaxRef.remove().catch(() => {});
           }
           postLocalSystemChat("World unlocked.");
         }
@@ -8284,6 +8594,10 @@
         }
         if (id === SPLICER_ID) {
           openSplicingModal(tx, ty);
+          return;
+        }
+        if (id === TAX_BLOCK_ID) {
+          openOwnerTaxEditor(tx, ty);
           return;
         }
         if (id === SIGN_ID) {
@@ -8691,6 +9005,9 @@
         if (network.weatherRef && network.handlers.worldWeather) {
           network.weatherRef.off("value", network.handlers.worldWeather);
         }
+        if (network.ownerTaxRef && network.handlers.worldOwnerTax) {
+          network.ownerTaxRef.off("value", network.handlers.worldOwnerTax);
+        }
         if (network.camerasRef && network.handlers.cameraAdded) {
           network.camerasRef.off("child_added", network.handlers.cameraAdded);
         }
@@ -8728,6 +9045,7 @@
         network.antiGravRef = null;
         network.plantsRef = null;
         network.weatherRef = null;
+        network.ownerTaxRef = null;
         network.camerasRef = null;
         network.cameraLogsRef = null;
         network.cameraLogsFeedRef = null;
@@ -8776,6 +9094,7 @@
         network.handlers.plantChanged = null;
         network.handlers.plantRemoved = null;
         network.handlers.worldWeather = null;
+        network.handlers.worldOwnerTax = null;
         network.handlers.cameraAdded = null;
         network.handlers.cameraChanged = null;
         network.handlers.cameraRemoved = null;
@@ -8799,6 +9118,7 @@
         cameraConfigsByTile.clear();
         cameraLogsByTile.clear();
         currentWorldWeather = null;
+        currentWorldTax = null;
         clearWorldDrops();
         closeSignModal();
         closeWorldLockModal();
@@ -8987,6 +9307,7 @@
         network.antiGravRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/anti-gravity");
         network.plantsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/plants");
         network.weatherRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/weather");
+        network.ownerTaxRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/owner-tax");
         network.camerasRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/cameras");
         network.cameraLogsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/camera-logs");
         network.cameraLogsFeedRef = network.cameraLogsRef.limitToLast(500);
@@ -9040,6 +9361,9 @@
             setLocalDoorAccess(tx, ty, null);
             setLocalAntiGravityState(tx, ty, null);
             setLocalCameraConfig(tx, ty, null);
+            if (currentWorldTax && currentWorldTax.tx === tx && currentWorldTax.ty === ty) {
+              setLocalWorldTax(null);
+            }
             return;
           }
           world[ty][tx] = id;
@@ -9079,6 +9403,9 @@
           if (id !== CAMERA_ID) {
             setLocalCameraConfig(tx, ty, null);
           }
+          if (id !== TAX_BLOCK_ID && currentWorldTax && currentWorldTax.tx === tx && currentWorldTax.ty === ty) {
+            setLocalWorldTax(null);
+          }
         };
         const clearBlockValue = (tx, ty) => {
           clearTileDamage(tx, ty);
@@ -9102,6 +9429,9 @@
             setLocalDoorAccess(tx, ty, null);
             setLocalAntiGravityState(tx, ty, null);
             setLocalCameraConfig(tx, ty, null);
+            if (currentWorldTax && currentWorldTax.tx === tx && currentWorldTax.ty === ty) {
+              setLocalWorldTax(null);
+            }
             return;
           }
           world[ty][tx] = 0;
@@ -9120,6 +9450,9 @@
           setLocalAntiGravityState(tx, ty, null);
           setLocalTreePlant(tx, ty, null);
           setLocalCameraConfig(tx, ty, null);
+          if (currentWorldTax && currentWorldTax.tx === tx && currentWorldTax.ty === ty) {
+            setLocalWorldTax(null);
+          }
         };
 
         const handlers = typeof syncWorldsModule.buildWorldHandlers === "function"
@@ -9334,6 +9667,9 @@
         network.handlers.worldWeather = (snapshot) => {
           setLocalWorldWeather(snapshot.val());
         };
+        network.handlers.worldOwnerTax = (snapshot) => {
+          setLocalWorldTax(snapshot.val());
+        };
         network.handlers.cameraAdded = (snapshot) => {
           const tile = parseTileKey(snapshot.key || "");
           if (!tile) return;
@@ -9420,6 +9756,9 @@
         }
         if (network.weatherRef && network.handlers.worldWeather) {
           network.weatherRef.on("value", network.handlers.worldWeather);
+        }
+        if (network.ownerTaxRef && network.handlers.worldOwnerTax) {
+          network.ownerTaxRef.on("value", network.handlers.worldOwnerTax);
         }
         if (network.camerasRef && network.handlers.cameraAdded) {
           network.camerasRef.on("child_added", network.handlers.cameraAdded);

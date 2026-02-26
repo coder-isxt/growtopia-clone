@@ -615,6 +615,113 @@ window.GTModules = window.GTModules || {};
       return Boolean(get("isWorldLockOwner", false));
     }
 
+    function normalizeTaxPolicy(value) {
+      const row = value && typeof value === "object" ? value : {};
+      const percent = Math.max(0, Math.min(100, Math.floor(Number(row.percent) || 0)));
+      const ownerAccountId = String(row.ownerAccountId || "").trim();
+      const ownerName = String(row.ownerName || "").trim().slice(0, 20);
+      const tx = Math.floor(Number(row.tx));
+      const ty = Math.floor(Number(row.ty));
+      const enabled = Boolean(
+        row.enabled !== false &&
+        percent > 0 &&
+        ownerAccountId &&
+        Number.isInteger(tx) &&
+        Number.isInteger(ty) &&
+        tx >= 0 &&
+        ty >= 0
+      );
+      return {
+        enabled,
+        percent,
+        ownerAccountId,
+        ownerName,
+        tx: Number.isInteger(tx) ? tx : -1,
+        ty: Number.isInteger(ty) ? ty : -1
+      };
+    }
+
+    function getWorldTaxPolicy() {
+      const raw = typeof opts.getWorldTaxPolicy === "function"
+        ? opts.getWorldTaxPolicy()
+        : null;
+      return normalizeTaxPolicy(raw);
+    }
+
+    function getTaxSplit(totalLocks, collectorAccountId) {
+      const total = Math.max(0, Math.floor(Number(totalLocks) || 0));
+      const policy = getWorldTaxPolicy();
+      if (!policy.enabled || total <= 0) {
+        return {
+          total,
+          collectorShare: total,
+          ownerShare: 0,
+          ownerAccountId: policy.ownerAccountId,
+          ownerName: policy.ownerName,
+          percent: policy.percent,
+          tx: policy.tx,
+          ty: policy.ty,
+          taxed: false
+        };
+      }
+      const ownerShare = Math.max(0, Math.min(total, Math.floor((total * policy.percent) / 100)));
+      if (ownerShare <= 0) {
+        return {
+          total,
+          collectorShare: total,
+          ownerShare: 0,
+          ownerAccountId: policy.ownerAccountId,
+          ownerName: policy.ownerName,
+          percent: policy.percent,
+          tx: policy.tx,
+          ty: policy.ty,
+          taxed: false
+        };
+      }
+      return {
+        total,
+        collectorShare: Math.max(0, total - ownerShare),
+        ownerShare,
+        ownerAccountId: policy.ownerAccountId,
+        ownerName: policy.ownerName,
+        percent: policy.percent,
+        tx: policy.tx,
+        ty: policy.ty,
+        taxed: true
+      };
+    }
+
+    function depositTaxToTaxMachine(split, network, basePath, worldId) {
+      const ownerShare = Math.max(0, Math.floor(Number(split && split.ownerShare) || 0));
+      const tx = Math.floor(Number(split && split.tx));
+      const ty = Math.floor(Number(split && split.ty));
+      if (ownerShare <= 0) return Promise.resolve({ ok: true, applied: false });
+      if (!network || !network.db || !basePath || !worldId) return Promise.resolve({ ok: false, reason: "missing-context" });
+      if (!Number.isInteger(tx) || !Number.isInteger(ty) || tx < 0 || ty < 0) return Promise.resolve({ ok: false, reason: "missing-tax-tile" });
+      const taxRef = network.db.ref(basePath + "/worlds/" + worldId + "/owner-tax");
+      return taxRef.transaction((currentRaw) => {
+        const current = currentRaw && typeof currentRaw === "object" ? currentRaw : {};
+        const currentPercentRaw = current.taxPercent !== undefined ? current.taxPercent : current.percent;
+        const currentPercent = Math.max(0, Math.min(100, Math.floor(Number(currentPercentRaw) || 0)));
+        const existingBank = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
+        const nextPercent = Math.max(0, Math.min(100, Math.floor(Number(split.percent) || currentPercent)));
+        const ownerAccountId = String(split.ownerAccountId || current.ownerAccountId || "").trim();
+        const ownerName = String(split.ownerName || current.ownerName || "").trim().slice(0, 20);
+        return {
+          tx,
+          ty,
+          taxPercent: nextPercent,
+          ownerAccountId,
+          ownerName,
+          earningsLocks: existingBank + ownerShare,
+          updatedAt: Date.now()
+        };
+      }).then((txn) => {
+        if (!txn || !txn.committed) return { ok: false, reason: "tax-transaction-not-committed" };
+        return { ok: true, applied: true };
+      }).catch(() => ({ ok: false, reason: "tax-transaction-failed" }));
+    }
+
     function canBreakAt(tx, ty) {
       const machine = getLocal(tx, ty);
       if (!machine) return false;
@@ -903,6 +1010,7 @@ window.GTModules = window.GTModules || {};
       const ownerLabel = m.ownerName || "owner";
       const canEditMaxBet = canEditMachineMaxBet(m);
       const canManageAdvanced = canManageMachineAdvanced(m);
+      const canCollectMachine = canCollect(m);
       const isMobileUi = Boolean(get("getIsMobileUi", false));
       const spectating = Boolean(spectatingMode);
       const now = Date.now();
@@ -1243,9 +1351,11 @@ window.GTModules = window.GTModules || {};
           "<button data-gamble-act='bj-stand'" + (canActRound ? "" : " disabled") + ">Stand</button>" +
           "<button data-gamble-act='bj-double'" + (canDouble ? "" : " disabled") + ">Double</button>" +
           "<button data-gamble-act='bj-split'" + (canSplit ? "" : " disabled") + ">Split</button>" +
-          (canManageAdvanced
-            ? ("<input data-gamble-input='refill' type='number' min='1' step='1' value='1' style='max-width:120px;'>" +
-              "<button data-gamble-act='refill'>Refill</button>" +
+          ((canManageAdvanced || canCollectMachine)
+            ? ((canManageAdvanced
+              ? ("<input data-gamble-input='refill' type='number' min='1' step='1' value='1' style='max-width:120px;'>" +
+                "<button data-gamble-act='refill'>Refill</button>")
+              : "") +
               "<button data-gamble-act='collect'" + (m.earningsLocks > 0 ? "" : " disabled") + ">Collect</button>")
             : "") +
           "<button data-gamble-act='close'>Close</button>";
@@ -1253,9 +1363,11 @@ window.GTModules = window.GTModules || {};
         const spinLabel = (def.id === "blackjack" ? "Deal" : "Spin");
         els.actions.innerHTML =
           "<button data-gamble-act='spin'" + (canPlayNow && !roundActive ? "" : " disabled") + ">" + spinLabel + "</button>" +
-          (canManageAdvanced
-            ? ("<input data-gamble-input='refill' type='number' min='1' step='1' value='1' style='max-width:120px;'>" +
-              "<button data-gamble-act='refill'>Refill</button>" +
+          ((canManageAdvanced || canCollectMachine)
+            ? ((canManageAdvanced
+              ? ("<input data-gamble-input='refill' type='number' min='1' step='1' value='1' style='max-width:120px;'>" +
+                "<button data-gamble-act='refill'>Refill</button>")
+              : "") +
               "<button data-gamble-act='collect'" + (m.earningsLocks > 0 ? "" : " disabled") + ">Collect</button>")
             : "") +
           "<button data-gamble-act='close'>Close</button>";
@@ -2276,8 +2388,8 @@ window.GTModules = window.GTModules || {};
       const ty = Math.floor(Number(modalCtx.ty));
       const post = opts.postLocalSystemChat || (() => {});
       const machine = getLocal(tx, ty);
-      if (!machine || !canManageMachineAdvanced(machine)) {
-        post("Only world owner + machine owner can collect.");
+      if (!machine || !canCollect(machine)) {
+        post("Only the machine owner can collect.");
         return;
       }
       const amountLocal = Math.max(0, Math.floor(Number(machine.earningsLocks) || 0));
@@ -2291,23 +2403,34 @@ window.GTModules = window.GTModules || {};
       const profileId = String(get("getPlayerProfileId", "") || "");
 
       if (!network || !network.enabled || !network.db || !basePath || !profileId) {
-        addLocksLocal(inventory, amountLocal);
+        const splitLocal = getTaxSplit(amountLocal, profileId);
+        addLocksLocal(inventory, Math.max(0, Math.floor(Number(splitLocal.collectorShare) || 0)));
         const nextMachine = { ...machine, earningsLocks: 0, updatedAt: Date.now() };
         setLocal(tx, ty, nextMachine);
         if (typeof opts.saveInventory === "function") opts.saveInventory();
         if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
         renderModal(tx, ty, nextMachine);
+        const localTax = Math.max(0, Math.floor(Number(splitLocal.ownerShare) || 0));
+        if (localTax > 0) {
+          post(
+            "Collected " + amountLocal + " WL from machine (" +
+            (amountLocal - localTax) + " WL to machine owner, " +
+            localTax + " WL tax queued; tax block bank updates online)."
+          );
+          return;
+        }
         post("Collected " + amountLocal + " WL from machine.");
         return;
       }
 
       const machineRef = getMachineRef(tx, ty);
       if (!machineRef) return;
+      const worldId = String(get("getCurrentWorldId", "") || "");
       let collected = 0;
       machineRef.transaction((currentRaw) => {
         const current = normalizeRecord(currentRaw);
         if (!current) return currentRaw;
-        if (!canManageMachineAdvanced(current)) return currentRaw;
+        if (!canCollect(current)) return currentRaw;
         collected = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
         if (collected <= 0) return currentRaw;
         return {
@@ -2322,17 +2445,64 @@ window.GTModules = window.GTModules || {};
         }
         const raw = machineTxn.snapshot && typeof machineTxn.snapshot.val === "function" ? machineTxn.snapshot.val() : null;
         setLocal(tx, ty, raw);
+        const split = getTaxSplit(collected, profileId);
+        const collectorGain = Math.max(0, Math.floor(Number(split.collectorShare) || 0));
         return network.db.ref(basePath + "/player-inventories/" + profileId).transaction((currentRaw) => {
           const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
-          addLocksLocal(current, collected);
+          addLocksLocal(current, collectorGain);
           return current;
-        }).then(() => ({ collected }));
+        }).then(() => ({ collected, split }));
+      }).then((done) => {
+        if (!done) return null;
+        const split = done.split || {};
+        const ownerShare = Math.max(0, Math.floor(Number(split.ownerShare) || 0));
+        if (!ownerShare) return done;
+        return depositTaxToTaxMachine(split, network, basePath, worldId).then((depositResult) => {
+          if (depositResult && depositResult.ok) return done;
+          return network.db.ref(basePath + "/player-inventories/" + profileId).transaction((currentRaw) => {
+            const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+            addLocksLocal(current, ownerShare);
+            return current;
+          }).then(() => {
+            done.split = {
+              ...split,
+              ownerShare: 0,
+              collectorShare: done.collected,
+              taxed: false,
+              refunded: true
+            };
+            return done;
+          }).catch(() => {
+            done.split = {
+              ...split,
+              ownerShare: 0,
+              taxed: false,
+              refundFailed: true
+            };
+            return done;
+          });
+        });
       }).then((done) => {
         if (!done) return;
         if (typeof opts.saveInventory === "function") opts.saveInventory();
         if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
         renderModal(tx, ty, getLocal(tx, ty));
+        const split = done.split || {};
+        const ownerShare = Math.max(0, Math.floor(Number(split.ownerShare) || 0));
+        if (ownerShare > 0) {
+          post(
+            "Collected " + done.collected + " WL from machine (" +
+            (done.collected - ownerShare) + " WL to machine owner, " +
+            ownerShare + " WL tax sent to tax block at " + Math.max(0, Math.floor(Number(split.percent) || 0)) + "%)."
+          );
+          return;
+        }
         post("Collected " + done.collected + " WL from machine.");
+        if (split.refunded) {
+          post("Tax block transfer failed. Tax amount was refunded to collector.");
+        } else if (split.refundFailed) {
+          post("Tax block transfer failed and automatic refund also failed.");
+        }
       }).catch(() => {
         post("Failed to collect earnings.");
       });
@@ -2602,10 +2772,20 @@ window.GTModules = window.GTModules || {};
 
       if (!network || !network.enabled || !network.db || !basePath || !profileId) {
         if (localBank > 0) {
-          addLocksLocal(inventory, localBank);
+          const splitLocal = getTaxSplit(localBank, profileId);
+          addLocksLocal(inventory, Math.max(0, Math.floor(Number(splitLocal.collectorShare) || 0)));
           if (typeof opts.saveInventory === "function") opts.saveInventory();
           if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
-          post("Collected " + localBank + " WL from gambling machine.");
+          const localTax = Math.max(0, Math.floor(Number(splitLocal.ownerShare) || 0));
+          if (localTax > 0) {
+            post(
+              "Collected " + localBank + " WL from gambling machine (" +
+              (localBank - localTax) + " WL to machine owner, " +
+              localTax + " WL tax queued; tax block bank updates online)."
+            );
+          } else {
+            post("Collected " + localBank + " WL from gambling machine.");
+          }
         }
         closeAndClear();
         return;
@@ -2614,16 +2794,27 @@ window.GTModules = window.GTModules || {};
       const machineRef = getMachineRef(tx, ty);
       if (!machineRef) {
         if (localBank > 0) {
-          addLocksLocal(inventory, localBank);
+          const splitLocal = getTaxSplit(localBank, profileId);
+          addLocksLocal(inventory, Math.max(0, Math.floor(Number(splitLocal.collectorShare) || 0)));
           if (typeof opts.saveInventory === "function") opts.saveInventory();
           if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
-          post("Collected " + localBank + " WL from gambling machine.");
+          const localTax = Math.max(0, Math.floor(Number(splitLocal.ownerShare) || 0));
+          if (localTax > 0) {
+            post(
+              "Collected " + localBank + " WL from gambling machine (" +
+              (localBank - localTax) + " WL to machine owner, " +
+              localTax + " WL tax queued; tax block bank updates online)."
+            );
+          } else {
+            post("Collected " + localBank + " WL from gambling machine.");
+          }
         }
         closeAndClear();
         return;
       }
 
       const invRef = network.db.ref(basePath + "/player-inventories/" + profileId);
+      const worldId = String(get("getCurrentWorldId", "") || "");
       let claimed = 0;
       machineRef.transaction((currentRaw) => {
         const current = normalizeRecord(currentRaw);
@@ -2640,17 +2831,64 @@ window.GTModules = window.GTModules || {};
           closeAndClear();
           return null;
         }
+        const split = getTaxSplit(claimed, profileId);
+        const collectorGain = Math.max(0, Math.floor(Number(split.collectorShare) || 0));
         return invRef.transaction((currentRaw) => {
           const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
-          addLocksLocal(current, claimed);
+          addLocksLocal(current, collectorGain);
           return current;
-        }).then(() => ({ claimed }));
+        }).then(() => ({ claimed, split }));
+      }).then((done) => {
+        if (!done) return null;
+        const split = done.split || {};
+        const ownerShare = Math.max(0, Math.floor(Number(split.ownerShare) || 0));
+        if (!ownerShare) return done;
+        return depositTaxToTaxMachine(split, network, basePath, worldId).then((depositResult) => {
+          if (depositResult && depositResult.ok) return done;
+          return invRef.transaction((currentRaw) => {
+            const current = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+            addLocksLocal(current, ownerShare);
+            return current;
+          }).then(() => {
+            done.split = {
+              ...split,
+              ownerShare: 0,
+              collectorShare: done.claimed,
+              taxed: false,
+              refunded: true
+            };
+            return done;
+          }).catch(() => {
+            done.split = {
+              ...split,
+              ownerShare: 0,
+              taxed: false,
+              refundFailed: true
+            };
+            return done;
+          });
+        });
       }).then((done) => {
         closeAndClear();
         if (!done) return;
         if (typeof opts.saveInventory === "function") opts.saveInventory();
         if (typeof opts.refreshToolbar === "function") opts.refreshToolbar(true);
+        const split = done.split || {};
+        const ownerShare = Math.max(0, Math.floor(Number(split.ownerShare) || 0));
+        if (ownerShare > 0) {
+          post(
+            "Collected " + done.claimed + " WL from gambling machine (" +
+            (done.claimed - ownerShare) + " WL to machine owner, " +
+            ownerShare + " WL tax sent to tax block at " + Math.max(0, Math.floor(Number(split.percent) || 0)) + "%)."
+          );
+          return;
+        }
         post("Collected " + done.claimed + " WL from gambling machine.");
+        if (split.refunded) {
+          post("Tax block transfer failed. Tax amount was refunded to collector.");
+        } else if (split.refundFailed) {
+          post("Tax block transfer failed and automatic refund also failed.");
+        }
       }).catch(() => {
         closeAndClear();
       });

@@ -470,6 +470,7 @@ window.GTModules.state = (function createStateModule() {
     setValue("WOOD_PLANK_ID", 23);
     setValue("OBSIDIAN_LOCK_ID", 24);
     setValue("EMERALD_LOCK_ID", 42);
+    setValue("TAX_BLOCK_ID", 52);
     setValue("DONATION_BOX_ID", 34);
     setValue("STORAGE_CHEST_ID", 36);
     setValue("TREE_YIELD_BLOCK_ID", 4);
@@ -609,6 +610,7 @@ window.GTModules.state = (function createStateModule() {
     ensure("cameraEditContext", () => null);
     ensure("weatherEditContext", () => null);
     ensure("currentWorldWeather", () => null);
+    ensure("currentWorldTax", () => null);
     ensure("knownWorldIds", () => []);
     ensure("totalOnlinePlayers", () => 0);
     ensure("hasRenderedMenuWorldList", () => false);
