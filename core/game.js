@@ -7818,19 +7818,25 @@
         return dist <= TILE * getEditReachTiles();
       }
 
-      function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
-        return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+      function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh, minOverlap) {
+        const requiredOverlap = Math.max(0, Number(minOverlap) || 0);
+        const overlapW = Math.min(ax + aw, bx + bw) - Math.max(ax, bx);
+        if (overlapW <= requiredOverlap) return false;
+        const overlapH = Math.min(ay + ah, by + bh) - Math.max(ay, by);
+        return overlapH > requiredOverlap;
       }
 
-      function tileOccupiedByAnyPlayer(tx, ty) {
+      function tileOccupiedByAnyPlayer(tx, ty, opts) {
+        const options = opts && typeof opts === "object" ? opts : {};
+        const minOverlap = Math.max(0, Number(options.minOverlap) || 0);
         const bx = tx * TILE;
         const by = ty * TILE;
-        if (rectsOverlap(bx, by, TILE, TILE, player.x, player.y, PLAYER_W, PLAYER_H)) {
+        if (rectsOverlap(bx, by, TILE, TILE, player.x, player.y, PLAYER_W, PLAYER_H, minOverlap)) {
           return true;
         }
         for (const other of remotePlayers.values()) {
           if (!other || typeof other.x !== "number" || typeof other.y !== "number") continue;
-          if (rectsOverlap(bx, by, TILE, TILE, other.x, other.y, PLAYER_W, PLAYER_H)) {
+          if (rectsOverlap(bx, by, TILE, TILE, other.x, other.y, PLAYER_W, PLAYER_H, minOverlap)) {
             return true;
           }
         }
@@ -8035,6 +8041,8 @@
       function tryPlace(tx, ty) {
         const id = slotOrder[selectedSlot];
         if (typeof id !== "number") return;
+        const placeDef = blockDefs[id] || null;
+        const blocksPlayers = !placeDef || placeDef.solid !== false;
         if (id === SPAWN_MOVER_ID) {
           tryUseSpawnMover(tx, ty);
           return;
@@ -8047,7 +8055,7 @@
         }
         if (inventory[id] <= 0) return;
         if (world[ty][tx] !== 0) return;
-        if (tileOccupiedByAnyPlayer(tx, ty)) return;
+        if (blocksPlayers && tileOccupiedByAnyPlayer(tx, ty, { minOverlap: 0.75 })) return;
         if (isPlantSeedBlockId(id)) {
           const supportTy = ty + 1;
           if (supportTy >= WORLD_H || world[supportTy][tx] === 0) {
@@ -8071,12 +8079,6 @@
         }
         if (id === TAX_BLOCK_ID && hasOwnerTaxBlockInWorld()) {
           postLocalSystemChat("Only one owner Tax Machine is allowed per world.");
-          return;
-        }
-
-        const bx = tx * TILE;
-        const by = ty * TILE;
-        if (bx < player.x + PLAYER_W && bx + TILE > player.x && by < player.y + PLAYER_H && by + TILE > player.y) {
           return;
         }
 
@@ -8608,17 +8610,6 @@
 
       function interactWithWrench(tx, ty) {
         if (!canEditTarget(tx, ty)) return;
-        const remoteAtTile = getRemotePlayerAtTile(tx, ty);
-        if (remoteAtTile) {
-          const friendCtrl = getFriendsController();
-          if (friendCtrl && typeof friendCtrl.openProfile === "function") {
-            friendCtrl.openProfile({
-              accountId: remoteAtTile.accountId,
-              name: remoteAtTile.name
-            });
-            return;
-          }
-        }
         const id = world[ty][tx];
         if (isWorldLockBlockId(id)) {
           openWorldLockModal(tx, ty);
