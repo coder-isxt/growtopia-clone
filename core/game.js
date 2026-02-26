@@ -2,9 +2,11 @@
       const modules = window.GTModules || {};
       const stateModule = modules.state || {};
       const remoteSyncModule = modules.remoteSync || {};
+      const splicingModule = modules.splicing || {};
       const STATE_FALLBACK_INJECT_KEY = "gt_state_fallback_injected_v2";
       const STATE_FALLBACK_RELOAD_KEY = "gt_state_fallback_reloaded_v2";
       let remotePlayerSyncController = null;
+      let splicingController = null;
       function tryLoadStateFallbackOnce(reason) {
         try {
           if (sessionStorage.getItem(STATE_FALLBACK_INJECT_KEY) !== "1") {
@@ -125,6 +127,11 @@
           if (sourceId > 0) out[sourceId] = seedId;
         }
         return out;
+      })();
+      const SPLICER_ID = (() => {
+        const machine = Object.values(blockDefs).find((def) => def && def.key === "splicing_machine");
+        const id = machine ? Math.floor(Number(machine.id) || 0) : 0;
+        return id > 0 ? id : 43;
       })();
       const INVENTORY_IDS = Object.keys(blockDefs)
         .map((id) => Math.floor(Number(id)))
@@ -366,6 +373,29 @@
           gambleController.bindModalEvents();
         }
         return gambleController;
+      }
+
+      function getSplicingController() {
+        if (splicingController) return splicingController;
+        if (typeof splicingModule.createController !== "function") return null;
+        splicingController = splicingModule.createController({
+          getWorld: () => world,
+          getSplicerId: () => SPLICER_ID,
+          getInventory: () => inventory,
+          getInventoryIds: () => INVENTORY_IDS,
+          getSeedInventoryIds: () => SEED_INVENTORY_IDS,
+          getBlockDefs: () => blockDefs,
+          getInventoryItemLimit: () => INVENTORY_ITEM_LIMIT,
+          getTileSize: () => TILE,
+          spawnWorldDropEntry,
+          saveInventory,
+          refreshToolbar,
+          postLocalSystemChat
+        });
+        if (typeof splicingController.bindModalEvents === "function") {
+          splicingController.bindModalEvents();
+        }
+        return splicingController;
       }
 
       function getPresenceByAccountId(accountId) {
@@ -4992,6 +5022,7 @@
         closeGambleModal();
         closeDonationModal();
         closeChestModal();
+        closeSplicingModal();
         closeTradeMenuModal();
         closeTradeRequestModal();
         closeFriendModals();
@@ -5053,6 +5084,7 @@
           closeDoorModal();
           closeCameraModal();
           closeWeatherModal();
+          closeSplicingModal();
           closeTradeMenuModal();
           closeTradeRequestModal();
           closeFriendModals();
@@ -6671,6 +6703,18 @@
         ctrl.openModal(tx, ty);
       }
 
+      function closeSplicingModal() {
+        const ctrl = getSplicingController();
+        if (!ctrl || typeof ctrl.closeModal !== "function") return;
+        ctrl.closeModal();
+      }
+
+      function openSplicingModal(tx, ty) {
+        const ctrl = getSplicingController();
+        if (!ctrl || typeof ctrl.openModal !== "function") return;
+        ctrl.openModal(tx, ty);
+      }
+
       function normalizeVendingRecord(value) {
         const ctrl = getVendingController();
         if (!ctrl || typeof ctrl.normalizeRecord !== "function") return null;
@@ -7508,6 +7552,7 @@
         closeCameraModal();
         closeWeatherModal();
         closeGambleModal();
+        closeSplicingModal();
         if (network.enabled) {
           const dbOps = [];
           if (network.blocksRef && Object.keys(updates).length) {
@@ -7955,6 +8000,9 @@
             closeSignModal();
           }
         }
+        if (id === SPLICER_ID) {
+          closeSplicingModal();
+        }
         if (id === DOOR_BLOCK_ID) {
           setLocalDoorAccess(tx, ty, null);
           if (network.enabled && network.doorsRef) {
@@ -8179,6 +8227,10 @@
         }
         if (isChestBlockId(id)) {
           openChestModal(tx, ty);
+          return;
+        }
+        if (id === SPLICER_ID) {
+          openSplicingModal(tx, ty);
           return;
         }
         if (id === SIGN_ID) {
@@ -8703,6 +8755,7 @@
         closeGambleModal();
         closeDonationModal();
         closeChestModal();
+        closeSplicingModal();
         closeTradeMenuModal();
         closeTradeRequestModal();
         closeFriendModals();
@@ -9648,6 +9701,10 @@
         const gambleCtrl = getGambleController();
         if (gambleCtrl && typeof gambleCtrl.bindModalEvents === "function") {
           gambleCtrl.bindModalEvents();
+        }
+        const splicingCtrl = getSplicingController();
+        if (splicingCtrl && typeof splicingCtrl.bindModalEvents === "function") {
+          splicingCtrl.bindModalEvents();
         }
         if (signCloseBtn) {
           eventsModule.on(signCloseBtn, "click", () => {
@@ -11298,6 +11355,12 @@
         if (e.key === "Escape" && gambleModalEl && !gambleModalEl.classList.contains("hidden")) {
           e.preventDefault();
           closeGambleModal();
+          return;
+        }
+        const splicingModalEl = document.getElementById("splicingModal");
+        if (e.key === "Escape" && splicingModalEl && !splicingModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeSplicingModal();
           return;
         }
         if (e.key === "Escape" && signModalEl && !signModalEl.classList.contains("hidden")) {
