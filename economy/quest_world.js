@@ -678,37 +678,8 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       return Boolean(call("hasOwnerRole"));
     }
 
-    function renderOwnerControls(config) {
-      if (!isOwnerRole()) return "";
-      const currentPathId = normalizePathId((config && config.questPathId) || "") || DEFAULT_PATH_ID;
-      const currentPath = getQuestPathById(currentPathId);
-      const paths = listQuestPaths();
-      const options = paths.map((row) => {
-        const selected = row.id === currentPathId ? " selected" : "";
-        return '<option value="' + esc(row.id) + '"' + selected + ">" + esc((row.name || row.id) + " (" + row.id + ", " + row.questsCount + " quests)") + "</option>";
-      }).join("");
-      return (
-        '<div class="vending-section">' +
-          '<div class="vending-section-title">Owner Controls</div>' +
-          '<div class="sign-hint">Current path: <strong>' + esc(currentPath ? currentPath.name + " (" + currentPath.id + ")" : currentPathId) + "</strong></div>" +
-          '<div class="sign-hint">Set quest path for this world:</div>' +
-          '<select id="questWorldPathSelect">' + options + "</select>" +
-          '<input id="questWorldPathInput" type="text" placeholder="or type new path id" value="">' +
-          '<div class="vending-actions">' +
-            '<button type="button" data-quest-admin-act="set-path">Set Path</button>' +
-          "</div>" +
-          '<div class="sign-hint">Add fetch quest to a path (unlimited quest chain length):</div>' +
-          '<input id="questWorldFetchPathInput" type="text" placeholder="path id or current" value="' + esc(currentPathId || "current") + '">' +
-          '<input id="questWorldFetchBlockInput" type="text" placeholder="block id or key (e.g. wood_block)" value="wood_block">' +
-          '<input id="questWorldFetchAmountInput" type="number" min="1" step="1" value="50">' +
-          '<input id="questWorldFetchTitleInput" type="text" placeholder="Quest title" value="Bring me 50 wood blocks">' +
-          '<input id="questWorldFetchDescriptionInput" type="text" placeholder="Quest description (optional)" value="">' +
-          '<input id="questWorldFetchRewardInput" type="text" placeholder="Reward text (optional)" value="Reward placeholder">' +
-          '<div class="vending-actions">' +
-            '<button type="button" data-quest-admin-act="add-fetch">Add Fetch Quest</button>' +
-          "</div>" +
-        "</div>"
-      );
+    function renderOwnerControls() {
+      return "";
     }
 
     function renderModal() {
