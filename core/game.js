@@ -3,10 +3,12 @@
       const stateModule = modules.state || {};
       const remoteSyncModule = modules.remoteSync || {};
       const splicingModule = modules.splicing || {};
+      const cloudflareGatewayModule = modules.cloudflareGateway || {};
       const STATE_FALLBACK_INJECT_KEY = "gt_state_fallback_injected_v2";
       const STATE_FALLBACK_RELOAD_KEY = "gt_state_fallback_reloaded_v2";
       let remotePlayerSyncController = null;
       let splicingController = null;
+      let cloudflareGatewayController = null;
       function tryLoadStateFallbackOnce(reason) {
         try {
           if (sessionStorage.getItem(STATE_FALLBACK_INJECT_KEY) !== "1") {
@@ -2580,13 +2582,15 @@
           return;
         }
         if (action === "clearaudit") {
-          if (!network.db || !hasAdminPermission("clear_logs")) return;
-          network.db.ref(BASE_PATH + "/admin-audit").remove().then(() => {
+          if (!hasAdminPermission("clear_logs")) return;
+          clearAdminAuditTrail().then((ok) => {
+            if (!ok) {
+              postLocalSystemChat("Failed to clear audit trail.");
+              return;
+            }
             adminState.audit = [];
             renderAdminPanel();
             postLocalSystemChat("Audit trail cleared.");
-          }).catch(() => {
-            postLocalSystemChat("Failed to clear audit trail.");
           });
           return;
         }
@@ -3223,21 +3227,116 @@
         }, safeDuration);
       }
 
+      function getCloudflareGatewayController() {
+        if (cloudflareGatewayController) return cloudflareGatewayController;
+        if (typeof cloudflareGatewayModule.createController !== "function") return null;
+        cloudflareGatewayController = cloudflareGatewayModule.createController({
+          basePath: BASE_PATH,
+          endpoint: window.CLOUDFLARE_PACKET_ENDPOINT || "",
+          timeoutMs: 9000
+        });
+        return cloudflareGatewayController;
+      }
+
+      function proxyAdminSet(path, value) {
+        const ctrl = getCloudflareGatewayController();
+        if (!ctrl || typeof ctrl.writeSet !== "function") {
+          return Promise.resolve({ ok: false, error: "Cloudflare gateway unavailable." });
+        }
+        return ctrl.writeSet(path, value);
+      }
+
+      function proxyAdminRemove(path) {
+        const ctrl = getCloudflareGatewayController();
+        if (!ctrl || typeof ctrl.writeRemove !== "function") {
+          return Promise.resolve({ ok: false, error: "Cloudflare gateway unavailable." });
+        }
+        return ctrl.writeRemove(path);
+      }
+
+      function proxyAdminIncrement(path, delta, options) {
+        const ctrl = getCloudflareGatewayController();
+        if (!ctrl || typeof ctrl.writeIncrement !== "function") {
+          return Promise.resolve({ ok: false, error: "Cloudflare gateway unavailable." });
+        }
+        return ctrl.writeIncrement(path, delta, options);
+      }
+
+      function makeAdminPushKey(path) {
+        if (network.db && typeof network.db.ref === "function") {
+          try {
+            const safePath = String(path || "").replace(/^\/+/, "");
+            const key = network.db.ref(safePath).push().key;
+            if (key) return String(key);
+          } catch (error) {
+            // ignore and fallback
+          }
+        }
+        return "k_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+      }
+
+      function issueGlobalAnnouncement(messageText) {
+        const text = (messageText || "").toString().trim().slice(0, 140);
+        if (!text) return Promise.resolve(false);
+        const payload = {
+          id: "an_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
+          text,
+          actorUsername: (playerName || "admin").toString().slice(0, 20),
+          createdAt: Date.now()
+        };
+        const path = "/" + BASE_PATH + "/system/announcement";
+        return proxyAdminSet(path, payload).then((out) => {
+          if (out && out.ok) {
+            window.__gtLastAdminBackendError = "";
+            return true;
+          }
+          const status = Number(out && out.status);
+          const errorText = out && out.error ? String(out.error) : "";
+          window.__gtLastAdminBackendError = errorText || (Number.isFinite(status) && status > 0 ? ("status " + status) : "unknown backend error");
+          return false;
+        }).catch((error) => {
+          window.__gtLastAdminBackendError = String(error && error.message || "request failed");
+          return false;
+        });
+      }
+
+      function clearAdminAuditTrail() {
+        if (!hasAdminPermission("clear_logs")) return Promise.resolve(false);
+        const path = "/" + BASE_PATH + "/admin-audit";
+        return proxyAdminRemove(path).then((out) => {
+          if (out && out.ok) {
+            window.__gtLastAdminBackendError = "";
+            return true;
+          }
+          const status = Number(out && out.status);
+          const errorText = out && out.error ? String(out.error) : "";
+          window.__gtLastAdminBackendError = errorText || (Number.isFinite(status) && status > 0 ? ("status " + status) : "unknown backend error");
+          return false;
+        }).catch((error) => {
+          window.__gtLastAdminBackendError = String(error && error.message || "request failed");
+          return false;
+        });
+      }
+
       function triggerForceReloadAll(sourceTag) {
-        if (!network.db || !hasAdminPermission("force_reload")) {
+        if (!hasAdminPermission("force_reload")) {
           postLocalSystemChat("Permission denied.");
           return;
         }
         const eventId = "fr_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
         const assetVersion = buildAssetVersionTag();
-        network.db.ref(BASE_PATH + "/system/force-reload").set({
+        proxyAdminSet("/" + BASE_PATH + "/system/force-reload", {
           id: eventId,
           assetVersion,
-          createdAt: firebase.database.ServerValue.TIMESTAMP,
+          createdAt: Date.now(),
           actorAccountId: playerProfileId || "",
           actorUsername: playerName || "",
           source: (sourceTag || "panel").toString().slice(0, 16)
-        }).then(() => {
+        }).then((out) => {
+          if (!out || !out.ok) {
+            postLocalSystemChat("Failed to send reload broadcast.");
+            return;
+          }
           logAdminAudit("Admin(" + (sourceTag || "panel") + ") requested global client reload.");
           pushAdminAuditEntry("force_reload", "", "all_clients version=" + assetVersion);
           postLocalSystemChat("Force reload broadcast sent (v=" + assetVersion + ").");
@@ -3252,7 +3351,7 @@
       }
 
       function applyInventoryGrant(accountId, blockId, amount, sourceTag, targetLabel) {
-        if (!accountId || !canUseAdminPanel || !network.db) return false;
+        if (!accountId || !canUseAdminPanel) return false;
         if (!ensureCommandReady("give_block")) return false;
         if (!hasAdminPermission("give_block")) {
           postLocalSystemChat("Permission denied.");
@@ -3270,11 +3369,17 @@
           postLocalSystemChat("Usage: blockId <number|key> (e.g. wood_block) and amount >= 1.");
           return false;
         }
-        network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + safeBlock).transaction((current) => {
-          const next = (Number(current) || 0) + safeAmount;
-          return Math.max(0, next);
-        }).then((result) => {
-          const next = Math.max(0, Math.floor(Number(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0) || 0));
+        proxyAdminIncrement("/" + BASE_PATH + "/player-inventories/" + accountId + "/" + safeBlock, safeAmount, {
+          min: 0,
+          integer: true
+        }).then((out) => {
+          if (!out || !out.ok) {
+            postLocalSystemChat("Failed to update inventory.");
+            return;
+          }
+          const currentLocal = Math.max(0, Math.floor(Number(adminState.inventories[accountId] && adminState.inventories[accountId][safeBlock]) || 0));
+          const nextFromWorker = Number(out && out.result && out.result.next);
+          const next = Math.max(0, Math.floor(Number.isFinite(nextFromWorker) ? nextFromWorker : (currentLocal + safeAmount)));
           setLocalInventoryBlockCount(accountId, safeBlock, next);
           const target = targetLabel || targetUsername || accountId;
           logAdminAudit("Admin(" + sourceTag + ") gave @" + target + " block " + safeBlock + " amount " + safeAmount + ".");
@@ -3288,7 +3393,7 @@
       }
 
       function applyCosmeticItemGrant(accountId, itemId, amount, sourceTag, targetLabel) {
-        if (!accountId || !canUseAdminPanel || !network.db) return false;
+        if (!accountId || !canUseAdminPanel) return false;
         if (!ensureCommandReady("give_item")) return false;
         if (!hasAdminPermission("give_item")) {
           postLocalSystemChat("Permission denied.");
@@ -3307,11 +3412,17 @@
           postLocalSystemChat("Usage: /giveitem <user> <itemId> <amount>");
           return false;
         }
-        network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/cosmeticItems/" + itemIdSafe).transaction((current) => {
-          const next = (Number(current) || 0) + amountSafe;
-          return Math.max(0, next);
-        }).then((result) => {
-          const next = Math.max(0, Math.floor(Number(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0) || 0));
+        proxyAdminIncrement("/" + BASE_PATH + "/player-inventories/" + accountId + "/cosmeticItems/" + itemIdSafe, amountSafe, {
+          min: 0,
+          integer: true
+        }).then((out) => {
+          if (!out || !out.ok) {
+            postLocalSystemChat("Failed to give item.");
+            return;
+          }
+          const currentLocal = Math.max(0, Math.floor(Number(adminState.inventories[accountId] && adminState.inventories[accountId].cosmeticItems && adminState.inventories[accountId].cosmeticItems[itemIdSafe]) || 0));
+          const nextFromWorker = Number(out && out.result && out.result.next);
+          const next = Math.max(0, Math.floor(Number.isFinite(nextFromWorker) ? nextFromWorker : (currentLocal + amountSafe)));
           setLocalInventoryCosmeticCount(accountId, itemIdSafe, next);
           const target = targetLabel || targetUsername || accountId;
           logAdminAudit("Admin(" + sourceTag + ") gave @" + target + " item " + itemIdSafe + " x" + amountSafe + ".");
@@ -3325,7 +3436,7 @@
       }
 
       function applyTitleGrant(accountId, titleId, amount, sourceTag, targetLabel, removeMode) {
-        if (!accountId || !canUseAdminPanel || !network.db) return false;
+        if (!accountId || !canUseAdminPanel) return false;
         if (!ensureCommandReady(removeMode ? "removetitle" : "givetitle")) return false;
         if (!hasAdminPermission(removeMode ? "remove_title" : "give_title")) {
           postLocalSystemChat("Permission denied.");
@@ -3344,10 +3455,13 @@
           postLocalSystemChat("Usage: " + (removeMode ? "/removetitle" : "/givetitle") + " <user> <title_id> <amount>");
           return false;
         }
-        network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/titleItems/" + titleIdSafe).transaction((current) => {
-          return removeMode ? 0 : 1;
-        }).then((result) => {
-          const next = clampTitleUnlocked(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0);
+        const nextValue = removeMode ? 0 : 1;
+        proxyAdminSet("/" + BASE_PATH + "/player-inventories/" + accountId + "/titleItems/" + titleIdSafe, nextValue).then((out) => {
+          if (!out || !out.ok) {
+            postLocalSystemChat("Failed to update title.");
+            return;
+          }
+          const next = clampTitleUnlocked(nextValue);
           setLocalInventoryTitleCount(accountId, titleIdSafe, next);
           const target = targetLabel || targetUsername || accountId;
           logAdminAudit("Admin(" + sourceTag + ") " + (removeMode ? "removed title " : "unlocked title ") + titleIdSafe + " " + (removeMode ? "from" : "to") + " @" + target + ".");
@@ -3360,7 +3474,8 @@
       }
 
       function pushAdminAuditEntry(action, targetAccountId, details) {
-        if (!network.db) return;
+        const auditPath = "/" + BASE_PATH + "/admin-audit";
+        const auditKey = makeAdminPushKey(auditPath);
         const payload = {
           actorAccountId: playerProfileId || "",
           actorUsername: playerName || "",
@@ -3369,13 +3484,13 @@
           targetAccountId: targetAccountId || "",
           targetUsername: (adminState.accounts[targetAccountId] && adminState.accounts[targetAccountId].username) || "",
           details: (details || "").toString().slice(0, 180),
-          createdAt: firebase.database.ServerValue.TIMESTAMP
+          createdAt: Date.now()
         };
-        network.db.ref(BASE_PATH + "/admin-audit").push(payload).catch(() => {});
+        proxyAdminSet(auditPath + "/" + auditKey, payload).catch(() => {});
       }
 
       function applyAdminAction(action, accountId, sourceTag, opts) {
-        if (!action || !accountId || !canUseAdminPanel || !network.db) return false;
+        if (!action || !accountId || !canUseAdminPanel) return false;
         if (!ensureCommandReady(action)) return false;
         const options = opts || {};
         const targetUsername = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || "";
@@ -3402,15 +3517,16 @@
           }
           const reason = (options.reason || "Temporarily banned by admin").toString().slice(0, 80);
           const expiresAt = Date.now() + durationMs;
-          network.db.ref(BASE_PATH + "/bans/" + accountId).set({
+          proxyAdminSet("/" + BASE_PATH + "/bans/" + accountId, {
             type: "temporary",
             reason,
             bannedBy: playerName,
             durationMs,
             expiresAt,
-            createdAt: firebase.database.ServerValue.TIMESTAMP
-          }).then(() => {
-            network.db.ref(BASE_PATH + "/account-sessions/" + accountId).remove().catch(() => {});
+            createdAt: Date.now()
+          }).then((out) => {
+            if (!out || !out.ok) return;
+            proxyAdminRemove("/" + BASE_PATH + "/account-sessions/" + accountId).catch(() => {});
             const durationLabel = options.rawDuration || formatRemainingMs(durationMs);
             logAdminAudit("Admin(" + sourceTag + ") tempbanned account " + accountId + " for " + durationLabel + ".");
             pushAdminAuditEntry("tempban", accountId, "duration=" + durationLabel + " reason=" + reason);
@@ -3419,27 +3535,30 @@
         }
         if (action === "permban") {
           const reason = (options.reason || "Permanently banned by admin").toString().slice(0, 80);
-          network.db.ref(BASE_PATH + "/bans/" + accountId).set({
+          proxyAdminSet("/" + BASE_PATH + "/bans/" + accountId, {
             type: "permanent",
             reason,
             bannedBy: playerName,
-            createdAt: firebase.database.ServerValue.TIMESTAMP
-          }).then(() => {
-            network.db.ref(BASE_PATH + "/account-sessions/" + accountId).remove().catch(() => {});
+            createdAt: Date.now()
+          }).then((out) => {
+            if (!out || !out.ok) return;
+            proxyAdminRemove("/" + BASE_PATH + "/account-sessions/" + accountId).catch(() => {});
             logAdminAudit("Admin(" + sourceTag + ") permbanned account " + accountId + ".");
             pushAdminAuditEntry("permban", accountId, "reason=" + reason);
           }).catch(() => {});
           return true;
         }
         if (action === "unban") {
-          network.db.ref(BASE_PATH + "/bans/" + accountId).remove().then(() => {
+          proxyAdminRemove("/" + BASE_PATH + "/bans/" + accountId).then((out) => {
+            if (!out || !out.ok) return;
             logAdminAudit("Admin(" + sourceTag + ") unbanned account " + accountId + ".");
             pushAdminAuditEntry("unban", accountId, "");
           }).catch(() => {});
           return true;
         }
         if (action === "kick") {
-          network.db.ref(BASE_PATH + "/account-sessions/" + accountId).remove().then(() => {
+          proxyAdminRemove("/" + BASE_PATH + "/account-sessions/" + accountId).then((out) => {
+            if (!out || !out.ok) return;
             logAdminAudit("Admin(" + sourceTag + ") kicked account " + accountId + ".");
             pushAdminAuditEntry("kick", accountId, "");
           }).catch(() => {});
@@ -3479,7 +3598,8 @@
             equippedTitle: TITLE_DEFAULT_ID || "",
             equippedCosmetics: { shirts: "", pants: "", shoes: "", hats: "", wings: "", swords: "" }
           };
-          network.db.ref(BASE_PATH + "/player-inventories/" + accountId).set(resetPayload).then(() => {
+          proxyAdminSet("/" + BASE_PATH + "/player-inventories/" + accountId, resetPayload).then((out) => {
+            if (!out || !out.ok) return;
             adminState.inventories[accountId] = JSON.parse(JSON.stringify(resetPayload));
             logAdminAudit("Admin(" + sourceTag + ") reset inventory for " + accountId + ".");
             pushAdminAuditEntry("resetinv", accountId, "");
@@ -3491,7 +3611,7 @@
       }
 
       function applyAdminRoleChange(accountId, nextRole, sourceTag) {
-        if (!accountId || !network.db || !canUseAdminPanel) return false;
+        if (!accountId || !canUseAdminPanel) return false;
         if (!ensureCommandReady("setrole")) return false;
         const normalized = normalizeAdminRole(nextRole);
         if (!hasAdminPermission("setrole") && !hasAdminPermission("setrole_limited")) {
@@ -3502,9 +3622,12 @@
           postLocalSystemChat("You cannot set that role for this account.");
           return false;
         }
-        const roleRef = network.db.ref(BASE_PATH + "/admin-roles/" + accountId);
-        const op = normalized === "none" ? roleRef.remove() : roleRef.set(normalized);
-        op.then(() => {
+        const rolePath = "/" + BASE_PATH + "/admin-roles/" + accountId;
+        const op = normalized === "none"
+          ? proxyAdminRemove(rolePath)
+          : proxyAdminSet(rolePath, normalized);
+        op.then((out) => {
+          if (!out || !out.ok) throw new Error("Role update failed.");
           logAdminAudit("Admin(" + sourceTag + ") set role " + normalized + " for account " + accountId + ".");
           pushAdminAuditEntry("setrole", accountId, "role=" + normalized);
         }).catch(() => {
@@ -3548,7 +3671,7 @@
       }
 
       function issueTeleportCommand(targetAccountId, worldId, x, y) {
-        if (!network.db || !targetAccountId) return Promise.resolve(false);
+        if (!targetAccountId) return Promise.resolve(false);
         const safeWorld = normalizeWorldId(worldId || currentWorldId);
         if (!safeWorld) return Promise.resolve(false);
         const commandId = "tp_" + Math.random().toString(36).slice(2, 12);
@@ -3558,10 +3681,10 @@
           x: clampTeleport(x, 0, WORLD_W * TILE - PLAYER_W - 2),
           y: clampTeleport(y, 0, WORLD_H * TILE - PLAYER_H - 2),
           by: playerName,
-          issuedAt: firebase.database.ServerValue.TIMESTAMP
+          issuedAt: Date.now()
         };
-        return network.db.ref(BASE_PATH + "/account-commands/" + targetAccountId + "/teleport").set(payload)
-          .then(() => true)
+        return proxyAdminSet("/" + BASE_PATH + "/account-commands/" + targetAccountId + "/teleport", payload)
+          .then((out) => Boolean(out && out.ok))
           .catch(() => false);
       }
 
@@ -3584,48 +3707,48 @@
       }
 
       function issueReachCommand(targetAccountId, reachTiles) {
-        if (!network.db || !targetAccountId) return Promise.resolve(false);
+        if (!targetAccountId) return Promise.resolve(false);
         const payload = {
           id: "rch_" + Math.random().toString(36).slice(2, 12),
           reachTiles: normalizeEditReachTiles(reachTiles),
           by: (playerName || "admin").toString().slice(0, 20),
-          issuedAt: firebase.database.ServerValue.TIMESTAMP
+          issuedAt: Date.now()
         };
-        return network.db.ref(BASE_PATH + "/account-commands/" + targetAccountId + "/reach").set(payload)
-          .then(() => true)
+        return proxyAdminSet("/" + BASE_PATH + "/account-commands/" + targetAccountId + "/reach", payload)
+          .then((out) => Boolean(out && out.ok))
           .catch(() => false);
       }
 
       function issueFreezeCommand(targetAccountId, frozen) {
-        if (!network.db || !targetAccountId) return Promise.resolve(false);
+        if (!targetAccountId) return Promise.resolve(false);
         const commandId = "frz_" + Math.random().toString(36).slice(2, 12);
         const payload = {
           id: commandId,
           frozen: Boolean(frozen),
           by: (playerName || "admin").toString().slice(0, 20),
-          issuedAt: firebase.database.ServerValue.TIMESTAMP
+          issuedAt: Date.now()
         };
-        return network.db.ref(BASE_PATH + "/account-commands/" + targetAccountId + "/freeze").set(payload)
-          .then(() => true)
+        return proxyAdminSet("/" + BASE_PATH + "/account-commands/" + targetAccountId + "/freeze", payload)
+          .then((out) => Boolean(out && out.ok))
           .catch(() => false);
       }
 
       function issueGodModeCommand(targetAccountId, enabled) {
-        if (!network.db || !targetAccountId) return Promise.resolve(false);
+        if (!targetAccountId) return Promise.resolve(false);
         const commandId = "god_" + Math.random().toString(36).slice(2, 12);
         const payload = {
           id: commandId,
           enabled: Boolean(enabled),
           by: (playerName || "admin").toString().slice(0, 20),
-          issuedAt: firebase.database.ServerValue.TIMESTAMP
+          issuedAt: Date.now()
         };
-        return network.db.ref(BASE_PATH + "/account-commands/" + targetAccountId + "/godmode").set(payload)
-          .then(() => true)
+        return proxyAdminSet("/" + BASE_PATH + "/account-commands/" + targetAccountId + "/godmode", payload)
+          .then((out) => Boolean(out && out.ok))
           .catch(() => false);
       }
 
       function issuePrivateAnnouncement(targetAccountId, messageText) {
-        if (!network.db || !targetAccountId) return Promise.resolve(false);
+        if (!targetAccountId) return Promise.resolve(false);
         const commandId = "pa_" + Math.random().toString(36).slice(2, 12);
         const text = (messageText || "").toString().trim().slice(0, 180);
         if (!text) return Promise.resolve(false);
@@ -3633,26 +3756,28 @@
           id: commandId,
           text,
           actorUsername: (playerName || "admin").toString().slice(0, 20),
-          issuedAt: firebase.database.ServerValue.TIMESTAMP
+          issuedAt: Date.now()
         };
-        return network.db.ref(BASE_PATH + "/account-commands/" + targetAccountId + "/announce").set(payload)
-          .then(() => true)
+        return proxyAdminSet("/" + BASE_PATH + "/account-commands/" + targetAccountId + "/announce", payload)
+          .then((out) => Boolean(out && out.ok))
           .catch(() => false);
       }
 
       function issuePrivateMessage(targetAccountId, messageText) {
-        if (!network.db || !targetAccountId) return Promise.resolve(false);
+        if (!targetAccountId) return Promise.resolve(false);
         const text = (messageText || "").toString().trim().slice(0, 160);
         if (!text) return Promise.resolve(false);
+        const rootPath = "/" + BASE_PATH + "/account-commands/" + targetAccountId + "/pm";
+        const messageKey = makeAdminPushKey(rootPath);
         const payload = {
           id: "pm_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
           fromAccountId: playerProfileId || "",
           fromUsername: (playerName || "").toString().slice(0, 20),
           text,
-          createdAt: firebase.database.ServerValue.TIMESTAMP
+          createdAt: Date.now()
         };
-        return network.db.ref(BASE_PATH + "/account-commands/" + targetAccountId + "/pm").push(payload)
-          .then(() => true)
+        return proxyAdminSet(rootPath + "/" + messageKey, payload)
+          .then((out) => Boolean(out && out.ok))
           .catch(() => false);
       }
 
@@ -3775,6 +3900,7 @@
           adminState,
           canActorAffectTarget,
           issuePrivateAnnouncement,
+          issueGlobalAnnouncement,
           issueReachCommand,
           logAdminAudit,
           BASE_PATH,
@@ -3782,6 +3908,7 @@
           firebase,
           sendSystemWorldMessage,
           clearLogsData,
+          clearAdminAuditTrail,
           refreshAuditActionFilterOptions,
           renderAdminPanel,
           playerProfileId,
@@ -5557,8 +5684,9 @@
       }
 
       function clearLogsData() {
-        if (hasAdminPermission("clear_logs") && network.db) {
-          network.db.ref(BASE_PATH + "/account-logs").remove().then(() => {
+        if (hasAdminPermission("clear_logs")) {
+          proxyAdminRemove("/" + BASE_PATH + "/account-logs").then((out) => {
+            if (!out || !out.ok) return;
             clearLogsView();
             logAdminAudit("Admin(panel) cleared account logs.");
             pushAdminAuditEntry("clear_logs", "", "");

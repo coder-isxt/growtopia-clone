@@ -397,6 +397,7 @@ window.GTModules.commands = {
         : ((text) => {
             const gatewayModule = window.GTModules && window.GTModules.cloudflareGateway;
             if (!gatewayModule || typeof gatewayModule.createController !== "function") {
+              window.__gtLastAdminBackendError = "cloudflare gateway module missing";
               return Promise.resolve(false);
             }
             const ctrl = gatewayModule.createController({
@@ -411,19 +412,33 @@ window.GTModules.commands = {
               createdAt: Date.now()
             };
             return ctrl.writeSet("system/announcement", payload)
-              .then((out) => Boolean(out && out.ok))
-              .catch(() => false);
+              .then((out) => {
+                if (out && out.ok) {
+                  window.__gtLastAdminBackendError = "";
+                  return true;
+                }
+                const status = Number(out && out.status);
+                const errorText = out && out.error ? String(out.error) : "";
+                window.__gtLastAdminBackendError = errorText || (Number.isFinite(status) && status > 0 ? ("status " + status) : "unknown backend error");
+                return false;
+              })
+              .catch((error) => {
+                window.__gtLastAdminBackendError = String(error && error.message || "request failed");
+                return false;
+              });
           });
       issueGlobalAnnouncement(msg).then((ok) => {
         if (!ok) {
-          c.postLocalSystemChat("Failed to send announcement.");
+          const backendError = String(window.__gtLastAdminBackendError || "").trim();
+          c.postLocalSystemChat("Failed to send announcement." + (backendError ? (" (" + backendError + ")") : ""));
           return;
         }
         c.sendSystemWorldMessage("[Admin] " + (c.playerName || "admin") + ": " + msg);
         c.postLocalSystemChat("Announcement sent.");
         c.pushAdminAuditEntry("announce", "", msg.slice(0, 80));
       }).catch(() => {
-        c.postLocalSystemChat("Failed to send announcement.");
+        const backendError = String(window.__gtLastAdminBackendError || "").trim();
+        c.postLocalSystemChat("Failed to send announcement." + (backendError ? (" (" + backendError + ")") : ""));
       });
       return true;
     }
@@ -469,6 +484,7 @@ window.GTModules.commands = {
         : (() => {
             const gatewayModule = window.GTModules && window.GTModules.cloudflareGateway;
             if (!gatewayModule || typeof gatewayModule.createController !== "function") {
+              window.__gtLastAdminBackendError = "cloudflare gateway module missing";
               return Promise.resolve(false);
             }
             const ctrl = gatewayModule.createController({
@@ -477,12 +493,25 @@ window.GTModules.commands = {
               timeoutMs: 9000
             });
             return ctrl.writeRemove("admin-audit")
-              .then((out) => Boolean(out && out.ok))
-              .catch(() => false);
+              .then((out) => {
+                if (out && out.ok) {
+                  window.__gtLastAdminBackendError = "";
+                  return true;
+                }
+                const status = Number(out && out.status);
+                const errorText = out && out.error ? String(out.error) : "";
+                window.__gtLastAdminBackendError = errorText || (Number.isFinite(status) && status > 0 ? ("status " + status) : "unknown backend error");
+                return false;
+              })
+              .catch((error) => {
+                window.__gtLastAdminBackendError = String(error && error.message || "request failed");
+                return false;
+              });
           });
       clearAdminAuditTrail().then((ok) => {
         if (!ok) {
-          c.postLocalSystemChat("Failed to clear audit trail.");
+          const backendError = String(window.__gtLastAdminBackendError || "").trim();
+          c.postLocalSystemChat("Failed to clear audit trail." + (backendError ? (" (" + backendError + ")") : ""));
           return;
         }
         c.adminState.audit = [];
