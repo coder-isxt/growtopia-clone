@@ -2,13 +2,16 @@
       const modules = window.GTModules || {};
       const stateModule = modules.state || {};
       const remoteSyncModule = modules.remoteSync || {};
+      const readSyncModule = modules.readSync || {};
       const splicingModule = modules.splicing || {};
       const cloudflareGatewayModule = modules.cloudflareGateway || {};
       const STATE_FALLBACK_INJECT_KEY = "gt_state_fallback_injected_v2";
       const STATE_FALLBACK_RELOAD_KEY = "gt_state_fallback_reloaded_v2";
       let remotePlayerSyncController = null;
+      let readSyncController = null;
       let splicingController = null;
       let cloudflareGatewayController = null;
+      const readTaskSeqByName = {};
       function tryLoadStateFallbackOnce(reason) {
         try {
           if (sessionStorage.getItem(STATE_FALLBACK_INJECT_KEY) !== "1") {
@@ -904,6 +907,37 @@
             : (TILE * 4)
         });
         return remotePlayerSyncController;
+      }
+
+      function getReadSyncController() {
+        if (readSyncController) return readSyncController;
+        if (typeof readSyncModule.createController !== "function") return null;
+        const workerVersion = encodeURIComponent(String(window.GT_ASSET_VERSION || "dev"));
+        readSyncController = readSyncModule.createController({
+          workerPath: "sync/read_worker.js?v=" + workerVersion,
+          timeoutMs: 1500
+        });
+        return readSyncController;
+      }
+
+      function processReadTask(taskName, payload) {
+        const fallback = payload && typeof payload === "object" ? payload : {};
+        const ctrl = getReadSyncController();
+        if (!ctrl || typeof ctrl.process !== "function") {
+          return Promise.resolve(fallback);
+        }
+        return ctrl.process(taskName, fallback).catch(() => fallback);
+      }
+
+      function processReadTaskLatest(taskName, payload, applyFn) {
+        if (typeof applyFn !== "function") return;
+        const name = String(taskName || "task");
+        const nextSeq = (readTaskSeqByName[name] || 0) + 1;
+        readTaskSeqByName[name] = nextSeq;
+        processReadTask(name, payload).then((result) => {
+          if (readTaskSeqByName[name] !== nextSeq) return;
+          applyFn(result && typeof result === "object" ? result : payload);
+        });
       }
 
       function getDrawController() {
@@ -11057,53 +11091,81 @@
           setNetworkState("Connecting...", false);
 
           network.handlers.inventory = (snapshot) => {
-            if (snapshot.exists()) {
-              applyInventoryFromRecord(snapshot.val() || {});
-              saveInventoryToLocal();
-            } else {
-              saveInventory();
-            }
-            refreshToolbar();
-            if (inWorld) {
-              syncPlayer(true);
-            }
+            processReadTaskLatest("inventory", {
+              exists: snapshot.exists(),
+              value: snapshot.val() || {}
+            }, (processed) => {
+              const exists = processed && processed.exists === true;
+              const value = processed && processed.value && typeof processed.value === "object" ? processed.value : {};
+              if (exists) {
+                applyInventoryFromRecord(value);
+                saveInventoryToLocal();
+              } else {
+                saveInventory();
+              }
+              refreshToolbar();
+              if (inWorld) {
+                syncPlayer(true);
+              }
+            });
           };
 
           network.handlers.progression = (snapshot) => {
-            if (snapshot.exists()) {
-              applyProgressionFromRecord(snapshot.val() || {}, false);
-              saveProgressionToLocal();
-            } else {
-              scheduleProgressionSave(true);
-            }
-            if (inWorld) {
-              syncPlayer(true);
-            }
+            processReadTaskLatest("progression", {
+              exists: snapshot.exists(),
+              value: snapshot.val() || {}
+            }, (processed) => {
+              const exists = processed && processed.exists === true;
+              const value = processed && processed.value && typeof processed.value === "object" ? processed.value : {};
+              if (exists) {
+                applyProgressionFromRecord(value, false);
+                saveProgressionToLocal();
+              } else {
+                scheduleProgressionSave(true);
+              }
+              if (inWorld) {
+                syncPlayer(true);
+              }
+            });
           };
 
           network.handlers.achievements = (snapshot) => {
-            if (snapshot.exists()) {
-              achievementsState = normalizeAchievementsState(snapshot.val() || {});
-              saveAchievementsToLocal();
-            } else {
-              achievementsState = normalizeAchievementsState({});
-              scheduleAchievementsSave(true);
-            }
-            const open = achievementsModalEl && !achievementsModalEl.classList.contains("hidden");
-            if (open) renderAchievementsMenu();
-            if (inWorld) {
-              syncPlayer(true);
-            }
+            processReadTaskLatest("achievements", {
+              exists: snapshot.exists(),
+              value: snapshot.val() || {}
+            }, (processed) => {
+              const exists = processed && processed.exists === true;
+              const value = processed && processed.value && typeof processed.value === "object" ? processed.value : {};
+              if (exists) {
+                achievementsState = normalizeAchievementsState(value);
+                saveAchievementsToLocal();
+              } else {
+                achievementsState = normalizeAchievementsState({});
+                scheduleAchievementsSave(true);
+              }
+              const open = achievementsModalEl && !achievementsModalEl.classList.contains("hidden");
+              if (open) renderAchievementsMenu();
+              if (inWorld) {
+                syncPlayer(true);
+              }
+            });
           };
 
           network.handlers.quests = (snapshot) => {
-            if (snapshot.exists()) {
-              questsState = normalizeQuestsState(snapshot.val() || {});
-              saveQuestsToLocal();
-            } else {
-              questsState = normalizeQuestsState({});
-              scheduleQuestsSave(true);
-            }
+            processReadTaskLatest("quests", {
+              exists: snapshot.exists(),
+              value: snapshot.val() || {}
+            }, (processed) => {
+              const exists = processed && processed.exists === true;
+              const value = processed && processed.value && typeof processed.value === "object" ? processed.value : {};
+              if (exists) {
+                questsState = normalizeQuestsState(value);
+                saveQuestsToLocal();
+              } else {
+                questsState = normalizeQuestsState({});
+                scheduleQuestsSave(true);
+              }
+            });
           };
 
           network.handlers.connected = (snapshot) => {
@@ -11248,105 +11310,95 @@
           };
 
           network.handlers.worldsIndex = (snapshot) => {
-            const data = snapshot.val() || {};
-            worldIndexMetaById = data;
-            const worldIds = Object.keys(data).sort((a, b) => {
-              const av = data[a] && data[a].updatedAt ? data[a].updatedAt : 0;
-              const bv = data[b] && data[b].updatedAt ? data[b].updatedAt : 0;
-              return bv - av;
+            processReadTaskLatest("worlds_index", {
+              value: snapshot.val() || {}
+            }, (processed) => {
+              const data = processed && processed.value && typeof processed.value === "object"
+                ? processed.value
+                : {};
+              worldIndexMetaById = data;
+              const worldIds = Array.isArray(processed && processed.worldIds)
+                ? processed.worldIds
+                : Object.keys(data);
+              refreshWorldButtons(worldIds);
             });
-            refreshWorldButtons(worldIds);
           };
 
           network.handlers.globalPlayers = (snapshot) => {
-            const data = snapshot.val() || {};
-            adminState.globalPlayers = data;
-            const count = Object.keys(data).length;
-            totalOnlinePlayers = count;
-            const occupancy = typeof syncWorldsModule.computeWorldOccupancy === "function"
-              ? syncWorldsModule.computeWorldOccupancy(data, normalizeWorldId)
-              : null;
-            worldOccupancy.clear();
-            if (occupancy instanceof Map) {
-              occupancy.forEach((value, key) => {
-                worldOccupancy.set(key, value);
-              });
-            } else {
-              Object.keys(data).forEach((id) => {
-                const playerData = data[id];
-                if (!playerData || !playerData.world) return;
-                const wid = normalizeWorldId(playerData.world);
-                if (!wid) return;
-                worldOccupancy.set(wid, (worldOccupancy.get(wid) || 0) + 1);
-              });
-            }
-            // Avoid frequent menu DOM rebuilds while actively playing in-world.
-            if (!inWorld) {
-              refreshWorldButtons();
-            }
-            updateOnlineCount();
-            const friendCtrl = getFriendsController();
-            if (friendCtrl && typeof friendCtrl.renderOpen === "function") {
-              friendCtrl.renderOpen();
-            }
+            processReadTaskLatest("global_players", {
+              value: snapshot.val() || {}
+            }, (processed) => {
+              const data = processed && processed.value && typeof processed.value === "object"
+                ? processed.value
+                : {};
+              adminState.globalPlayers = data;
+              totalOnlinePlayers = Number.isFinite(Number(processed && processed.totalOnline))
+                ? Math.max(0, Math.floor(Number(processed.totalOnline)))
+                : Object.keys(data).length;
+
+              worldOccupancy.clear();
+              if (Array.isArray(processed && processed.occupancy)) {
+                processed.occupancy.forEach((row) => {
+                  const wid = normalizeWorldId(row && row.worldId);
+                  if (!wid) return;
+                  const count = Math.max(0, Math.floor(Number(row && row.count) || 0));
+                  if (!count) return;
+                  worldOccupancy.set(wid, count);
+                });
+              } else {
+                const occupancy = typeof syncWorldsModule.computeWorldOccupancy === "function"
+                  ? syncWorldsModule.computeWorldOccupancy(data, normalizeWorldId)
+                  : null;
+                if (occupancy instanceof Map) {
+                  occupancy.forEach((value, key) => {
+                    worldOccupancy.set(key, value);
+                  });
+                }
+              }
+
+              if (!inWorld) {
+                refreshWorldButtons();
+              }
+              updateOnlineCount();
+              const friendCtrl = getFriendsController();
+              if (friendCtrl && typeof friendCtrl.renderOpen === "function") {
+                friendCtrl.renderOpen();
+              }
+            });
           };
           network.handlers.accountLogAdded = (snapshot) => {
             if (!canViewAccountLogs) return;
-            const byAccount = snapshot.val() || {};
-            const flattened = [];
-            Object.keys(byAccount).forEach((accountId) => {
-              if (playerProfileId && accountId === playerProfileId) return;
-              const accountLogs = byAccount[accountId] || {};
-              Object.keys(accountLogs).forEach((logId) => {
-                const value = accountLogs[logId] || {};
-                const sourceSessionId = (value.sessionId || "").toString();
-                const sourcePlayerId = (value.sourcePlayerId || "").toString();
-                const sourceAccountId = (value.accountId || "").toString();
-                if (sourceSessionId && sourceSessionId === playerSessionId) return;
-                if (sourcePlayerId && sourcePlayerId === playerId) return;
-                if (playerProfileId && sourceAccountId && sourceAccountId === playerProfileId) return;
-                const uname = (value.username || (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId).toString();
-                flattened.push({
-                  text: "@" + uname + ": " + (value.text || "").toString().slice(0, 180),
-                  createdAt: typeof value.createdAt === "number" ? value.createdAt : 0
-                });
-              });
+            processReadTaskLatest("account_logs", {
+              value: snapshot.val() || {},
+              context: {
+                playerProfileId: playerProfileId || "",
+                playerSessionId: playerSessionId || "",
+                playerId: playerId || ""
+              }
+            }, (processed) => {
+              const rows = Array.isArray(processed && processed.items) ? processed.items : [];
+              logsMessages.length = 0;
+              rows.forEach((item) => logsMessages.push({
+                text: (item && item.text || "").toString().slice(0, 220),
+                createdAt: Number(item && item.createdAt) || 0
+              }));
+              renderLogsMessages();
             });
-            flattened.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-            logsMessages.length = 0;
-            flattened.slice(-200).forEach((item) => logsMessages.push(item));
-            renderLogsMessages();
           };
           network.handlers.antiCheatLogAdded = (snapshot) => {
             if (!canViewAntiCheatLogs()) return;
-            const rows = snapshot.val() || {};
-            const flattened = [];
-            Object.keys(rows).forEach((id) => {
-              const value = rows[id] || {};
-              const rule = (value.rule || "unknown").toString().slice(0, 48);
-              const sev = (value.severity || "warn").toString().toLowerCase().slice(0, 16);
-              const uname = (value.username || value.accountId || "unknown").toString().slice(0, 24);
-              const worldId = (value.world || "").toString().slice(0, 24);
-              let detailRaw = value.details;
-              if (detailRaw && typeof detailRaw === "object") {
-                try {
-                  detailRaw = JSON.stringify(detailRaw);
-                } catch (error) {
-                  detailRaw = String(detailRaw);
-                }
-              }
-              const detail = (detailRaw == null ? "" : String(detailRaw)).slice(0, 220);
-              const text = "@" + uname + " | " + rule + (worldId ? (" | " + worldId) : "") + (detail ? (" | " + detail) : "");
-              flattened.push({
-                text,
-                severity: sev || "warn",
-                createdAt: typeof value.createdAt === "number" ? value.createdAt : 0
-              });
+            processReadTaskLatest("anti_cheat_logs", {
+              value: snapshot.val() || {}
+            }, (processed) => {
+              const rows = Array.isArray(processed && processed.items) ? processed.items : [];
+              antiCheatMessages.length = 0;
+              rows.forEach((item) => antiCheatMessages.push({
+                text: (item && item.text || "").toString().slice(0, 220),
+                severity: (item && item.severity || "warn").toString().slice(0, 16) || "warn",
+                createdAt: Number(item && item.createdAt) || 0
+              }));
+              renderAdminPanelFromLiveUpdate();
             });
-            flattened.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-            antiCheatMessages.length = 0;
-            flattened.slice(-220).forEach((item) => antiCheatMessages.push(item));
-            renderAdminPanelFromLiveUpdate();
           };
           network.handlers.myBan = (snapshot) => {
             if (!snapshot.exists()) return;
@@ -11405,12 +11457,26 @@
             showAnnouncementPopup("@" + actor + ": " + text);
           };
           network.handlers.adminAccounts = (snapshot) => {
-            adminState.accounts = snapshot.val() || {};
-            renderAdminPanelFromLiveUpdate();
+            processReadTaskLatest("admin_accounts", {
+              exists: snapshot.exists(),
+              value: snapshot.val() || {}
+            }, (processed) => {
+              adminState.accounts = processed && processed.value && typeof processed.value === "object"
+                ? processed.value
+                : {};
+              renderAdminPanelFromLiveUpdate();
+            });
           };
           network.handlers.adminUsernames = (snapshot) => {
-            adminState.usernames = snapshot.val() || {};
-            renderAdminPanelFromLiveUpdate();
+            processReadTaskLatest("admin_usernames", {
+              exists: snapshot.exists(),
+              value: snapshot.val() || {}
+            }, (processed) => {
+              adminState.usernames = processed && processed.value && typeof processed.value === "object"
+                ? processed.value
+                : {};
+              renderAdminPanelFromLiveUpdate();
+            });
           };
           network.handlers.myAdminRole = (snapshot) => {
             const ownRole = readAdminRoleValue(snapshot && snapshot.val ? snapshot.val() : null);
@@ -11427,58 +11493,74 @@
             renderAdminPanelFromLiveUpdate();
           };
           network.handlers.adminRoles = (snapshot) => {
-            const raw = snapshot.val() || {};
-            const nextRoles = {};
-            Object.keys(raw).forEach((accountId) => {
-              const safeAccountId = String(accountId || "").trim();
-              if (!safeAccountId) return;
-              const role = readAdminRoleValue(raw[accountId]);
-              if (role === "none") return;
-              nextRoles[safeAccountId] = role;
+            processReadTaskLatest("admin_roles", {
+              value: snapshot.val() || {},
+              playerProfileId: playerProfileId || "",
+              directAdminRole: directAdminRole || "none"
+            }, (processed) => {
+              adminState.roles = processed && processed.roles && typeof processed.roles === "object"
+                ? processed.roles
+                : {};
+              refreshAdminCapabilities(hasSeenAdminRoleSnapshot);
+              hasSeenAdminRoleSnapshot = true;
+              renderAdminPanelFromLiveUpdate();
             });
-            if (playerProfileId && directAdminRole !== "none") {
-              nextRoles[playerProfileId] = directAdminRole;
-            }
-            adminState.roles = nextRoles;
-            refreshAdminCapabilities(hasSeenAdminRoleSnapshot);
-            hasSeenAdminRoleSnapshot = true;
-            renderAdminPanelFromLiveUpdate();
           };
           network.handlers.adminAudit = (snapshot) => {
-            const data = snapshot.val() || {};
-            const entries = Object.keys(data).map((id) => {
-              const value = data[id] || {};
-              const ts = typeof value.createdAt === "number" ? value.createdAt : 0;
-              const actor = (value.actorUsername || value.actorAccountId || "system").toString().slice(0, 24);
-              const action = (value.action || "").toString().slice(0, 24);
-              const targetRaw = (value.targetUsername || value.targetAccountId || "").toString();
-              return {
-                id,
-                createdAt: ts,
-                time: formatChatTimestamp(ts),
-                actor: actor ? "@" + actor : "system",
-                action,
-                target: targetRaw ? "@" + targetRaw : "",
-                details: (value.details || "").toString().slice(0, 120)
-              };
-            }).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-            adminState.audit = entries;
-            if (!isAdminOpen) {
-              refreshAuditActionFilterOptions();
-            }
-            renderAdminPanelFromLiveUpdate();
+            processReadTaskLatest("admin_audit", {
+              value: snapshot.val() || {}
+            }, (processed) => {
+              const rows = Array.isArray(processed && processed.entries) ? processed.entries : [];
+              adminState.audit = rows.map((row) => {
+                const ts = Number(row && row.createdAt) || 0;
+                return {
+                  id: (row && row.id || "").toString().slice(0, 64),
+                  createdAt: ts,
+                  time: formatChatTimestamp(ts),
+                  actor: (row && row.actor || "system").toString().slice(0, 24),
+                  action: (row && row.action || "").toString().slice(0, 24),
+                  target: (row && row.target || "").toString().slice(0, 64),
+                  details: (row && row.details || "").toString().slice(0, 120)
+                };
+              });
+              if (!isAdminOpen) {
+                refreshAuditActionFilterOptions();
+              }
+              renderAdminPanelFromLiveUpdate();
+            });
           };
           network.handlers.adminBans = (snapshot) => {
-            adminState.bans = snapshot.val() || {};
-            renderAdminPanelFromLiveUpdate();
+            processReadTaskLatest("admin_bans", {
+              exists: snapshot.exists(),
+              value: snapshot.val() || {}
+            }, (processed) => {
+              adminState.bans = processed && processed.value && typeof processed.value === "object"
+                ? processed.value
+                : {};
+              renderAdminPanelFromLiveUpdate();
+            });
           };
           network.handlers.adminSessions = (snapshot) => {
-            adminState.sessions = snapshot.val() || {};
-            renderAdminPanelFromLiveUpdate();
+            processReadTaskLatest("admin_sessions", {
+              exists: snapshot.exists(),
+              value: snapshot.val() || {}
+            }, (processed) => {
+              adminState.sessions = processed && processed.value && typeof processed.value === "object"
+                ? processed.value
+                : {};
+              renderAdminPanelFromLiveUpdate();
+            });
           };
           network.handlers.adminInventories = (snapshot) => {
-            adminState.inventories = snapshot.val() || {};
-            renderAdminPanelFromLiveUpdate();
+            processReadTaskLatest("admin_inventories", {
+              exists: snapshot.exists(),
+              value: snapshot.val() || {}
+            }, (processed) => {
+              adminState.inventories = processed && processed.value && typeof processed.value === "object"
+                ? processed.value
+                : {};
+              renderAdminPanelFromLiveUpdate();
+            });
           };
 
           network.connectedRef.on("value", network.handlers.connected);
@@ -11514,6 +11596,10 @@
           syncAdminDataListeners();
 
           eventsModule.on(window, "beforeunload", () => {
+            const readCtrl = getReadSyncController();
+            if (readCtrl && typeof readCtrl.dispose === "function") {
+              readCtrl.dispose();
+            }
             saveInventory();
             scheduleProgressionSave(true);
             scheduleAchievementsSave(true);
