@@ -4394,3 +4394,123 @@ body{
     grid-column: span 1;
   }
 }
+
+/* Final UI consistency pass (auth + legacy modal surfaces) */
+.auth-screen {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.auth-card,
+.menu-card,
+.vending-card,
+.trade-card,
+.sign-card,
+.camera-card,
+.weather-card,
+.shop-card,
+.announcement-card,
+.updating-card,
+.admin-inventory-card {
+  background: linear-gradient(180deg, rgba(18, 12, 6, 0.94), rgba(44, 27, 12, 0.88)) !important;
+  border: 2px solid rgba(255, 209, 102, 0.82) !important;
+  border-right-color: rgba(92, 56, 20, 0.95) !important;
+  border-bottom-color: rgba(92, 56, 20, 0.95) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--gt-shadow) !important;
+}
+
+.auth-card h2,
+.menu-title,
+.vending-header strong,
+.shop-header strong,
+.admin-inventory-header strong,
+.announcement-title,
+.updating-title {
+  color: var(--gt-cream) !important;
+  font-family: "Press Start 2P", system-ui, sans-serif !important;
+  letter-spacing: 0.45px;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+}
+
+.auth-card h2 {
+  font-size: 16px !important;
+  margin: 0 0 6px 0 !important;
+}
+
+.auth-card input,
+.auth-card button,
+.menu-screen input,
+.menu-screen button,
+.vending-card input,
+.vending-card select,
+.vending-card textarea,
+.vending-card button,
+.shop-card input,
+.shop-card select,
+.shop-card button,
+.admin-inventory-card input,
+.admin-inventory-card select,
+.admin-inventory-card button {
+  border: 2px solid rgba(255, 209, 102, 0.72) !important;
+  border-right-color: rgba(92, 56, 20, 0.9) !important;
+  border-bottom-color: rgba(92, 56, 20, 0.9) !important;
+  border-radius: 10px !important;
+}
+
+.auth-card input,
+.menu-screen input,
+.vending-card input,
+.vending-card select,
+.vending-card textarea,
+.shop-card input,
+.shop-card select,
+.admin-inventory-card input,
+.admin-inventory-card select {
+  background: rgba(8, 5, 2, 0.55) !important;
+  color: var(--gt-cream) !important;
+}
+
+.auth-card button,
+.menu-screen button,
+.vending-card button,
+.shop-card button,
+.admin-inventory-card button {
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.34), rgba(255, 153, 51, 0.18)) !important;
+  color: var(--gt-cream) !important;
+  box-shadow: var(--gt-inner), var(--gt-shadow);
+  font-family: "Press Start 2P", system-ui, sans-serif !important;
+  font-size: 10px;
+}
+
+.auth-status,
+.main-page-notice,
+.sign-hint,
+.vending-body,
+.trade-offer,
+.camera-fields,
+.weather-fields,
+.camera-logs-wrap,
+.weather-preview-wrap {
+  color: rgba(255, 244, 215, 0.92) !important;
+  border-color: rgba(255, 209, 102, 0.24) !important;
+  background: rgba(0, 0, 0, 0.22) !important;
+}
+
+.auth-actions {
+  gap: 10px !important;
+}
+
+.vending-modal {
+  background: rgba(4, 2, 1, 0.62) !important;
+}
+
+.trade-offer-row,
+.trade-inventory-item,
+.shop-item {
+  border-color: rgba(255, 209, 102, 0.28) !important;
+  background: rgba(0, 0, 0, 0.2) !important;
+  color: rgba(255, 244, 215, 0.95) !important;
+}
