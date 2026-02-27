@@ -4514,3 +4514,82 @@ body{
   background: rgba(0, 0, 0, 0.2) !important;
   color: rgba(255, 244, 215, 0.95) !important;
 }
+
+/* World menu + auth spacing polish */
+.menu-card {
+  max-width: 900px !important;
+  gap: 14px !important;
+}
+
+.menu-card .world-enter {
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+  margin-top: 2px;
+}
+
+.menu-card .world-enter input {
+  width: min(520px, 100%) !important;
+  min-height: 48px !important;
+  padding: 12px 14px !important;
+  font-size: 16px !important;
+}
+
+.menu-card .world-enter button {
+  min-height: 48px !important;
+  padding: 0 20px !important;
+  font-size: 11px !important;
+  font-family: "Press Start 2P", system-ui, sans-serif !important;
+}
+
+.menu-card .world-buttons {
+  min-height: 170px;
+  max-height: min(48vh, 470px);
+  overflow: auto;
+  padding: 4px 2px 2px;
+  gap: 9px !important;
+}
+
+.menu-card .world-buttons button,
+.menu-card .world-chip {
+  min-height: 40px !important;
+  padding: 8px 12px !important;
+}
+
+.auth-card {
+  padding: 14px !important;
+  gap: 12px !important;
+  width: min(560px, 96vw);
+}
+
+.auth-card input,
+.auth-card button {
+  min-height: 46px !important;
+  padding: 10px 12px !important;
+  font-size: 15px !important;
+}
+
+.auth-actions {
+  gap: 10px !important;
+}
+
+@media (max-width: 860px) {
+  .menu-card .world-enter {
+    display: grid !important;
+    grid-template-columns: 1fr;
+  }
+
+  .menu-card .world-enter input,
+  .menu-card .world-enter button {
+    width: 100% !important;
+  }
+
+  .menu-card .world-buttons {
+    max-height: 42vh;
+  }
+
+  .auth-card {
+    width: min(560px, 96vw);
+    padding: 12px !important;
+  }
+}
