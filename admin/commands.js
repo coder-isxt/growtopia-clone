@@ -391,12 +391,30 @@ window.GTModules.commands = {
         c.postLocalSystemChat("Usage: /announce <message>");
         return true;
       }
-      if (typeof c.issueGlobalAnnouncement !== "function") {
-        c.postLocalSystemChat("Cloudflare backend unavailable.");
-        return true;
-      }
       const msg = message.slice(0, 140);
-      c.issueGlobalAnnouncement(msg).then((ok) => {
+      const issueGlobalAnnouncement = typeof c.issueGlobalAnnouncement === "function"
+        ? c.issueGlobalAnnouncement
+        : ((text) => {
+            const gatewayModule = window.GTModules && window.GTModules.cloudflareGateway;
+            if (!gatewayModule || typeof gatewayModule.createController !== "function") {
+              return Promise.resolve(false);
+            }
+            const ctrl = gatewayModule.createController({
+              basePath: c.BASE_PATH || "growtopia-test",
+              endpoint: window.CLOUDFLARE_PACKET_ENDPOINT || "",
+              timeoutMs: 9000
+            });
+            const payload = {
+              id: "an_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
+              text: String(text || "").slice(0, 140),
+              actorUsername: (c.playerName || "admin").toString().slice(0, 20),
+              createdAt: Date.now()
+            };
+            return ctrl.writeSet("/system/announcement", payload)
+              .then((out) => Boolean(out && out.ok))
+              .catch(() => false);
+          });
+      issueGlobalAnnouncement(msg).then((ok) => {
         if (!ok) {
           c.postLocalSystemChat("Failed to send announcement.");
           return;
@@ -446,11 +464,23 @@ window.GTModules.commands = {
         c.postLocalSystemChat("Permission denied.");
         return true;
       }
-      if (typeof c.clearAdminAuditTrail !== "function") {
-        c.postLocalSystemChat("Cloudflare backend unavailable.");
-        return true;
-      }
-      c.clearAdminAuditTrail().then((ok) => {
+      const clearAdminAuditTrail = typeof c.clearAdminAuditTrail === "function"
+        ? c.clearAdminAuditTrail
+        : (() => {
+            const gatewayModule = window.GTModules && window.GTModules.cloudflareGateway;
+            if (!gatewayModule || typeof gatewayModule.createController !== "function") {
+              return Promise.resolve(false);
+            }
+            const ctrl = gatewayModule.createController({
+              basePath: c.BASE_PATH || "growtopia-test",
+              endpoint: window.CLOUDFLARE_PACKET_ENDPOINT || "",
+              timeoutMs: 9000
+            });
+            return ctrl.writeRemove("/admin-audit")
+              .then((out) => Boolean(out && out.ok))
+              .catch(() => false);
+          });
+      clearAdminAuditTrail().then((ok) => {
         if (!ok) {
           c.postLocalSystemChat("Failed to clear audit trail.");
           return;
