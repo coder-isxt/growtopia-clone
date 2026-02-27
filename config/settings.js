@@ -18,8 +18,8 @@ window.GT_SETTINGS = {
   PLAYER_WIDTH: 22,
   PLAYER_HEIGHT: 30,
 
-  GRAVITY: 0.24,        // snappier arcade gravity
-  MAX_FALL_SPEED: 6.4,  // faster, less floaty descent
+  GRAVITY: 0.21,        // slightly softer arcade gravity
+  MAX_FALL_SPEED: 5.7,  // slower descent cap
 
   MOVE_ACCEL: 0.33,     // tighter horizontal response
   MAX_MOVE_SPEED: 2.62, // arcade run speed
