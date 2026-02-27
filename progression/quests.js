@@ -3,18 +3,40 @@ window.GTModules = window.GTModules || {};
 window.GTModules.quests = (function createQuestsModule() {
   const DAILY_QUESTS = [
     {
-      id: "break_50_blocks",
-      label: "Break 50 blocks",
-      target: 50,
+      id: "break_80_blocks",
+      label: "Break 80 blocks",
+      target: 80,
       event: "break_block",
-      rewards: { gems: 60 }
+      rewards: { gems: 80 }
+    },
+    {
+      id: "place_60_blocks",
+      label: "Place 60 blocks",
+      target: 60,
+      event: "place_block",
+      rewards: { gems: 70 }
     },
     {
       id: "visit_3_worlds",
       label: "Visit 3 worlds",
       target: 3,
       event: "visit_world",
+      uniqueWorldVisit: true,
       rewards: { gems: 30 }
+    },
+    {
+      id: "harvest_8_trees",
+      label: "Harvest 8 trees",
+      target: 8,
+      event: "tree_harvest",
+      rewards: { gems: 45 }
+    },
+    {
+      id: "earn_250_gems_daily",
+      label: "Earn 250 gems",
+      target: 250,
+      event: "gems_earned",
+      rewards: { gems: 65 }
     },
     {
       id: "trade_once",
@@ -24,6 +46,7 @@ window.GTModules.quests = (function createQuestsModule() {
       rewards: { gems: 25 }
     }
   ];
+
   const OTHER_QUESTS = [
     {
       id: "break_500_blocks_total",
@@ -34,22 +57,40 @@ window.GTModules.quests = (function createQuestsModule() {
       rewards: { cosmeticId: "sun_shirt", cosmeticAmount: 1, gems: 200 }
     },
     {
+      id: "place_400_blocks_total",
+      label: "Place 400 blocks",
+      target: 400,
+      event: "place_block",
+      category: "other",
+      rewards: { gems: 180 }
+    },
+    {
       id: "visit_25_worlds_total",
-      label: "Visit 25 worlds",
+      label: "Visit 25 unique worlds",
       target: 25,
       event: "visit_world",
+      uniqueWorldVisit: true,
       category: "other",
       rewards: { titleId: "traveler", titleAmount: 1, gems: 120 }
     },
-    // {
-    //   id: "trade_10_times_total",
-    //   label: "Trade 10 times",
-    //   target: 10,
-    //   event: "trade_complete",
-    //   category: "other",
-    //   rewards: { cosmeticId: "swift_sneakers", cosmeticAmount: 1, gems: 140 }
-    // }
+    {
+      id: "earn_10000_gems_total",
+      label: "Earn 10,000 gems",
+      target: 10000,
+      event: "gems_earned",
+      category: "other",
+      rewards: { gems: 350 }
+    },
+    {
+      id: "harvest_120_trees_total",
+      label: "Harvest 120 trees",
+      target: 120,
+      event: "tree_harvest",
+      category: "other",
+      rewards: { gems: 220 }
+    }
   ];
+
   const ALL_QUESTS = DAILY_QUESTS
     .map((q) => ({ ...q, category: "daily" }))
     .concat(OTHER_QUESTS.map((q) => ({ ...q, category: "other" })));
@@ -59,12 +100,35 @@ window.GTModules.quests = (function createQuestsModule() {
     return Number.isFinite(n) ? n : fallback;
   }
 
+  function normalizeWorldId(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^[-_]+|[-_]+$/g, "")
+      .slice(0, 24);
+  }
+
   function dayKeyFromTs(ts) {
     const date = new Date(Number(ts) || Date.now());
     const y = date.getUTCFullYear();
     const m = String(date.getUTCMonth() + 1).padStart(2, "0");
     const d = String(date.getUTCDate()).padStart(2, "0");
     return y + "-" + m + "-" + d;
+  }
+
+  function normalizeWorldMap(value) {
+    const src = value && typeof value === "object" ? value : {};
+    const out = {};
+    const keys = Object.keys(src);
+    for (let i = 0; i < keys.length; i++) {
+      const id = normalizeWorldId(keys[i]);
+      if (!id) continue;
+      if (!src[keys[i]]) continue;
+      out[id] = true;
+    }
+    return out;
   }
 
   function buildFresh(dayKey) {
@@ -83,7 +147,8 @@ window.GTModules.quests = (function createQuestsModule() {
       dayKey: key,
       quests,
       globalQuests,
-      visitedWorlds: {},
+      visitedWorldsDaily: {},
+      visitedWorldsTotal: {},
       updatedAt: 0
     };
   }
@@ -99,47 +164,61 @@ window.GTModules.quests = (function createQuestsModule() {
     };
   }
 
+  function recalcUniqueVisitQuestProgress(state) {
+    const safe = state && typeof state === "object" ? state : buildFresh(dayKeyFromTs(Date.now()));
+    for (let i = 0; i < ALL_QUESTS.length; i++) {
+      const def = ALL_QUESTS[i];
+      if (!def.uniqueWorldVisit || def.event !== "visit_world") continue;
+      const row = def.category === "other" ? safe.globalQuests[def.id] : safe.quests[def.id];
+      if (!row) continue;
+      const map = def.category === "other" ? safe.visitedWorldsTotal : safe.visitedWorldsDaily;
+      const count = Math.max(0, Object.keys(map).length);
+      const next = Math.min(Math.max(1, Number(def.target) || 1), count);
+      row.progress = Math.max(row.progress, next);
+      if (row.progress >= def.target) row.completed = true;
+    }
+    return safe;
+  }
+
   function normalizeState(raw, nowTs) {
     const today = dayKeyFromTs(nowTs);
     const src = raw && typeof raw === "object" ? raw : {};
     const srcDay = String(src.dayKey || "");
     const base = srcDay === today ? src : buildFresh(today);
     const out = buildFresh(today);
+
+    out.visitedWorldsTotal = normalizeWorldMap(src.visitedWorldsTotal);
+
     if (srcDay === today) {
-      const rawVisited = base.visitedWorlds && typeof base.visitedWorlds === "object" ? base.visitedWorlds : {};
-      const visited = {};
-      Object.keys(rawVisited).forEach((worldId) => {
-        const id = String(worldId || "").trim().toLowerCase();
-        if (!id) return;
-        if (!rawVisited[worldId]) return;
-        visited[id] = true;
-      });
-      out.visitedWorlds = visited;
+      out.visitedWorldsDaily = normalizeWorldMap(base.visitedWorldsDaily || base.visitedWorlds);
       const srcQuests = base.quests && typeof base.quests === "object" ? base.quests : {};
       for (let i = 0; i < DAILY_QUESTS.length; i++) {
         const def = DAILY_QUESTS[i];
         out.quests[def.id] = normalizeQuestRow(def, srcQuests[def.id]);
       }
     }
-    const srcGlobal = src && src.globalQuests && typeof src.globalQuests === "object" ? src.globalQuests : {};
+
+    const srcGlobal = src.globalQuests && typeof src.globalQuests === "object" ? src.globalQuests : {};
     for (let i = 0; i < OTHER_QUESTS.length; i++) {
       const def = OTHER_QUESTS[i];
       out.globalQuests[def.id] = normalizeQuestRow(def, srcGlobal[def.id]);
     }
+
     out.updatedAt = toInt(base.updatedAt, 0);
-    const visitQuest = out.quests.visit_3_worlds;
-    if (visitQuest) {
-      const worldCount = Object.keys(out.visitedWorlds).length;
-      visitQuest.progress = Math.max(visitQuest.progress, Math.min(3, worldCount));
-      if (visitQuest.progress >= 3) {
-        visitQuest.completed = true;
-      }
-    }
-    return out;
+    return recalcUniqueVisitQuestProgress(out);
   }
 
   function buildPayload(state) {
     return normalizeState(state || {}, Date.now());
+  }
+
+  function getDeltaByEvent(type, details) {
+    if (type === "gems_earned") return Math.max(0, toInt(details.amount, 0));
+    if (type === "trade_complete") return Math.max(1, toInt(details.count, 1));
+    if (type === "tree_harvest") return Math.max(1, toInt(details.count, 1));
+    if (type === "break_block") return Math.max(1, toInt(details.count, 1));
+    if (type === "place_block") return Math.max(1, toInt(details.count, 1));
+    return Math.max(1, toInt(details.count, 1));
   }
 
   function applyEvent(currentState, eventType, payload) {
@@ -151,39 +230,32 @@ window.GTModules.quests = (function createQuestsModule() {
 
     for (let i = 0; i < ALL_QUESTS.length; i++) {
       const def = ALL_QUESTS[i];
-      const row = def.category === "daily" ? state.quests[def.id] : state.globalQuests[def.id];
+      const row = def.category === "other" ? state.globalQuests[def.id] : state.quests[def.id];
       if (!row || row.completed) continue;
       if (def.event !== type) continue;
 
-      if (type === "break_block") {
-        const delta = Math.max(1, toInt(details.count, 1));
-        const next = Math.min(def.target, row.progress + delta);
-        if (next !== row.progress) {
-          row.progress = next;
+      if ((type === "break_block" || type === "place_block") && Number.isFinite(Number(def.blockId))) {
+        const wantedBlockId = Math.max(0, Math.floor(Number(def.blockId) || 0));
+        const eventBlockId = Math.max(0, Math.floor(Number(details.blockId) || 0));
+        if (wantedBlockId > 0 && eventBlockId !== wantedBlockId) continue;
+      }
+
+      if (type === "visit_world" && def.uniqueWorldVisit) {
+        const worldId = normalizeWorldId(details.worldId);
+        if (!worldId) continue;
+        const map = def.category === "other" ? state.visitedWorldsTotal : state.visitedWorldsDaily;
+        if (!map[worldId]) {
+          map[worldId] = true;
           changed = true;
         }
-      } else if (type === "visit_world") {
-        if (def.category === "daily") {
-          const worldId = String(details.worldId || "").trim().toLowerCase();
-          if (worldId && !state.visitedWorlds[worldId]) {
-            state.visitedWorlds[worldId] = true;
-            changed = true;
-          }
-          const count = Math.min(def.target, Object.keys(state.visitedWorlds).length);
-          if (count !== row.progress) {
-            row.progress = count;
-            changed = true;
-          }
-        } else {
-          const delta = Math.max(1, toInt(details.count, 1));
-          const next = Math.min(def.target, row.progress + delta);
-          if (next !== row.progress) {
-            row.progress = next;
-            changed = true;
-          }
+        const count = Math.min(def.target, Object.keys(map).length);
+        if (count !== row.progress) {
+          row.progress = count;
+          changed = true;
         }
-      } else if (type === "trade_complete") {
-        const delta = Math.max(1, toInt(details.count, 1));
+      } else {
+        const delta = getDeltaByEvent(type, details);
+        if (delta <= 0) continue;
         const next = Math.min(def.target, row.progress + delta);
         if (next !== row.progress) {
           row.progress = next;

@@ -276,6 +276,51 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
           }
         }
       ];
+      const builderBreakerQuestList = [
+        {
+          id: "builder_path_01_break_any",
+          title: "Break 40 blocks",
+          description: "Show me your mining skills. Break any 40 blocks.",
+          rewardText: "Reward: 50 gems",
+          objective: {
+            type: "break_block",
+            blockId: 0,
+            amount: 40
+          },
+          reward: {
+            gems: 50
+          }
+        },
+        {
+          id: "builder_path_02_place_any",
+          title: "Place 35 blocks",
+          description: "Now prove your builder spirit. Place any 35 blocks.",
+          rewardText: "Reward: 60 gems",
+          objective: {
+            type: "place_block",
+            blockId: 0,
+            amount: 35
+          },
+          reward: {
+            gems: 60
+          }
+        },
+        {
+          id: "builder_path_03_place_wood",
+          title: "Place 20 wood blocks",
+          description: "Finish by placing 20 wood blocks.",
+          rewardText: "Reward: 1x Sun Shirt",
+          objective: {
+            type: "place_block",
+            blockId: 4,
+            amount: 20
+          },
+          reward: {
+            cosmeticId: "sun_shirt",
+            cosmeticAmount: 1
+          }
+        }
+      ];
       return [
         {
           id: DEFAULT_PATH_ID,
@@ -286,22 +331,34 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
           id: "starter_path",
           name: "Starter Path",
           quests: heroQuestList
+        },
+        {
+          id: "builder_breaker_path",
+          name: "Builder Breaker Path",
+          quests: builderBreakerQuestList
         }
       ];
     }
     function normalizeQuestObjective(value) {
       const row = value && typeof value === "object" ? value : {};
       const rawType = String(row.type || row.kind || row.objectiveType || "").trim().toLowerCase();
-      const type = (rawType === "bring_block" || rawType === "bringblock" || rawType === "fetch_block") ? "bring_block" : "";
+      let type = "";
+      if (rawType === "bring_block" || rawType === "bringblock" || rawType === "fetch_block") {
+        type = "bring_block";
+      } else if (rawType === "break_block" || rawType === "breakblock" || rawType === "mine_block") {
+        type = "break_block";
+      } else if (rawType === "place_block" || rawType === "placeblock" || rawType === "build_block") {
+        type = "place_block";
+      }
       if (!type) return null;
       let blockId = Math.floor(Number(row.blockId) || 0);
       if (!blockId) {
         blockId = parseBlockRef(row.blockKey || row.block || row.item || "");
       }
       const amount = Math.max(1, Math.floor(Number(row.amount || row.count) || 1));
-      if (!blockId) return null;
+      if (type === "bring_block" && !blockId) return null;
       return {
-        type: "bring_block",
+        type,
         blockId,
         amount
       };
@@ -521,6 +578,20 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       return normalizeQuestId(raw, "");
     }
 
+    function normalizeQuestProgressMap(value) {
+      const src = value && typeof value === "object" ? value : {};
+      const out = {};
+      const keys = Object.keys(src);
+      for (let i = 0; i < keys.length; i++) {
+        const qid = normalizeQuestId(keys[i], keys[i]);
+        if (!qid) continue;
+        const amount = Math.max(0, Math.floor(Number(src[keys[i]]) || 0));
+        if (!amount) continue;
+        out[qid] = amount;
+      }
+      return out;
+    }
+
     function getOrCreatePlayerQuestState(worldId) {
       const safeWorldId = normalizeWorldId(worldId);
       if (!safeWorldId) {
@@ -530,7 +601,8 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
           trackedId: "",
           activeQuestId: "",
           nextQuestIndex: 0,
-          pathId: ""
+          pathId: "",
+          objectiveProgress: {}
         };
       }
       const existing = playerQuestStateByWorld.get(safeWorldId);
@@ -541,6 +613,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         if (typeof existing.activeQuestId !== "string") existing.activeQuestId = "";
         if (!Number.isFinite(existing.nextQuestIndex)) existing.nextQuestIndex = 0;
         if (typeof existing.pathId !== "string") existing.pathId = "";
+        if (!existing.objectiveProgress || typeof existing.objectiveProgress !== "object") existing.objectiveProgress = {};
         return existing;
       }
       const created = {
@@ -549,7 +622,8 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         trackedId: "",
         activeQuestId: "",
         nextQuestIndex: 0,
-        pathId: ""
+        pathId: "",
+        objectiveProgress: {}
       };
       playerQuestStateByWorld.set(safeWorldId, created);
       return created;
@@ -566,6 +640,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       state.activeQuestId = normalizeTrackedQuestId(incoming.activeQuestId);
       state.nextQuestIndex = Math.max(0, Math.floor(Number(incoming.nextQuestIndex) || 0));
       state.pathId = normalizePathId(incoming.pathId || state.pathId || "");
+      state.objectiveProgress = normalizeQuestProgressMap(incoming.objectiveProgress);
       playerQuestStateByWorld.set(safeWorldId, state);
     }
 
@@ -580,6 +655,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         activeQuestId: normalizeTrackedQuestId(state.activeQuestId),
         nextQuestIndex: Math.max(0, Math.floor(Number(state.nextQuestIndex) || 0)),
         pathId: normalizePathId(state.pathId || ""),
+        objectiveProgress: normalizeQuestProgressMap(state.objectiveProgress),
         updatedAt: getServerTimestampOrNow()
       };
     }
@@ -626,6 +702,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         state.trackedId = "";
         state.activeQuestId = "";
         state.nextQuestIndex = 0;
+        state.objectiveProgress = {};
       }
 
       const nextIndex = computeNextQuestIndex(rows, state.claimed);
@@ -783,7 +860,35 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         const blockId = Math.floor(Number(objective.blockId) || 0);
         return "Bring " + amount + "x " + getBlockNameById(blockId);
       }
+      if (objective.type === "break_block") {
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        const blockId = Math.floor(Number(objective.blockId) || 0);
+        if (blockId > 0) return "Break " + amount + "x " + getBlockNameById(blockId);
+        return "Break " + amount + " blocks";
+      }
+      if (objective.type === "place_block") {
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        const blockId = Math.floor(Number(objective.blockId) || 0);
+        if (blockId > 0) return "Place " + amount + "x " + getBlockNameById(blockId);
+        return "Place " + amount + " blocks";
+      }
       return "";
+    }
+
+    function getQuestObjectiveProgressCount(quest) {
+      const state = getOrCreatePlayerQuestState(activeWorldId);
+      const objective = quest && quest.objective && typeof quest.objective === "object" ? quest.objective : null;
+      if (!objective) return 0;
+      if (objective.type === "bring_block") {
+        const blockId = Math.floor(Number(objective.blockId) || 0);
+        return getInventoryBlockCount(blockId);
+      }
+      if (objective.type === "break_block" || objective.type === "place_block") {
+        const qid = normalizeQuestId(quest && quest.id, "");
+        if (!qid) return 0;
+        return Math.max(0, Math.floor(Number(state.objectiveProgress && state.objectiveProgress[qid]) || 0));
+      }
+      return 0;
     }
 
     function getQuestObjectiveProgressLabel(quest) {
@@ -792,8 +897,16 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       if (objective.type === "bring_block") {
         const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
         const blockId = Math.floor(Number(objective.blockId) || 0);
-        const have = getInventoryBlockCount(blockId);
+        const have = getQuestObjectiveProgressCount(quest);
         return "Progress: " + have + "/" + amount + " " + getBlockNameById(blockId);
+      }
+      if (objective.type === "break_block" || objective.type === "place_block") {
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        const have = getQuestObjectiveProgressCount(quest);
+        const blockId = Math.floor(Number(objective.blockId) || 0);
+        const blockText = blockId > 0 ? (" " + getBlockNameById(blockId)) : "";
+        const actionText = objective.type === "break_block" ? "broken" : "placed";
+        return "Progress: " + have + "/" + amount + blockText + " " + actionText;
       }
       return "";
     }
@@ -959,6 +1072,28 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
           consumeMessage: "Turned in " + amount + "x " + blockName + "."
         };
       }
+      if (objective.type === "break_block" || objective.type === "place_block") {
+        const qid = normalizeQuestId(quest && quest.id, "");
+        if (!qid) {
+          return {
+            ok: false,
+            message: "Invalid quest objective state."
+          };
+        }
+        const needed = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        const state = getOrCreatePlayerQuestState(activeWorldId);
+        const progress = Math.max(0, Math.floor(Number(state.objectiveProgress && state.objectiveProgress[qid]) || 0));
+        if (progress < needed) {
+          const actionText = objective.type === "break_block" ? "Break" : "Place";
+          const blockId = Math.floor(Number(objective.blockId) || 0);
+          const blockText = blockId > 0 ? (" " + getBlockNameById(blockId)) : " blocks";
+          return {
+            ok: false,
+            message: actionText + blockText + " first (" + progress + "/" + needed + ")."
+          };
+        }
+        return { ok: true, consumeMessage: "" };
+      }
       return { ok: true, consumeMessage: "" };
     }
 
@@ -1032,6 +1167,9 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       state.claimed[qid] = true;
       if (objectiveResult.consumeMessage) {
         call("postLocalSystemChat", objectiveResult.consumeMessage);
+      }
+      if (state.objectiveProgress && typeof state.objectiveProgress === "object") {
+        delete state.objectiveProgress[qid];
       }
       state.accepted[qid] = false;
       state.activeQuestId = "";
@@ -1108,6 +1246,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       state.activeQuestId = "";
       state.trackedId = "";
       state.nextQuestIndex = 0;
+      state.objectiveProgress = {};
       persistPlayerQuestState(worldId, true);
       if (modalCtx) renderModal();
       return { ok: true, worldId, pathId: safePathId };
@@ -1155,6 +1294,98 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         pathId: safePathId,
         quest: row
       };
+    }
+
+    function addObjectiveQuestToPath(pathId, objectiveType, blockRef, amount, title, description, rewardText) {
+      const rawPathId = String(pathId || "").trim().toLowerCase();
+      let safePathId = normalizePathId(rawPathId);
+      if (!safePathId || safePathId === "current") {
+        safePathId = getCurrentQuestPathId() || DEFAULT_PATH_ID;
+      }
+      if (!safePathId) return { ok: false, reason: "invalid_path" };
+      const safeType = String(objectiveType || "").trim().toLowerCase();
+      if (safeType !== "break_block" && safeType !== "place_block") {
+        return { ok: false, reason: "invalid_type" };
+      }
+      const safeAmount = Math.max(1, Math.floor(Number(amount) || 0));
+      if (!safeAmount) return { ok: false, reason: "invalid_amount" };
+
+      const rawBlockRef = String(blockRef || "").trim();
+      const useAnyBlock = !rawBlockRef || rawBlockRef.toLowerCase() === "any" || rawBlockRef === "*";
+      let blockId = useAnyBlock ? 0 : parseBlockRef(rawBlockRef);
+      if (!useAnyBlock && !blockId) return { ok: false, reason: "invalid_block" };
+      if (blockId < 0) blockId = 0;
+
+      const path = ensurePath(safePathId);
+      if (!path) return { ok: false, reason: "invalid_path" };
+      const nextQuests = Array.isArray(path.quests) ? path.quests.slice() : [];
+      const actionWord = safeType === "break_block" ? "Break" : "Place";
+      const blockLabel = blockId > 0 ? getBlockNameById(blockId) : "blocks";
+      const safeTitle = String(title || "").trim() || (actionWord + " " + safeAmount + " " + blockLabel);
+      const safeDescription = String(description || "").trim() || (actionWord + " " + safeAmount + "x " + blockLabel + " to complete this quest.");
+      const safeRewardText = String(rewardText || "").trim() || "Reward placeholder";
+      const questIdSeed = (safeType === "break_block" ? "break" : "place") + "_" + (blockId || "any") + "_" + safeAmount + "_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+      const row = normalizeQuestRow({
+        id: questIdSeed,
+        title: safeTitle,
+        description: safeDescription,
+        rewardText: safeRewardText,
+        objective: {
+          type: safeType,
+          blockId,
+          amount: safeAmount
+        }
+      }, nextQuests.length);
+      nextQuests.push(row);
+      const updatedPath = upsertPath(safePathId, {
+        ...path,
+        quests: nextQuests
+      });
+      if (!updatedPath) return { ok: false, reason: "save_failed" };
+      if (modalCtx) renderModal();
+      return {
+        ok: true,
+        pathId: safePathId,
+        quest: row
+      };
+    }
+
+    function addBreakQuestToPath(pathId, blockRef, amount, title, description, rewardText) {
+      return addObjectiveQuestToPath(pathId, "break_block", blockRef, amount, title, description, rewardText);
+    }
+
+    function addPlaceQuestToPath(pathId, blockRef, amount, title, description, rewardText) {
+      return addObjectiveQuestToPath(pathId, "place_block", blockRef, amount, title, description, rewardText);
+    }
+
+    function onGameplayEvent(eventType, payload) {
+      const type = String(eventType || "").trim().toLowerCase();
+      if (type !== "break_block" && type !== "place_block") return false;
+      const config = getCurrentConfig();
+      if (!config) return false;
+      const state = getOrCreatePlayerQuestState(activeWorldId);
+      const chain = getQuestChainRuntime(config, state);
+      if (chain.completed || !chain.currentQuest) return false;
+      const qid = String(chain.currentQuestId || "");
+      if (!qid) return false;
+      if (!(state.accepted[qid] && state.activeQuestId === qid)) return false;
+      const objective = chain.currentQuest.objective && typeof chain.currentQuest.objective === "object"
+        ? chain.currentQuest.objective
+        : null;
+      if (!objective || objective.type !== type) return false;
+      const wantedBlockId = Math.max(0, Math.floor(Number(objective.blockId) || 0));
+      const details = payload && typeof payload === "object" ? payload : {};
+      const eventBlockId = Math.max(0, Math.floor(Number(details.blockId) || 0));
+      if (wantedBlockId > 0 && eventBlockId !== wantedBlockId) return false;
+      const delta = Math.max(1, Math.floor(Number(details.count) || 1));
+      const current = Math.max(0, Math.floor(Number(state.objectiveProgress && state.objectiveProgress[qid]) || 0));
+      const target = Math.max(1, Math.floor(Number(objective.amount) || 1));
+      const next = Math.min(target, current + delta);
+      if (next === current) return false;
+      state.objectiveProgress[qid] = next;
+      persistPlayerQuestState(activeWorldId);
+      if (modalCtx) renderModal();
+      return true;
     }
 
     function handleOwnerSetPathFromModal() {
@@ -1440,6 +1671,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       bindModalEvents,
       onWorldEnter,
       onWorldLeave,
+      onGameplayEvent,
       getCurrentConfig,
       getCurrentQuestPathId,
       isActive,
@@ -1448,6 +1680,8 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       disableWorld,
       setWorldQuestPath,
       addFetchQuestToPath,
+      addBreakQuestToPath,
+      addPlaceQuestToPath,
       listQuestPaths,
       onNpcBroken,
       interact,

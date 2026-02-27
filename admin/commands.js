@@ -146,7 +146,7 @@ window.GTModules.commands = {
       if (c.hasAdminPermission("reach")) available.push("/reach");
       if (c.hasAdminPermission("bring")) available.push("/bring", "/summon");
       if (c.hasAdminPermission("setrole") || c.hasAdminPermission("setrole_limited")) available.push("/setrole", "/role");
-      if (c.normalizeAdminRole && c.normalizeAdminRole(c.currentAdminRole) === "owner") available.push("/questworld", "/questworldoff", "/questpath", "/questaddfetch");
+      if (c.normalizeAdminRole && c.normalizeAdminRole(c.currentAdminRole) === "owner") available.push("/questworld", "/questworldoff", "/questpath", "/questaddfetch", "/questaddbreak", "/questaddplace");
       c.postLocalSystemChat("Role: " + c.currentAdminRole + " | Commands: " + (available.join(", ") || "none"));
       return true;
     }
@@ -306,6 +306,86 @@ window.GTModules.commands = {
       c.postLocalSystemChat("Added fetch quest to path " + result.pathId + ": " + questTitle + ".");
       c.logAdminAudit("Admin(chat) added fetch quest in path " + result.pathId + " (" + questTitle + ").");
       c.pushAdminAuditEntry("questpath_add_fetch", "", "path=" + result.pathId + " block=" + blockRef + " amount=" + Math.floor(amount));
+      return true;
+    }
+    if (command === "/questaddbreak" || command === "/addbreakquest") {
+      if (!c.inWorld) {
+        c.postLocalSystemChat("Enter a world first.");
+        return true;
+      }
+      const role = c.normalizeAdminRole ? c.normalizeAdminRole(c.currentAdminRole) : String(c.currentAdminRole || "").toLowerCase();
+      if (role !== "owner") {
+        c.postLocalSystemChat("Only owner role can use this command.");
+        return true;
+      }
+      if (typeof c.addQuestWorldBreakQuest !== "function") {
+        c.postLocalSystemChat("Quest world controller is unavailable.");
+        return true;
+      }
+      const pathId = String(parts[1] || "current").trim();
+      const blockRefRaw = String(parts[2] || "").trim();
+      const blockRef = (!blockRefRaw || blockRefRaw.toLowerCase() === "any" || blockRefRaw === "*") ? "" : blockRefRaw;
+      const amount = Number(parts[3]);
+      const title = parts.slice(4).join(" ").trim();
+      if (!Number.isFinite(amount) || amount <= 0) {
+        c.postLocalSystemChat("Usage: /questaddbreak <path_id|current> <block_key|block_id|any> <amount> <title>");
+        return true;
+      }
+      const result = c.addQuestWorldBreakQuest(pathId, blockRef, amount, title, "", "Reward placeholder");
+      if (!result || !result.ok) {
+        if (result && result.reason === "invalid_block") {
+          c.postLocalSystemChat("Unknown block id/key: " + (blockRefRaw || "any") + ".");
+        } else if (result && result.reason === "invalid_path") {
+          c.postLocalSystemChat("Invalid quest path id.");
+        } else {
+          c.postLocalSystemChat("Failed to add break quest.");
+        }
+        return true;
+      }
+      const questTitle = result.quest && result.quest.title ? result.quest.title : ("Break " + Math.floor(amount) + " blocks");
+      c.postLocalSystemChat("Added break quest to path " + result.pathId + ": " + questTitle + ".");
+      c.logAdminAudit("Admin(chat) added break quest in path " + result.pathId + " (" + questTitle + ").");
+      c.pushAdminAuditEntry("questpath_add_break", "", "path=" + result.pathId + " block=" + (blockRefRaw || "any") + " amount=" + Math.floor(amount));
+      return true;
+    }
+    if (command === "/questaddplace" || command === "/addplacequest") {
+      if (!c.inWorld) {
+        c.postLocalSystemChat("Enter a world first.");
+        return true;
+      }
+      const role = c.normalizeAdminRole ? c.normalizeAdminRole(c.currentAdminRole) : String(c.currentAdminRole || "").toLowerCase();
+      if (role !== "owner") {
+        c.postLocalSystemChat("Only owner role can use this command.");
+        return true;
+      }
+      if (typeof c.addQuestWorldPlaceQuest !== "function") {
+        c.postLocalSystemChat("Quest world controller is unavailable.");
+        return true;
+      }
+      const pathId = String(parts[1] || "current").trim();
+      const blockRefRaw = String(parts[2] || "").trim();
+      const blockRef = (!blockRefRaw || blockRefRaw.toLowerCase() === "any" || blockRefRaw === "*") ? "" : blockRefRaw;
+      const amount = Number(parts[3]);
+      const title = parts.slice(4).join(" ").trim();
+      if (!Number.isFinite(amount) || amount <= 0) {
+        c.postLocalSystemChat("Usage: /questaddplace <path_id|current> <block_key|block_id|any> <amount> <title>");
+        return true;
+      }
+      const result = c.addQuestWorldPlaceQuest(pathId, blockRef, amount, title, "", "Reward placeholder");
+      if (!result || !result.ok) {
+        if (result && result.reason === "invalid_block") {
+          c.postLocalSystemChat("Unknown block id/key: " + (blockRefRaw || "any") + ".");
+        } else if (result && result.reason === "invalid_path") {
+          c.postLocalSystemChat("Invalid quest path id.");
+        } else {
+          c.postLocalSystemChat("Failed to add place quest.");
+        }
+        return true;
+      }
+      const questTitle = result.quest && result.quest.title ? result.quest.title : ("Place " + Math.floor(amount) + " blocks");
+      c.postLocalSystemChat("Added place quest to path " + result.pathId + ": " + questTitle + ".");
+      c.logAdminAudit("Admin(chat) added place quest in path " + result.pathId + " (" + questTitle + ").");
+      c.pushAdminAuditEntry("questpath_add_place", "", "path=" + result.pathId + " block=" + (blockRefRaw || "any") + " amount=" + Math.floor(amount));
       return true;
     }
     if (!c.canUseAdminPanel) {

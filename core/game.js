@@ -4061,6 +4061,16 @@
             if (!ctrl || typeof ctrl.addFetchQuestToPath !== "function") return { ok: false, reason: "missing_controller" };
             return ctrl.addFetchQuestToPath(pathId, blockRef, amount, title, description, rewardText);
           },
+          addQuestWorldBreakQuest: (pathId, blockRef, amount, title, description, rewardText) => {
+            const ctrl = getQuestWorldController();
+            if (!ctrl || typeof ctrl.addBreakQuestToPath !== "function") return { ok: false, reason: "missing_controller" };
+            return ctrl.addBreakQuestToPath(pathId, blockRef, amount, title, description, rewardText);
+          },
+          addQuestWorldPlaceQuest: (pathId, blockRef, amount, title, description, rewardText) => {
+            const ctrl = getQuestWorldController();
+            if (!ctrl || typeof ctrl.addPlaceQuestToPath !== "function") return { ok: false, reason: "missing_controller" };
+            return ctrl.addPlaceQuestToPath(pathId, blockRef, amount, title, description, rewardText);
+          },
           parseDurationToMs,
           applyAdminRoleChange,
           handlePrivateMessageCommand: (command, parts) => {
@@ -4767,6 +4777,12 @@
           }
         }
         scheduleQuestsSave(false);
+      }
+
+      function applyQuestWorldGameplayEvent(eventType, payload) {
+        const ctrl = getQuestWorldController();
+        if (!ctrl || typeof ctrl.onGameplayEvent !== "function") return;
+        ctrl.onGameplayEvent(eventType, payload || {});
       }
 
       function postDailyQuestStatus() {
@@ -8656,6 +8672,9 @@
           saveInventory(false);
           refreshToolbar();
           awardXp(3, "placing blocks");
+          applyAchievementEvent("place_block", { count: 1, blockId: id });
+          applyQuestEvent("place_block", { count: 1, blockId: id });
+          applyQuestWorldGameplayEvent("place_block", { count: 1, blockId: id, tx, ty });
         };
 
         if (isWorldLockBlockId(id)) {
@@ -8837,7 +8856,9 @@
           refreshToolbar(true);
           awardXp(15, "harvesting");
           applyAchievementEvent("tree_harvest", { count: 1 });
-          applyQuestEvent("break_block", { count: 1 });
+          applyAchievementEvent("break_block", { count: 1, blockId: id });
+          applyQuestEvent("break_block", { count: 1, blockId: id });
+          applyQuestWorldGameplayEvent("break_block", { count: 1, blockId: id, tx, ty });
           const rewardDef = blockDefs[rewardBlockId];
           const rewardName = rewardDef && rewardDef.name ? rewardDef.name : ("Block " + rewardBlockId);
           if (treeRewardDroppedToWorld) {
@@ -9027,7 +9048,9 @@
         saveInventory(false);
         refreshToolbar(true);
         awardXp(farmableXp, "breaking blocks");
-        applyQuestEvent("break_block", { count: 1 });
+        applyAchievementEvent("break_block", { count: 1, blockId: id });
+        applyQuestEvent("break_block", { count: 1, blockId: id });
+        applyQuestWorldGameplayEvent("break_block", { count: 1, blockId: id, tx, ty });
       }
 
       function tryRotate(tx, ty) {
@@ -9894,6 +9917,7 @@
             createdAt: Date.now()
           });
           applyQuestEvent("visit_world", { worldId });
+          applyAchievementEvent("visit_world", { worldId });
           return;
         }
 
@@ -10476,6 +10500,7 @@
           });
         }).catch(() => {});
         applyQuestEvent("visit_world", { worldId });
+        applyAchievementEvent("visit_world", { worldId });
 
         if (network.connected) {
           if (network.globalPlayerRef) {
