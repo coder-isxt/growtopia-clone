@@ -915,7 +915,7 @@ function drawBackground() {
         const item = COSMETIC_LOOKUP.swords[swordId];
         if (!item) return;
         
-        const pivotX = facing === 1 ? (px + 2 + 1.5) : (px + PLAYER_W - 5 + 1.5);
+        const pivotX = facing === 1 ? (px + 2 + 1.3) : (px + PLAYER_W - 5 + 1.3);
         const pivotY = py + 13 + 1;
         let handX, handY, angle;
 
@@ -930,7 +930,7 @@ function drawBackground() {
           const swing = (Number(swordSwing) || 0) * facingSign;
           const armSwing = Math.max(-4, Math.min(4, swing * 0.18));
           handX = facing === 1 ? (px + 3) : (px + PLAYER_W - 3);
-          handY = py + 21 + armSwing;
+          handY = py + 20 + armSwing;
           const baseAngle = 0;
           const slash = Math.max(-1.2, Math.min(1.2, swing * 0.12));
           angle = baseAngle + slash;

@@ -4318,19 +4318,20 @@ body{
 }
 
 .admin-console-help {
-  margin: 0 12px;
-  padding: 8px 10px;
-  border: 1px solid rgba(125, 179, 235, 0.24);
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(146, 198, 246, 0.42);
   border-radius: 8px;
-  background: rgba(11, 24, 40, 0.65);
-  font-size: 12px;
-  color: #b9d3ef;
+  background: rgba(10, 22, 36, 0.92);
+  font-size: 13px;
+  line-height: 1.4;
+  color: #d9ecff;
 }
 
 .admin-console-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  align-items: end;
+  gap: 12px;
+  align-items: start;
 }
 
 .admin-console-field {
@@ -4340,10 +4341,11 @@ body{
 }
 
 .admin-console-field label {
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #9ebddb;
+  color: #d5e9ff;
 }
 
 .admin-console-opt.admin-console-field {
@@ -4356,41 +4358,62 @@ body{
 
 .admin-console-grid input,
 .admin-console-grid select {
-  min-height: 40px;
+  min-height: 44px;
   border-radius: 9px;
-  border: 1px solid rgba(124, 177, 232, 0.4);
-  background: #162437;
-  color: #e6f2ff;
+  border: 1px solid rgba(150, 202, 252, 0.6);
+  background: #122234;
+  color: #eef7ff;
+  padding: 8px 10px;
+  font-size: 14px;
+  line-height: 1.3;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.admin-console-grid input::placeholder {
+  color: rgba(214, 231, 248, 0.72);
+}
+
+.admin-console-grid input:focus,
+.admin-console-grid select:focus {
+  outline: 2px solid rgba(112, 205, 255, 0.5);
+  outline-offset: 0;
+  border-color: rgba(141, 225, 255, 0.9);
 }
 
 .admin-console-amount-row {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .admin-console-amount-presets {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
 .admin-console-amount-presets button {
-  min-height: 30px;
-  min-width: 44px;
+  min-height: 34px;
+  min-width: 0;
+  width: 100%;
   border-radius: 8px;
   border: 1px solid rgba(120, 182, 241, 0.45);
   background: rgba(30, 53, 79, 0.88);
-  color: #d9ecff;
-  font: inherit;
-  font-size: 11px;
+  color: #ecf6ff;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   letter-spacing: 0.02em;
-  padding: 0 8px;
+  padding: 0 6px;
   cursor: pointer;
 }
 
 .admin-console-amount-presets button:hover {
   border-color: rgba(155, 212, 255, 0.78);
   background: rgba(41, 73, 106, 0.95);
+}
+
+.admin-console-grid button[data-admin-act="runconsole"] {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .admin-console-run-wrap {
