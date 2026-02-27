@@ -410,7 +410,7 @@ window.GTModules.commands = {
               actorUsername: (c.playerName || "admin").toString().slice(0, 20),
               createdAt: Date.now()
             };
-            return ctrl.writeSet("/system/announcement", payload)
+            return ctrl.writeSet("system/announcement", payload)
               .then((out) => Boolean(out && out.ok))
               .catch(() => false);
           });
@@ -476,7 +476,7 @@ window.GTModules.commands = {
               endpoint: window.CLOUDFLARE_PACKET_ENDPOINT || "",
               timeoutMs: 9000
             });
-            return ctrl.writeRemove("/admin-audit")
+            return ctrl.writeRemove("admin-audit")
               .then((out) => Boolean(out && out.ok))
               .catch(() => false);
           });
