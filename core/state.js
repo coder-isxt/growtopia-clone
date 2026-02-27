@@ -666,6 +666,7 @@ window.GTModules.state = (function createStateModule() {
     ensure("adminBackupLoading", () => false);
     ensure("isAdminOpen", () => false);
     ensure("adminCommandsMenuOpen", () => false);
+    ensure("adminDashboardTab", () => "overview");
     ensure("hasSeenAdminRoleSnapshot", () => false);
     ensure("adminCommandLastUsedAt", () => new Map());
     ensure("chatMessages", () => []);

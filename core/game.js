@@ -2517,6 +2517,90 @@
             </div>
           </div>
         `;
+        const playersRowsMarkup = rows.join("") || "<div class='admin-row'><div class='admin-meta'><strong>No players match filter.</strong></div></div>";
+        const dashboardTabs = [
+          { id: "overview", label: "Overview" },
+          { id: "players", label: "Players (" + filteredIds.length + ")" },
+          { id: "console", label: "Action Console" }
+        ];
+        if (hasAdminPermission("view_audit")) {
+          dashboardTabs.push({ id: "audit", label: "Audit (" + filteredAudit.length + ")" });
+        }
+        if (canViewAccountLogs) {
+          dashboardTabs.push({ id: "logs", label: "Logs (" + logsMessages.length + ")" });
+        }
+        if (canViewAntiCheatLogs()) {
+          dashboardTabs.push({ id: "anticheat", label: "Anti-Cheat (" + antiCheatMessages.length + ")" });
+        }
+        const availableTabIds = dashboardTabs.map((tab) => tab.id);
+        if (!availableTabIds.includes(adminDashboardTab)) {
+          adminDashboardTab = availableTabIds[0] || "overview";
+        }
+        const dashboardTabsMarkup = dashboardTabs.map((tab) => {
+          const activeClass = adminDashboardTab === tab.id ? " active" : "";
+          return '<button type="button" class="admin-tab-btn' + activeClass + '" data-admin-act="settab" data-tab-id="' + escapeHtml(tab.id) + '">' + escapeHtml(tab.label) + "</button>";
+        }).join("");
+        const recentAuditPreviewMarkup = hasAdminPermission("view_audit")
+          ? filteredAudit.slice(-8).map((entry) => {
+            const level = getAuditLevel(entry.action || "");
+            return '<div class="admin-audit-row level-' + escapeHtml(level) + '">' + escapeHtml(entry.time || "--:--") + " | " + escapeHtml(entry.action || "-") + " " + escapeHtml(entry.target || "") + "</div>";
+          }).join("")
+          : "";
+        const recentAuditPreviewEmptyText = hasAdminPermission("view_audit")
+          ? "No audit entries yet."
+          : "Audit tab unavailable for your role.";
+        const quickJumpButtons = [
+          '<button type="button" data-admin-act="settab" data-tab-id="players">Manage Players</button>',
+          '<button type="button" data-admin-act="settab" data-tab-id="console">Run Actions</button>'
+        ];
+        if (availableTabIds.includes("audit")) quickJumpButtons.push('<button type="button" data-admin-act="settab" data-tab-id="audit">Open Audit</button>');
+        if (availableTabIds.includes("logs")) quickJumpButtons.push('<button type="button" data-admin-act="settab" data-tab-id="logs">Open Logs</button>');
+        if (availableTabIds.includes("anticheat")) quickJumpButtons.push('<button type="button" data-admin-act="settab" data-tab-id="anticheat">Open Anti-Cheat</button>');
+        const overviewPanelMarkup = `
+          <div class="admin-layout admin-layout-single">
+            <div class="admin-main">
+              <div class="admin-card admin-tab-card">
+                <div class="admin-card-header">
+                  <div class="admin-audit-title">Quick Access</div>
+                </div>
+                <div class="admin-overview-actions">
+                  ${quickJumpButtons.join("")}
+                </div>
+              </div>
+              <div class="admin-card admin-tab-card">
+                <div class="admin-card-header">
+                  <div class="admin-audit-title">Latest Activity</div>
+                </div>
+                <div class="admin-audit-list admin-overview-audit">
+                  ${recentAuditPreviewMarkup || "<div class='admin-audit-row'>" + escapeHtml(recentAuditPreviewEmptyText) + "</div>"}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        const playersPanelMarkup = `
+          <div class="admin-layout admin-layout-single">
+            <div class="admin-main">
+              <div class="admin-card admin-tab-card">
+                <div class="admin-card-header">
+                  <div class="admin-audit-title">Players</div>
+                </div>
+                <div class="admin-list admin-tab-list">
+                  ${playersRowsMarkup}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        const consolePanelMarkup = `
+          <div class="admin-layout admin-layout-single">
+            <div class="admin-main">
+              <div class="admin-summary">
+                ${adminConsoleMarkup}
+              </div>
+            </div>
+          </div>
+        `;
         const roleCommandList = getAvailableRankCommands();
         const commandItemsMarkup = roleCommandList.map((cmd) => {
           return '<div class="admin-cmd-item" data-cmd-text="' + escapeHtml(String(cmd).toLowerCase()) + '"><code>' + escapeHtml(cmd) + "</code></div>";
@@ -2532,18 +2616,26 @@
             </aside>
             <div class="admin-dash-main">
               ${statsCardsMarkup}
-              <div class="admin-layout">
-                <div class="admin-main">
-                  <div class="admin-summary">
-                    ${adminConsoleMarkup}
-                  </div>
-                  <div class="admin-list">
-                    ${rows.join("") || "<div class='admin-row'><div class='admin-meta'><strong>No players match filter.</strong></div></div>"}
-                  </div>
+              <div class="admin-dash-tabs">
+                ${dashboardTabsMarkup}
+              </div>
+              <div class="admin-tab-panels">
+                <div class="admin-tab-panel ${adminDashboardTab === "overview" ? "" : "hidden"}" data-tab-panel="overview">
+                  ${overviewPanelMarkup}
                 </div>
-                <div class="admin-sidepanels">
+                <div class="admin-tab-panel ${adminDashboardTab === "players" ? "" : "hidden"}" data-tab-panel="players">
+                  ${playersPanelMarkup}
+                </div>
+                <div class="admin-tab-panel ${adminDashboardTab === "console" ? "" : "hidden"}" data-tab-panel="console">
+                  ${consolePanelMarkup}
+                </div>
+                <div class="admin-tab-panel ${adminDashboardTab === "audit" ? "" : "hidden"}" data-tab-panel="audit">
                   ${auditMarkup}
+                </div>
+                <div class="admin-tab-panel ${adminDashboardTab === "logs" ? "" : "hidden"}" data-tab-panel="logs">
                   ${logsMarkup}
+                </div>
+                <div class="admin-tab-panel ${adminDashboardTab === "anticheat" ? "" : "hidden"}" data-tab-panel="anticheat">
                   ${antiCheatMarkup}
                 </div>
               </div>
@@ -2563,12 +2655,9 @@
             </div>
           </div>
         `;
-        const auditListEl = adminAccountsEl.querySelector(".admin-audit-list");
-        scrollElementToBottom(auditListEl);
-        const logsListEl = adminAccountsEl.querySelector(".admin-logs-list");
-        scrollElementToBottom(logsListEl);
-        const antiCheatListEl = adminAccountsEl.querySelector(".admin-anticheat-list");
-        scrollElementToBottom(antiCheatListEl);
+        adminAccountsEl.querySelectorAll(".admin-audit-list").forEach((el) => scrollElementToBottom(el));
+        adminAccountsEl.querySelectorAll(".admin-logs-list").forEach((el) => scrollElementToBottom(el));
+        adminAccountsEl.querySelectorAll(".admin-anticheat-list").forEach((el) => scrollElementToBottom(el));
         updateAdminConsoleOptionVisibility();
       }
 
@@ -2744,6 +2833,16 @@
           return;
         }
         if (!action || !canUseAdminPanel) return;
+        if (action === "settab") {
+          const nextTab = String(target.dataset.tabId || "").trim().toLowerCase();
+          const availableTabs = Array.from(adminAccountsEl.querySelectorAll(".admin-tab-btn[data-tab-id]"))
+            .map((el) => String(el.dataset.tabId || "").trim().toLowerCase())
+            .filter(Boolean);
+          if (!nextTab || !availableTabs.includes(nextTab)) return;
+          adminDashboardTab = nextTab;
+          renderAdminPanel();
+          return;
+        }
         if (action === "setconsoleamount") {
           const amountInput = adminAccountsEl.querySelector(".admin-console-amount");
           if (!(amountInput instanceof HTMLInputElement)) return;
@@ -4355,6 +4454,7 @@
         adminAuditActionFilter = "";
         adminAuditActorFilter = "";
         adminAuditTargetFilter = "";
+        adminDashboardTab = "overview";
         adminBackupList = [];
         adminBackupSelectedId = "";
         adminBackupLoading = false;
@@ -6429,6 +6529,7 @@
         adminAuditActionFilter = "";
         adminAuditActorFilter = "";
         adminAuditTargetFilter = "";
+        adminDashboardTab = "overview";
         if (adminSearchInput) adminSearchInput.value = "";
         if (adminAuditActionFilterEl) adminAuditActionFilterEl.value = "";
         if (adminAuditActorFilterEl) adminAuditActorFilterEl.value = "";

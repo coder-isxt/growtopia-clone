@@ -4497,6 +4497,7 @@ body{
 
 .admin-dash-main {
   padding: 14px;
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .admin-dash-stats {
@@ -4577,6 +4578,100 @@ body{
 .admin-card-header {
   background: linear-gradient(180deg, rgba(25, 39, 57, 0.96), rgba(19, 31, 46, 0.96));
   border-bottom: 1px solid rgba(137, 185, 232, 0.26);
+}
+
+.admin-dash-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 0 0;
+}
+
+.admin-tab-btn {
+  border: 1px solid rgba(130, 184, 236, 0.45);
+  background: linear-gradient(180deg, rgba(36, 57, 80, 0.95), rgba(27, 44, 63, 0.95));
+  color: #d7ecff;
+  border-radius: 10px;
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.admin-tab-btn:hover {
+  border-color: rgba(167, 213, 255, 0.7);
+  background: linear-gradient(180deg, rgba(45, 70, 98, 0.96), rgba(33, 54, 77, 0.96));
+}
+
+.admin-tab-btn.active {
+  border-color: rgba(108, 212, 255, 0.88);
+  background: linear-gradient(180deg, rgba(52, 104, 149, 0.96), rgba(37, 80, 119, 0.96));
+  color: #eef9ff;
+  box-shadow: 0 0 0 1px rgba(111, 202, 255, 0.35) inset;
+}
+
+.admin-tab-panels {
+  min-height: 0;
+  display: grid;
+}
+
+.admin-tab-panel {
+  min-height: 0;
+  display: grid;
+}
+
+.admin-layout.admin-layout-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.admin-tab-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.admin-tab-list,
+.admin-overview-audit {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.admin-overview-actions {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.admin-overview-actions button {
+  border: 1px solid rgba(129, 186, 242, 0.44);
+  background: linear-gradient(180deg, rgba(35, 59, 84, 0.95), rgba(27, 46, 67, 0.95));
+  color: #dff1ff;
+  border-radius: 10px;
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-overview-actions button:hover {
+  border-color: rgba(164, 215, 255, 0.74);
+}
+
+@media (max-width: 960px) {
+  .admin-dash-tabs {
+    gap: 6px;
+  }
+  .admin-tab-btn {
+    flex: 1 1 auto;
+    min-width: 120px;
+  }
+  .admin-overview-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Final UI consistency pass (auth + legacy modal surfaces) */
