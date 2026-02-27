@@ -391,18 +391,16 @@ window.GTModules.commands = {
         c.postLocalSystemChat("Usage: /announce <message>");
         return true;
       }
-      if (!c.network.db) {
-        c.postLocalSystemChat("Network unavailable.");
+      if (typeof c.issueGlobalAnnouncement !== "function") {
+        c.postLocalSystemChat("Cloudflare backend unavailable.");
         return true;
       }
-      const announceId = "an_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
       const msg = message.slice(0, 140);
-      c.network.db.ref(c.BASE_PATH + "/system/announcement").set({
-        id: announceId,
-        text: msg,
-        actorUsername: (c.playerName || "admin").toString().slice(0, 20),
-        createdAt: c.firebase.database.ServerValue.TIMESTAMP
-      }).then(() => {
+      c.issueGlobalAnnouncement(msg).then((ok) => {
+        if (!ok) {
+          c.postLocalSystemChat("Failed to send announcement.");
+          return;
+        }
         c.sendSystemWorldMessage("[Admin] " + (c.playerName || "admin") + ": " + msg);
         c.postLocalSystemChat("Announcement sent.");
         c.pushAdminAuditEntry("announce", "", msg.slice(0, 80));
@@ -444,18 +442,24 @@ window.GTModules.commands = {
       return true;
     }
     if (command === "/clearaudit") {
-      if (!c.hasAdminPermission("clear_logs") || !c.network.db) {
+      if (!c.hasAdminPermission("clear_logs")) {
         c.postLocalSystemChat("Permission denied.");
         return true;
       }
-      c.network.db.ref(c.BASE_PATH + "/admin-audit").remove().then(() => {
+      if (typeof c.clearAdminAuditTrail !== "function") {
+        c.postLocalSystemChat("Cloudflare backend unavailable.");
+        return true;
+      }
+      c.clearAdminAuditTrail().then((ok) => {
+        if (!ok) {
+          c.postLocalSystemChat("Failed to clear audit trail.");
+          return;
+        }
         c.adminState.audit = [];
         c.refreshAuditActionFilterOptions();
         c.renderAdminPanel();
         c.postLocalSystemChat("Audit trail cleared.");
         c.pushAdminAuditEntry("clear_audit", "", "");
-      }).catch(() => {
-        c.postLocalSystemChat("Failed to clear audit trail.");
       });
       return true;
     }
