@@ -321,6 +321,48 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
           }
         }
       ];
+      const eventQuestList = [
+        {
+          id: "events_path_01_harvest",
+          title: "Harvest 5 trees",
+          description: "Collect ripe trees to prove your farming skill.",
+          rewardText: "Reward: 40 gems",
+          objective: {
+            type: "tree_harvest",
+            amount: 5
+          },
+          reward: {
+            gems: 40
+          }
+        },
+        {
+          id: "events_path_02_gems",
+          title: "Earn 250 gems",
+          description: "Earn gems from normal gameplay.",
+          rewardText: "Reward: 70 gems",
+          objective: {
+            type: "gems_earned",
+            amount: 250
+          },
+          reward: {
+            gems: 70
+          }
+        },
+        {
+          id: "events_path_03_trades",
+          title: "Complete 2 trades",
+          description: "Trade with other players to finish this path.",
+          rewardText: "Reward: title traveler",
+          objective: {
+            type: "trade_complete",
+            amount: 2
+          },
+          reward: {
+            titleId: "traveler",
+            titleAmount: 1
+          }
+        }
+      ];
       return [
         {
           id: DEFAULT_PATH_ID,
@@ -336,6 +378,11 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
           id: "builder_breaker_path",
           name: "Builder Breaker Path",
           quests: builderBreakerQuestList
+        },
+        {
+          id: "event_mastery_path",
+          name: "Event Mastery Path",
+          quests: eventQuestList
         }
       ];
     }
@@ -349,11 +396,20 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         type = "break_block";
       } else if (rawType === "place_block" || rawType === "placeblock" || rawType === "build_block") {
         type = "place_block";
+      } else if (rawType === "tree_harvest" || rawType === "harvest_tree" || rawType === "harvest") {
+        type = "tree_harvest";
+      } else if (rawType === "gems_earned" || rawType === "earn_gems" || rawType === "gems") {
+        type = "gems_earned";
+      } else if (rawType === "trade_complete" || rawType === "trade" || rawType === "complete_trade") {
+        type = "trade_complete";
       }
       if (!type) return null;
-      let blockId = Math.floor(Number(row.blockId) || 0);
-      if (!blockId) {
-        blockId = parseBlockRef(row.blockKey || row.block || row.item || "");
+      let blockId = 0;
+      if (type === "bring_block" || type === "break_block" || type === "place_block") {
+        blockId = Math.floor(Number(row.blockId) || 0);
+        if (!blockId) {
+          blockId = parseBlockRef(row.blockKey || row.block || row.item || "");
+        }
       }
       const amount = Math.max(1, Math.floor(Number(row.amount || row.count) || 1));
       if (type === "bring_block" && !blockId) return null;
@@ -872,6 +928,18 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         if (blockId > 0) return "Place " + amount + "x " + getBlockNameById(blockId);
         return "Place " + amount + " blocks";
       }
+      if (objective.type === "tree_harvest") {
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        return "Harvest " + amount + " trees";
+      }
+      if (objective.type === "gems_earned") {
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        return "Earn " + amount + " gems";
+      }
+      if (objective.type === "trade_complete") {
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        return "Complete " + amount + " trades";
+      }
       return "";
     }
 
@@ -884,6 +952,11 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         return getInventoryBlockCount(blockId);
       }
       if (objective.type === "break_block" || objective.type === "place_block") {
+        const qid = normalizeQuestId(quest && quest.id, "");
+        if (!qid) return 0;
+        return Math.max(0, Math.floor(Number(state.objectiveProgress && state.objectiveProgress[qid]) || 0));
+      }
+      if (objective.type === "tree_harvest" || objective.type === "gems_earned" || objective.type === "trade_complete") {
         const qid = normalizeQuestId(quest && quest.id, "");
         if (!qid) return 0;
         return Math.max(0, Math.floor(Number(state.objectiveProgress && state.objectiveProgress[qid]) || 0));
@@ -907,6 +980,21 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         const blockText = blockId > 0 ? (" " + getBlockNameById(blockId)) : "";
         const actionText = objective.type === "break_block" ? "broken" : "placed";
         return "Progress: " + have + "/" + amount + blockText + " " + actionText;
+      }
+      if (objective.type === "tree_harvest") {
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        const have = getQuestObjectiveProgressCount(quest);
+        return "Progress: " + have + "/" + amount + " trees harvested";
+      }
+      if (objective.type === "gems_earned") {
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        const have = getQuestObjectiveProgressCount(quest);
+        return "Progress: " + have + "/" + amount + " gems earned";
+      }
+      if (objective.type === "trade_complete") {
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        const have = getQuestObjectiveProgressCount(quest);
+        return "Progress: " + have + "/" + amount + " trades completed";
       }
       return "";
     }
@@ -1072,7 +1160,13 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
           consumeMessage: "Turned in " + amount + "x " + blockName + "."
         };
       }
-      if (objective.type === "break_block" || objective.type === "place_block") {
+      if (
+        objective.type === "break_block" ||
+        objective.type === "place_block" ||
+        objective.type === "tree_harvest" ||
+        objective.type === "gems_earned" ||
+        objective.type === "trade_complete"
+      ) {
         const qid = normalizeQuestId(quest && quest.id, "");
         if (!qid) {
           return {
@@ -1084,9 +1178,23 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         const state = getOrCreatePlayerQuestState(activeWorldId);
         const progress = Math.max(0, Math.floor(Number(state.objectiveProgress && state.objectiveProgress[qid]) || 0));
         if (progress < needed) {
-          const actionText = objective.type === "break_block" ? "Break" : "Place";
+          let actionText = "Complete";
+          if (objective.type === "break_block") actionText = "Break";
+          else if (objective.type === "place_block") actionText = "Place";
+          else if (objective.type === "tree_harvest") actionText = "Harvest";
+          else if (objective.type === "gems_earned") actionText = "Earn";
+          else if (objective.type === "trade_complete") actionText = "Complete";
           const blockId = Math.floor(Number(objective.blockId) || 0);
-          const blockText = blockId > 0 ? (" " + getBlockNameById(blockId)) : " blocks";
+          let blockText = "";
+          if (objective.type === "break_block" || objective.type === "place_block") {
+            blockText = blockId > 0 ? (" " + getBlockNameById(blockId)) : " blocks";
+          } else if (objective.type === "tree_harvest") {
+            blockText = " trees";
+          } else if (objective.type === "gems_earned") {
+            blockText = " gems";
+          } else if (objective.type === "trade_complete") {
+            blockText = " trades";
+          }
           return {
             ok: false,
             message: actionText + blockText + " first (" + progress + "/" + needed + ")."
@@ -1360,7 +1468,15 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
 
     function onGameplayEvent(eventType, payload) {
       const type = String(eventType || "").trim().toLowerCase();
-      if (type !== "break_block" && type !== "place_block") return false;
+      if (
+        type !== "break_block" &&
+        type !== "place_block" &&
+        type !== "tree_harvest" &&
+        type !== "gems_earned" &&
+        type !== "trade_complete"
+      ) {
+        return false;
+      }
       const config = getCurrentConfig();
       if (!config) return false;
       const state = getOrCreatePlayerQuestState(activeWorldId);
@@ -1373,11 +1489,17 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         ? chain.currentQuest.objective
         : null;
       if (!objective || objective.type !== type) return false;
-      const wantedBlockId = Math.max(0, Math.floor(Number(objective.blockId) || 0));
       const details = payload && typeof payload === "object" ? payload : {};
-      const eventBlockId = Math.max(0, Math.floor(Number(details.blockId) || 0));
-      if (wantedBlockId > 0 && eventBlockId !== wantedBlockId) return false;
-      const delta = Math.max(1, Math.floor(Number(details.count) || 1));
+      const wantedBlockId = Math.max(0, Math.floor(Number(objective.blockId) || 0));
+      if (type === "break_block" || type === "place_block") {
+        const eventBlockId = Math.max(0, Math.floor(Number(details.blockId) || 0));
+        if (wantedBlockId > 0 && eventBlockId !== wantedBlockId) return false;
+      }
+      let delta = Math.max(1, Math.floor(Number(details.count) || 1));
+      if (type === "gems_earned") {
+        delta = Math.max(0, Math.floor(Number(details.amount) || 0));
+        if (!delta) return false;
+      }
       const current = Math.max(0, Math.floor(Number(state.objectiveProgress && state.objectiveProgress[qid]) || 0));
       const target = Math.max(1, Math.floor(Number(objective.amount) || 1));
       const next = Math.min(target, current + delta);

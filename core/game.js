@@ -718,6 +718,7 @@
             const tradeId = payload && payload.tradeId ? String(payload.tradeId) : "";
             applyQuestEvent("trade_complete", { tradeId, count: 1 });
             applyAchievementEvent("trade_complete", { tradeId });
+            applyQuestWorldGameplayEvent("trade_complete", { tradeId, count: 1 });
           }
         });
         return tradeController;
@@ -4061,16 +4062,6 @@
             if (!ctrl || typeof ctrl.addFetchQuestToPath !== "function") return { ok: false, reason: "missing_controller" };
             return ctrl.addFetchQuestToPath(pathId, blockRef, amount, title, description, rewardText);
           },
-          addQuestWorldBreakQuest: (pathId, blockRef, amount, title, description, rewardText) => {
-            const ctrl = getQuestWorldController();
-            if (!ctrl || typeof ctrl.addBreakQuestToPath !== "function") return { ok: false, reason: "missing_controller" };
-            return ctrl.addBreakQuestToPath(pathId, blockRef, amount, title, description, rewardText);
-          },
-          addQuestWorldPlaceQuest: (pathId, blockRef, amount, title, description, rewardText) => {
-            const ctrl = getQuestWorldController();
-            if (!ctrl || typeof ctrl.addPlaceQuestToPath !== "function") return { ok: false, reason: "missing_controller" };
-            return ctrl.addPlaceQuestToPath(pathId, blockRef, amount, title, description, rewardText);
-          },
           parseDurationToMs,
           applyAdminRoleChange,
           handlePrivateMessageCommand: (command, parts) => {
@@ -4473,6 +4464,8 @@
         updateGemsLabel();
         if (trackAchievement && gained > 0) {
           applyAchievementEvent("gems_earned", { amount: gained });
+          applyQuestEvent("gems_earned", { amount: gained });
+          applyQuestWorldGameplayEvent("gems_earned", { amount: gained });
         }
         return gained;
       }
@@ -8856,6 +8849,8 @@
           refreshToolbar(true);
           awardXp(15, "harvesting");
           applyAchievementEvent("tree_harvest", { count: 1 });
+          applyQuestEvent("tree_harvest", { count: 1 });
+          applyQuestWorldGameplayEvent("tree_harvest", { count: 1, tx, ty });
           applyAchievementEvent("break_block", { count: 1, blockId: id });
           applyQuestEvent("break_block", { count: 1, blockId: id });
           applyQuestWorldGameplayEvent("break_block", { count: 1, blockId: id, tx, ty });
