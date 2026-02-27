@@ -930,7 +930,7 @@ function drawBackground() {
           const swing = (Number(swordSwing) || 0) * facingSign;
           const armSwing = Math.max(-4, Math.min(4, swing * 0.18));
           handX = facing === 1 ? (px + 3) : (px + PLAYER_W - 3);
-          handY = py + 16 + armSwing;
+          handY = py + 22 + armSwing;
           const baseAngle = 0;
           const slash = Math.max(-1.2, Math.min(1.2, swing * 0.12));
           angle = baseAngle + slash;

@@ -2303,6 +2303,11 @@
           return '<option value="' + escapeHtml(row.id) + '">' + escapeHtml(row.label) + "</option>";
         }).join("");
         const backupOptionsMarkup = getAdminBackupOptionsMarkup();
+        const consoleBlockOptions = buildAdminConsoleOptionRows("give_block");
+        const consoleFarmableOptions = buildAdminConsoleOptionRows("give_farmable");
+        const consoleSeedOptions = buildAdminConsoleOptionRows("give_seed");
+        const consoleItemOptions = buildAdminConsoleOptionRows("give_item");
+        const consoleTitleOptions = buildAdminConsoleOptionRows("give_title");
         const adminConsoleMarkup = `
           <div class="admin-console admin-card">
             <div class="admin-card-header">
@@ -2322,6 +2327,10 @@
                 <label>Action</label>
                 <select class="admin-console-action">${actionOptionsMarkup}</select>
               </div>
+              <div class="admin-console-opt admin-console-opt-item-search hidden admin-console-field admin-console-field-wide">
+                <label>Find Item</label>
+                <input class="admin-console-item-search" type="text" maxlength="80" placeholder="Search by name, key, or id">
+              </div>
               <div class="admin-console-opt admin-console-opt-duration hidden admin-console-field">
                 <label>Duration</label>
                 <input class="admin-console-duration" type="text" value="15m" placeholder="60m / 12h / 7d">
@@ -2339,36 +2348,46 @@
               <div class="admin-console-opt admin-console-opt-block hidden admin-console-field">
                 <label>Block</label>
                 <select class="admin-console-block">
-                  ${NORMAL_BLOCK_INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
+                  ${consoleBlockOptions.map((row) => '<option value="' + escapeHtml(row.value) + '">' + escapeHtml(row.label) + "</option>").join("")}
                 </select>
               </div>
               <div class="admin-console-opt admin-console-opt-farmable hidden admin-console-field">
                 <label>Farmable</label>
                 <select class="admin-console-farmable">
-                  ${FARMABLE_INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Farmable " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
+                  ${consoleFarmableOptions.map((row) => '<option value="' + escapeHtml(row.value) + '">' + escapeHtml(row.label) + "</option>").join("")}
                 </select>
               </div>
               <div class="admin-console-opt admin-console-opt-seed hidden admin-console-field">
                 <label>Seed</label>
                 <select class="admin-console-seed">
-                  ${SEED_INVENTORY_IDS.map((id) => '<option value="' + escapeHtml(getBlockKeyById(id)) + '">' + escapeHtml((blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Seed " + id)) + " (" + getBlockKeyById(id) + ")") + "</option>").join("")}
+                  ${consoleSeedOptions.map((row) => '<option value="' + escapeHtml(row.value) + '">' + escapeHtml(row.label) + "</option>").join("")}
                 </select>
               </div>
               <div class="admin-console-opt admin-console-opt-item hidden admin-console-field">
                 <label>Cosmetic</label>
                 <select class="admin-console-item">
-                  ${COSMETIC_ITEMS.map((item) => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name + " (" + item.id + ")") + "</option>").join("")}
+                  ${consoleItemOptions.map((row) => '<option value="' + escapeHtml(row.value) + '">' + escapeHtml(row.label) + "</option>").join("")}
                 </select>
               </div>
               <div class="admin-console-opt admin-console-opt-title hidden admin-console-field">
                 <label>Title</label>
                 <select class="admin-console-title">
-                  ${TITLE_CATALOG.map((title) => '<option value="' + escapeHtml(title.id) + '">' + escapeHtml(title.name + " (" + title.id + ")") + "</option>").join("")}
+                  ${consoleTitleOptions.map((row) => '<option value="' + escapeHtml(row.value) + '">' + escapeHtml(row.label) + "</option>").join("")}
                 </select>
               </div>
               <div class="admin-console-opt admin-console-opt-amount hidden admin-console-field">
                 <label>Amount</label>
-                <input class="admin-console-amount" type="number" min="1" step="1" value="1" placeholder="Amount">
+                <div class="admin-console-amount-row">
+                  <input class="admin-console-amount" type="number" min="1" step="1" value="1" placeholder="Amount">
+                  <div class="admin-console-amount-presets">
+                    <button type="button" data-admin-act="setconsoleamount" data-amount="1">1</button>
+                    <button type="button" data-admin-act="setconsoleamount" data-amount="10">10</button>
+                    <button type="button" data-admin-act="setconsoleamount" data-amount="50">50</button>
+                    <button type="button" data-admin-act="setconsoleamount" data-amount="100">100</button>
+                    <button type="button" data-admin-act="setconsoleamount" data-amount="500">500</button>
+                    <button type="button" data-admin-act="setconsoleamount" data-amount="1000">1000</button>
+                  </div>
+                </div>
               </div>
               <div class="admin-console-opt admin-console-opt-backup hidden admin-console-field admin-console-field-wide">
                 <label>Backup</label>
@@ -2553,6 +2572,94 @@
         updateAdminConsoleOptionVisibility();
       }
 
+      function buildAdminConsoleOptionRows(action) {
+        const safeAction = String(action || "");
+        let rows = [];
+        if (safeAction === "give_block") {
+          rows = NORMAL_BLOCK_INVENTORY_IDS.map((id) => {
+            const key = getBlockKeyById(id);
+            const name = blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id);
+            return { value: key, label: name + " (" + key + ")" };
+          });
+        } else if (safeAction === "give_farmable") {
+          rows = FARMABLE_INVENTORY_IDS.map((id) => {
+            const key = getBlockKeyById(id);
+            const name = blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Farmable " + id);
+            return { value: key, label: name + " (" + key + ")" };
+          });
+        } else if (safeAction === "give_seed") {
+          rows = SEED_INVENTORY_IDS.map((id) => {
+            const key = getBlockKeyById(id);
+            const name = blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Seed " + id);
+            return { value: key, label: name + " (" + key + ")" };
+          });
+        } else if (safeAction === "give_item") {
+          rows = COSMETIC_ITEMS.map((item) => {
+            const id = String(item && item.id || "");
+            const name = String(item && item.name || id || "Cosmetic");
+            return { value: id, label: name + " (" + id + ")" };
+          });
+        } else if (safeAction === "give_title" || safeAction === "remove_title") {
+          rows = TITLE_CATALOG.map((title) => {
+            const id = String(title && title.id || "");
+            const name = String(title && title.name || id || "Title");
+            return { value: id, label: name + " (" + id + ")" };
+          });
+        }
+        rows = rows.filter((row) => row && row.value && row.label);
+        rows.sort((a, b) => String(a.label || "").localeCompare(String(b.label || ""), undefined, { sensitivity: "base" }));
+        return rows;
+      }
+
+      function getAdminConsoleSelectByAction(action) {
+        const safeAction = String(action || "");
+        if (safeAction === "give_block") return adminAccountsEl.querySelector(".admin-console-block");
+        if (safeAction === "give_farmable") return adminAccountsEl.querySelector(".admin-console-farmable");
+        if (safeAction === "give_seed") return adminAccountsEl.querySelector(".admin-console-seed");
+        if (safeAction === "give_item") return adminAccountsEl.querySelector(".admin-console-item");
+        if (safeAction === "give_title" || safeAction === "remove_title") return adminAccountsEl.querySelector(".admin-console-title");
+        return null;
+      }
+
+      function getAdminConsoleItemSearchPlaceholder(action) {
+        const safeAction = String(action || "");
+        if (safeAction === "give_block") return "Search blocks by name or key";
+        if (safeAction === "give_farmable") return "Search farmables by name or key";
+        if (safeAction === "give_seed") return "Search seeds by name or key";
+        if (safeAction === "give_item") return "Search cosmetics by name or id";
+        if (safeAction === "give_title" || safeAction === "remove_title") return "Search titles by name or id";
+        return "Search by name, key, or id";
+      }
+
+      function refreshAdminConsoleItemOptions(action, rawQuery) {
+        const selectEl = getAdminConsoleSelectByAction(action);
+        if (!(selectEl instanceof HTMLSelectElement)) return;
+        const rows = buildAdminConsoleOptionRows(action);
+        const query = String(rawQuery || "").trim().toLowerCase();
+        const filtered = query
+          ? rows.filter((row) => {
+              const label = String(row.label || "").toLowerCase();
+              const value = String(row.value || "").toLowerCase();
+              return label.includes(query) || value.includes(query);
+            })
+          : rows;
+        const previousValue = String(selectEl.value || "");
+        if (!filtered.length) {
+          selectEl.innerHTML = "<option value=\"\">No results</option>";
+          selectEl.disabled = true;
+          return;
+        }
+        selectEl.disabled = false;
+        selectEl.innerHTML = filtered.map((row) => {
+          return '<option value="' + escapeHtml(row.value) + '">' + escapeHtml(row.label) + "</option>";
+        }).join("");
+        if (filtered.some((row) => row.value === previousValue)) {
+          selectEl.value = previousValue;
+        } else {
+          selectEl.value = filtered[0].value;
+        }
+      }
+
       function updateAdminConsoleOptionVisibility() {
         const actionEl = adminAccountsEl.querySelector(".admin-console-action");
         if (!(actionEl instanceof HTMLSelectElement)) return;
@@ -2566,6 +2673,7 @@
           seed: adminAccountsEl.querySelector(".admin-console-opt-seed"),
           item: adminAccountsEl.querySelector(".admin-console-opt-item"),
           title: adminAccountsEl.querySelector(".admin-console-opt-title"),
+          itemSearch: adminAccountsEl.querySelector(".admin-console-opt-item-search"),
           amount: adminAccountsEl.querySelector(".admin-console-opt-amount"),
           backup: adminAccountsEl.querySelector(".admin-console-opt-backup"),
           reach: adminAccountsEl.querySelector(".admin-console-opt-reach"),
@@ -2583,18 +2691,23 @@
         } else if (action === "setrole") {
           if (map.role instanceof HTMLElement) map.role.classList.remove("hidden");
         } else if (action === "give_block") {
+          if (map.itemSearch instanceof HTMLElement) map.itemSearch.classList.remove("hidden");
           if (map.block instanceof HTMLElement) map.block.classList.remove("hidden");
           if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
         } else if (action === "give_farmable") {
+          if (map.itemSearch instanceof HTMLElement) map.itemSearch.classList.remove("hidden");
           if (map.farmable instanceof HTMLElement) map.farmable.classList.remove("hidden");
           if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
         } else if (action === "give_seed") {
+          if (map.itemSearch instanceof HTMLElement) map.itemSearch.classList.remove("hidden");
           if (map.seed instanceof HTMLElement) map.seed.classList.remove("hidden");
           if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
         } else if (action === "give_item") {
+          if (map.itemSearch instanceof HTMLElement) map.itemSearch.classList.remove("hidden");
           if (map.item instanceof HTMLElement) map.item.classList.remove("hidden");
           if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
         } else if (action === "give_title" || action === "remove_title") {
+          if (map.itemSearch instanceof HTMLElement) map.itemSearch.classList.remove("hidden");
           if (map.title instanceof HTMLElement) map.title.classList.remove("hidden");
           if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
         } else if (action === "reach") {
@@ -2606,6 +2719,12 @@
         } else if (action === "db_restore") {
           if (map.backup instanceof HTMLElement) map.backup.classList.remove("hidden");
         }
+        const searchEl = adminAccountsEl.querySelector(".admin-console-item-search");
+        const query = searchEl instanceof HTMLInputElement ? searchEl.value : "";
+        if (searchEl instanceof HTMLInputElement) {
+          searchEl.placeholder = getAdminConsoleItemSearchPlaceholder(action);
+        }
+        refreshAdminConsoleItemOptions(action, query);
       }
 
       function handleAdminAction(event) {
@@ -2625,6 +2744,14 @@
           return;
         }
         if (!action || !canUseAdminPanel) return;
+        if (action === "setconsoleamount") {
+          const amountInput = adminAccountsEl.querySelector(".admin-console-amount");
+          if (!(amountInput instanceof HTMLInputElement)) return;
+          const next = Math.max(1, Math.min(1000000, Math.floor(Number(target.dataset.amount) || 1)));
+          amountInput.value = String(next);
+          amountInput.dispatchEvent(new Event("input", { bubbles: true }));
+          return;
+        }
         if (action === "togglecommands") {
           adminCommandsMenuOpen = !adminCommandsMenuOpen;
           renderAdminPanel();
