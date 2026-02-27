@@ -18,18 +18,18 @@ window.GT_SETTINGS = {
   PLAYER_WIDTH: 22,
   PLAYER_HEIGHT: 30,
 
-  GRAVITY: 0.21,        // slightly softer arcade gravity
-  MAX_FALL_SPEED: 5.7,  // slower descent cap
+  GRAVITY: 0.13,        // low gravity (Mars-like)
+  MAX_FALL_SPEED: 3.95,  // slow falling cap
 
-  MOVE_ACCEL: 0.33,     // tighter horizontal response
-  MAX_MOVE_SPEED: 2.62, // arcade run speed
+  MOVE_ACCEL: 0.27,     // responsive movement
+  MAX_MOVE_SPEED: 2.38, // faster running
 
-  FRICTION_GROUND: 0.9,
-  FRICTION_AIR: 0.972,
+  FRICTION_GROUND: 0.89, 
+  FRICTION_AIR: 0.985,
 
-  AIR_CONTROL: 0.56,    // responsive mid-air steering
+  AIR_CONTROL: 0.48,    // good air steering
 
-  JUMP_VELOCITY: -5.8, // slightly higher jump for normal + double jump
+  JUMP_VELOCITY: -4.8, // floaty jump arc
   JUMP_COOLDOWN_MS: 160,
 
   // Anti-cheat thresholds (tuned for these movement settings)
@@ -49,13 +49,10 @@ window.GT_SETTINGS = {
   WATER_FRAME_MS: 210,
 
   // Anti-gravity generator tuning
-  ANTI_GRAV_RADIUS_TILES: 18,
-  ANTI_GRAV_GRAVITY_MULT: 0.52,
-  ANTI_GRAV_FALL_MULT: 0.68,
-  ANTI_GRAV_AIR_JUMP_COOLDOWN_MS: 260,
-  ANTI_GRAV_JUMP_MULT: 0.92,
-  ANTI_GRAV_AIR_CONTROL_MULT: 1.15,
-  ANTI_GRAV_AIR_FRICTION_MULT: 1.03,
+  ANTI_GRAV_RADIUS_TILES: 60,
+  ANTI_GRAV_GRAVITY_MULT: 0.29,
+  ANTI_GRAV_FALL_MULT: 0.47,
+  ANTI_GRAV_AIR_JUMP_COOLDOWN_MS: 140,
   // Camera zoom settings (mouse wheel / +/- / 0 reset)
   CAMERA_ZOOM_MIN: 0.7,
   CAMERA_ZOOM_MAX: 2.2,
