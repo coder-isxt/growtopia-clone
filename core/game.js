@@ -3781,6 +3781,20 @@
         editReachTiles = DEFAULT_EDIT_REACH_TILES;
       }
 
+      function clearOwnReachCommandRecord() {
+        if (!playerProfileId || !network.db) return;
+        const path = BASE_PATH + "/account-commands/" + playerProfileId + "/reach";
+        network.db.ref(path).remove().catch(() => {});
+      }
+
+      function clearReachOverrideOnExit(clearRemoteRecord) {
+        resetEditReachTiles();
+        lastHandledReachCommandId = "";
+        if (clearRemoteRecord) {
+          clearOwnReachCommandRecord();
+        }
+      }
+
       function issueReachCommand(targetAccountId, reachTiles) {
         if (!targetAccountId) return Promise.resolve(false);
         const payload = {
@@ -4140,6 +4154,7 @@
       }
 
       function releaseAccountSession() {
+        clearReachOverrideOnExit(true);
         const ctrl = getAuthController();
         if (ctrl && typeof ctrl.releaseAccountSession === "function") {
           ctrl.releaseAccountSession();
@@ -6052,7 +6067,7 @@
         if (gemsCtrl && typeof gemsCtrl.reset === "function") {
           gemsCtrl.reset();
         }
-        resetEditReachTiles();
+        clearReachOverrideOnExit(true);
         updateGemsLabel();
         adminSearchQuery = "";
         adminAuditActionFilter = "";
@@ -9764,7 +9779,7 @@
         touchControls.left = false;
         touchControls.right = false;
         touchControls.jump = false;
-        resetEditReachTiles();
+        clearReachOverrideOnExit(true);
         setInWorldState(false);
         if (antiCheatController && typeof antiCheatController.onWorldSwitch === "function") {
           antiCheatController.onWorldSwitch("menu");
@@ -9893,6 +9908,7 @@
             playerName
           );
           addClientLog("Switched away from world: " + previousWorldId + ".");
+          clearReachOverrideOnExit(true);
         }
         setInWorldState(true);
         detachCurrentWorldListeners();
@@ -11303,12 +11319,20 @@
           network.handlers.myReach = (snapshot) => {
             const value = snapshot.val();
             if (!value || !value.id) return;
-            if (value.id === lastHandledReachCommandId) return;
-            lastHandledReachCommandId = value.id;
+            const commandId = String(value.id || "");
+            const issuedAt = Number(value.issuedAt || value.createdAt) || 0;
+            if (commandId === lastHandledReachCommandId) return;
+            if (issuedAt > 0 && playerSessionStartedAt > 0 && issuedAt <= playerSessionStartedAt) {
+              lastHandledReachCommandId = commandId;
+              clearOwnReachCommandRecord();
+              return;
+            }
+            lastHandledReachCommandId = commandId;
             const nextReach = normalizeEditReachTiles(value.reachTiles);
             setEditReachTiles(nextReach);
             const by = (value.by || "admin").toString().slice(0, 20);
             postLocalSystemChat("Reach set to " + nextReach.toFixed(1) + " tiles by @" + by + ". Resets when you exit world.");
+            clearOwnReachCommandRecord();
           };
           network.handlers.myFreeze = (snapshot) => {
             const value = snapshot.val();
