@@ -4448,6 +4448,137 @@ body{
   }
 }
 
+/* Admin dashboard feel pass */
+.admin-panel {
+  background:
+    radial-gradient(1200px 460px at 50% -120px, rgba(81, 152, 214, 0.16), transparent 68%),
+    linear-gradient(180deg, #1b2535 0%, #161f2e 100%);
+  border: 1px solid rgba(140, 183, 228, 0.34);
+}
+
+.admin-header {
+  background:
+    linear-gradient(180deg, rgba(40, 57, 79, 0.98) 0%, rgba(28, 42, 61, 0.98) 100%);
+  box-shadow: 0 8px 18px rgba(5, 14, 24, 0.45);
+}
+
+.admin-dashboard {
+  background:
+    linear-gradient(180deg, rgba(17, 26, 38, 0.32), rgba(13, 21, 32, 0.18)),
+    repeating-linear-gradient(
+      0deg,
+      rgba(157, 202, 247, 0.02) 0,
+      rgba(157, 202, 247, 0.02) 1px,
+      transparent 1px,
+      transparent 24px
+    );
+}
+
+.admin-dash-sidebar {
+  border-right: 1px solid rgba(138, 185, 232, 0.28);
+  background:
+    linear-gradient(180deg, rgba(40, 54, 74, 0.98), rgba(30, 42, 59, 0.98));
+}
+
+.admin-dash-brand {
+  color: #7ee2ff;
+  text-shadow: 0 0 18px rgba(88, 214, 255, 0.28);
+}
+
+.admin-sidebar-btn {
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+  box-shadow: inset 0 1px 0 rgba(167, 224, 255, 0.2), 0 5px 12px rgba(2, 10, 18, 0.26);
+}
+
+.admin-sidebar-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(185, 232, 255, 0.28), 0 8px 16px rgba(3, 11, 19, 0.34);
+}
+
+.admin-dash-main {
+  padding: 14px;
+}
+
+.admin-dash-stats {
+  gap: 12px;
+}
+
+.admin-dash-stat {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(155, 198, 240, 0.3);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(42, 58, 80, 0.98), rgba(30, 44, 63, 0.98));
+  box-shadow: 0 10px 20px rgba(5, 12, 22, 0.32);
+}
+
+.admin-dash-stat::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--stat-accent, #7ed8ff);
+}
+
+.admin-dash-stat::after {
+  content: "";
+  position: absolute;
+  right: -22px;
+  top: -28px;
+  width: 120px;
+  height: 120px;
+  border-radius: 999px;
+  background: radial-gradient(circle at center, rgba(170, 225, 255, 0.12), transparent 72%);
+  pointer-events: none;
+}
+
+.admin-dash-stat-teal { --stat-accent: #54e0c4; }
+.admin-dash-stat-cyan { --stat-accent: #63d6ff; }
+.admin-dash-stat-red { --stat-accent: #ff8fa1; }
+.admin-dash-stat-amber { --stat-accent: #ffd07a; }
+
+.admin-layout {
+  gap: 14px;
+}
+
+.admin-summary,
+.admin-card {
+  border: 1px solid rgba(149, 196, 242, 0.28);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(43, 58, 79, 0.98), rgba(33, 46, 65, 0.98));
+  box-shadow: 0 10px 22px rgba(5, 13, 23, 0.34);
+}
+
+.admin-list,
+.admin-audit-list,
+.admin-logs-list,
+.admin-anticheat-list {
+  background: rgba(10, 18, 29, 0.28);
+  border: 1px solid rgba(135, 183, 232, 0.18);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.admin-row {
+  border: 1px solid rgba(150, 197, 243, 0.24);
+  background: linear-gradient(180deg, rgba(45, 62, 84, 0.95), rgba(35, 48, 67, 0.95));
+  border-radius: 11px;
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.admin-row:hover {
+  transform: translateY(-1px);
+  border-color: rgba(168, 216, 255, 0.48);
+  box-shadow: 0 8px 16px rgba(5, 12, 21, 0.34);
+}
+
+.admin-card-header {
+  background: linear-gradient(180deg, rgba(25, 39, 57, 0.96), rgba(19, 31, 46, 0.96));
+  border-bottom: 1px solid rgba(137, 185, 232, 0.26);
+}
+
 /* Final UI consistency pass (auth + legacy modal surfaces) */
 .auth-screen {
   position: fixed !important;
