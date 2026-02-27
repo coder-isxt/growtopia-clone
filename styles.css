@@ -4397,10 +4397,16 @@ body{
 
 /* Final UI consistency pass (auth + legacy modal surfaces) */
 .auth-screen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  min-height: 100vh !important;
+  display: grid !important;
+  place-items: center !important;
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
-  padding: 0 !important;
+  padding: 16px !important;
 }
 
 .auth-card,
