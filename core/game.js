@@ -3078,6 +3078,11 @@
         if (!(target instanceof HTMLElement)) return;
         if (target instanceof HTMLSelectElement && target.classList.contains("admin-console-action")) {
           updateAdminConsoleOptionVisibility();
+          const searchEl = adminAccountsEl.querySelector(".admin-console-item-search");
+          if (searchEl instanceof HTMLInputElement) {
+            searchEl.value = "";
+          }
+          refreshAdminConsoleItemOptions(String(target.value || ""), "");
           if (String(target.value || "") === "db_restore" && !adminBackupList.length) {
             refreshAdminBackups(false);
           }
@@ -3103,6 +3108,12 @@
           if (firstVisible && (select.selectedOptions.length === 0 || select.selectedOptions[0].hidden)) {
             select.value = firstVisible;
           }
+          return;
+        }
+        if (target instanceof HTMLInputElement && target.classList.contains("admin-console-item-search")) {
+          const actionEl = adminAccountsEl.querySelector(".admin-console-action");
+          const action = actionEl instanceof HTMLSelectElement ? String(actionEl.value || "") : "";
+          refreshAdminConsoleItemOptions(action, target.value || "");
           return;
         }
         if (target instanceof HTMLInputElement && target.classList.contains("admin-cmd-search")) {

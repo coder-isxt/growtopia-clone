@@ -4363,6 +4363,36 @@ body{
   color: #e6f2ff;
 }
 
+.admin-console-amount-row {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-console-amount-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-console-amount-presets button {
+  min-height: 30px;
+  min-width: 44px;
+  border-radius: 8px;
+  border: 1px solid rgba(120, 182, 241, 0.45);
+  background: rgba(30, 53, 79, 0.88);
+  color: #d9ecff;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  padding: 0 8px;
+  cursor: pointer;
+}
+
+.admin-console-amount-presets button:hover {
+  border-color: rgba(155, 212, 255, 0.78);
+  background: rgba(41, 73, 106, 0.95);
+}
+
 .admin-console-run-wrap {
   grid-column: 1 / -1;
   display: flex;
