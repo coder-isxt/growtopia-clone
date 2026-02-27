@@ -9,7 +9,7 @@ window.GTModules.cosmetics = (function createCosmeticsModule() {
     hats: { x: 1, y: -8, w: 20, h: 10, mode: "contain", alignX: 0.5, alignY: 1, mirror: true },
     // Golden Angel Wings defaults used as baseline for all wings.
     wings: { offsetX: 4, offsetY: -3, wingH: 19, mode: "contain", alignX: 0.5, alignY: 0.5, mirror: true },
-    swords: { mode: "contain", alignX: 0.5, alignY: 0.5, mirror: true }
+    swords: { mode: "contain", alignX: 0.5, alignY: 0.7, mirror: true }
   };
 
   function normalizeNumber(value, fallback, min, max) {

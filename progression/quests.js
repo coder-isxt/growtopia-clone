@@ -131,6 +131,14 @@ window.GTModules.quests = (function createQuestsModule() {
     return out;
   }
 
+  function normalizeBlockKey(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, "")
+      .slice(0, 64);
+  }
+
   function buildFresh(dayKey) {
     const key = String(dayKey || dayKeyFromTs(Date.now()));
     const quests = {};
@@ -234,10 +242,13 @@ window.GTModules.quests = (function createQuestsModule() {
       if (!row || row.completed) continue;
       if (def.event !== type) continue;
 
-      if ((type === "break_block" || type === "place_block") && Number.isFinite(Number(def.blockId))) {
+      if (type === "break_block" || type === "place_block") {
         const wantedBlockId = Math.max(0, Math.floor(Number(def.blockId) || 0));
         const eventBlockId = Math.max(0, Math.floor(Number(details.blockId) || 0));
+        const wantedBlockKey = normalizeBlockKey(def.blockKey || def.block || def.item || "");
+        const eventBlockKey = normalizeBlockKey(details.blockKey || "");
         if (wantedBlockId > 0 && eventBlockId !== wantedBlockId) continue;
+        if (wantedBlockKey && eventBlockKey !== wantedBlockKey) continue;
       }
 
       if (type === "visit_world" && def.uniqueWorldVisit) {
