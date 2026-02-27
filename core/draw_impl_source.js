@@ -915,7 +915,7 @@ function drawBackground() {
         const item = COSMETIC_LOOKUP.swords[swordId];
         if (!item) return;
         
-        const pivotX = facing === 1 ? (px + PLAYER_W - 5 + 1.5) : (px + 2 + 1.5);
+        const pivotX = facing === 1 ? (px + 2 + 1.5) : (px + PLAYER_W - 5 + 1.5);
         const pivotY = py + 13 + 1;
         let handX, handY, angle;
 
@@ -929,7 +929,7 @@ function drawBackground() {
           const facingSign = facing === 1 ? 1 : -1;
           const swing = (Number(swordSwing) || 0) * facingSign;
           const armSwing = Math.max(-4, Math.min(4, swing * 0.18));
-          handX = facing === 1 ? (px + PLAYER_W - 3) : (px + 3);
+          handX = facing === 1 ? (px + 3) : (px + PLAYER_W - 3);
           handY = py + 19 + armSwing;
           const baseAngle = 0;
           const slash = Math.max(-1.2, Math.min(1.2, swing * 0.12));
@@ -1029,8 +1029,10 @@ function drawBackground() {
           }
         };
 
-        drawArmRect(leftArmX, leftArmY, facing === -1);
-        drawArmRect(rightArmX, rightArmY, facing === 1);
+        const attackWithLeftArm = hitMode === "sword" ? (facing === 1) : (facing === -1);
+        const attackWithRightArm = !attackWithLeftArm;
+        drawArmRect(leftArmX, leftArmY, attackWithLeftArm);
+        drawArmRect(rightArmX, rightArmY, attackWithRightArm);
 
         fillChamferRect(px + 6, leftLegY, 4, 7, skinColor);
         fillChamferRect(px + PLAYER_W - 10, rightLegY, 4, 7, skinColor);
