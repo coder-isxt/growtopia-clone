@@ -1041,6 +1041,10 @@ function drawBackground() {
         drawPants(px, py, pantsId);
         drawShoes(px, py, shoesId, facing);
         drawHat(px, py, hatId, facing);
+        if (hitStrength > 0) {
+          if (attackWithLeftArm) drawArmRect(leftArmX, leftArmY, true);
+          if (attackWithRightArm) drawArmRect(rightArmX, rightArmY, true);
+        }
 
         ctx.fillStyle = "rgba(0,0,0,0.14)";
         ctx.fillRect(headX + 1, headY + 1, headW - 2, 1);
