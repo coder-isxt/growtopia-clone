@@ -4615,15 +4615,49 @@ body{
 .admin-tab-panels {
   min-height: 0;
   display: grid;
+  height: 100%;
 }
 
 .admin-tab-panel {
   min-height: 0;
   display: grid;
+  height: 100%;
 }
 
 .admin-layout.admin-layout-single {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.admin-tab-panel .admin-layout.admin-layout-single .admin-main {
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+}
+
+.admin-tab-panel[data-tab-panel="overview"] .admin-layout.admin-layout-single .admin-main {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.admin-tab-panel .admin-card {
+  max-height: none;
+}
+
+.admin-tab-panel > .admin-card:only-child,
+.admin-tab-panel .admin-layout.admin-layout-single .admin-main > .admin-tab-card:only-child,
+.admin-tab-panel .admin-layout.admin-layout-single .admin-main > .admin-summary:only-child {
+  min-height: 0;
+  height: 100%;
+  max-height: none;
+}
+
+.admin-tab-panel .admin-summary:only-child {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.admin-tab-panel .admin-summary:only-child > .admin-card:only-child {
+  min-height: 0;
+  height: 100%;
+  max-height: none;
 }
 
 .admin-tab-card {
@@ -4635,6 +4669,7 @@ body{
 .admin-tab-list,
 .admin-overview-audit {
   min-height: 0;
+  height: 100%;
   overflow-y: auto;
 }
 
