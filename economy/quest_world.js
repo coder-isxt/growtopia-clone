@@ -203,6 +203,14 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       return fallback > 0 ? fallback : 0;
     }
 
+    function normalizeBlockKey(value) {
+      return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, "")
+        .slice(0, 64);
+    }
+
     function getInventoryObject() {
       const inv = get("getInventory", null);
       return inv && typeof inv === "object" ? inv : null;
@@ -405,65 +413,166 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       }
       if (!type) return null;
       let blockId = 0;
+      let blockKey = "";
       if (type === "bring_block" || type === "break_block" || type === "place_block") {
+        blockKey = normalizeBlockKey(row.blockKey || row.block || row.item || "");
         blockId = Math.floor(Number(row.blockId) || 0);
-        if (!blockId) {
-          blockId = parseBlockRef(row.blockKey || row.block || row.item || "");
-        }
+        if (!blockId && blockKey) blockId = parseBlockRef(blockKey);
       }
       const amount = Math.max(1, Math.floor(Number(row.amount || row.count) || 1));
       if (type === "bring_block" && !blockId) return null;
       return {
         type,
         blockId,
+        blockKey,
         amount
       };
     }
 
-    function normalizeQuestReward(value) {
+    function normalizeQuestRewardType(value) {
+      const raw = String(value || "").trim().toLowerCase();
+      if (raw === "gems" || raw === "gem") return "gems";
+      if (raw === "block" || raw === "item_block" || raw === "seed" || raw === "farmable") return "block";
+      if (raw === "cosmetic" || raw === "item" || raw === "wearable") return "cosmetic";
+      if (raw === "title") return "title";
+      if (raw === "tool") return "tool";
+      return "";
+    }
+
+    function normalizeQuestRewardGrants(value) {
       const row = value && typeof value === "object" ? value : {};
-      const out = {};
-      const gems = Math.max(0, Math.floor(Number(row.gems) || 0));
-      if (gems > 0) out.gems = gems;
+      const out = [];
+      const addGrant = (entry) => {
+        const g = entry && typeof entry === "object" ? entry : {};
+        const type = normalizeQuestRewardType(g.type || g.kind || "");
+        if (!type) return;
+        const amount = type === "gems"
+          ? Math.max(0, Math.floor(Number(g.amount || g.count) || 0))
+          : Math.max(1, Math.floor(Number(g.amount || g.count) || 1));
+        if (!amount) return;
+        if (type === "gems") {
+          out.push({ type: "gems", amount });
+          return;
+        }
+        if (type === "block") {
+          let blockId = Math.max(0, Math.floor(Number(g.blockId) || 0));
+          const blockKey = normalizeBlockKey(g.blockKey || g.block || g.id || g.item || "");
+          if (!blockId && blockKey) blockId = parseBlockRef(blockKey);
+          if (!blockId && !blockKey) return;
+          out.push({ type: "block", blockId, blockKey, amount });
+          return;
+        }
+        if (type === "cosmetic") {
+          const id = String(g.id || g.cosmeticId || g.itemId || "").trim().toLowerCase().slice(0, 64);
+          if (!id) return;
+          out.push({ type: "cosmetic", id, amount });
+          return;
+        }
+        if (type === "title") {
+          const id = String(g.id || g.titleId || g.title || "").trim().toLowerCase().slice(0, 64);
+          if (!id) return;
+          out.push({ type: "title", id, amount });
+          return;
+        }
+        if (type === "tool") {
+          const id = String(g.id || g.toolId || g.tool || "").trim().toLowerCase().slice(0, 32);
+          if (!id) return;
+          out.push({ type: "tool", id, amount });
+        }
+      };
 
-      const titleId = String(row.titleId || row.title || "").trim().toLowerCase().slice(0, 64);
-      if (titleId) {
-        out.titleId = titleId;
-        out.titleAmount = Math.max(1, Math.floor(Number(row.titleAmount || row.amount) || 1));
+      if (Array.isArray(row.grants)) {
+        for (let i = 0; i < row.grants.length; i++) addGrant(row.grants[i]);
       }
 
-      const cosmeticId = String(row.cosmeticId || row.itemId || "").trim().toLowerCase().slice(0, 64);
-      if (cosmeticId) {
-        out.cosmeticId = cosmeticId;
-        out.cosmeticAmount = Math.max(1, Math.floor(Number(row.cosmeticAmount || row.amount) || 1));
+      if (row.gems !== undefined) addGrant({ type: "gems", amount: row.gems });
+      if (row.blockId !== undefined || row.blockKey !== undefined || row.block !== undefined || row.blockAmount !== undefined) {
+        addGrant({ type: "block", blockId: row.blockId, blockKey: row.blockKey || row.block, amount: row.blockAmount || row.amount });
+      }
+      if (row.cosmeticId !== undefined || row.itemId !== undefined || row.cosmeticAmount !== undefined) {
+        addGrant({ type: "cosmetic", id: row.cosmeticId || row.itemId, amount: row.cosmeticAmount || row.amount });
+      }
+      if (row.titleId !== undefined || row.title !== undefined || row.titleAmount !== undefined) {
+        addGrant({ type: "title", id: row.titleId || row.title, amount: row.titleAmount || row.amount });
+      }
+      if (row.toolId !== undefined || row.tool !== undefined || row.toolAmount !== undefined) {
+        addGrant({ type: "tool", id: row.toolId || row.tool, amount: row.toolAmount || row.amount });
       }
 
-      let blockId = Math.floor(Number(row.blockId) || 0);
-      if (!blockId) {
-        blockId = parseBlockRef(row.blockKey || row.block || "");
-      }
-      if (blockId > 0) {
-        out.blockId = blockId;
-        out.blockAmount = Math.max(1, Math.floor(Number(row.blockAmount || row.amount) || 1));
-      }
+      const blocksMap = row.blocks && typeof row.blocks === "object" ? row.blocks : {};
+      Object.keys(blocksMap).forEach((ref) => addGrant({ type: "block", blockKey: ref, amount: blocksMap[ref] }));
+      const cosmeticsMap = row.cosmetics && typeof row.cosmetics === "object" ? row.cosmetics : {};
+      Object.keys(cosmeticsMap).forEach((id) => addGrant({ type: "cosmetic", id, amount: cosmeticsMap[id] }));
+      const titlesMap = row.titles && typeof row.titles === "object" ? row.titles : {};
+      Object.keys(titlesMap).forEach((id) => addGrant({ type: "title", id, amount: titlesMap[id] }));
+      const toolsMap = row.tools && typeof row.tools === "object" ? row.tools : {};
+      Object.keys(toolsMap).forEach((id) => addGrant({ type: "tool", id, amount: toolsMap[id] }));
 
-      return Object.keys(out).length ? out : null;
+      const itemsMap = row.items && typeof row.items === "object" ? row.items : {};
+      Object.keys(itemsMap).forEach((refRaw) => {
+        const amount = itemsMap[refRaw];
+        const ref = String(refRaw || "").trim();
+        const idx = ref.indexOf(":");
+        if (idx > 0) {
+          const kind = ref.slice(0, idx).trim().toLowerCase();
+          const value = ref.slice(idx + 1).trim();
+          addGrant({ type: kind, id: value, blockKey: value, amount });
+          return;
+        }
+        addGrant({ type: "block", blockKey: ref, amount });
+      });
+
+      const merged = {};
+      for (let i = 0; i < out.length; i++) {
+        const g = out[i];
+        const ident = g.type === "block"
+          ? (String(g.blockId || "") + "|" + String(g.blockKey || ""))
+          : String(g.id || "");
+        const key = g.type + ":" + ident;
+        if (!merged[key]) {
+          merged[key] = { ...g };
+        } else {
+          merged[key].amount = Math.max(0, Math.floor(Number(merged[key].amount) || 0)) + Math.max(0, Math.floor(Number(g.amount) || 0));
+        }
+      }
+      return Object.values(merged).filter((g) => Math.max(0, Math.floor(Number(g.amount) || 0)) > 0);
+    }
+
+    function normalizeQuestReward(value) {
+      const grants = normalizeQuestRewardGrants(value);
+      if (!grants.length) return null;
+      return { grants };
     }
 
     function describeQuestReward(reward) {
-      const row = reward && typeof reward === "object" ? reward : null;
-      if (!row) return "";
+      const grants = normalizeQuestRewardGrants(reward);
       const parts = [];
-      const gems = Math.max(0, Math.floor(Number(row.gems) || 0));
-      if (gems > 0) parts.push(gems + " gems");
-      const blockId = Math.floor(Number(row.blockId) || 0);
-      const blockAmount = Math.max(1, Math.floor(Number(row.blockAmount) || 1));
-      if (blockId > 0) parts.push(blockAmount + "x " + getBlockNameById(blockId));
-      const cosmeticId = String(row.cosmeticId || "").trim();
-      const cosmeticAmount = Math.max(1, Math.floor(Number(row.cosmeticAmount) || 1));
-      if (cosmeticId) parts.push(cosmeticAmount + "x " + cosmeticId);
-      const titleId = String(row.titleId || "").trim();
-      if (titleId) parts.push("title " + titleId);
+      for (let i = 0; i < grants.length; i++) {
+        const g = grants[i];
+        if (!g || !g.type) continue;
+        if (g.type === "gems") {
+          parts.push(Math.max(0, Math.floor(Number(g.amount) || 0)) + " gems");
+          continue;
+        }
+        if (g.type === "block") {
+          const blockId = Math.max(0, Math.floor(Number(g.blockId) || 0));
+          const amount = Math.max(1, Math.floor(Number(g.amount) || 1));
+          const label = blockId > 0 ? getBlockNameById(blockId) : (String(g.blockKey || "block").replace(/_/g, " "));
+          parts.push(amount + "x " + label);
+          continue;
+        }
+        if (g.type === "cosmetic") {
+          parts.push(Math.max(1, Math.floor(Number(g.amount) || 1)) + "x " + String(g.id || "cosmetic"));
+          continue;
+        }
+        if (g.type === "title") {
+          parts.push("title " + String(g.id || "title"));
+          continue;
+        }
+        if (g.type === "tool") {
+          parts.push(Math.max(1, Math.floor(Number(g.amount) || 1)) + "x " + String(g.id || "tool"));
+        }
+      }
       return parts.join(", ");
     }
 
@@ -919,13 +1028,17 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       if (objective.type === "break_block") {
         const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
         const blockId = Math.floor(Number(objective.blockId) || 0);
+        const blockKey = normalizeBlockKey(objective.blockKey || "");
         if (blockId > 0) return "Break " + amount + "x " + getBlockNameById(blockId);
+        if (blockKey) return "Break " + amount + "x " + blockKey.replace(/_/g, " ");
         return "Break " + amount + " blocks";
       }
       if (objective.type === "place_block") {
         const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
         const blockId = Math.floor(Number(objective.blockId) || 0);
+        const blockKey = normalizeBlockKey(objective.blockKey || "");
         if (blockId > 0) return "Place " + amount + "x " + getBlockNameById(blockId);
+        if (blockKey) return "Place " + amount + "x " + blockKey.replace(/_/g, " ");
         return "Place " + amount + " blocks";
       }
       if (objective.type === "tree_harvest") {
@@ -977,7 +1090,10 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
         const have = getQuestObjectiveProgressCount(quest);
         const blockId = Math.floor(Number(objective.blockId) || 0);
-        const blockText = blockId > 0 ? (" " + getBlockNameById(blockId)) : "";
+        const blockKey = normalizeBlockKey(objective.blockKey || "");
+        const blockText = blockId > 0
+          ? (" " + getBlockNameById(blockId))
+          : (blockKey ? (" " + blockKey.replace(/_/g, " ")) : "");
         const actionText = objective.type === "break_block" ? "broken" : "placed";
         return "Progress: " + have + "/" + amount + blockText + " " + actionText;
       }
@@ -1185,9 +1301,12 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
           else if (objective.type === "gems_earned") actionText = "Earn";
           else if (objective.type === "trade_complete") actionText = "Complete";
           const blockId = Math.floor(Number(objective.blockId) || 0);
+          const blockKey = normalizeBlockKey(objective.blockKey || "");
           let blockText = "";
           if (objective.type === "break_block" || objective.type === "place_block") {
-            blockText = blockId > 0 ? (" " + getBlockNameById(blockId)) : " blocks";
+            blockText = blockId > 0
+              ? (" " + getBlockNameById(blockId))
+              : (blockKey ? (" " + blockKey.replace(/_/g, " ")) : " blocks");
           } else if (objective.type === "tree_harvest") {
             blockText = " trees";
           } else if (objective.type === "gems_earned") {
@@ -1419,6 +1538,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       if (!safeAmount) return { ok: false, reason: "invalid_amount" };
 
       const rawBlockRef = String(blockRef || "").trim();
+      const safeBlockKey = normalizeBlockKey(rawBlockRef);
       const useAnyBlock = !rawBlockRef || rawBlockRef.toLowerCase() === "any" || rawBlockRef === "*";
       let blockId = useAnyBlock ? 0 : parseBlockRef(rawBlockRef);
       if (!useAnyBlock && !blockId) return { ok: false, reason: "invalid_block" };
@@ -1441,6 +1561,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         objective: {
           type: safeType,
           blockId,
+          blockKey: useAnyBlock ? "" : safeBlockKey,
           amount: safeAmount
         }
       }, nextQuests.length);
@@ -1491,9 +1612,12 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       if (!objective || objective.type !== type) return false;
       const details = payload && typeof payload === "object" ? payload : {};
       const wantedBlockId = Math.max(0, Math.floor(Number(objective.blockId) || 0));
+      const wantedBlockKey = normalizeBlockKey(objective.blockKey || "");
       if (type === "break_block" || type === "place_block") {
         const eventBlockId = Math.max(0, Math.floor(Number(details.blockId) || 0));
+        const eventBlockKey = normalizeBlockKey(details.blockKey || "");
         if (wantedBlockId > 0 && eventBlockId !== wantedBlockId) return false;
+        if (wantedBlockKey && eventBlockKey !== wantedBlockKey) return false;
       }
       let delta = Math.max(1, Math.floor(Number(details.count) || 1));
       if (type === "gems_earned") {
