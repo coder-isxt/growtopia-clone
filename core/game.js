@@ -4005,6 +4005,7 @@
           TOOL_WRENCH,
           QUEST_NPC_ID,
           spawnWorldDropEntry,
+          spawnAdminWorldDrops,
           applyInventoryGrant,
           applyCosmeticItemGrant,
           applyTitleGrant,
@@ -9293,6 +9294,85 @@
         const ctrl = getDropsController();
         if (!ctrl || typeof ctrl.spawnWorldDropEntry !== "function") return false;
         return ctrl.spawnWorldDropEntry(entry, amount, dropX, dropY);
+      }
+
+      function buildAdminDropPayload(entry, amount, dropX, dropY) {
+        if (!entry || typeof entry !== "object") return null;
+        const qty = Math.max(1, Math.floor(Number(amount) || 1));
+        const worldX = Math.max(0, Math.min(Number(dropX) || 0, WORLD_W * TILE - TILE));
+        const worldY = Math.max(0, Math.min(Number(dropY) || 0, WORLD_H * TILE - TILE));
+        const payload = {
+          type: "",
+          blockId: 0,
+          cosmeticId: "",
+          toolId: "",
+          amount: qty,
+          x: worldX,
+          y: worldY,
+          ownerAccountId: playerProfileId || "",
+          ownerSessionId: playerSessionId || "",
+          ownerName: (playerName || "").toString().slice(0, 20),
+          createdAt: Date.now()
+        };
+        if (entry.type === "block") {
+          const blockId = Math.max(0, Math.floor(Number(entry.blockId) || 0));
+          if (!blockId) return null;
+          payload.type = "block";
+          payload.blockId = blockId;
+          return payload;
+        }
+        if (entry.type === "cosmetic") {
+          const cosmeticId = String(entry.cosmeticId || "").trim().slice(0, 64);
+          if (!cosmeticId) return null;
+          payload.type = "cosmetic";
+          payload.cosmeticId = cosmeticId;
+          return payload;
+        }
+        if (entry.type === "tool") {
+          const rawToolId = String(entry.toolId || "").trim().toLowerCase();
+          const safeToolId = rawToolId === TOOL_FIST || rawToolId === TOOL_WRENCH ? rawToolId : "";
+          if (!safeToolId) return null;
+          payload.type = "tool";
+          payload.toolId = safeToolId;
+          return payload;
+        }
+        return null;
+      }
+
+      function spawnAdminWorldDrops(entry, amount, dropPoints) {
+        if (!inWorld || !currentWorldId) return Promise.resolve({ ok: false, written: 0, error: "not_in_world" });
+        const points = Array.isArray(dropPoints) ? dropPoints : [];
+        if (!points.length) return Promise.resolve({ ok: false, written: 0, error: "no_points" });
+        const rootPathNoSlash = BASE_PATH + "/worlds/" + currentWorldId + "/drops";
+        const rootPath = "/" + rootPathNoSlash;
+        const updates = {};
+        let written = 0;
+        for (let i = 0; i < points.length; i++) {
+          const row = points[i] && typeof points[i] === "object" ? points[i] : {};
+          const payload = buildAdminDropPayload(entry, amount, row.x, row.y);
+          if (!payload) continue;
+          const dropKey = makeAdminPushKey(rootPathNoSlash);
+          if (!dropKey) continue;
+          updates[dropKey] = payload;
+          written++;
+        }
+        if (!written) return Promise.resolve({ ok: false, written: 0, error: "no_payload" });
+        return proxyAdminUpdate(rootPath, updates).then((out) => {
+          if (!out || !out.ok) {
+            return {
+              ok: false,
+              written: 0,
+              error: (out && out.error) ? String(out.error) : "backend_write_failed"
+            };
+          }
+          return { ok: true, written };
+        }).catch((error) => {
+          return {
+            ok: false,
+            written: 0,
+            error: String((error && error.message) || "backend_write_failed")
+          };
+        });
       }
 
       function dropInventoryEntry(entry, amount, dropX, dropY) {

@@ -799,7 +799,7 @@ window.GTModules.commands = {
         return true;
       }
       if (!c.ensureCommandReady("give_item")) return true;
-      if (typeof c.spawnWorldDropEntry !== "function") {
+      if (typeof c.spawnAdminWorldDrops !== "function") {
         c.postLocalSystemChat("Drop spawn handler is unavailable.");
         return true;
       }
@@ -874,19 +874,26 @@ window.GTModules.commands = {
         radius++;
       }
 
-      let spawned = 0;
-      for (let i = 0; i < spawnTiles.length; i++) {
-        const tile = spawnTiles[i];
-        const ok = c.spawnWorldDropEntry(entry, quantity, tile.tx * c.TILE, tile.ty * c.TILE);
-        if (ok) spawned++;
-      }
-      c.postLocalSystemChat("Spawned " + spawned + " drop stacks of " + label + " x" + quantity + ".");
-      if (typeof c.logAdminAudit === "function") {
-        c.logAdminAudit("Admin(chat) spawned drops: " + label + " x" + quantity + " in " + spawned + " tiles.");
-      }
-      if (typeof c.pushAdminAuditEntry === "function") {
-        c.pushAdminAuditEntry("spawnd", "", label + " qty=" + quantity + " tiles=" + spawned);
-      }
+      const dropPoints = spawnTiles.map((tile) => ({
+        x: tile.tx * c.TILE,
+        y: tile.ty * c.TILE
+      }));
+      c.spawnAdminWorldDrops(entry, quantity, dropPoints).then((result) => {
+        const spawned = Math.max(0, Math.floor(Number(result && result.written) || 0));
+        if (!result || !result.ok || spawned <= 0) {
+          c.postLocalSystemChat("Failed to spawn drops via backend.");
+          return;
+        }
+        c.postLocalSystemChat("Spawned " + spawned + " drop stacks of " + label + " x" + quantity + ".");
+        if (typeof c.logAdminAudit === "function") {
+          c.logAdminAudit("Admin(chat) spawned drops: " + label + " x" + quantity + " in " + spawned + " tiles.");
+        }
+        if (typeof c.pushAdminAuditEntry === "function") {
+          c.pushAdminAuditEntry("spawnd", "", label + " qty=" + quantity + " tiles=" + spawned);
+        }
+      }).catch(() => {
+        c.postLocalSystemChat("Failed to spawn drops via backend.");
+      });
       return true;
     }
     if (command === "/givetitle" || command === "/removetitle") {
