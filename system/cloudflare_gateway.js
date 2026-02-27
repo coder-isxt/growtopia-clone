@@ -109,6 +109,7 @@ window.GTModules.cloudflareGateway = (function createCloudflareGatewayModule() {
 
     return {
       getEndpoint: () => endpoint,
+      readGet: (path) => writePacket("get", path),
       writeSet: (path, value) => writePacket("set", path, value),
       writeUpdate: (path, value) => writePacket("update", path, value),
       writeRemove: (path) => writePacket("remove", path),

@@ -19,6 +19,53 @@ window.GTModules.backup = (function createBackupModule() {
     return "bk_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
   }
 
+  function normalizeBasePath(value) {
+    return String(value || "").trim().replace(/^\/+|\/+$/g, "");
+  }
+
+  function buildAbsolutePath(basePath, path) {
+    const base = normalizeBasePath(basePath);
+    const tail = String(path || "").trim().replace(/^\/+|\/+$/g, "");
+    if (!base) return "";
+    if (!tail) return "/" + base;
+    return "/" + base + "/" + tail;
+  }
+
+  function toErrorMessage(out, fallback) {
+    if (out && out.error) return String(out.error);
+    if (out && Number.isFinite(Number(out.status)) && Number(out.status) > 0) {
+      return "Backend request failed (" + Number(out.status) + ").";
+    }
+    return String(fallback || "Backend request failed.");
+  }
+
+  function getGatewayController(opts) {
+    const options = opts || {};
+    const gateway = options.gateway || null;
+    if (!gateway || typeof gateway !== "object") return null;
+    if (typeof gateway.writeSet !== "function") return null;
+    if (typeof gateway.writeUpdate !== "function") return null;
+    return gateway;
+  }
+
+  function gatewayWriteSet(gateway, path, value) {
+    return gateway.writeSet(path, value).then((out) => {
+      if (!out || !out.ok) {
+        throw new Error(toErrorMessage(out, "Failed to write backup data."));
+      }
+      return out;
+    });
+  }
+
+  function gatewayWriteUpdate(gateway, path, value) {
+    return gateway.writeUpdate(path, value).then((out) => {
+      if (!out || !out.ok) {
+        throw new Error(toErrorMessage(out, "Failed to update backup data."));
+      }
+      return out;
+    });
+  }
+
   function removeBackupsNode(rootData) {
     const src = rootData && typeof rootData === "object" ? rootData : {};
     const next = safeClone(src);
@@ -45,7 +92,7 @@ window.GTModules.backup = (function createBackupModule() {
   function loadBackupRecord(opts) {
     const options = opts || {};
     const db = options.db || null;
-    const basePath = String(options.basePath || "").trim();
+    const basePath = normalizeBasePath(options.basePath);
     const backupId = normalizeId(options.backupId);
     if (!db || !basePath || !backupId) return Promise.resolve(null);
     return db.ref(basePath + "/" + BACKUPS_KEY + "/" + backupId).once("value").then((snapshot) => {
@@ -61,7 +108,7 @@ window.GTModules.backup = (function createBackupModule() {
   function listBackups(opts) {
     const options = opts || {};
     const db = options.db || null;
-    const basePath = String(options.basePath || "").trim();
+    const basePath = normalizeBasePath(options.basePath);
     const limit = Math.max(1, Math.min(200, Number(options.limit) || 60));
     if (!db || !basePath) return Promise.resolve([]);
     const ref = db.ref(basePath + "/" + BACKUPS_KEY).limitToLast(limit);
@@ -75,9 +122,10 @@ window.GTModules.backup = (function createBackupModule() {
 
   function createBackup(opts) {
     const options = opts || {};
+    const gateway = getGatewayController(options);
     const db = options.db || null;
     const firebase = options.firebase || null;
-    const basePath = String(options.basePath || "").trim();
+    const basePath = normalizeBasePath(options.basePath);
     const createdByAccountId = String(options.createdByAccountId || "").slice(0, 96);
     const createdByUsername = String(options.createdByUsername || "").slice(0, 24);
     if (!db || !basePath) return Promise.reject(new Error("db/basePath unavailable"));
@@ -92,13 +140,22 @@ window.GTModules.backup = (function createBackupModule() {
         id: backupId,
         createdByAccountId,
         createdByUsername,
-        createdAt: firebase && firebase.database && firebase.database.ServerValue
+        createdAt: gateway
+          ? Date.now()
+          : (firebase && firebase.database && firebase.database.ServerValue
           ? firebase.database.ServerValue.TIMESTAMP
-          : Date.now(),
+          : Date.now()),
         schemaVersion: 1,
         rootKeys,
         data
       };
+      if (gateway) {
+        const backupPath = buildAbsolutePath(basePath, BACKUPS_KEY + "/" + backupId);
+        return gatewayWriteSet(gateway, backupPath, payload).then(() => ({
+          id: backupId,
+          rootKeyCount: rootKeys.length
+        }));
+      }
       return backupsRef.child(backupId).set(payload).then(() => {
         return {
           id: backupId,
@@ -110,9 +167,10 @@ window.GTModules.backup = (function createBackupModule() {
 
   function restoreBackup(opts) {
     const options = opts || {};
+    const gateway = getGatewayController(options);
     const db = options.db || null;
     const firebase = options.firebase || null;
-    const basePath = String(options.basePath || "").trim();
+    const basePath = normalizeBasePath(options.basePath);
     const backupId = normalizeId(options.backupId);
     if (!db || !basePath || !backupId) return Promise.reject(new Error("db/basePath/backupId unavailable"));
     const rootRef = db.ref(basePath);
@@ -133,9 +191,18 @@ window.GTModules.backup = (function createBackupModule() {
         if (key === BACKUPS_KEY) return;
         updates[key] = backupData[key];
       });
-      updates[BACKUPS_KEY + "/" + backupId + "/lastRestoredAt"] = firebase && firebase.database && firebase.database.ServerValue
-        ? firebase.database.ServerValue.TIMESTAMP
-        : Date.now();
+      updates[BACKUPS_KEY + "/" + backupId + "/lastRestoredAt"] = gateway
+        ? Date.now()
+        : (firebase && firebase.database && firebase.database.ServerValue
+          ? firebase.database.ServerValue.TIMESTAMP
+          : Date.now());
+      if (gateway) {
+        const rootPath = buildAbsolutePath(basePath, "");
+        return gatewayWriteUpdate(gateway, rootPath, updates).then(() => ({
+          id: backupId,
+          rootKeyCount: Object.keys(backupData || {}).length
+        }));
+      }
       return rootRef.update(updates).then(() => {
         return {
           id: backupId,
@@ -168,13 +235,14 @@ window.GTModules.backup = (function createBackupModule() {
 
   function importBackupJson(opts) {
     const options = opts || {};
+    const gateway = getGatewayController(options);
     const db = options.db || null;
     const firebase = options.firebase || null;
-    const basePath = String(options.basePath || "").trim();
+    const basePath = normalizeBasePath(options.basePath);
     const createdByAccountId = String(options.createdByAccountId || "").slice(0, 96);
     const createdByUsername = String(options.createdByUsername || "").slice(0, 24);
     const source = options.json && typeof options.json === "object" ? safeClone(options.json) : null;
-    if (!db || !basePath || !source) return Promise.reject(new Error("Invalid import payload"));
+    if (!basePath || !source) return Promise.reject(new Error("Invalid import payload"));
 
     const explicit = source.backup && typeof source.backup === "object" ? source.backup : null;
     const embeddedData = explicit && explicit.data && typeof explicit.data === "object" ? explicit.data : null;
@@ -189,9 +257,11 @@ window.GTModules.backup = (function createBackupModule() {
       id: backupId,
       createdByAccountId,
       createdByUsername,
-      createdAt: firebase && firebase.database && firebase.database.ServerValue
+      createdAt: gateway
+        ? Date.now()
+        : (firebase && firebase.database && firebase.database.ServerValue
         ? firebase.database.ServerValue.TIMESTAMP
-        : Date.now(),
+        : Date.now()),
       schemaVersion: 1,
       imported: true,
       importedFromBackupId: explicit && explicit.id ? String(explicit.id) : "",
@@ -199,6 +269,14 @@ window.GTModules.backup = (function createBackupModule() {
       rootKeys,
       data
     };
+    if (gateway) {
+      const path = buildAbsolutePath(basePath, BACKUPS_KEY + "/" + backupId);
+      return gatewayWriteSet(gateway, path, payload).then(() => ({
+        id: backupId,
+        rootKeyCount: rootKeys.length
+      }));
+    }
+    if (!db) return Promise.reject(new Error("db/basePath unavailable"));
     return db.ref(basePath + "/" + BACKUPS_KEY + "/" + backupId).set(payload).then(() => ({
       id: backupId,
       rootKeyCount: rootKeys.length

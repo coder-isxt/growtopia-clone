@@ -88,18 +88,58 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       };
     }
 
+    function getBasePath() {
+      return String(get("getBasePath", "growtopia-test") || "growtopia-test").trim().replace(/^\/+|\/+$/g, "");
+    }
+
+    function getQuestWorldPath(worldId) {
+      const safeWorldId = normalizeWorldId(worldId);
+      const basePath = getBasePath();
+      if (!basePath || !safeWorldId) return "";
+      return "/" + basePath + "/worlds/" + safeWorldId + "/quest-world";
+    }
+
+    function getQuestPathPath(pathId) {
+      const safePathId = normalizePathId(pathId);
+      const basePath = getBasePath();
+      if (!basePath || !safePathId) return "";
+      return "/" + basePath + "/quest-paths/" + safePathId;
+    }
+
+    function writeAdminSet(path, value) {
+      const writer = typeof opts.writeAdminSet === "function" ? opts.writeAdminSet : null;
+      if (writer && path) {
+        return Promise.resolve(writer(path, value)).then((out) => {
+          if (!out || !out.ok) throw new Error("backend write failed");
+          return out;
+        });
+      }
+      return Promise.reject(new Error("write unavailable"));
+    }
+
+    function writeAdminRemove(path) {
+      const writer = typeof opts.writeAdminRemove === "function" ? opts.writeAdminRemove : null;
+      if (writer && path) {
+        return Promise.resolve(writer(path)).then((out) => {
+          if (!out || !out.ok) throw new Error("backend remove failed");
+          return out;
+        });
+      }
+      return Promise.reject(new Error("remove unavailable"));
+    }
+
     function getQuestWorldRef(worldId) {
       const network = getNetwork();
       const safeWorldId = normalizeWorldId(worldId);
       if (!network || !network.enabled || !network.db || !safeWorldId) return null;
-      const basePath = String(get("getBasePath", "growtopia-test") || "growtopia-test");
+      const basePath = getBasePath();
       return network.db.ref(basePath + "/worlds/" + safeWorldId + "/quest-world");
     }
 
     function getQuestPathsRef() {
       const network = getNetwork();
       if (!network || !network.enabled || !network.db) return null;
-      const basePath = String(get("getBasePath", "growtopia-test") || "growtopia-test");
+      const basePath = getBasePath();
       return network.db.ref(basePath + "/quest-paths");
     }
 
@@ -115,8 +155,16 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       const safeWorldId = normalizeWorldId(worldId);
       const playerId = String(get("getPlayerProfileId", "") || "").trim().slice(0, 64);
       if (!network || !network.enabled || !network.db || !safeWorldId || !playerId) return null;
-      const basePath = String(get("getBasePath", "growtopia-test") || "growtopia-test");
+      const basePath = getBasePath();
       return network.db.ref(basePath + "/player-quest-world-state/" + playerId + "/" + safeWorldId);
+    }
+
+    function getQuestPlayerStatePath(worldId) {
+      const safeWorldId = normalizeWorldId(worldId);
+      const playerId = String(get("getPlayerProfileId", "") || "").trim().slice(0, 64);
+      const basePath = getBasePath();
+      if (!basePath || !safeWorldId || !playerId) return "";
+      return "/" + basePath + "/player-quest-world-state/" + playerId + "/" + safeWorldId;
     }
 
     function getServerTimestampOrNow() {
@@ -536,13 +584,20 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       };
     }
 
-    function persistPlayerQuestState(worldId) {
+    function persistPlayerQuestState(worldId, useAdminBackend) {
       const safeWorldId = normalizeWorldId(worldId);
       if (!safeWorldId) return;
-      const ref = getQuestPlayerStateRef(safeWorldId);
-      if (!ref) return;
       const payload = buildPlayerQuestStatePayload(safeWorldId);
       if (!payload) return;
+      if (useAdminBackend) {
+        const path = getQuestPlayerStatePath(safeWorldId);
+        if (path) {
+          writeAdminSet(path, payload).catch(() => {});
+          return;
+        }
+      }
+      const ref = getQuestPlayerStateRef(safeWorldId);
+      if (!ref) return;
       ref.set(payload).catch(() => {});
     }
 
@@ -1004,10 +1059,10 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         id: safePathId
       }, safePathId, (existing && existing.name) || safePathId);
       questPathsById.set(safePathId, merged);
-      const ref = getQuestPathRef(safePathId);
-      if (ref) {
+      const path = getQuestPathPath(safePathId);
+      if (path) {
         const payload = buildQuestPathPayload(merged);
-        ref.set(payload).catch(() => {});
+        writeAdminSet(path, payload).catch(() => {});
       }
       return merged;
     }
@@ -1042,9 +1097,9 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         updatedByAccountId: String(get("getPlayerProfileId", "") || "").slice(0, 64)
       });
       setLocalWorldConfig(worldId, next);
-      const ref = getQuestWorldRef(worldId);
-      if (ref && next) {
-        ref.set(buildWorldConfigPayload(next)).catch(() => {});
+      const path = getQuestWorldPath(worldId);
+      if (path && next) {
+        writeAdminSet(path, buildWorldConfigPayload(next)).catch(() => {});
       }
       const state = getOrCreatePlayerQuestState(worldId);
       state.pathId = safePathId;
@@ -1053,7 +1108,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       state.activeQuestId = "";
       state.trackedId = "";
       state.nextQuestIndex = 0;
-      persistPlayerQuestState(worldId);
+      persistPlayerQuestState(worldId, true);
       if (modalCtx) renderModal();
       return { ok: true, worldId, pathId: safePathId };
     }
@@ -1313,9 +1368,9 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         updatedByAccountId: String(get("getPlayerProfileId", "") || "").slice(0, 64)
       });
       setLocalWorldConfig(worldId, payload);
-      const ref = getQuestWorldRef(worldId);
-      if (ref && payload) {
-        ref.set(buildWorldConfigPayload(payload)).catch(() => {});
+      const path = getQuestWorldPath(worldId);
+      if (path && payload) {
+        writeAdminSet(path, buildWorldConfigPayload(payload)).catch(() => {});
       }
       call("respawnPlayerAtDoor");
       return { ok: true, tx: safeTx, ty: safeTy, worldId };
@@ -1337,8 +1392,8 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         }
       }
       setLocalWorldConfig(worldId, null);
-      const ref = getQuestWorldRef(worldId);
-      if (ref) ref.remove().catch(() => {});
+      const path = getQuestWorldPath(worldId);
+      if (path) writeAdminRemove(path).catch(() => {});
       closeModal();
       return { ok: true, worldId };
     }
@@ -1352,8 +1407,8 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       const worldId = getCurrentWorldId();
       if (!worldId) return false;
       setLocalWorldConfig(worldId, null);
-      const ref = getQuestWorldRef(worldId);
-      if (ref) ref.remove().catch(() => {});
+      const path = getQuestWorldPath(worldId);
+      if (path) writeAdminRemove(path).catch(() => {});
       closeModal();
       return true;
     }

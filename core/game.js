@@ -462,6 +462,8 @@
           parseBlockRef,
           getPlayerName: () => playerName,
           getPlayerProfileId: () => playerProfileId,
+          writeAdminSet: (path, value) => proxyAdminSet(path, value),
+          writeAdminRemove: (path) => proxyAdminRemove(path),
           getFirebase: () => (typeof firebase !== "undefined" ? firebase : null),
           saveInventory,
           refreshToolbar,
@@ -1007,6 +1009,7 @@
         adminPanelController = adminPanelModule.createController({
           getNetwork: () => network,
           getBackupModule: () => backupModule,
+          getGatewayController: () => getCloudflareGatewayController(),
           getFirebase: () => (typeof firebase !== "undefined" ? firebase : (window.firebase || null)),
           getBasePath: () => BASE_PATH,
           getPlayerProfileId: () => playerProfileId,
@@ -2599,8 +2602,12 @@
           return;
         }
         if (action === "clearanticheat") {
-          if (!network.db || !hasAdminPermission("clear_logs")) return;
-          network.db.ref(BASE_PATH + "/anti-cheat-logs").remove().then(() => {
+          if (!hasAdminPermission("clear_logs")) return;
+          proxyAdminRemove("/" + BASE_PATH + "/anti-cheat-logs").then((out) => {
+            if (!out || !out.ok) {
+              postLocalSystemChat("Failed to clear anti-cheat logs.");
+              return;
+            }
             antiCheatMessages.length = 0;
             renderAdminPanel();
             postLocalSystemChat("Anti-cheat logs cleared.");
@@ -3020,7 +3027,7 @@
         if (!(target instanceof HTMLElement)) return;
         const action = (target.dataset.adminInvAct || "").trim();
         if (!action) return;
-        if (!network.db || !canUseAdminPanel) return;
+        if (!canUseAdminPanel) return;
         const accountId = (target.dataset.accountId || "").trim();
         if (!accountId) return;
         const account = adminState.accounts[accountId] || {};
@@ -3041,7 +3048,11 @@
           if (cleanKind === "cosmetic") {
             const itemDef = COSMETIC_ITEMS.find((it) => it.id === cleanItemId);
             if (!itemDef) return;
-            network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/cosmeticItems/" + cleanItemId).set(0).then(() => {
+            proxyAdminSet("/" + BASE_PATH + "/player-inventories/" + accountId + "/cosmeticItems/" + cleanItemId, 0).then((out) => {
+              if (!out || !out.ok) {
+                postLocalSystemChat("Failed to remove cosmetic item.");
+                return;
+              }
               setLocalInventoryCosmeticCount(accountId, cleanItemId, 0);
               logAdminAudit("Admin(inventory-modal) removed all item " + cleanItemId + " for @" + username + ".");
               pushAdminAuditEntry("inventory_remove_all", accountId, "item=" + cleanItemId);
@@ -3054,7 +3065,11 @@
           if (cleanKind === "title") {
             const titleDef = TITLE_LOOKUP[cleanItemId];
             if (!titleDef) return;
-            network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/titleItems/" + cleanItemId).set(0).then(() => {
+            proxyAdminSet("/" + BASE_PATH + "/player-inventories/" + accountId + "/titleItems/" + cleanItemId, 0).then((out) => {
+              if (!out || !out.ok) {
+                postLocalSystemChat("Failed to remove title.");
+                return;
+              }
               setLocalInventoryTitleCount(accountId, cleanItemId, 0);
               logAdminAudit("Admin(inventory-modal) removed all title " + cleanItemId + " for @" + username + ".");
               pushAdminAuditEntry("inventory_remove_all", accountId, "title=" + cleanItemId);
@@ -3070,7 +3085,11 @@
           } else if (!NORMAL_BLOCK_INVENTORY_IDS.includes(blockId)) {
             return;
           }
-          network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + blockId).set(0).then(() => {
+          proxyAdminSet("/" + BASE_PATH + "/player-inventories/" + accountId + "/" + blockId, 0).then((out) => {
+            if (!out || !out.ok) {
+              postLocalSystemChat("Failed to remove block item.");
+              return;
+            }
             setLocalInventoryBlockCount(accountId, blockId, 0);
             logAdminAudit("Admin(inventory-modal) removed all block " + blockId + " for @" + username + ".");
             pushAdminAuditEntry("inventory_remove_all", accountId, "block=" + blockId);
@@ -3101,11 +3120,17 @@
           if (!itemId) return;
           const itemDef = COSMETIC_ITEMS.find((it) => it.id === itemId);
           if (!itemDef) return;
-          network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/cosmeticItems/" + itemId).transaction((current) => {
-            const now = Math.max(0, Math.floor(Number(current) || 0));
-            return Math.max(0, now + delta);
-          }).then((result) => {
-            const next = Math.max(0, Math.floor(Number(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0) || 0));
+          proxyAdminIncrement("/" + BASE_PATH + "/player-inventories/" + accountId + "/cosmeticItems/" + itemId, delta, {
+            min: 0,
+            integer: true
+          }).then((out) => {
+            if (!out || !out.ok) {
+              postLocalSystemChat("Failed to update cosmetic item.");
+              return;
+            }
+            const currentLocal = Math.max(0, Math.floor(Number(adminState.inventories[accountId] && adminState.inventories[accountId].cosmeticItems && adminState.inventories[accountId].cosmeticItems[itemId]) || 0));
+            const nextFromWorker = Number(out && out.result && out.result.next);
+            const next = Math.max(0, Math.floor(Number.isFinite(nextFromWorker) ? nextFromWorker : (currentLocal + delta)));
             setLocalInventoryCosmeticCount(accountId, itemId, next);
             logAdminAudit("Admin(inventory-modal) " + (delta > 0 ? "added " : "removed ") + "item " + itemId + " x" + amount + " for @" + username + ".");
             pushAdminAuditEntry(delta > 0 ? "inventory_add" : "inventory_remove", accountId, "item=" + itemId + " amount=" + amount);
@@ -3118,11 +3143,13 @@
         if (kindSelect.value === "title") {
           const titleId = String(itemSelect.value || "").trim();
           if (!titleId || !TITLE_LOOKUP[titleId]) return;
-          network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/titleItems/" + titleId).transaction((current) => {
-            if (delta > 0) return 1;
-            return 0;
-          }).then((result) => {
-            const next = clampTitleUnlocked(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0);
+          const nextValue = delta > 0 ? 1 : 0;
+          proxyAdminSet("/" + BASE_PATH + "/player-inventories/" + accountId + "/titleItems/" + titleId, nextValue).then((out) => {
+            if (!out || !out.ok) {
+              postLocalSystemChat("Failed to update title.");
+              return;
+            }
+            const next = clampTitleUnlocked(nextValue);
             setLocalInventoryTitleCount(accountId, titleId, next);
             logAdminAudit("Admin(inventory-modal) " + (delta > 0 ? "unlocked " : "removed ") + "title " + titleId + " for @" + username + ".");
             pushAdminAuditEntry(delta > 0 ? "inventory_add" : "inventory_remove", accountId, "title=" + titleId + " unlocked=" + next);
@@ -3139,11 +3166,17 @@
         } else if (!NORMAL_BLOCK_INVENTORY_IDS.includes(blockId)) {
           return;
         }
-        network.db.ref(BASE_PATH + "/player-inventories/" + accountId + "/" + blockId).transaction((current) => {
-          const now = Math.max(0, Math.floor(Number(current) || 0));
-          return Math.max(0, now + delta);
-        }).then((result) => {
-          const next = Math.max(0, Math.floor(Number(result && result.snapshot && result.snapshot.val ? result.snapshot.val() : 0) || 0));
+        proxyAdminIncrement("/" + BASE_PATH + "/player-inventories/" + accountId + "/" + blockId, delta, {
+          min: 0,
+          integer: true
+        }).then((out) => {
+          if (!out || !out.ok) {
+            postLocalSystemChat("Failed to update block item.");
+            return;
+          }
+          const currentLocal = Math.max(0, Math.floor(Number(adminState.inventories[accountId] && adminState.inventories[accountId][blockId]) || 0));
+          const nextFromWorker = Number(out && out.result && out.result.next);
+          const next = Math.max(0, Math.floor(Number.isFinite(nextFromWorker) ? nextFromWorker : (currentLocal + delta)));
           setLocalInventoryBlockCount(accountId, blockId, next);
           logAdminAudit("Admin(inventory-modal) " + (delta > 0 ? "added " : "removed ") + "block " + blockId + " x" + amount + " for @" + username + ".");
           pushAdminAuditEntry(delta > 0 ? "inventory_add" : "inventory_remove", accountId, "block=" + blockId + " amount=" + amount);
@@ -3244,6 +3277,14 @@
           return Promise.resolve({ ok: false, error: "Cloudflare gateway unavailable." });
         }
         return ctrl.writeSet(path, value);
+      }
+
+      function proxyAdminUpdate(path, value) {
+        const ctrl = getCloudflareGatewayController();
+        if (!ctrl || typeof ctrl.writeUpdate !== "function") {
+          return Promise.resolve({ ok: false, error: "Cloudflare gateway unavailable." });
+        }
+        return ctrl.writeUpdate(path, value);
       }
 
       function proxyAdminRemove(path) {
@@ -8308,24 +8349,26 @@
         }
         if (network.enabled) {
           const dbOps = [];
-          if (network.blocksRef && Object.keys(updates).length) {
-            dbOps.push(network.blocksRef.update(updates));
+          const worldRootPath = "/" + BASE_PATH + "/worlds/" + currentWorldId;
+          if (Object.keys(updates).length) {
+            dbOps.push(proxyAdminUpdate(worldRootPath + "/blocks", updates));
           }
-          if (network.hitsRef) dbOps.push(network.hitsRef.remove());
-          if (network.dropsRef) dbOps.push(network.dropsRef.remove());
-          if (network.vendingRef) dbOps.push(network.vendingRef.remove());
-          if (network.gambleRef) dbOps.push(network.gambleRef.remove());
-          if (network.donationRef) dbOps.push(network.donationRef.remove());
-          if (network.chestsRef) dbOps.push(network.chestsRef.remove());
-          if (network.signsRef) dbOps.push(network.signsRef.remove());
-          if (network.displaysRef) dbOps.push(network.displaysRef.remove());
-          if (network.doorsRef) dbOps.push(network.doorsRef.remove());
-          if (network.antiGravRef) dbOps.push(network.antiGravRef.remove());
-          if (network.plantsRef) dbOps.push(network.plantsRef.remove());
-          if (network.weatherRef) dbOps.push(network.weatherRef.remove());
-          if (network.ownerTaxRef) dbOps.push(network.ownerTaxRef.remove());
-          if (network.camerasRef) dbOps.push(network.camerasRef.remove());
-          if (network.cameraLogsRef) dbOps.push(network.cameraLogsRef.remove());
+          dbOps.push(proxyAdminRemove(worldRootPath + "/hits"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/drops"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/vending"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/gamble-machines"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/donation-boxes"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/chests"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/signs"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/displays"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/doors"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/anti-gravity"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/plants"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/weather"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/owner-tax"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/cameras"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/camera-logs"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/quest-world"));
           Promise.allSettled(dbOps).finally(() => {
             if (network.enabled) syncPlayer(true);
           });

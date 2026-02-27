@@ -43,6 +43,11 @@ window.GTModules.adminPanel = (function createAdminPanelModule() {
       return read("getFirebase", null);
     }
 
+    function getGatewayController() {
+      const gateway = read("getGatewayController", null);
+      return gateway && typeof gateway === "object" ? gateway : null;
+    }
+
     function getBasePath() {
       return cleanText(read("getBasePath", ""), 120);
     }
@@ -228,16 +233,18 @@ window.GTModules.adminPanel = (function createAdminPanelModule() {
         return;
       }
       const network = getNetwork();
+      const gateway = getGatewayController();
       const backup = getBackupModule();
       const basePath = getBasePath();
-      if (!network.db || !basePath || typeof backup.createBackup !== "function") {
-        postLocalSystemChat("Backup module unavailable.");
+      if (!network.db || !gateway || !basePath || typeof backup.createBackup !== "function") {
+        postLocalSystemChat("Cloudflare backend unavailable.");
         return;
       }
       const source = cleanText(sourceTag || "panel", 16) || "panel";
       setBackupLoading(true);
       backup.createBackup({
         db: network.db,
+        gateway,
         firebase: getFirebase(),
         basePath,
         createdByAccountId: cleanText(read("getPlayerProfileId", ""), 96),
@@ -276,16 +283,18 @@ window.GTModules.adminPanel = (function createAdminPanelModule() {
         : true;
       if (!accepted) return;
       const network = getNetwork();
+      const gateway = getGatewayController();
       const backup = getBackupModule();
       const basePath = getBasePath();
-      if (!network.db || !basePath || typeof backup.restoreBackup !== "function") {
-        postLocalSystemChat("Restore module unavailable.");
+      if (!network.db || !gateway || !basePath || typeof backup.restoreBackup !== "function") {
+        postLocalSystemChat("Cloudflare backend unavailable.");
         return;
       }
       const source = cleanText(sourceTag || "panel", 16) || "panel";
       setBackupLoading(true);
       backup.restoreBackup({
         db: network.db,
+        gateway,
         firebase: getFirebase(),
         basePath,
         backupId: id
@@ -392,10 +401,11 @@ window.GTModules.adminPanel = (function createAdminPanelModule() {
         return;
       }
       const network = getNetwork();
+      const gateway = getGatewayController();
       const backup = getBackupModule();
       const basePath = getBasePath();
-      if (!network.db || !basePath || typeof backup.importBackupJson !== "function") {
-        postLocalSystemChat("Import module unavailable.");
+      if (!network.db || !gateway || !basePath || typeof backup.importBackupJson !== "function") {
+        postLocalSystemChat("Cloudflare backend unavailable.");
         resetUploadInputValue();
         return;
       }
@@ -409,6 +419,7 @@ window.GTModules.adminPanel = (function createAdminPanelModule() {
         }
         return backup.importBackupJson({
           db: network.db,
+          gateway,
           firebase: getFirebase(),
           basePath,
           createdByAccountId: cleanText(read("getPlayerProfileId", ""), 96),
