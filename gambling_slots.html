@@ -460,14 +460,123 @@
       }
     }
 
+    .cell.stopped {
+      animation: none !important;
+      filter: brightness(1);
+    }
+
+    .cell.stopped.hit {
+      animation: hitPop 360ms ease !important;
+    }
+
+    .cell.wheel-anim {
+      position: relative;
+      animation: wheelPop 1.4s ease-out forwards;
+      z-index: 10;
+    }
+
+    .cell.wheel-anim::after {
+      content: "?x";
+      position: absolute;
+      inset: -4px;
+      background: radial-gradient(circle, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.8));
+      color: #fff;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      border: 2px solid var(--warn);
+      box-shadow: 0 0 20px rgba(255, 206, 106, 0.8);
+      animation: spinNumber 1.2s cubic-bezier(0.1, 0.7, 0.1, 1) forwards;
+    }
+
+    @keyframes wheelPop {
+      0% {
+        transform: scale(1);
+      }
+
+      20% {
+        transform: scale(1.15);
+        box-shadow: 0 0 30px var(--warn);
+      }
+
+      80% {
+        transform: scale(1.15);
+        box-shadow: 0 0 30px var(--warn);
+      }
+
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    @keyframes spinNumber {
+      0% {
+        content: "5x";
+        transform: rotateX(0deg);
+      }
+
+      10% {
+        content: "10x";
+        transform: rotateX(180deg);
+      }
+
+      20% {
+        content: "50x";
+        transform: rotateX(360deg);
+      }
+
+      30% {
+        content: "2x";
+        transform: rotateX(540deg);
+      }
+
+      40% {
+        content: "25x";
+        transform: rotateX(720deg);
+      }
+
+      50% {
+        content: "15x";
+        transform: rotateX(900deg);
+      }
+
+      60% {
+        content: "100x";
+        transform: rotateX(1080deg);
+      }
+
+      70% {
+        content: "5x";
+        transform: rotateX(1260deg);
+      }
+
+      80% {
+        content: "20x";
+        transform: rotateX(1440deg);
+      }
+
+      90% {
+        content: "??";
+        transform: rotateX(1620deg);
+      }
+
+      100% {
+        content: "!!";
+        transform: rotateX(1800deg);
+      }
+    }
+
     .cell.hit {
       transform: scale(1.04);
       border-color: rgba(57, 200, 255, 0.86);
       box-shadow: 0 0 16px rgba(57, 200, 255, 0.34);
     }
 
-    .board-wrap.spinning .cell {
+    .board-wrap.spinning .cell:not(.stopped) {
       animation: reelPulse 240ms infinite linear;
+      filter: blur(2px) brightness(0.8);
     }
 
     .board-wrap.winfx .cell.hit {

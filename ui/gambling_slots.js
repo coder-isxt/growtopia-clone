@@ -259,6 +259,32 @@ window.GTModules = window.GTModules || {};
     return result;
   }
 
+  const SIX_PAYLINES = [
+    [1, 1, 1, 1, 1], // Horizontal 1
+    [0, 0, 0, 0, 0], // Horizontal 0
+    [2, 2, 2, 2, 2], // Horizontal 2
+    [3, 3, 3, 3, 3], // Horizontal 3
+    [0, 1, 2, 1, 0], // V-shape
+    [1, 2, 3, 2, 1], // V-shape low
+    [3, 2, 1, 2, 3], // ^-shape low
+    [2, 1, 0, 1, 2], // ^-shape
+    [0, 0, 1, 2, 2], // Diagonal down
+    [2, 2, 1, 0, 0], // Diagonal up
+    [1, 1, 2, 3, 3], // Diagonal down low
+    [3, 3, 2, 1, 1], // Diagonal up low
+    [0, 1, 1, 1, 0], // Bump
+    [3, 2, 2, 2, 3]  // Dip
+  ];
+
+  const SIX_PAYTABLE = {
+    SKULL: [0, 0, 0.5, 2, 5],
+    BLOOD: [0, 0, 0.5, 1.5, 4],
+    REAPR: [0, 0, 0.4, 1, 3],
+    PENT: [0, 0, 0.3, 0.8, 2],
+    BONE: [0, 0, 0.2, 0.5, 1],
+    WILD: [0, 0, 1, 3, 10]
+  };
+
   function simulateSixSixSix(machine, bet, buyBonus) {
     const pool = ["SKULL", "BONE", "REAPR", "BLOOD", "PENT", "WILD"];
     const reelsCount = 5;
@@ -266,19 +292,68 @@ window.GTModules = window.GTModules || {};
 
     let reels = [];
     let lines = [];
+    let lineIds = [];
     let totalMult = 0;
 
+    // Generate grid
+    let grid = [];
     for (let r = 0; r < rows; r++) {
       let rowSymbols = [];
       for (let c = 0; c < reelsCount; c++) {
         let sym = pool[Math.floor(Math.random() * pool.length)];
 
         // "6" symbols only appear on reels 1, 3, 5 (cols 0, 2, 4)
-        if ((c === 0 || c === 2 || c === 4) && Math.random() < (buyBonus ? 0.12 : 0.04)) {
+        if ((c === 0 || c === 2 || c === 4) && Math.random() < (buyBonus ? 0.15 : 0.05)) {
           sym = Math.random() < 0.25 ? "RED_6" : "BLU_6";
         }
         rowSymbols.push(sym);
+      }
+      grid.push(rowSymbols);
+      reels.push(rowSymbols.join(","));
+    }
 
+    // Evaluate Paylines
+    let baseWin = 0;
+    for (let i = 0; i < SIX_PAYLINES.length; i++) {
+      const line = SIX_PAYLINES[i];
+      let matchSym = null;
+      let count = 0;
+
+      for (let c = 0; c < reelsCount; c++) {
+        let r = line[c];
+        let sym = grid[r][c];
+
+        if (sym === "WILD") {
+          count++;
+        } else if (sym === "BLU_6" || sym === "RED_6") {
+          break; // Wheels don't connect paylines
+        } else {
+          if (!matchSym) {
+            matchSym = sym;
+            count++;
+          } else if (sym === matchSym) {
+            count++;
+          } else {
+            break;
+          }
+        }
+      }
+
+      if (count >= 3) {
+        let target = matchSym || "WILD";
+        let mult = SIX_PAYTABLE[target][count - 1] || 0;
+        if (mult > 0) {
+          let win = bet * mult;
+          baseWin += win;
+          lines.push(count + "x " + SYMBOL_LABELS[target]);
+          lineIds.push(i + 1);
+        }
+      }
+    }
+
+    // Evaluate Wheels
+    grid.forEach((row) => {
+      row.forEach((sym) => {
         if (sym === "BLU_6") {
           let m = [5, 10, 15, 20, 25, 50, 100][Math.floor(Math.random() * 7)];
           totalMult += m;
@@ -288,17 +363,16 @@ window.GTModules = window.GTModules || {};
           totalMult += m;
           lines.push("Red 6: " + m + "x");
         }
-      }
-      reels.push(rowSymbols.join(","));
-    }
+      });
+    });
 
-    let baseWin = 0;
-    // Simulate some standard line wins randomly for the visual effect
-    if (Math.random() < 0.3) {
-      baseWin += bet * (Math.floor(Math.random() * 5) + 1);
-    }
-    if (baseWin > 0 && totalMult === 0) lines.push("Line Win");
+    // Special fallback for UI lines array if empty and there's a multiplier
+    if (baseWin === 0 && totalMult === 0) lines = [];
 
+    // Final Payout logic similar to real game (Wheels apply to base, but they are also flat multipliers on bet if we want to simplify)
+    // To match actual Six Six Six logic closer, base win is multiplied by the combined wheel multipliers,
+    // OR if no line win, the multiplier applies to the bet. 
+    // Usually Hacksaw applies wheels to base stakes, so `bet * totalMult`. Let's stick to that for simplicity. 
     let payout = baseWin + (bet * totalMult);
 
     return {
@@ -307,7 +381,7 @@ window.GTModules = window.GTModules || {};
       payoutWanted: payout,
       outcome: payout > 0 ? (totalMult >= 50 ? "jackpot" : "win") : "lose",
       lineWins: lines,
-      lineIds: lines.length > 0 ? [1] : [],
+      lineIds: lineIds,
       bet: buyBonus ? bet * 10 : bet,
       summary: totalMult > 0 ? "Wicked Wheel!" : ""
     };
@@ -640,6 +714,7 @@ window.GTModules = window.GTModules || {};
   function linePattern(lineId, cols, rows, machineType) {
     const id = Math.max(1, Math.floor(Number(lineId) || 1));
     if (machineType === "slots") return normalizePattern([0, 0, 0], cols, rows);
+    if (machineType === "slots_v2" && SIX_PAYLINES[id - 1]) return normalizePattern(SIX_PAYLINES[id - 1], cols, rows);
     return normalizePattern(PAYLINES_5[id - 1] || PAYLINES_5[0], cols, rows);
   }
 
@@ -817,19 +892,29 @@ window.GTModules = window.GTModules || {};
     if (els.lastWinLabel) els.lastWinLabel.classList.add("hidden");
     stopSpinFx();
     state.spinBusy = true;
-    if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
+    if (els.boardWrap instanceof HTMLElement) {
+      els.boardWrap.classList.add("spinning");
+      // Remove stopped class from all cells for next spin
+      const cells = els.boardWrap.querySelectorAll('.cell');
+      cells.forEach(c => c.classList.remove('stopped', 'wheel-anim'));
+    }
     if (els.spinBtn instanceof HTMLButtonElement) {
       els.spinBtn.disabled = true;
       els.spinBtn.textContent = "Spinning...";
     }
     if (els.buyBonusBtn instanceof HTMLButtonElement) els.buyBonusBtn.disabled = true;
     let tick = 0;
+
+    // We maintain visual sync by occasionally re-rendering random rows for blurring effects
     state.spinTimer = window.setInterval(() => {
       tick += 1;
-      state.ephemeral.rows = randomRowsForMachine(machine, tick);
-      state.ephemeral.lineIds = [];
-      state.ephemeral.lineWins = [isBonus ? "BONUS BUY..." : "Spinning..."];
-      renderBoard();
+      // Only randomize rows that are NOT stopped in the logic handled below
+      if (!state.ephemeral.stoppedCols) {
+        state.ephemeral.rows = randomRowsForMachine(machine, tick);
+        state.ephemeral.lineIds = [];
+        state.ephemeral.lineWins = [isBonus ? "BONUS BUY..." : "Spinning..."];
+        renderBoard();
+      }
     }, 90);
   }
 
@@ -839,6 +924,7 @@ window.GTModules = window.GTModules || {};
       state.spinTimer = 0;
     }
     state.spinBusy = false;
+    state.ephemeral.stoppedCols = null;
     if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
     if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.textContent = "Spin";
   }
@@ -1332,11 +1418,6 @@ window.GTModules = window.GTModules || {};
 
     // Standalone / Casino Mode Handling
     if (machine.tileKey.startsWith("demo_")) {
-      if (buyBonus) {
-        await sleep(2000); // Longer delay for bonus buy anticipation
-      } else {
-        await sleep(800); // Normal spin delay to let animation play
-      }
 
       let rawResult = {};
       if (machine.type === "slots_v2") {
@@ -1374,6 +1455,62 @@ window.GTModules = window.GTModules || {};
         wager: resultWager
       };
 
+      // -- Asynchronous Sequential Stop Animation --
+      if (machine.type === "slots_v2") {
+        // Stop background fast randomizing
+        if (state.spinTimer) window.clearInterval(state.spinTimer);
+        state.ephemeral.stoppedCols = 0;
+        state.ephemeral.rows = randomRowsForMachine(machine, 100); // stable baseline
+        renderBoard();
+
+        // Ensure spinning class is active
+        if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
+
+        for (let col = 0; col < machine.reels; col++) {
+          await sleep(col === 0 ? 500 : 350); // initial delay, then per reel
+
+          state.ephemeral.stoppedCols++;
+
+          // Overwrite the rendering row with finals for this col
+          for (let r = 0; r < machine.rows; r++) {
+            if (resolved.rows[r] && resolved.rows[r][col]) {
+              state.ephemeral.rows[r][col] = resolved.rows[r][col];
+            }
+          }
+
+          renderBoard();
+          if (els.boardWrap instanceof HTMLElement) {
+            const stoppedCells = els.boardWrap.querySelectorAll(".cell[data-col='" + col + "']");
+            stoppedCells.forEach(c => c.classList.add("stopped"));
+          }
+
+          // Check for Wheel (BLU_6 or RED_6)
+          let hasWheel = false;
+          for (let r = 0; r < machine.rows; r++) {
+            let s = state.ephemeral.rows[r][col];
+            if (s === "BLU_6" || s === "RED_6") {
+              hasWheel = true;
+              if (els.boardWrap instanceof HTMLElement) {
+                const wc = els.boardWrap.querySelector(".cell[data-col='" + col + "'][data-row='" + r + "']");
+                if (wc) wc.classList.add("wheel-anim");
+              }
+            }
+          }
+
+          if (hasWheel) {
+            // Wait for the simulated "Wheel spin" to finish before stopping next reel
+            await sleep(1400);
+            if (els.boardWrap instanceof HTMLElement) {
+              const animCells = els.boardWrap.querySelectorAll(".wheel-anim");
+              animCells.forEach(c => c.classList.remove("wheel-anim"));
+            }
+          }
+        }
+      } else {
+        if (buyBonus) await sleep(2000);
+        else await sleep(800);
+      }
+
       // Update local ephemeral stats
       machine.stats.plays++;
       machine.stats.totalBet += resultWager;
@@ -1406,9 +1543,9 @@ window.GTModules = window.GTModules || {};
       if (resolved.outcome === "win" || resolved.outcome === "jackpot" || buyBonus || payout > 0) {
         if (els.boardWrap instanceof HTMLElement) {
           els.boardWrap.classList.add("winfx");
-          window.setTimeout(() => { if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx"); }, 420);
+          window.setTimeout(() => { if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx"); }, 800);
         }
-        spawnParticles(resolved.outcome);
+        spawnParticles(payout >= bet * 50 ? "jackpot" : "win");
       }
       renderAll();
       return;
