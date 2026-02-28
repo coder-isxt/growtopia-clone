@@ -1009,15 +1009,19 @@ window.GTModules = window.GTModules || {};
     const bjState = machine.stats.blackjackState;
     const activeHand = (bjState && bjState.hands && bjState.hands[bjState.activeHandIndex]) || null;
 
-    const bet = clampBetToMachine(machine, state.currentBetValue);
+    let displayBet = clampBetToMachine(machine, state.currentBetValue);
+
+    if (isBlackjack && bjState && bjState.active && Array.isArray(bjState.hands)) {
+      displayBet = bjState.hands.reduce((sum, h) => sum + (Number(h.bet) || 0), 0);
+    }
 
     if (els.currentBetDisplay instanceof HTMLElement) {
-      els.currentBetDisplay.textContent = bet + " WL";
+      els.currentBetDisplay.textContent = displayBet + " WL";
     }
 
     const maxStake = Math.max(machine.minBet, getSpinMaxBet(machine));
     const busyByOther = Boolean(machine.inUseAccountId && machine.inUseAccountId !== (state.user && state.user.accountId));
-    const canBet = !state.spinBusy && !busyByOther && maxStake >= machine.minBet && state.walletLocks >= bet;
+    const canBet = !state.spinBusy && !busyByOther && maxStake >= machine.minBet && state.walletLocks >= displayBet;
 
     // Blackjack specific buttons
     if (els.bjHitBtn) els.bjHitBtn.classList.toggle("hidden", !isBlackjack);
