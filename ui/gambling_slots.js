@@ -4,7 +4,7 @@ window.GTModules = window.GTModules || {};
   "use strict";
 
   const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
-  const SLOT_MACHINE_IDS = ["slots", "slots_v2", "slots_v3", "slots_v4", "slots_v6"];
+  const GAME_IDS = ["blackjack", "slots", "slots_v2", "slots_v3", "slots_v4", "slots_v6"];
 
   // This page is now a standalone casino site.
   // World-based machine browsing is on gambling.html
@@ -34,7 +34,8 @@ window.GTModules = window.GTModules || {};
       lastMultiplier: 0,
       lastSlotsText: "",
       lastSlotsLineIds: "",
-      lastSlotsLines: ""
+      lastSlotsLines: "",
+      blackjackState: null // { deck, playerHand, dealerHand, active, message }
     }
   };
 
@@ -42,6 +43,7 @@ window.GTModules = window.GTModules || {};
   // This makes the web gamble UI feel distinct from the actual game slots.
   const INFINITE_BANK = true; // toggle to make all banks infinite in the UI
   const UI_GAME_ALIASES = {
+    blackjack: "Blackjack Table",
     slots: "Nebula Run",
     slots_v2: "Crystal Forge",
     slots_v3: "Spectral Vault",
@@ -126,6 +128,9 @@ window.GTModules = window.GTModules || {};
     betInput: document.getElementById("betInput"),
     setMaxBtn: document.getElementById("setMaxBtn"),
     spinBtn: document.getElementById("spinBtn"),
+    bjHitBtn: document.getElementById("bjHitBtn"),
+    bjStandBtn: document.getElementById("bjStandBtn"),
+    bjDoubleBtn: document.getElementById("bjDoubleBtn"),
     buyBonusBtn: document.getElementById("buyBonusBtn"),
     stage: document.getElementById("stage"),
     boardWrap: document.getElementById("boardWrap"),
@@ -147,6 +152,7 @@ window.GTModules = window.GTModules || {};
   function buildMachineDefinitions() {
     const slotsDefs = typeof slotsModule.getDefinitions === "function" ? slotsModule.getDefinitions() : {};
     const fallback = {
+      blackjack: { name: "Blackjack", minBet: 1, maxBet: 50000, maxPayoutMultiplier: 2.5, reels: 0, rows: 0 },
       slots: { name: "Classic Slots", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10, reels: 3, rows: 1 },
       slots_v2: { name: "Neon Mine", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 50, reels: 5, rows: 4 },
       slots_v3: { name: "Blood Vault", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 4 },
@@ -154,7 +160,7 @@ window.GTModules = window.GTModules || {};
       slots_v6: { name: "Deep Core", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 3 }
     };
     const out = {};
-    SLOT_MACHINE_IDS.forEach((id) => {
+    GAME_IDS.forEach((id) => {
       const row = slotsDefs[id] || {};
       const base = fallback[id] || fallback.slots;
       const layout = row && row.layout && typeof row.layout === "object" ? row.layout : {};
@@ -173,6 +179,39 @@ window.GTModules = window.GTModules || {};
       if (out[id]) out[id].name = UI_GAME_ALIASES[id];
     });
     return out;
+  }
+
+  // Blackjack Logic
+  function getDeck() {
+    const suits = ['♠', '♥', '♦', '♣'];
+    const ranks = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+    const deck = [];
+    for(let s of suits) {
+      for(let r of ranks) {
+        let val = parseInt(r);
+        if(isNaN(val)) val = (r === 'A') ? 11 : 10;
+        deck.push({ rank: r, suit: s, value: val, color: (s === '♥' || s === '♦') ? 'red' : 'black' });
+      }
+    }
+    return deck.sort(() => Math.random() - 0.5);
+  }
+
+  function calculateHand(hand) {
+    let score = 0;
+    let aces = 0;
+    for(let c of hand) {
+      score += c.value;
+      if(c.rank === 'A') aces++;
+    }
+    while(score > 21 && aces > 0) {
+      score -= 10;
+      aces--;
+    }
+    return score;
+  }
+
+  function isBlackjack(hand) {
+    return hand.length === 2 && calculateHand(hand) === 21;
   }
 
   // Standalone/casino spin logic
@@ -332,7 +371,7 @@ window.GTModules = window.GTModules || {};
     if (!Number.isFinite(tx) || !Number.isFinite(ty)) return null;
 
     const type = String(raw.type || "").trim();
-    if (SLOT_MACHINE_IDS.indexOf(type) < 0) return null;
+    if (GAME_IDS.indexOf(type) < 0) return null;
     const def = MACHINE_DEFS[type] || MACHINE_DEFS.slots;
     const maxBetRaw = Math.floor(Number(raw.maxBet));
     const maxBet = Math.max(def.minBet, Math.min(def.maxBet, Number.isFinite(maxBetRaw) ? maxBetRaw : def.maxBet));
@@ -545,9 +584,58 @@ window.GTModules = window.GTModules || {};
     return mask;
   }
 
+  function renderBlackjackBoard(machine) {
+    if (!(els.slotBoard instanceof HTMLElement)) return;
+    const state = machine.stats.blackjackState;
+    if (!state) {
+      els.slotBoard.innerHTML = "<div class='bj-table'><div class='bj-msg'>Press Deal to start</div></div>";
+      return;
+    }
+
+    const renderCard = (card, hidden) => {
+      if (hidden) return `<div class="bj-card hidden-card"></div>`;
+      return `<div class="bj-card ${card.color}">
+        <span class="rank">${card.rank}</span>
+        <span class="suit">${card.suit}</span>
+        <span class="rank bot">${card.rank}</span>
+      </div>`;
+    };
+
+    const dealerScore = state.active ? "?" : calculateHand(state.dealerHand);
+    const playerScore = calculateHand(state.playerHand);
+
+    const html = `
+      <div class="bj-table">
+        <div class="bj-hand-area">
+          <div class="bj-score">Dealer: ${dealerScore}</div>
+          <div class="bj-hand">
+            ${state.dealerHand.map((c, i) => renderCard(c, state.active && i === 1)).join('')}
+          </div>
+        </div>
+        <div class="bj-msg">${state.message || ""}</div>
+        <div class="bj-hand-area">
+          <div class="bj-hand">
+            ${state.playerHand.map(c => renderCard(c)).join('')}
+          </div>
+          <div class="bj-score">Player: ${playerScore}</div>
+        </div>
+      </div>`;
+    els.slotBoard.innerHTML = html;
+  }
+
   function renderBoard() {
     if (!(els.slotBoard instanceof HTMLElement) || !(els.slotOverlay instanceof SVGElement) || !(els.lineList instanceof HTMLElement)) return;
     const machine = getSelectedMachine();
+    
+    // Clear overlay
+    els.slotOverlay.innerHTML = "";
+    
+    if (machine.type === 'blackjack') {
+      renderBlackjackBoard(machine);
+      els.lineList.innerHTML = ""; // No paylines for BJ
+      return;
+    }
+
     const model = buildRowsForRender(machine);
     const rows = Array.isArray(model.rows) ? model.rows : [];
     const rowCount = Math.max(1, rows.length);
@@ -571,8 +659,6 @@ window.GTModules = window.GTModules || {};
     els.slotBoard.innerHTML = boardHtml;
 
     // --- draw paylines using real DOM cell centers (pixel-perfect) ---
-els.slotOverlay.innerHTML = "";
-
 const wrap = els.boardWrap;
 if (wrap instanceof HTMLElement) {
   const wrapRect = wrap.getBoundingClientRect();
@@ -733,6 +819,10 @@ if (wrap instanceof HTMLElement) {
       els.stage.classList.add("theme-" + machine.type);
     }
 
+    // Toggle controls based on game type
+    const isBlackjack = machine.type === 'blackjack';
+    const bjState = machine.stats.blackjackState;
+
     const bet = clampBetToMachine(machine, els.betInput && els.betInput.value);
     if (els.betInput instanceof HTMLInputElement) {
       const min = machine.minBet;
@@ -740,13 +830,34 @@ if (wrap instanceof HTMLElement) {
       els.betInput.min = String(min);
       els.betInput.max = String(max);
       els.betInput.value = String(bet);
-      els.betInput.disabled = state.spinBusy;
+      els.betInput.disabled = state.spinBusy || (isBlackjack && bjState && bjState.active);
     }
     const maxStake = Math.max(machine.minBet, getSpinMaxBet(machine));
     const busyByOther = Boolean(machine.inUseAccountId && machine.inUseAccountId !== (state.user && state.user.accountId));
-    const canSpin = !state.spinBusy && !busyByOther && maxStake >= machine.minBet && state.walletLocks >= machine.minBet;
+    const canBet = !state.spinBusy && !busyByOther && maxStake >= machine.minBet && state.walletLocks >= machine.minBet;
 
-    if (els.setMaxBtn instanceof HTMLButtonElement) els.setMaxBtn.disabled = !canSpin;
+    if (els.setMaxBtn instanceof HTMLButtonElement) els.setMaxBtn.disabled = !canBet || (isBlackjack && bjState && bjState.active);
+
+    // Blackjack specific buttons
+    if (els.bjHitBtn) els.bjHitBtn.classList.toggle("hidden", !isBlackjack);
+    if (els.bjStandBtn) els.bjStandBtn.classList.toggle("hidden", !isBlackjack);
+    if (els.bjDoubleBtn) els.bjDoubleBtn.classList.toggle("hidden", !isBlackjack);
+    
+    if (isBlackjack) {
+      const active = bjState && bjState.active;
+      if (els.bjHitBtn) els.bjHitBtn.disabled = !active;
+      if (els.bjStandBtn) els.bjStandBtn.disabled = !active;
+      if (els.bjDoubleBtn) els.bjDoubleBtn.disabled = !active || state.walletLocks < bjState.bet;
+      if (els.spinBtn) {
+        els.spinBtn.textContent = active ? "Game Active" : "Deal";
+        els.spinBtn.disabled = active || !canBet;
+      }
+    } else {
+      if (els.spinBtn) {
+        els.spinBtn.textContent = "Spin";
+        els.spinBtn.disabled = !canBet;
+      }
+    }
 
     const buyEnabled = machine.type === "slots_v2";
     if (els.buyBonusBtn instanceof HTMLButtonElement) {
@@ -755,11 +866,9 @@ if (wrap instanceof HTMLElement) {
         const cost = clampBetToMachine(machine, els.betInput && els.betInput.value) * 10;
         els.buyBonusBtn.textContent = "Buy Bonus " + cost + " WL";
         const buyCost = clampBetToMachine(machine, els.betInput && els.betInput.value) * 10;
-        els.buyBonusBtn.disabled = !canSpin || state.walletLocks < buyCost;
+        els.buyBonusBtn.disabled = !canBet || state.walletLocks < buyCost;
       }
     }
-
-    if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.disabled = !canSpin;
   }
 
   function renderAll() {
@@ -907,6 +1016,108 @@ if (wrap instanceof HTMLElement) {
     return normalized.length ? normalized : [["?"]];
   }
 
+  async function runBlackjackAction(action) {
+    const machine = getSelectedMachine();
+    if (!machine || machine.type !== 'blackjack') return;
+
+    // Initialize state if missing
+    if (!machine.stats.blackjackState) {
+      machine.stats.blackjackState = { active: false, playerHand: [], dealerHand: [], deck: [], bet: 0, message: "Place bet and Deal" };
+    }
+    const bj = machine.stats.blackjackState;
+
+    if (action === 'deal') {
+      if (bj.active) return;
+      const bet = clampBetToMachine(machine, els.betInput && els.betInput.value);
+      if (state.walletLocks < bet) return;
+
+      // Deduct bet
+      const debit = await adjustWallet(-bet);
+      if (!debit.ok) return;
+
+      bj.bet = bet;
+      bj.deck = getDeck();
+      bj.playerHand = [bj.deck.pop(), bj.deck.pop()];
+      bj.dealerHand = [bj.deck.pop(), bj.deck.pop()];
+      bj.active = true;
+      bj.message = "Hit or Stand?";
+
+      // Check natural blackjack
+      if (isBlackjack(bj.playerHand)) {
+        bj.active = false;
+        if (isBlackjack(bj.dealerHand)) {
+          bj.message = "Push! Both have Blackjack.";
+          await adjustWallet(bet); // Return bet
+        } else {
+          const win = Math.floor(bet * 2.5);
+          bj.message = `Blackjack! Won ${win} WL`;
+          await adjustWallet(win);
+        }
+      }
+    } else if (action === 'hit') {
+      if (!bj.active) return;
+      bj.playerHand.push(bj.deck.pop());
+      if (calculateHand(bj.playerHand) > 21) {
+        bj.active = false;
+        bj.message = "Bust! You lost.";
+      }
+    } else if (action === 'stand') {
+      if (!bj.active) return;
+      bj.active = false;
+      // Dealer play
+      while (calculateHand(bj.dealerHand) < 17) {
+        bj.dealerHand.push(bj.deck.pop());
+      }
+      
+      const pScore = calculateHand(bj.playerHand);
+      const dScore = calculateHand(bj.dealerHand);
+      
+      if (dScore > 21 || pScore > dScore) {
+        const win = bj.bet * 2;
+        bj.message = `You Win! Won ${win} WL`;
+        await adjustWallet(win);
+      } else if (dScore === pScore) {
+        bj.message = "Push. Bet returned.";
+        await adjustWallet(bj.bet);
+      } else {
+        bj.message = "Dealer Wins.";
+      }
+    } else if (action === 'double') {
+      if (!bj.active || bj.playerHand.length !== 2) return;
+      if (state.walletLocks < bj.bet) return; // Need enough for 2nd bet
+      
+      const debit = await adjustWallet(-bj.bet);
+      if (!debit.ok) return;
+      
+      bj.bet *= 2;
+      bj.playerHand.push(bj.deck.pop());
+      
+      if (calculateHand(bj.playerHand) > 21) {
+        bj.active = false;
+        bj.message = "Bust! You lost.";
+      } else {
+        // Auto stand after double
+        bj.active = false;
+        while (calculateHand(bj.dealerHand) < 17) {
+          bj.dealerHand.push(bj.deck.pop());
+        }
+        const pScore = calculateHand(bj.playerHand);
+        const dScore = calculateHand(bj.dealerHand);
+        if (dScore > 21 || pScore > dScore) {
+          const win = bj.bet * 2;
+          bj.message = `You Win! Won ${win} WL`;
+          await adjustWallet(win);
+        } else if (dScore === pScore) {
+          bj.message = "Push. Bet returned.";
+          await adjustWallet(bj.bet);
+        } else {
+          bj.message = "Dealer Wins.";
+        }
+      }
+    }
+    renderAll();
+  }
+
   async function runSpin(mode) {
     if (state.spinBusy) return;
     if (!state.user) {
@@ -918,6 +1129,11 @@ if (wrap instanceof HTMLElement) {
 
     const machine = getSelectedMachine();
     if (!machine) {
+      return;
+    }
+
+    if (machine.type === 'blackjack') {
+      runBlackjackAction('deal');
       return;
     }
 
@@ -1154,6 +1370,10 @@ if (wrap instanceof HTMLElement) {
     if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.addEventListener("click", () => runSpin("spin"));
     if (els.buyBonusBtn instanceof HTMLButtonElement) els.buyBonusBtn.addEventListener("click", () => runSpin("buybonus"));
 
+    if (els.bjHitBtn) els.bjHitBtn.addEventListener("click", () => runBlackjackAction("hit"));
+    if (els.bjStandBtn) els.bjStandBtn.addEventListener("click", () => runBlackjackAction("stand"));
+    if (els.bjDoubleBtn) els.bjDoubleBtn.addEventListener("click", () => runBlackjackAction("double"));
+
     if (els.betInput instanceof HTMLInputElement) {
       els.betInput.addEventListener("keydown", (event) => {
         if (event.key !== "Enter") return;
@@ -1184,7 +1404,7 @@ if (wrap instanceof HTMLElement) {
     if (els.authPassword instanceof HTMLInputElement && saved.password) els.authPassword.value = String(saved.password || "").slice(0, 64);
 
     // Populate with casino games instead of loading from world
-    state.machines = SLOT_MACHINE_IDS.map(type => {
+    state.machines = GAME_IDS.map(type => {
       const def = MACHINE_DEFS[type] || MACHINE_DEFS.slots;
       return {
         ...STANDALONE_MACHINE,
