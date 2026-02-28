@@ -11,7 +11,7 @@ window.GTModules = window.GTModules || {};
 
   // Demo casino mode: independent slot experience not tied to user-hosted machines
   const STANDALONE_MACHINE = {
-    tileKey: "casino_demo",
+    tileKey: "demo_slots",
     type: "slots",
     typeName: "Demo Slots",
     tx: 0,
@@ -1024,6 +1024,46 @@ if (wrap instanceof HTMLElement) {
     let resolved = null;
     let payout = 0;
 
+    // Standalone / Casino Mode Handling
+    if (machine.tileKey.startsWith("demo_")) {
+      const rawResult = slotsModule.spin(machine.type, bet, buyBonus ? { mode: "buybonus" } : {}) || {};
+      const resultWager = Math.max(1, Math.floor(Number(rawResult.bet) || wager));
+      const wanted = Math.max(0, Math.floor(Number(rawResult.payoutWanted) || 0));
+
+      const lines = Array.isArray(rawResult.lineWins) ? rawResult.lineWins.map((s) => String(s || "").trim()).filter(Boolean) : [];
+      const lineIds = Array.isArray(rawResult.lineIds) ? rawResult.lineIds.map((n) => Math.max(1, Math.floor(Number(n) || 0))).filter((n) => n > 0) : [];
+      const reels = Array.isArray(rawResult.reels) ? rawResult.reels : [];
+      
+      if (!lineIds.length && String(rawResult.gameId || machine.type || "") === "slots" && wanted > 0) {
+        lineIds.push(1);
+        if (!lines.length && rawResult.summary) {
+          lines.push(String(rawResult.summary));
+        }
+      }
+
+      applied = true;
+      payout = wanted;
+      resolved = {
+        type: machine.type,
+        rows: rowsFromResult(reels, machine.type),
+        lineWins: lines,
+        lineIds: lineIds,
+        outcome: String(rawResult.outcome || "lose").slice(0, 24),
+        multiplier: Math.max(0, Number(rawResult.multiplier) || 0),
+        summary: String(rawResult.summary || "").slice(0, 220),
+        wager: resultWager
+      };
+
+      // Update local ephemeral stats
+      machine.stats.plays++;
+      machine.stats.totalBet += resultWager;
+      machine.stats.totalPayout += wanted;
+      machine.stats.lastOutcome = resolved.outcome;
+      machine.stats.lastSlotsText = reels.join("|");
+      machine.stats.lastSlotsLines = lines.join("|");
+      machine.stats.lastSlotsLineIds = lineIds.join(",");
+    } else {
+    // Player-hosted machine handling (DB Transaction)
     try {
       const db = await ensureDb();
       const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
@@ -1130,6 +1170,8 @@ if (wrap instanceof HTMLElement) {
       state.ephemeral.rows = null;
       setResult((error && error.message) || "Spin failed.");
       renderAll();
+      return;
+    }
     }
   }
 
@@ -1226,8 +1268,19 @@ if (wrap instanceof HTMLElement) {
     if (els.authPassword instanceof HTMLInputElement && saved.password) els.authPassword.value = String(saved.password || "").slice(0, 64);
 
     // Populate with casino games instead of loading from world
-    state.machines = [STANDALONE_MACHINE];
-    state.selectedMachineKey = STANDALONE_MACHINE.tileKey;
+    state.machines = SLOT_MACHINE_IDS.map(type => {
+      const def = MACHINE_DEFS[type] || MACHINE_DEFS.slots;
+      return {
+        ...STANDALONE_MACHINE,
+        tileKey: "demo_" + type,
+        type: type,
+        typeName: def.name,
+        reels: def.reels,
+        rows: def.rows,
+        maxPayoutMultiplier: def.maxPayoutMultiplier
+      };
+    });
+    state.selectedMachineKey = state.machines[0].tileKey;
 
     setStatus(els.authStatus, "Login with your game account.");
     setResult("Ready. Pick machine, set bet, spin.");
