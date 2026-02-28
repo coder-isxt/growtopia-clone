@@ -351,7 +351,10 @@
 
     .overlay {
       position: absolute;
-      inset: 10px;
+      left: 0;
+      top: 0;
+      width: 0;
+      height: 0;
       z-index: 3;
       pointer-events: none;
     }
@@ -359,11 +362,11 @@
     .overlay polyline {
       fill: none;
       stroke: rgba(255, 210, 113, 0.92);
-      stroke-width: 0.8;
+      stroke-width: 0.34;
       stroke-linecap: round;
       stroke-linejoin: round;
-      filter: drop-shadow(0 0 4px rgba(255, 210, 113, 0.56));
-      stroke-dasharray: 8 6;
+      filter: drop-shadow(0 0 2px rgba(255, 210, 113, 0.46));
+      stroke-dasharray: 5 8;
       animation: dashMove 620ms linear infinite;
     }
 
