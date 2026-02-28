@@ -182,12 +182,12 @@ window.GTModules = window.GTModules || {};
   // Blackjack Logic
   function getDeck() {
     const suits = ['♠', '♥', '♦', '♣'];
-    const ranks = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+    const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
     const deck = [];
-    for(let s of suits) {
-      for(let r of ranks) {
+    for (let s of suits) {
+      for (let r of ranks) {
         let val = parseInt(r);
-        if(isNaN(val)) val = (r === 'A') ? 11 : 10;
+        if (isNaN(val)) val = (r === 'A') ? 11 : 10;
         deck.push({ rank: r, suit: s, value: val, color: (s === '♥' || s === '♦') ? 'red' : 'black' });
       }
     }
@@ -197,11 +197,11 @@ window.GTModules = window.GTModules || {};
   function calculateHand(hand) {
     let score = 0;
     let aces = 0;
-    for(let c of hand) {
+    for (let c of hand) {
       score += c.value;
-      if(c.rank === 'A') aces++;
+      if (c.rank === 'A') aces++;
     }
-    while(score > 21 && aces > 0) {
+    while (score > 21 && aces > 0) {
       score -= 10;
       aces--;
     }
@@ -225,7 +225,7 @@ window.GTModules = window.GTModules || {};
 
     let payout = 0;
     let lines = [];
-    
+
     // Simple 5-reel logic: match 3+ from left
     const first = reels[0];
     let matchCount = 1;
@@ -259,59 +259,59 @@ window.GTModules = window.GTModules || {};
 
   function simulateSixSixSix(machine, bet, state = {}) {
 
-  const pool = ["SKULL","BLOOD","REAPR","WILD","SCAT"];
-  const reelsCount = machine.reels;
-  const rows = machine.rows;
+    const pool = ["SKULL", "BLOOD", "REAPR", "WILD", "SCAT"];
+    const reelsCount = machine.reels;
+    const rows = machine.rows;
 
-  if (!state.grid) {
-    state.grid = Array.from({length: rows}, () =>
-      Array.from({length: reelsCount}, () =>
-        pool[Math.floor(Math.random()*pool.length)]
-      )
-    );
-  }
+    if (!state.grid) {
+      state.grid = Array.from({ length: rows }, () =>
+        Array.from({ length: reelsCount }, () =>
+          pool[Math.floor(Math.random() * pool.length)]
+        )
+      );
+    }
 
-  // --- Sticky wild mechanic ---
-  let newWild = false;
+    // --- Sticky wild mechanic ---
+    let newWild = false;
 
-  for (let r=0;r<rows;r++){
-    for (let c=0;c<reelsCount;c++){
-      if (state.grid[r][c] === "WILD") continue;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < reelsCount; c++) {
+        if (state.grid[r][c] === "WILD") continue;
 
-      if (Math.random() < 0.18) {
-        state.grid[r][c] = "WILD";
-        newWild = true;
+        if (Math.random() < 0.18) {
+          state.grid[r][c] = "WILD";
+          newWild = true;
+        }
       }
     }
+
+    // --- payout calculation ---
+    let payout = 0;
+
+    let wildCount = 0;
+    state.grid.forEach(row =>
+      row.forEach(s => { if (s === "WILD") wildCount++; })
+    );
+
+    payout += wildCount * bet * 0.5;
+
+    // --- respin logic ---
+    if (newWild) {
+      state.respins = (state.respins || 0) + 1;
+      state.next = true;
+    } else {
+      state.next = false;
+    }
+
+    return {
+      reels: state.grid.flat(),
+      payoutWanted: payout,
+      outcome: payout > 0 ? "win" : "lose",
+      lineWins: [`${wildCount} wilds`],
+      lineIds: [1],
+      state
+    };
   }
-
-  // --- payout calculation ---
-  let payout = 0;
-
-  let wildCount = 0;
-  state.grid.forEach(row =>
-    row.forEach(s => { if (s==="WILD") wildCount++; })
-  );
-
-  payout += wildCount * bet * 0.5;
-
-  // --- respin logic ---
-  if (newWild) {
-    state.respins = (state.respins || 0) + 1;
-    state.next = true;
-  } else {
-    state.next = false;
-  }
-
-  return {
-    reels: state.grid.flat(),
-    payoutWanted: payout,
-    outcome: payout>0 ? "win":"lose",
-    lineWins: [`${wildCount} wilds`],
-    lineIds:[1],
-    state
-  };
-}
 
   function resolveLockCurrencies() {
     const fallback = [
@@ -685,28 +685,28 @@ window.GTModules = window.GTModules || {};
           <div class="bj-score">Dealer: ${dealerScore}</div>
           <div class="bj-hand">
             ${state.dealerHand.map((c, i) => {
-              return renderCard(c, state.active && i === 1, isDeal || (isDealer && i === state.dealerHand.length - 1));
-            }).join('')}
+      return renderCard(c, state.active && i === 1, isDeal || (isDealer && i === state.dealerHand.length - 1));
+    }).join('')}
           </div>
         </div>
         <div class="bj-msg">${state.message || ""}</div>
         <div class="bj-hand-area">
           <div class="bj-player-hands">
             ${state.hands.map((hand, hIdx) => {
-              const isActive = state.active && hIdx === state.activeHandIndex;
-              const score = calculateHand(hand.cards);
-              const handClass = isActive ? "bj-hand active-hand" : "bj-hand";
-              return `
+      const isActive = state.active && hIdx === state.activeHandIndex;
+      const score = calculateHand(hand.cards);
+      const handClass = isActive ? "bj-hand active-hand" : "bj-hand";
+      return `
                 <div class="bj-hand-container">
                   <div class="${handClass}">
                     ${hand.cards.map((c, i) => {
-                      return renderCard(c, false, isDeal || (isActive && isHit && i === hand.cards.length - 1));
-                    }).join('')}
+        return renderCard(c, false, isDeal || (isActive && isHit && i === hand.cards.length - 1));
+      }).join('')}
                   </div>
                   <div class="bj-score">${score}</div>
                   ${hand.bet > state.bet ? '<div class="tag warn" style="font-size:8px;margin-top:4px;">Doubled</div>' : ''}
                 </div>`;
-            }).join('')}
+    }).join('')}
           </div>
         </div>
       </div>`;
@@ -716,14 +716,17 @@ window.GTModules = window.GTModules || {};
   function renderBoard(animCtx) {
     if (!(els.slotBoard instanceof HTMLElement) || !(els.slotOverlay instanceof SVGElement) || !(els.lineList instanceof HTMLElement)) return;
     const machine = getSelectedMachine();
-    
+
     // Clear overlay
     els.slotOverlay.innerHTML = "";
-    
+
     if (machine.type === 'blackjack') {
+      if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add('blackjack-mode');
       renderBlackjackBoard(machine, animCtx);
       els.lineList.innerHTML = ""; // No paylines for BJ
       return;
+    } else {
+      if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove('blackjack-mode');
     }
 
     const model = buildRowsForRender(machine);
@@ -749,42 +752,42 @@ window.GTModules = window.GTModules || {};
     els.slotBoard.innerHTML = boardHtml;
 
     // --- draw paylines using real DOM cell centers (pixel-perfect) ---
-const wrap = els.boardWrap;
-if (wrap instanceof HTMLElement) {
-  const wrapRect = wrap.getBoundingClientRect();
+    const wrap = els.boardWrap;
+    if (wrap instanceof HTMLElement) {
+      const wrapRect = wrap.getBoundingClientRect();
 
-  // Make SVG coordinate system match boardWrap pixels
-  const w = wrap.clientWidth;
-  const h = wrap.clientHeight;
-  els.slotOverlay.setAttribute("viewBox", `0 0 ${w} ${h}`);
-  els.slotOverlay.setAttribute("width", String(w));
-  els.slotOverlay.setAttribute("height", String(h));
+      // Make SVG coordinate system match boardWrap pixels
+      const w = wrap.clientWidth;
+      const h = wrap.clientHeight;
+      els.slotOverlay.setAttribute("viewBox", `0 0 ${w} ${h}`);
+      els.slotOverlay.setAttribute("width", String(w));
+      els.slotOverlay.setAttribute("height", String(h));
 
-  const getCellCenter = (col, row) => {
-    const el = wrap.querySelector(`.cell[data-col="${col}"][data-row="${row}"]`);
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
-    return {
-      x: (r.left - wrapRect.left) + r.width / 2,
-      y: (r.top - wrapRect.top) + r.height / 2
-    };
-  };
+      const getCellCenter = (col, row) => {
+        const el = wrap.querySelector(`.cell[data-col="${col}"][data-row="${row}"]`);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return {
+          x: (r.left - wrapRect.left) + r.width / 2,
+          y: (r.top - wrapRect.top) + r.height / 2
+        };
+      };
 
-  for (let i = 0; i < model.lineIds.length; i++) {
-    const pattern = linePattern(model.lineIds[i], colCount, rowCount, safeMachineType);
+      for (let i = 0; i < model.lineIds.length; i++) {
+        const pattern = linePattern(model.lineIds[i], colCount, rowCount, safeMachineType);
 
-    const pts = [];
-    for (let c = 0; c < pattern.length; c++) {
-      const p = getCellCenter(c, pattern[c]);
-      if (p) pts.push(p);
+        const pts = [];
+        for (let c = 0; c < pattern.length; c++) {
+          const p = getCellCenter(c, pattern[c]);
+          if (p) pts.push(p);
+        }
+        if (pts.length < 2) continue;
+
+        const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+        poly.setAttribute("points", pts.map(p => `${p.x},${p.y}`).join(" "));
+        els.slotOverlay.appendChild(poly);
+      }
     }
-    if (pts.length < 2) continue;
-
-    const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-    poly.setAttribute("points", pts.map(p => `${p.x},${p.y}`).join(" "));
-    els.slotOverlay.appendChild(poly);
-  }
-}
 
     const lineWins = model.lineWins.length ? model.lineWins : (model.lineIds.length ? model.lineIds.map((id) => "Line " + id) : []);
     if (lineWins.length) {
@@ -861,7 +864,7 @@ if (wrap instanceof HTMLElement) {
   // Renders the "Tablet" style grid of games in the lobby
   function renderMachineSelector() {
     if (!(els.machineList instanceof HTMLElement)) return;
-     const rows = state.machines.slice().sort((a, b) => a.ty - b.ty || a.tx - b.tx);
+    const rows = state.machines.slice().sort((a, b) => a.ty - b.ty || a.tx - b.tx);
     if (!rows.length) {
       els.machineList.innerHTML = "<div class=\"status\">No games available.</div>";
       return;
@@ -872,9 +875,9 @@ if (wrap instanceof HTMLElement) {
       // const owner = row.ownerName ? ("@" + row.ownerName) : row.ownerAccountId;
       return (
         "<div class=\"machine-item\" data-machine-key=\"" + escapeHtml(row.tileKey) + "\">" +
-          "<div class=\"name\">" + escapeHtml(row.typeName) + "</div>" +
-          "<div class=\"info\">Max Bet: " + row.maxBet + " WL</div>" +
-          "<div class=\"info\">Plays: " + row.stats.plays + "</div>" +
+        "<div class=\"name\">" + escapeHtml(row.typeName) + "</div>" +
+        "<div class=\"info\">Max Bet: " + row.maxBet + " WL</div>" +
+        "<div class=\"info\">Plays: " + row.stats.plays + "</div>" +
         "</div>"
       );
     }).join("");
@@ -938,11 +941,11 @@ if (wrap instanceof HTMLElement) {
     if (els.bjStandBtn) els.bjStandBtn.classList.toggle("hidden", !isBlackjack);
     if (els.bjDoubleBtn) els.bjDoubleBtn.classList.toggle("hidden", !isBlackjack);
     if (els.bjSplitBtn) els.bjSplitBtn.classList.toggle("hidden", !isBlackjack);
-    
+
     if (isBlackjack) {
       const active = bjState && bjState.active;
       const canSplit = active && activeHand && activeHand.cards.length === 2 && activeHand.cards[0].value === activeHand.cards[1].value && state.walletLocks >= bjState.bet;
-      
+
       if (els.bjHitBtn) els.bjHitBtn.disabled = !active;
       if (els.bjStandBtn) els.bjStandBtn.disabled = !active;
       if (els.bjDoubleBtn) els.bjDoubleBtn.disabled = !active || state.walletLocks < bjState.bet;
@@ -1177,10 +1180,10 @@ if (wrap instanceof HTMLElement) {
       }
     } else if (action === 'stand') {
       if (!bj.active) return;
-      
+
       const hand = bj.hands[bj.activeHandIndex];
       hand.done = true;
-      
+
       if (bj.activeHandIndex < bj.hands.length - 1) {
         bj.activeHandIndex++;
       } else {
@@ -1192,17 +1195,17 @@ if (wrap instanceof HTMLElement) {
       const hand = bj.hands[bj.activeHandIndex];
       if (hand.cards.length !== 2) return;
       if (state.walletLocks < bj.bet) return; // Need enough for 2nd bet
-      
+
       const debit = await adjustWallet(-bj.bet);
       if (!debit.ok) return;
-      
+
       hand.bet *= 2;
       hand.cards.push(bj.deck.pop());
       renderAll('hit');
-      
+
       await sleep(600);
       hand.done = true;
-      
+
       if (bj.activeHandIndex < bj.hands.length - 1) {
         bj.activeHandIndex++;
       } else {
@@ -1221,17 +1224,17 @@ if (wrap instanceof HTMLElement) {
       // Split logic
       const card1 = hand.cards[0];
       const card2 = hand.cards[1];
-      
+
       // Replace current hand with first split hand
       hand.cards = [card1, bj.deck.pop()];
-      
+
       // Insert second split hand after current
       bj.hands.splice(bj.activeHandIndex + 1, 0, {
         cards: [card2, bj.deck.pop()],
         bet: bj.bet,
         done: false
       });
-      
+
       bj.message = "Split! Playing Hand 1.";
       renderAll('deal');
     }
@@ -1240,10 +1243,10 @@ if (wrap instanceof HTMLElement) {
   async function finishDealer(bj) {
     bj.active = false;
     renderAll(); // Reveal hidden
-    
+
     // Only play dealer if at least one player hand didn't bust
     const anyLive = bj.hands.some(h => calculateHand(h.cards) <= 21);
-    
+
     if (anyLive) {
       while (calculateHand(bj.dealerHand) < 17) {
         await sleep(800);
@@ -1348,7 +1351,7 @@ if (wrap instanceof HTMLElement) {
       const lines = Array.isArray(rawResult.lineWins) ? rawResult.lineWins.map((s) => String(s || "").trim()).filter(Boolean) : [];
       const lineIds = Array.isArray(rawResult.lineIds) ? rawResult.lineIds.map((n) => Math.max(1, Math.floor(Number(n) || 0))).filter((n) => n > 0) : [];
       const reels = Array.isArray(rawResult.reels) ? rawResult.reels : [];
-      
+
       if (!lineIds.length && String(rawResult.gameId || machine.type || "") === "slots" && wanted > 0) {
         lineIds.push(1);
         if (!lines.length && rawResult.summary) {
@@ -1408,121 +1411,121 @@ if (wrap instanceof HTMLElement) {
       renderAll();
       return;
     } else {
-    // Player-hosted machine handling (DB Transaction)
-    try {
-      const db = await ensureDb();
-      const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
-      const ref = db.ref(basePath + "/worlds/" + state.worldId + "/gamble-machines/" + machine.tileKey);
-      const playerName = String(state.user.username || "").slice(0, 24);
-      const playerId = String(state.user.accountId || "").trim();
+      // Player-hosted machine handling (DB Transaction)
+      try {
+        const db = await ensureDb();
+        const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
+        const ref = db.ref(basePath + "/worlds/" + state.worldId + "/gamble-machines/" + machine.tileKey);
+        const playerName = String(state.user.username || "").slice(0, 24);
+        const playerId = String(state.user.accountId || "").trim();
 
-      const txn = await ref.transaction((currentRaw) => {
-        const current = normalizeMachineRecord(machine.tileKey, currentRaw);
-        if (!current) return currentRaw;
-        if (current.inUseAccountId && current.inUseAccountId !== playerId) return currentRaw;
+        const txn = await ref.transaction((currentRaw) => {
+          const current = normalizeMachineRecord(machine.tileKey, currentRaw);
+          if (!current) return currentRaw;
+          if (current.inUseAccountId && current.inUseAccountId !== playerId) return currentRaw;
 
-        const liveMax = getSpinMaxBet(current);
-        if (bet > liveMax) return currentRaw;
+          const liveMax = getSpinMaxBet(current);
+          if (bet > liveMax) return currentRaw;
 
-        const rawResult = slotsModule.spin(current.type, bet, buyBonus ? { mode: "buybonus" } : {}) || {};
-        const resultWager = Math.max(1, Math.floor(Number(rawResult.bet) || wager));
-        const wanted = Math.max(0, Math.floor(Number(rawResult.payoutWanted) || 0));
-        if (resultWager !== wager) return currentRaw;
-        if ((current.earningsLocks + resultWager - wanted) < 0) return currentRaw;
+          const rawResult = slotsModule.spin(current.type, bet, buyBonus ? { mode: "buybonus" } : {}) || {};
+          const resultWager = Math.max(1, Math.floor(Number(rawResult.bet) || wager));
+          const wanted = Math.max(0, Math.floor(Number(rawResult.payoutWanted) || 0));
+          if (resultWager !== wager) return currentRaw;
+          if ((current.earningsLocks + resultWager - wanted) < 0) return currentRaw;
 
-        const lines = Array.isArray(rawResult.lineWins) ? rawResult.lineWins.map((s) => String(s || "").trim()).filter(Boolean) : [];
-        const lineIds = Array.isArray(rawResult.lineIds) ? rawResult.lineIds.map((n) => Math.max(1, Math.floor(Number(n) || 0))).filter((n) => n > 0) : [];
-        const reels = Array.isArray(rawResult.reels) ? rawResult.reels : [];
-        const nextAt = Date.now();
-        if (!lineIds.length && String(rawResult.gameId || current.type || "") === "slots" && wanted > 0) {
-          lineIds.push(1);
-          if (!lines.length && rawResult.summary) {
-            lines.push(String(rawResult.summary));
+          const lines = Array.isArray(rawResult.lineWins) ? rawResult.lineWins.map((s) => String(s || "").trim()).filter(Boolean) : [];
+          const lineIds = Array.isArray(rawResult.lineIds) ? rawResult.lineIds.map((n) => Math.max(1, Math.floor(Number(n) || 0))).filter((n) => n > 0) : [];
+          const reels = Array.isArray(rawResult.reels) ? rawResult.reels : [];
+          const nextAt = Date.now();
+          if (!lineIds.length && String(rawResult.gameId || current.type || "") === "slots" && wanted > 0) {
+            lineIds.push(1);
+            if (!lines.length && rawResult.summary) {
+              lines.push(String(rawResult.summary));
+            }
+          }
+
+          const stats = current.stats && typeof current.stats === "object" ? { ...current.stats } : {};
+          stats.plays = toCount(stats.plays) + 1;
+          stats.totalBet = toCount(stats.totalBet) + resultWager;
+          stats.totalPayout = toCount(stats.totalPayout) + wanted;
+          stats.lastOutcome = String(rawResult.outcome || "lose").slice(0, 24);
+          stats.lastMultiplier = Math.max(0, Number(rawResult.multiplier) || 0);
+          stats.lastSlotsText = reels.join("|").slice(0, 220);
+          stats.lastSlotsSummary = String(rawResult.summary || "").slice(0, 220);
+          stats.lastSlotsLines = lines.join(" | ").slice(0, 220);
+          stats.lastSlotsLineIds = lineIds.join(",").slice(0, 120);
+          stats.lastPlayerName = playerName;
+          stats.lastAt = nextAt;
+
+          applied = true;
+          payout = wanted;
+          resolved = {
+            type: current.type,
+            rows: rowsFromResult(reels, current.type),
+            lineWins: lines,
+            lineIds: lineIds,
+            outcome: stats.lastOutcome,
+            multiplier: stats.lastMultiplier,
+            summary: stats.lastSlotsSummary,
+            wager: resultWager
+          };
+
+          return {
+            ...currentRaw,
+            earningsLocks: Math.max(0, current.earningsLocks + resultWager - wanted),
+            updatedAt: nextAt,
+            stats
+          };
+        });
+
+        if (!txn || !txn.committed || !applied || !resolved) {
+          await adjustWallet(wager);
+          stopSpinFx();
+          state.ephemeral.rows = null;
+          renderAll();
+          return;
+        }
+
+        if (payout > 0) {
+          let credited = false;
+          for (let i = 0; i < 3; i++) {
+            const credit = await adjustWallet(payout);
+            if (credit && credit.ok) { credited = true; break; }
           }
         }
 
-        const stats = current.stats && typeof current.stats === "object" ? { ...current.stats } : {};
-        stats.plays = toCount(stats.plays) + 1;
-        stats.totalBet = toCount(stats.totalBet) + resultWager;
-        stats.totalPayout = toCount(stats.totalPayout) + wanted;
-        stats.lastOutcome = String(rawResult.outcome || "lose").slice(0, 24);
-        stats.lastMultiplier = Math.max(0, Number(rawResult.multiplier) || 0);
-        stats.lastSlotsText = reels.join("|").slice(0, 220);
-        stats.lastSlotsSummary = String(rawResult.summary || "").slice(0, 220);
-        stats.lastSlotsLines = lines.join(" | ").slice(0, 220);
-        stats.lastSlotsLineIds = lineIds.join(",").slice(0, 120);
-        stats.lastPlayerName = playerName;
-        stats.lastAt = nextAt;
+        stopSpinFx();
+        state.ephemeral.rows = resolved.rows;
+        state.ephemeral.lineWins = resolved.lineWins;
+        state.ephemeral.lineIds = resolved.lineIds;
+        renderBoard();
+        if (els.lastWinLabel) {
+          if (payout > 0) {
+            els.lastWinLabel.textContent = "Won: " + payout + " WL";
+            els.lastWinLabel.classList.remove("hidden");
+            els.lastWinLabel.classList.add("good");
+          } else {
+            els.lastWinLabel.textContent = "No Win";
+            els.lastWinLabel.classList.remove("hidden");
+            els.lastWinLabel.classList.remove("good");
+          }
+        }
 
-        applied = true;
-        payout = wanted;
-        resolved = {
-          type: current.type,
-          rows: rowsFromResult(reels, current.type),
-          lineWins: lines,
-          lineIds: lineIds,
-          outcome: stats.lastOutcome,
-          multiplier: stats.lastMultiplier,
-          summary: stats.lastSlotsSummary,
-          wager: resultWager
-        };
-
-        return {
-          ...currentRaw,
-          earningsLocks: Math.max(0, current.earningsLocks + resultWager - wanted),
-          updatedAt: nextAt,
-          stats
-        };
-      });
-
-      if (!txn || !txn.committed || !applied || !resolved) {
+        if (resolved.outcome === "win" || resolved.outcome === "jackpot") {
+          if (els.boardWrap instanceof HTMLElement) {
+            els.boardWrap.classList.add("winfx");
+            window.setTimeout(() => { if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx"); }, 420);
+          }
+          spawnParticles(resolved.outcome);
+        }
+        renderAll();
+      } catch (error) {
         await adjustWallet(wager);
         stopSpinFx();
         state.ephemeral.rows = null;
         renderAll();
         return;
       }
-
-      if (payout > 0) {
-        let credited = false;
-        for (let i = 0; i < 3; i++) {
-          const credit = await adjustWallet(payout);
-          if (credit && credit.ok) { credited = true; break; }
-        }
-      }
-
-      stopSpinFx();
-      state.ephemeral.rows = resolved.rows;
-      state.ephemeral.lineWins = resolved.lineWins;
-      state.ephemeral.lineIds = resolved.lineIds;
-      renderBoard();
-      if (els.lastWinLabel) {
-        if (payout > 0) {
-          els.lastWinLabel.textContent = "Won: " + payout + " WL";
-          els.lastWinLabel.classList.remove("hidden");
-          els.lastWinLabel.classList.add("good");
-        } else {
-          els.lastWinLabel.textContent = "No Win";
-          els.lastWinLabel.classList.remove("hidden");
-          els.lastWinLabel.classList.remove("good");
-        }
-      }
-      
-      if (resolved.outcome === "win" || resolved.outcome === "jackpot") {
-        if (els.boardWrap instanceof HTMLElement) {
-          els.boardWrap.classList.add("winfx");
-          window.setTimeout(() => { if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx"); }, 420);
-        }
-        spawnParticles(resolved.outcome);
-      }
-      renderAll();
-    } catch (error) {
-      await adjustWallet(wager);
-      stopSpinFx();
-      state.ephemeral.rows = null;
-      renderAll();
-      return;
-    }
     }
   }
 
@@ -1618,7 +1621,7 @@ if (wrap instanceof HTMLElement) {
     state.selectedMachineKey = state.machines[0].tileKey;
 
     setStatus(els.authStatus, "Login with your game account.");
-    
+
     // If we have saved credentials, we might want to auto-login or just show login screen pre-filled.
     // For now, we show login screen.
     switchView("login");
