@@ -2579,11 +2579,11 @@
           if (hasAdminPermission("permban")) {
             quickButtons.push('<button class="admin-quick-btn admin-quick-btn-danger" data-admin-act="quickpermban" data-account-id="' + escapeHtml(accountId) + '">Perm Ban</button>');
           }
-          if (hasAdminPermission("unban")) {
+          if (hasAdminPermission("unban") && banStatusClass === "banned") {
             quickButtons.push('<button class="admin-quick-btn" data-admin-act="quickunban" data-account-id="' + escapeHtml(accountId) + '">Unban</button>');
           }
           quickButtons.push(
-            '<button class="admin-quick-btn" data-admin-act="quickcopydiscord" data-account-id="' + escapeHtml(accountId) + '" data-copy-text="' + escapeHtml(discordCopyText) + '"' + (discordCopyText ? "" : " disabled") + ">Copy Discord</button>'"
+            '<button class="admin-quick-btn" data-admin-act="quickcopydiscord" data-account-id="' + escapeHtml(accountId) + '" data-copy-text="' + escapeHtml(discordCopyText) + '"' + (discordCopyText ? "" : " disabled") + ">Copy Discord</button>"
             );
           return `
             <div class="admin-row" data-account-id="${escapeHtml(accountId)}">
