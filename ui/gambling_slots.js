@@ -1386,8 +1386,6 @@ window.GTModules = window.GTModules || {};
       return;
     }
 
-    //import { stopSpinFx } from './slotsFx.js'; // Fallback mockup depending on implementation
-
     const buyBonus = mode === "buybonus" && machine.type === "slots_v2";
     const buyX = buyBonus ? 10 : 1;
     const bet = clampBetToMachine(machine, state.currentBetValue);
