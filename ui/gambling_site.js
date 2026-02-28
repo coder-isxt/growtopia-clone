@@ -54,6 +54,7 @@
   let playRollIntervalId = 0;
 
   const els = {
+    openSlotsSiteBtn: document.getElementById("openSlotsSiteBtn"),
     openGameBtn: document.getElementById("openGameBtn"),
     logoutBtn: document.getElementById("logoutBtn"),
     authCard: document.getElementById("authCard"),
@@ -720,15 +721,6 @@
       spectateBtn.dataset.tileKey = machine.tileKey;
       spectateBtn.dataset.act = "spectate-machine";
       tdSpectate.appendChild(spectateBtn);
-      if (isSlotsMachineType(machine.type)) {
-        const playBtn = document.createElement("button");
-        playBtn.type = "button";
-        playBtn.textContent = state.selectedPlayTileKey === machine.tileKey ? "Playing" : "Play";
-        playBtn.dataset.tileKey = machine.tileKey;
-        playBtn.dataset.act = "play-machine";
-        playBtn.style.marginLeft = "6px";
-        tdSpectate.appendChild(playBtn);
-      }
 
       tr.appendChild(tdTile);
       tr.appendChild(tdType);
@@ -1879,6 +1871,12 @@
   }
 
   function bindEvents() {
+    if (els.openSlotsSiteBtn instanceof HTMLButtonElement) {
+      els.openSlotsSiteBtn.addEventListener("click", () => {
+        window.location.href = "gambling_slots.html";
+      });
+    }
+
     if (els.openGameBtn instanceof HTMLButtonElement) {
       els.openGameBtn.addEventListener("click", () => {
         window.location.href = "index.html";
@@ -1957,17 +1955,6 @@
             state.playBoardHtml = "";
             state.playResultText = "";
           }
-          renderAll();
-          return;
-        }
-
-        if (act === "play-machine") {
-          const machine = findMachineByTileKey(tileKey);
-          if (!machine || !isSlotsMachineType(machine.type)) return;
-          state.selectedPlayTileKey = tileKey;
-          state.selectedSpectateTileKey = tileKey;
-          state.playBoardHtml = "";
-          state.playResultText = "";
           renderAll();
           return;
         }

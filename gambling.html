@@ -708,9 +708,10 @@
     <header class="head">
       <div>
         <div class="title">PIXELBUILD Gambling Site</div>
-        <div class="sub">Web dashboard for world gambling machines. Uses world-lock permissions for max-bet management.</div>
+        <div class="sub">Web dashboard for world gambling machines. Use Slots Site for animated web-play slots.</div>
       </div>
       <div class="head-actions">
+        <button id="openSlotsSiteBtn" type="button">Slots Site</button>
         <button id="openGameBtn" type="button">Open Game</button>
         <button id="logoutBtn" type="button" class="hidden">Logout</button>
       </div>
@@ -784,21 +785,6 @@
         <div class="spectate" id="spectatePanel">
           <div class="spectate-title">Spectate</div>
           <div class="spectate-body" id="spectateBody">Pick a machine to spectate.</div>
-        </div>
-
-        <div class="play-console" id="playConsole">
-          <div class="play-title">Web Slots</div>
-          <div class="play-controls">
-            <select id="playMachineSelect"></select>
-            <input id="playBetInput" type="number" min="1" step="1" value="1" placeholder="Bet WL">
-            <button id="playMaxBtn" type="button">Use Max</button>
-            <button id="playSpinBtn" type="button">Spin</button>
-          </div>
-          <div class="play-meta" id="playMeta"></div>
-          <div class="play-board" id="playBoard">
-            <div class="spec-empty">Select a slots machine to start.</div>
-          </div>
-          <div class="status" id="playStatus">Load a world and pick a slots machine.</div>
         </div>
       </section>
     </main>
