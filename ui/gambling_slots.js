@@ -1105,98 +1105,127 @@ if (wrap instanceof HTMLElement) {
       renderAll('deal');
     } else if (action === 'hit') {
       if (!bj.active) return;
-      bj.playerHand.push(bj.deck.pop());
+      const hand = bj.hands[bj.activeHandIndex];
+      hand.cards.push(bj.deck.pop());
       renderAll('hit');
-      if (calculateHand(bj.playerHand) > 21) {
+      if (calculateHand(hand.cards) > 21) {
         await sleep(600);
-        bj.active = false;
-        bj.message = "Bust! You lost.";
+        hand.done = true;
+        // Move to next hand or finish
+        if (bj.activeHandIndex < bj.hands.length - 1) {
+          bj.activeHandIndex++;
+        } else {
+          await finishDealer(bj);
+        }
         renderAll();
       }
     } else if (action === 'stand') {
       if (!bj.active) return;
-      bj.active = false;
-      renderAll(); // Reveal hidden card
-
-      // Dealer play
-      while (calculateHand(bj.dealerHand) < 17) {
-        await sleep(800);
-        bj.dealerHand.push(bj.deck.pop());
-        renderAll('dealer');
-      }
       
-      const pScore = calculateHand(bj.playerHand);
-      const dScore = calculateHand(bj.dealerHand);
+      const hand = bj.hands[bj.activeHandIndex];
+      hand.done = true;
       
-      if (dScore > 21 || pScore > dScore) {
-        const win = bj.bet * 2;
-        bj.message = `You Win! Won ${win} WL`;
-        await adjustWallet(win);
-        if (els.lastWinLabel) { els.lastWinLabel.textContent = "Won: " + win + " WL"; els.lastWinLabel.classList.remove("hidden"); }
-      } else if (dScore === pScore) {
-        bj.message = "Push. Bet returned.";
-        await adjustWallet(bj.bet);
-        if (els.lastWinLabel) { els.lastWinLabel.textContent = "Push"; els.lastWinLabel.classList.remove("hidden"); }
+      if (bj.activeHandIndex < bj.hands.length - 1) {
+        bj.activeHandIndex++;
       } else {
-        bj.message = "Dealer Wins.";
-        if (els.lastWinLabel) { 
-          els.lastWinLabel.textContent = "Dealer Wins"; 
-          els.lastWinLabel.classList.remove("hidden"); 
-          els.lastWinLabel.classList.remove("good");
-        }
+        await finishDealer(bj);
       }
       renderAll();
     } else if (action === 'double') {
-      if (!bj.active || bj.playerHand.length !== 2) return;
+      if (!bj.active) return;
+      const hand = bj.hands[bj.activeHandIndex];
+      if (hand.cards.length !== 2) return;
       if (state.walletLocks < bj.bet) return; // Need enough for 2nd bet
       
       const debit = await adjustWallet(-bj.bet);
       if (!debit.ok) return;
       
-      bj.bet *= 2;
-      bj.playerHand.push(bj.deck.pop());
+      hand.bet *= 2;
+      hand.cards.push(bj.deck.pop());
       renderAll('hit');
       
-      if (calculateHand(bj.playerHand) > 21) {
-        await sleep(600);
-        bj.active = false;
-        bj.message = "Bust! You lost.";
-        if (els.lastWinLabel) { 
-          els.lastWinLabel.textContent = "Bust"; 
-          els.lastWinLabel.classList.remove("hidden");
-          els.lastWinLabel.classList.remove("good");
-        }
+      await sleep(600);
+      hand.done = true;
+      
+      if (bj.activeHandIndex < bj.hands.length - 1) {
+        bj.activeHandIndex++;
       } else {
-        // Auto stand after double
-        await sleep(600);
-        bj.active = false;
-        renderAll(); // Reveal hidden
-        while (calculateHand(bj.dealerHand) < 17) {
-          await sleep(800);
-          bj.dealerHand.push(bj.deck.pop());
-          renderAll('dealer');
-        }
-        const pScore = calculateHand(bj.playerHand);
-        const dScore = calculateHand(bj.dealerHand);
-        if (dScore > 21 || pScore > dScore) {
-          const win = bj.bet * 2;
-          bj.message = `You Win! Won ${win} WL`;
-          await adjustWallet(win);
-          if (els.lastWinLabel) { els.lastWinLabel.textContent = "Won: " + win + " WL"; els.lastWinLabel.classList.remove("hidden"); }
-        } else if (dScore === pScore) {
-          bj.message = "Push. Bet returned.";
-          await adjustWallet(bj.bet);
-          if (els.lastWinLabel) { els.lastWinLabel.textContent = "Push"; els.lastWinLabel.classList.remove("hidden"); }
-        } else {
-          bj.message = "Dealer Wins.";
-          if (els.lastWinLabel) { 
-            els.lastWinLabel.textContent = "Dealer Wins"; 
-            els.lastWinLabel.classList.remove("hidden");
-            els.lastWinLabel.classList.remove("good");
-          }
-        }
+        await finishDealer(bj);
       }
       renderAll();
+    } else if (action === 'split') {
+      if (!bj.active) return;
+      const hand = bj.hands[bj.activeHandIndex];
+      if (hand.cards.length !== 2 || hand.cards[0].value !== hand.cards[1].value) return;
+      if (state.walletLocks < bj.bet) return;
+
+      const debit = await adjustWallet(-bj.bet);
+      if (!debit.ok) return;
+
+      // Split logic
+      const card1 = hand.cards[0];
+      const card2 = hand.cards[1];
+      
+      // Replace current hand with first split hand
+      hand.cards = [card1, bj.deck.pop()];
+      
+      // Insert second split hand after current
+      bj.hands.splice(bj.activeHandIndex + 1, 0, {
+        cards: [card2, bj.deck.pop()],
+        bet: bj.bet,
+        done: false
+      });
+      
+      bj.message = "Split! Playing Hand 1.";
+      renderAll('deal');
+    }
+  }
+
+  async function finishDealer(bj) {
+    bj.active = false;
+    renderAll(); // Reveal hidden
+    
+    // Only play dealer if at least one player hand didn't bust
+    const anyLive = bj.hands.some(h => calculateHand(h.cards) <= 21);
+    
+    if (anyLive) {
+      while (calculateHand(bj.dealerHand) < 17) {
+        await sleep(800);
+        bj.dealerHand.push(bj.deck.pop());
+        renderAll('dealer');
+      }
+    }
+
+    const dScore = calculateHand(bj.dealerHand);
+    let totalWin = 0;
+    let anyWin = false;
+    let anyPush = false;
+
+    for (const hand of bj.hands) {
+      const pScore = calculateHand(hand.cards);
+      if (pScore > 21) {
+        // Bust, already lost bet
+      } else if (dScore > 21 || pScore > dScore) {
+        const win = hand.bet * 2;
+        totalWin += win;
+        anyWin = true;
+        await adjustWallet(win);
+      } else if (dScore === pScore) {
+        totalWin += hand.bet;
+        anyPush = true;
+        await adjustWallet(hand.bet);
+      }
+    }
+
+    if (anyWin) {
+      bj.message = `Won ${totalWin} WL total!`;
+      if (els.lastWinLabel) { els.lastWinLabel.textContent = "Won: " + totalWin + " WL"; els.lastWinLabel.classList.remove("hidden"); els.lastWinLabel.classList.add("good"); }
+    } else if (anyPush) {
+      bj.message = "Push. Bets returned.";
+      if (els.lastWinLabel) { els.lastWinLabel.textContent = "Push"; els.lastWinLabel.classList.remove("hidden"); els.lastWinLabel.classList.remove("good"); }
+    } else {
+      bj.message = "Dealer Wins All.";
+      if (els.lastWinLabel) { els.lastWinLabel.textContent = "Dealer Wins"; els.lastWinLabel.classList.remove("hidden"); els.lastWinLabel.classList.remove("good"); }
     }
   }
 
