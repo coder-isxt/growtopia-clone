@@ -5161,3 +5161,84 @@ body.admin-dashboard-open .admin-inventory-modal {
     min-width: 170px;
   }
 }
+
+/* Action console navigation boost */
+#adminPanel .admin-console-requirements {
+  margin: 8px 12px 0;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px dashed rgba(137, 201, 255, 0.52);
+  background: rgba(9, 21, 34, 0.74);
+  color: #d5ebff;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+#adminPanel .admin-console-action-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 7px;
+  padding: 9px 12px 0;
+}
+
+#adminPanel .admin-console-action-shortcut {
+  min-height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(122, 188, 243, 0.48);
+  background: linear-gradient(180deg, rgba(28, 51, 75, 0.95), rgba(19, 36, 55, 0.95));
+  color: #e9f6ff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 8px;
+}
+
+#adminPanel .admin-console-action-shortcut.active {
+  border-color: rgba(122, 233, 255, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(99, 221, 255, 0.45);
+  background: linear-gradient(180deg, rgba(32, 97, 127, 0.95), rgba(24, 72, 99, 0.95));
+}
+
+#adminPanel .admin-console-player-results {
+  margin: 8px 12px 2px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(122, 179, 233, 0.34);
+  background: rgba(10, 21, 33, 0.62);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+#adminPanel .admin-console-player-chip {
+  min-height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(116, 179, 238, 0.45);
+  background: linear-gradient(180deg, rgba(30, 50, 72, 0.95), rgba(20, 35, 52, 0.95));
+  color: #deefff;
+  font-size: 12px;
+  text-align: left;
+  padding: 5px 9px;
+}
+
+#adminPanel .admin-console-player-chip.active {
+  border-color: rgba(108, 232, 255, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(99, 224, 255, 0.42);
+  background: linear-gradient(180deg, rgba(30, 97, 123, 0.95), rgba(21, 72, 96, 0.95));
+}
+
+#adminPanel .admin-console-player-empty {
+  color: #c9def1;
+  font-size: 12px;
+  padding: 4px 5px;
+}
+
+#adminPanel .admin-console-run-wrap {
+  justify-content: stretch;
+}
+
+#adminPanel .admin-console-grid button[data-admin-act="runconsole"] {
+  width: 100%;
+  min-width: 0;
+}
