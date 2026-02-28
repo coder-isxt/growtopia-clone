@@ -422,16 +422,9 @@ window.GTModules = window.GTModules || {};
     WINT: { 5: 3, 6: 5, 7: 8, 8: 14, 9: 22, 10: 40, 12: 70, 15: 150 }
   };
 
-  const LB_FILL_VALUES = {
-    COIN: [1, 1, 2, 2, 3, 5, 8, 10],
-    CLOVR: [2, 3, 5, 8, 10, 15, 25],
-    POT: [5, 10, 15, 25, 50, 100, 250, 500]
-  };
-
   function simulateLeBandit(machine, bet, buyBonus) {
     const COLS = 6;
     const ROWS = 5;
-    const TOTAL = COLS * ROWS; // 30
     const pool = [
       ...Array(14).fill("TRAP"),
       ...Array(12).fill("CHEESE"),
@@ -443,46 +436,15 @@ window.GTModules = window.GTModules || {};
     ];
 
     function pickSym() { return pool[Math.floor(Math.random() * pool.length)]; }
-    function pickFill() {
-      const roll = Math.random();
-      if (roll < 0.55) return "COIN";
-      if (roll < 0.85) return "CLOVR";
-      return "POT";
-    }
-    function pickFillValue(type) {
-      const arr = LB_FILL_VALUES[type] || LB_FILL_VALUES.COIN;
-      return arr[Math.floor(Math.random() * arr.length)];
-    }
 
-    // --- Area locking: outer ring starts locked ---
-    // locked[r][c] = true means the cell is locked (grayed out, not playable)
-    // In Le Bandit the grid starts partially locked; wins unlock adjacent cells.
-    let locked = [];
-    for (let r = 0; r < ROWS; r++) {
-      locked[r] = [];
-      for (let c = 0; c < COLS; c++) {
-        // Start with inner 4x4 unlocked, outer ring locked
-        locked[r][c] = (r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1);
-      }
-    }
-    if (buyBonus) {
-      // Buy bonus: unlock everything from the start
-      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) locked[r][c] = false;
-    }
-
-    function generateGrid() {
+    function generateGrid(rainChance) {
       const grid = [];
       for (let r = 0; r < ROWS; r++) {
         grid[r] = [];
         for (let c = 0; c < COLS; c++) {
-          if (locked[r][c]) {
-            grid[r][c] = "LOCK";
-          } else {
-            let sym = pickSym();
-            // Small chance of RAIN scatter on unlocked cells
-            if (Math.random() < (buyBonus ? 0.06 : 0.025)) sym = "RAIN";
-            grid[r][c] = sym;
-          }
+          let sym = pickSym();
+          if (Math.random() < rainChance) sym = "RAIN";
+          grid[r][c] = sym;
         }
       }
       return grid;
@@ -505,19 +467,16 @@ window.GTModules = window.GTModules || {};
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           const sym = grid[r][c];
-          if (sym === "LOCK" || sym === "RAIN" || sym === "COIN" || sym === "CLOVR" || sym === "POT" || visited.has(r + "_" + c)) continue;
-          // Flood-fill cluster
+          if (sym === "RAIN" || sym === "WILD" || visited.has(r + "_" + c)) continue;
+          if (!LB_CLUSTER_PAY[sym]) continue;
           const stack = [[r, c]];
           const cells = [];
-          const baseSym = (sym === "WILD") ? null : sym;
           while (stack.length) {
             const [rr, cc] = stack.pop();
             const key = rr + "_" + cc;
             if (visited.has(key)) continue;
             const s = grid[rr][cc];
-            if (s === "LOCK" || s === "RAIN" || s === "COIN" || s === "CLOVR" || s === "POT") continue;
-            if (baseSym && s !== baseSym && s !== "WILD") continue;
-            if (!baseSym && s !== "WILD") continue; // all-wild cluster
+            if (s !== sym && s !== "WILD") continue;
             visited.add(key);
             cells.push({ r: rr, c: cc });
             if (rr > 0) stack.push([rr - 1, cc]);
@@ -526,27 +485,11 @@ window.GTModules = window.GTModules || {};
             if (cc < COLS - 1) stack.push([rr, cc + 1]);
           }
           if (cells.length >= 5) {
-            clusters.push({ sym: baseSym || "WINT", cells });
+            clusters.push({ sym, cells });
           }
         }
       }
       return clusters;
-    }
-
-    function unlockAdjacent(cells) {
-      let unlocked = 0;
-      for (let i = 0; i < cells.length; i++) {
-        const { r, c } = cells[i];
-        const adj = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]];
-        for (let j = 0; j < adj.length; j++) {
-          const [ar, ac] = adj[j];
-          if (ar >= 0 && ar < ROWS && ac >= 0 && ac < COLS && locked[ar][ac]) {
-            locked[ar][ac] = false;
-            unlocked++;
-          }
-        }
-      }
-      return unlocked;
     }
 
     function countRain(grid) {
@@ -557,8 +500,8 @@ window.GTModules = window.GTModules || {};
       return count;
     }
 
-    // ============ BASE SPIN ============
-    const baseGrid = generateGrid();
+    // ============ BASE SPIN (no locks, normal cluster pay) ============
+    const baseGrid = generateGrid(buyBonus ? 0.06 : 0.018);
     const baseClusters = findClusters(baseGrid);
     let basePayout = 0;
     const lines = [];
@@ -569,84 +512,136 @@ window.GTModules = window.GTModules || {};
       if (mult > 0) {
         basePayout += bet * mult;
         lines.push(cl.cells.length + "x " + (SYMBOL_LABELS[cl.sym] || cl.sym) + " (" + mult + "x)");
-        unlockAdjacent(cl.cells);
       }
     }
 
     const baseRainCount = countRain(baseGrid);
     const triggerBonus = baseRainCount >= 3 || buyBonus;
 
-    // Build reels text from base grid
     const reels = [];
     for (let r = 0; r < ROWS; r++) {
       reels.push(baseGrid[r].join(","));
     }
 
-    // ============ FREE SPINS BONUS ============
+    // ============ BONUS: 10 FREE SPINS ============
     let bonusPayout = 0;
-    let totalFillMult = 0;
     let freeSpinsPlayed = 0;
     const FREE_SPINS = 10;
 
+    // "marked" tracks cells where winning clusters landed across all free spins
+    const marked = new Set();
+
     if (triggerBonus) {
-      lines.push("🌈 BONUS TRIGGERED! " + FREE_SPINS + " Free Spins!");
+      lines.push("🌈 BONUS! " + FREE_SPINS + " Free Spins!");
 
       for (let spin = 0; spin < FREE_SPINS; spin++) {
         freeSpinsPlayed++;
-        const fsGrid = generateGrid();
+        const fsGrid = generateGrid(0.08); // Higher rainbow chance in bonus
         const fsClusters = findClusters(fsGrid);
 
-        // Evaluate cluster wins
-        let spinWin = 0;
+        // 1) Evaluate cluster wins & mark their cells
+        let spinClusterWin = 0;
         for (let i = 0; i < fsClusters.length; i++) {
           const cl = fsClusters[i];
           const mult = getClusterPay(cl.sym, cl.cells.length);
           if (mult > 0) {
-            spinWin += bet * mult;
-            unlockAdjacent(cl.cells);
-          }
-        }
-        bonusPayout += spinWin;
-
-        // Check for rainbow on this spin
-        const fsRainCount = countRain(fsGrid);
-        if (fsRainCount > 0) {
-          // Rainbow fills all unlocked empty cells with value symbols
-          let fillCount = 0;
-          for (let r = 0; r < ROWS; r++) {
-            for (let c = 0; c < COLS; c++) {
-              if (!locked[r][c]) fillCount++;
+            spinClusterWin += bet * mult;
+            // Mark all cells in the winning cluster
+            for (let j = 0; j < cl.cells.length; j++) {
+              marked.add(cl.cells[j].r + "_" + cl.cells[j].c);
             }
           }
-          // Each rainbow fills a portion of the unlocked area
-          const fillSlots = Math.min(fillCount, Math.max(3, Math.floor(fillCount * 0.4 * fsRainCount)));
-          let spinFillMult = 0;
-          const fills = [];
-          for (let f = 0; f < fillSlots; f++) {
-            const fillType = pickFill();
-            const fillVal = pickFillValue(fillType);
-            spinFillMult += fillVal;
-            fills.push(fillType + ":" + fillVal);
-          }
-          totalFillMult += spinFillMult;
-          bonusPayout += bet * spinFillMult;
-          if (fills.length > 0) {
-            lines.push("FS" + freeSpinsPlayed + " 🌈 Rain! " + fillSlots + " fills (" + spinFillMult + "x)");
-          }
+        }
+        bonusPayout += spinClusterWin;
+
+        if (spinClusterWin > 0) {
+          lines.push("FS" + freeSpinsPlayed + " Cluster " + (spinClusterWin / bet).toFixed(1) + "x (" + marked.size + " marked)");
         }
 
-        if (spinWin > 0 && fsRainCount === 0) {
-          lines.push("FS" + freeSpinsPlayed + " Cluster " + (spinWin / bet).toFixed(1) + "x");
+        // 2) Check for Rainbow on this spin
+        const fsRainCount = countRain(fsGrid);
+        if (fsRainCount > 0 && marked.size > 0) {
+          // Rainbow fills ALL marked cells with coins, clovers, or pots
+          const fillBoard = {};
+          const markedArr = Array.from(marked);
+
+          // Fill each marked cell
+          for (let m = 0; m < markedArr.length; m++) {
+            const roll = Math.random();
+            if (roll < 0.60) {
+              // COIN: value 1-10x bet
+              const vals = [1, 1, 2, 2, 3, 5, 8, 10, 15, 25];
+              fillBoard[markedArr[m]] = { type: "COIN", value: vals[Math.floor(Math.random() * vals.length)] };
+            } else if (roll < 0.88) {
+              // CLOVER: multiplier for adjacent coins
+              const mults = [2, 2, 3, 3, 4, 5, 10];
+              fillBoard[markedArr[m]] = { type: "CLOVR", value: mults[Math.floor(Math.random() * mults.length)] };
+            } else {
+              // POT: collects all coins and respins them
+              fillBoard[markedArr[m]] = { type: "POT", value: 0 };
+            }
+          }
+
+          // Apply Clover multipliers to adjacent coins
+          const keys = Object.keys(fillBoard);
+          for (let k = 0; k < keys.length; k++) {
+            const cell = fillBoard[keys[k]];
+            if (cell.type !== "CLOVR") continue;
+            const [cr, cc] = keys[k].split("_").map(Number);
+            const adj = [[cr - 1, cc], [cr + 1, cc], [cr, cc - 1], [cr, cc + 1]];
+            for (let a = 0; a < adj.length; a++) {
+              const adjKey = adj[a][0] + "_" + adj[a][1];
+              if (fillBoard[adjKey] && fillBoard[adjKey].type === "COIN") {
+                fillBoard[adjKey].value *= cell.value;
+              }
+            }
+          }
+
+          // Check for pots: collect all coin values and respin
+          let hasPot = false;
+          for (let k = 0; k < keys.length; k++) {
+            if (fillBoard[keys[k]].type === "POT") { hasPot = true; break; }
+          }
+
+          let totalCoinValue = 0;
+          for (let k = 0; k < keys.length; k++) {
+            if (fillBoard[keys[k]].type === "COIN") {
+              totalCoinValue += fillBoard[keys[k]].value;
+            }
+          }
+
+          if (hasPot && totalCoinValue > 0) {
+            // Pot collects all coins, then respins (gives new random values to all coin cells)
+            let respinValue = 0;
+            for (let k = 0; k < keys.length; k++) {
+              if (fillBoard[keys[k]].type === "COIN") {
+                const reVals = [1, 2, 3, 5, 8, 10, 15, 25];
+                const newVal = reVals[Math.floor(Math.random() * reVals.length)];
+                respinValue += newVal;
+              }
+            }
+            totalCoinValue += respinValue;
+            lines.push("FS" + freeSpinsPlayed + " 🌈 Rain! " + markedArr.length + " fills | 💰 POT collects + respin! (" + totalCoinValue + "x)");
+          } else {
+            lines.push("FS" + freeSpinsPlayed + " 🌈 Rain! " + markedArr.length + " fills (" + totalCoinValue + "x)");
+          }
+
+          bonusPayout += bet * totalCoinValue;
+
+          // Clear marked after rainbow fill
+          marked.clear();
+        } else if (fsRainCount > 0 && marked.size === 0) {
+          lines.push("FS" + freeSpinsPlayed + " 🌈 (no marked area to fill)");
         }
       }
     }
 
     const totalPayout = Math.floor(basePayout + bonusPayout);
-    const isJackpot = totalFillMult >= 50 || totalPayout >= bet * 50;
+    const isJackpot = totalPayout >= bet * 50;
 
     let summary = "";
     if (triggerBonus) {
-      summary = "Bonus " + FREE_SPINS + " FS | Fill " + totalFillMult + "x | Total " + (totalPayout / Math.max(1, bet)).toFixed(1) + "x";
+      summary = "Bonus " + FREE_SPINS + " FS | Total " + (totalPayout / Math.max(1, bet)).toFixed(1) + "x";
     } else if (basePayout > 0) {
       summary = "Cluster " + (basePayout / bet).toFixed(1) + "x";
     }
