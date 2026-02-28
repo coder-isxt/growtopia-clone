@@ -572,6 +572,49 @@
     </main>
   </div>
 
+  <!-- Casino Lobby (Casino site experience) -->
+  <section id="casinoLobby" class="card" style="display:none; width: min(1380px, 97vw); margin: 12px auto; padding: 12px;">
+    <h2 style="margin:0 0 8px 0; font-size:11px; color:#b7dbff;">Casino Lobby</h2>
+    <div class="row" style="gap:12px;">
+      <div id="casinoSlotsCard" class="chip" style="cursor:pointer;">Slots</div>
+      <div id="casinoCoinCard" class="chip" style="cursor:pointer;">Coin Flip</div>
+    </div>
+    <div class="row" style="margin-top:8px;">
+      <span class="tag">Wallet: <span id="casinoWalletLabel">0 WL</span></span>
+      <span class="tag">House: Infinite</span>
+    </div>
+  </section>
+
+  <!-- Slots Casino Panel -->
+  <section id="casinoSlotsPanel" class="card" style="display:none; width: min(1380px, 97vw); margin: 12px auto; padding: 12px;">
+    <div class="row" style="justify-content: space-between; align-items: center;">
+      <div>Slots Casino</div>
+      <button id="casinoSlotsBack" type="button" class="chip">Back</button>
+    </div>
+    <div class="row" style="gap:8px; margin-top:8px; align-items:center;">
+      Bet WL:
+      <input id="casinoSlotsBet" type="number" min="1" value="1" style="width: 90px;" />
+      <button id="casinoSlotsSpinBtn" type="button" class="chip">Spin</button>
+    </div>
+    <div id="casinoSlotsBoard" style="font-family: monospace; font-size: 32px; text-align:center; padding: 20px;">❓ ❓ ❓</div>
+    <div id="casinoSlotsResult" class="status" style="min-height:28px;"></div>
+  </section>
+
+  <!-- Coin Flip Casino Panel -->
+  <section id="casinoCoinPanel" class="card" style="display:none; width: min(1380px, 97vw); margin: 12px auto; padding: 12px;">
+    <div class="row" style="justify-content: space-between; align-items: center;">
+      <div>Coin Flip</div>
+      <button id="casinoCoinBack" type="button" class="chip">Back</button>
+    </div>
+    <div class="row" style="gap:8px; margin-top:8px; align-items:center;">
+      Bet WL:
+      <input id="casinoCoinBet" type="number" min="1" value="1" style="width: 90px;" />
+      <button id="casinoCoinFlipBtn" type="button" class="chip">Flip</button>
+    </div>
+    <div id="casinoCoinBoard" style="font-family: monospace; font-size: 32px; text-align:center; padding: 20px;">HEADS</div>
+    <div id="casinoCoinResult" class="status" style="min-height:28px;"></div>
+  </section>
+
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-check-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>

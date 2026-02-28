@@ -7,8 +7,16 @@ window.GTModules = window.GTModules || {};
   const LAST_WORLD_KEY = "gt_slots_site_world_v1";
   const SLOT_MACHINE_IDS = ["slots", "slots_v2", "slots_v3", "slots_v4", "slots_v6"];
 
+  // Casino lobby state (no stored house state; infinite house)
+  let CASINO_MODE = false; // false means normal world slots; true means lobby view
+  let CASINO_VIEW = "lobby"; // 'lobby' | 'slots' | 'coinflip'
+
+  // Simple in-browser casino games state
+  const SLOT_SYMBOLS = ["🍒","🍋","⭐","7","💎"]; // simple pool for visuals
+  function casinoWalletGet() { return state.walletLocks; }
+  function casinoWalletSet(v) { state.walletLocks = Math.max(0, Math.floor(Number(v) || 0)); renderSession(); }
+
   // Demo casino mode: independent slot experience not tied to user-hosted machines
-  let CASINO_MODE = false;
   const STANDALONE_MACHINE = {
     tileKey: "casino_demo",
     type: "slots",
@@ -1398,4 +1406,78 @@ if (wrap instanceof HTMLElement) {
   }
 
   init();
+  // Initialize casino lobby view on startup
+  renderCasinoLobby();
+  // Wire casino lobby UI controls (no persistent state)
+  try {
+    const sCard = document.getElementById('casinoSlotsCard');
+    if (sCard) sCard.addEventListener('click', showCasinoSlotsPanel);
+    const cCard = document.getElementById('casinoCoinCard');
+    if (cCard) cCard.addEventListener('click', showCasinoCoinPanel);
+    const sBack = document.getElementById('casinoSlotsBack');
+    if (sBack) sBack.addEventListener('click', renderCasinoLobby);
+    const cBack = document.getElementById('casinoCoinBack');
+    if (cBack) cBack.addEventListener('click', renderCasinoLobby);
+    const sSpin = document.getElementById('casinoSlotsSpinBtn');
+    if (sSpin) sSpin.addEventListener('click', runCasinoSlotsSpin);
+    const cFlip = document.getElementById('casinoCoinFlipBtn');
+    if (cFlip) cFlip.addEventListener('click', runCasinoCoinFlipSpin);
+  } catch(_e) { /* ignore */ }
+  // Lightweight casino lobby wiring (no persistence; infinite house)
+  function showCasinoSlotsPanel() {
+    const lobby = document.getElementById('casinoLobby');
+    const slotsPanel = document.getElementById('casinoSlotsPanel');
+    const coinPanel = document.getElementById('casinoCoinPanel');
+    if (lobby) lobby.style.display = 'none';
+    if (slotsPanel) slotsPanel.style.display = 'block';
+    if (coinPanel) coinPanel.style.display = 'none';
+    CASINO_VIEW = 'slots';
+  }
+  function showCasinoCoinPanel() {
+    const lobby = document.getElementById('casinoLobby');
+    const slotsPanel = document.getElementById('casinoSlotsPanel');
+    const coinPanel = document.getElementById('casinoCoinPanel');
+    if (lobby) lobby.style.display = 'none';
+    if (slotsPanel) slotsPanel.style.display = 'none';
+    if (coinPanel) coinPanel.style.display = 'block';
+    CASINO_VIEW = 'coinflip';
+  }
+  function renderCasinoLobby() {
+    const lobby = document.getElementById('casinoLobby');
+    if (lobby) lobby.style.display = 'block';
+    const slotsPanel = document.getElementById('casinoSlotsPanel');
+    if (slotsPanel) slotsPanel.style.display = 'none';
+    const coinPanel = document.getElementById('casinoCoinPanel');
+    if (coinPanel) coinPanel.style.display = 'none';
+    const walletLabel = document.getElementById('casinoWalletLabel');
+    if (walletLabel) walletLabel.textContent = state.walletLocks + ' WL';
+  }
+  function runCasinoSlotsSpin() {
+    const betEl = document.getElementById('casinoSlotsBet');
+    const bet = Math.max(1, parseInt(betEl?.value || '1', 10));
+    if (state.walletLocks < bet) { const r = document.getElementById('casinoSlotsResult'); if (r) r.textContent = 'Not enough WL'; return; }
+    state.walletLocks -= bet;
+    const s1 = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+    const s2 = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+    const s3 = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+    const reels = [s1, s2, s3];
+    let payout = 0;
+    if (s1 === s2 && s2 === s3) payout = bet * 8;
+    else if (s1 === s2 || s2 === s3 || s1 === s3) payout = bet * 2;
+    state.walletLocks += payout;
+    const board = document.getElementById('casinoSlotsBoard'); if (board) board.textContent = reels.join(' ');
+    const res = document.getElementById('casinoSlotsResult'); if (res) res.textContent = payout > 0 ? 'Win ' + payout + ' WL' : 'Lose';
+    const walletLabel = document.getElementById('casinoWalletLabel'); if (walletLabel) walletLabel.textContent = state.walletLocks + ' WL';
+  }
+  function runCasinoCoinFlipSpin() {
+    const bet = Math.max(1, parseInt(document.getElementById('casinoCoinBet')?.value || '1', 10));
+    if (state.walletLocks < bet) { const r = document.getElementById('casinoCoinResult'); if (r) r.textContent = 'Not enough WL'; return; }
+    state.walletLocks -= bet;
+    const heads = Math.random() < 0.5;
+    const payout = heads ? bet * 2 : 0;
+    state.walletLocks += payout;
+    const board = document.getElementById('casinoCoinBoard'); if (board) board.textContent = heads ? 'HEADS' : 'TAILS';
+    const res = document.getElementById('casinoCoinResult'); if (res) res.textContent = payout > 0 ? 'Win ' + payout + ' WL' : 'Lose';
+    const walletLabel = document.getElementById('casinoWalletLabel'); if (walletLabel) walletLabel.textContent = state.walletLocks + ' WL';
+  }
 })();
