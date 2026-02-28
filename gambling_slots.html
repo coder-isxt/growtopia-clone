@@ -517,24 +517,6 @@
       </section>
 
       <section class="card stage-wrap">
-        <div class="toolbar">
-          <div>
-            <div style="font-size:10px;color:#cae7ff;margin-bottom:6px;" id="gameTitle">No machine selected</div>
-            <div class="small" id="gameSubtitle">Load world and select a machine.</div>
-          </div>
-          <input id="betInput" type="number" min="1" step="1" value="1" placeholder="Bet WL">
-          <button id="setMaxBtn" type="button">Use Max</button>
-          <button id="spinBtn" type="button">Spin</button>
-          <button id="buyBonusBtn" type="button" class="hidden">Buy Bonus x10</button>
-        </div>
-
-        <div class="chips" id="quickBetRow">
-          <button class="chip" data-bet="1" type="button">+1</button>
-          <button class="chip" data-bet="10" type="button">+10</button>
-          <button class="chip" data-bet="50" type="button">+50</button>
-          <button class="chip" data-bet="100" type="button">+100</button>
-          <button class="chip" data-bet="500" type="button">+500</button>
-        </div>
 
         <div class="stage" id="stage">
           <div class="stage-head">
@@ -542,7 +524,7 @@
             <span class="tag" id="statMaxBet">Max Bet: 0 WL</span>
             <span class="tag" id="statPlays">Plays: 0</span>
             <span class="tag" id="statPayout">Total Payout: 0 WL</span>
-            <span class="tag good" id="spinModeTag">Mode: Spin</span>
+            <span class="tag good" id="userBalanceDisplay">Balance: 0 WL</span>
           </div>
 
           <div class="board-wrap" id="boardWrap">
@@ -551,12 +533,16 @@
             <div class="particles" id="particles"></div>
           </div>
 
+          <div class="game-controls" style="margin-top: 10px; display: flex; gap: 10px; align-items: center; justify-content: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px;">
+             <span style="font-size: 10px; color: #cae7ff;">Bet:</span>
+             <input id="betInput" type="number" min="1" step="1" value="1" placeholder="Bet WL" style="width: 80px;">
+             <button id="spinBtn" type="button" style="min-width: 80px; font-weight: bold;">SPIN</button>
+             <button id="setMaxBtn" type="button">Max</button>
+             <button id="buyBonusBtn" type="button" class="hidden">Bonus</button>
+          </div>
+
           <div class="line-list" id="lineList"></div>
         </div>
-
-        <div class="result-banner" id="resultBanner">Ready. Pick machine, set bet, spin.</div>
-
-        <div class="history" id="historyList"></div>
       </section>
     </main>
   </div>

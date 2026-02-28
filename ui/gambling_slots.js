@@ -107,7 +107,6 @@ window.GTModules = window.GTModules || {};
     handlers: { inventory: null },
     spinBusy: false,
     spinTimer: 0,
-    history: [],
     ephemeral: { rows: null, lineIds: [], lineWins: [] }
   };
 
@@ -125,26 +124,21 @@ window.GTModules = window.GTModules || {};
     walletLabel: document.getElementById("walletLabel"),
     machineSelect: document.getElementById("machineSelect"),
     machineList: document.getElementById("machineList"),
-    gameTitle: document.getElementById("gameTitle"),
-    gameSubtitle: document.getElementById("gameSubtitle"),
     betInput: document.getElementById("betInput"),
     setMaxBtn: document.getElementById("setMaxBtn"),
     spinBtn: document.getElementById("spinBtn"),
     buyBonusBtn: document.getElementById("buyBonusBtn"),
-    quickBetRow: document.getElementById("quickBetRow"),
     stage: document.getElementById("stage"),
     boardWrap: document.getElementById("boardWrap"),
     slotBoard: document.getElementById("slotBoard"),
     slotOverlay: document.getElementById("slotOverlay"),
     particles: document.getElementById("particles"),
     lineList: document.getElementById("lineList"),
-    resultBanner: document.getElementById("resultBanner"),
-    historyList: document.getElementById("historyList"),
     statBank: document.getElementById("statBank"),
     statMaxBet: document.getElementById("statMaxBet"),
     statPlays: document.getElementById("statPlays"),
     statPayout: document.getElementById("statPayout"),
-    spinModeTag: document.getElementById("spinModeTag")
+    userBalanceDisplay: document.getElementById("userBalanceDisplay")
   };
 
   function buildMachineDefinitions() {
@@ -393,19 +387,6 @@ window.GTModules = window.GTModules || {};
     stopSpinFx();
   }
 
-  function pushHistory(text, tone) {
-    const d = new Date();
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mm = String(d.getMinutes()).padStart(2, "0");
-    state.history.unshift({
-      id: Date.now() + "_" + Math.random().toString(36).slice(2, 6),
-      tone: tone || "",
-      text: "[" + hh + ":" + mm + "] " + String(text || "")
-    });
-    if (state.history.length > 24) state.history.length = 24;
-    renderHistory();
-  }
-
   async function ensureDb() {
     if (state.db) return state.db;
     if (typeof dbModule.getOrInitAuthDb !== "function") throw new Error("DB module missing.");
@@ -500,6 +481,9 @@ window.GTModules = window.GTModules || {};
     if (els.worldLabel instanceof HTMLElement) els.worldLabel.textContent = "Casino";
     if (els.walletLabel instanceof HTMLElement) {
       els.walletLabel.textContent = state.walletLocks + " WL (" + state.walletBreakdownText + ")";
+    }
+    if (els.userBalanceDisplay instanceof HTMLElement) {
+      els.userBalanceDisplay.textContent = "Balance: " + state.walletLocks + " WL";
     }
     if (els.logoutBtn instanceof HTMLButtonElement) els.logoutBtn.classList.toggle("hidden", !state.user);
   }
@@ -677,14 +661,6 @@ if (wrap instanceof HTMLElement) {
     if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.textContent = "Spin";
   }
 
-  function setResult(text, tone) {
-    if (!(els.resultBanner instanceof HTMLElement)) return;
-    els.resultBanner.textContent = String(text || "");
-    els.resultBanner.classList.remove("win", "jackpot");
-    if (tone === "win") els.resultBanner.classList.add("win");
-    if (tone === "jackpot") els.resultBanner.classList.add("jackpot");
-  }
-
   function spawnParticles(tone) {
     if (!(els.particles instanceof HTMLElement)) return;
     const symbols = tone === "jackpot"
@@ -703,17 +679,6 @@ if (wrap instanceof HTMLElement) {
     window.setTimeout(() => { if (els.particles instanceof HTMLElement) els.particles.innerHTML = ""; }, 1100);
   }
 
-  function renderHistory() {
-    if (!(els.historyList instanceof HTMLElement)) return;
-    if (!state.history.length) {
-      els.historyList.innerHTML = "<div class=\"history-row\">No spins yet.</div>";
-      return;
-    }
-    els.historyList.innerHTML = state.history.map((row) => {
-      const tone = row.tone === "jackpot" ? "jackpot" : (row.tone === "win" ? "win" : "");
-      return "<div class=\"history-row " + tone + "\">" + escapeHtml(row.text) + "</div>";
-    }).join("");
-  }
   function renderMachineSelector() {
     if (!(els.machineSelect instanceof HTMLSelectElement) || !(els.machineList instanceof HTMLElement)) return;
      const rows = state.machines.slice().sort((a, b) => a.ty - b.ty || a.tx - b.tx);
@@ -756,8 +721,6 @@ if (wrap instanceof HTMLElement) {
   function renderMachineStats() {
     const machine = getSelectedMachine();
     if (!machine) {
-      if (els.gameTitle instanceof HTMLElement) els.gameTitle.textContent = "No machine selected";
-      if (els.gameSubtitle instanceof HTMLElement) els.gameSubtitle.textContent = "Load world and select a machine.";
       if (els.statBank instanceof HTMLElement) els.statBank.textContent = "Bank: 0 WL";
       if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: 0 WL";
       if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: 0";
@@ -772,15 +735,6 @@ if (wrap instanceof HTMLElement) {
       return;
     }
 
-    if (els.gameTitle instanceof HTMLElement) els.gameTitle.textContent = machine.typeName + " (" + machine.tx + "," + machine.ty + ")";
-    if (els.gameSubtitle instanceof HTMLElement) {
-      const maxByBank = getMaxBetByBank(machine);
-      const owner = machine.ownerName ? ("@" + machine.ownerName) : machine.ownerAccountId;
-      const useText = machine.inUseAccountId && machine.inUseAccountId !== (state.user && state.user.accountId)
-        ? (" | In use by @" + (machine.inUseName || machine.inUseAccountId))
-        : "";
-      els.gameSubtitle.textContent = "Owner " + owner + " | Bank cap bet " + maxByBank + " WL | Payout cap x" + machine.maxPayoutMultiplier + useText;
-    }
     if (els.statBank instanceof HTMLElement) {
       const bankText = INFINITE_BANK ? "Infinite" : (machine.earningsLocks + " WL");
       els.statBank.textContent = "Bank: " + bankText;
@@ -828,7 +782,6 @@ if (wrap instanceof HTMLElement) {
     renderMachineSelector();
     renderMachineStats();
     renderBoard();
-    renderHistory();
   }
 
   async function resolveUserRole(accountId, username) {
@@ -913,13 +866,11 @@ if (wrap instanceof HTMLElement) {
     state.user = null;
     state.walletLocks = 0;
     state.walletBreakdownText = "0 WL";
-    state.history = [];
     state.ephemeral.rows = null;
     state.ephemeral.lineIds = [];
     state.ephemeral.lineWins = [];
     renderAll();
     setStatus(els.authStatus, "Logged out.");
-    setResult("Ready. Pick machine, set bet, spin.");
   }
 
   async function attachUserSession() {
@@ -944,19 +895,6 @@ if (wrap instanceof HTMLElement) {
     }
   }
 
-  function spinMessage(machine, result, wager, payout, buyBonus) {
-    const diff = payout - wager;
-    const outcome = String(result && result.outcome || "").toLowerCase();
-    const tone = outcome === "jackpot" ? "jackpot" : (diff > 0 ? "win" : "");
-    let text = machine.typeName + (buyBonus ? " (Buy Bonus)" : "") + ": ";
-    if (diff > 0) text += "Won +" + diff + " WL";
-    else if (diff < 0) text += "Lost " + Math.abs(diff) + " WL";
-    else text += "Break-even";
-    const summary = String(result && result.summary || "").trim();
-    if (summary) text += " | " + summary;
-    return { text, tone };
-  }
-
   function rowsFromResult(reels, machineType) {
     const arr = Array.isArray(reels) ? reels : [];
     if (!arr.length) return [["?"]];
@@ -975,17 +913,14 @@ if (wrap instanceof HTMLElement) {
   async function runSpin(mode) {
     if (state.spinBusy) return;
     if (!state.user) {
-      setResult("Login first.");
       return;
     }
     if (typeof slotsModule.spin !== "function") {
-      setResult("Slots module unavailable.");
       return;
     }
 
     const machine = getSelectedMachine();
     if (!machine) {
-      setResult("No slots machine selected.");
       return;
     }
 
@@ -994,28 +929,20 @@ if (wrap instanceof HTMLElement) {
     const bet = clampBetToMachine(machine, els.betInput && els.betInput.value);
     const maxByBank = getSpinMaxBet(machine);
     if (bet > maxByBank) {
-      setResult("Machine bank cap is " + maxByBank + " WL for this game.");
       return;
     }
 
     const wager = bet * buyX;
     if (state.walletLocks < wager) {
-      setResult("Not enough locks. Need " + wager + " WL.");
       return;
     }
 
-    if (els.spinModeTag instanceof HTMLElement) {
-      els.spinModeTag.textContent = buyBonus ? "Mode: Buy Bonus" : "Mode: Spin";
-      els.spinModeTag.classList.toggle("hot", buyBonus);
-    }
-    setResult("Spinning " + machine.typeName + (buyBonus ? " (Buy Bonus)" : "") + "...");
     startSpinFx(machine);
 
     const debit = await adjustWallet(-wager);
     if (!debit.ok) {
       stopSpinFx();
       state.ephemeral.rows = null;
-      setResult(debit.reason === "not-enough" ? "Not enough locks in wallet." : "Failed to spend locks.");
       renderAll();
       return;
     }
@@ -1072,15 +999,12 @@ if (wrap instanceof HTMLElement) {
       state.ephemeral.lineWins = resolved.lineWins;
       state.ephemeral.lineIds = resolved.lineIds;
       renderBoard();
-      const msg = spinMessage(machine, resolved, resolved.wager, payout, buyBonus);
-      setResult(msg.text, msg.tone);
-      pushHistory(msg.text, msg.tone);
-      if (msg.tone === "win" || msg.tone === "jackpot") {
+      if (resolved.outcome === "win" || resolved.outcome === "jackpot") {
         if (els.boardWrap instanceof HTMLElement) {
           els.boardWrap.classList.add("winfx");
           window.setTimeout(() => { if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx"); }, 420);
         }
-        spawnParticles(msg.tone);
+        spawnParticles(resolved.outcome);
       }
       renderAll();
       return;
@@ -1156,7 +1080,6 @@ if (wrap instanceof HTMLElement) {
         await adjustWallet(wager);
         stopSpinFx();
         state.ephemeral.rows = null;
-        setResult("Spin rejected (machine state changed or limits changed).");
         renderAll();
         return;
       }
@@ -1167,7 +1090,6 @@ if (wrap instanceof HTMLElement) {
           const credit = await adjustWallet(payout);
           if (credit && credit.ok) { credited = true; break; }
         }
-        if (!credited) pushHistory("Payout credit retry pending for " + payout + " WL.", "");
       }
 
       stopSpinFx();
@@ -1175,22 +1097,18 @@ if (wrap instanceof HTMLElement) {
       state.ephemeral.lineWins = resolved.lineWins;
       state.ephemeral.lineIds = resolved.lineIds;
       renderBoard();
-      const msg = spinMessage(machine, resolved, resolved.wager, payout, buyBonus);
-      setResult(msg.text, msg.tone);
-      pushHistory(msg.text, msg.tone);
-      if (msg.tone === "win" || msg.tone === "jackpot") {
+      if (resolved.outcome === "win" || resolved.outcome === "jackpot") {
         if (els.boardWrap instanceof HTMLElement) {
           els.boardWrap.classList.add("winfx");
           window.setTimeout(() => { if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx"); }, 420);
         }
-        spawnParticles(msg.tone);
+        spawnParticles(resolved.outcome);
       }
       renderAll();
     } catch (error) {
       await adjustWallet(wager);
       stopSpinFx();
       state.ephemeral.rows = null;
-      setResult((error && error.message) || "Spin failed.");
       renderAll();
       return;
     }
@@ -1263,21 +1181,6 @@ if (wrap instanceof HTMLElement) {
       });
     }
 
-    if (els.quickBetRow instanceof HTMLElement) {
-      els.quickBetRow.addEventListener("click", (event) => {
-        const target = event.target;
-        if (!(target instanceof HTMLElement) || !(els.betInput instanceof HTMLInputElement)) return;
-        const raw = target.dataset.bet;
-        if (!raw) return;
-        const machine = getSelectedMachine();
-        if (!machine) return;
-        const add = Math.max(1, Math.floor(Number(raw) || 0));
-        const current = Math.max(machine.minBet, Math.floor(Number(els.betInput.value) || machine.minBet));
-        els.betInput.value = String(clampBetToMachine(machine, current + add));
-        renderMachineStats();
-      });
-    }
-
     window.addEventListener("beforeunload", () => { clearSessionRefs(); });
   }
 
@@ -1305,7 +1208,6 @@ if (wrap instanceof HTMLElement) {
     state.selectedMachineKey = state.machines[0].tileKey;
 
     setStatus(els.authStatus, "Login with your game account.");
-    setResult("Ready. Pick machine, set bet, spin.");
   }
 
   init();
