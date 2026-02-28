@@ -423,17 +423,12 @@ window.GTModules = window.GTModules || {};
   };
 
   function simulateLeBandit(machine, bet, buyBonus) {
-    const COLS = 6;
-    const ROWS = 5;
+    const COLS = 6, ROWS = 5;
     const pool = [
-      ...Array(14).fill("TRAP"),
-      ...Array(12).fill("CHEESE"),
-      ...Array(10).fill("BEER"),
-      ...Array(8).fill("BAG"),
-      ...Array(5).fill("HAT"),
-      ...Array(3).fill("WINT"),
-      ...Array(2).fill("WILD")
+      ...Array(14).fill("TRAP"), ...Array(12).fill("CHEESE"), ...Array(10).fill("BEER"),
+      ...Array(8).fill("BAG"), ...Array(5).fill("HAT"), ...Array(3).fill("WINT"), ...Array(2).fill("WILD")
     ];
+    function pick() { return pool[Math.floor(Math.random() * pool.length)]; }
 
     function pickSym() { return pool[Math.floor(Math.random() * pool.length)]; }
 
