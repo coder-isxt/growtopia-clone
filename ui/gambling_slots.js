@@ -4,7 +4,7 @@ window.GTModules = window.GTModules || {};
   "use strict";
 
   const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
-  const GAME_IDS = ["blackjack", "slots_v2"];
+  const GAME_IDS = ["blackjack", "slots_v2", "le_bandit"];
 
   // This page is now a standalone casino site.
   // World-based machine browsing is on gambling.html
@@ -43,8 +43,9 @@ window.GTModules = window.GTModules || {};
   // This makes the web gamble UI feel distinct from the actual game slots.
   const INFINITE_BANK = true; // toggle to make all banks infinite in the UI
   const UI_GAME_ALIASES = {
-    blackjack: "Blackjack Table",
-    slots_v2: "Six Six Six"
+    blackjack: "Blackjack",
+    slots_v2: "Six Six Six",
+    le_bandit: "Le Bandit"
   };
   const PAYLINES_5 = [
     [1, 1, 1, 1, 1],
@@ -66,7 +67,8 @@ window.GTModules = window.GTModules || {};
     RUBY: "Ruby", EMER: "Emerald", CLUB: "Club", RING: "Ring", SKULL: "Skull", REAPR: "Reaper", BLOOD: "Blood",
     LEAF: "Leaf", STON: "Stone", MASK: "Mask", IDOL: "Idol", ORAC: "Oracle", FRGT: "Forgotten",
     COIN: "Coin", ORE: "Ore", CART: "Cart", RELC: "Relic", "?": "Unknown",
-    BONE: "Bone", PENT: "Pentagram", BLU_6: "Blue 6", RED_6: "Red 6"
+    BONE: "Bone", PENT: "Pentagram", BLU_6: "Blue 6", RED_6: "Red 6",
+    TRAP: "Trap", CHEESE: "Cheese", BEER: "Beer", BAG: "Bag", HAT: "Hat", WINT: "Wanted", RAIN: "Rain",
   };
 
   const SYMBOL_ICONS = {
@@ -75,13 +77,16 @@ window.GTModules = window.GTModules || {};
     RUBY: "\u2666", EMER: "\u{1F49A}", CLUB: "\u2663", RING: "\u{1F48D}", SKULL: "\u{1F480}", REAPR: "\u2620", BLOOD: "\u{1FA78}",
     LEAF: "\u{1F343}", STON: "\u{1FAA8}", MASK: "\u{1F3AD}", IDOL: "\u{1F5FF}", ORAC: "\u{1F52E}", FRGT: "\u{1F56F}",
     COIN: "\u{1FA99}", ORE: "\u26D3", CART: "\u{1F6D2}", RELC: "\u{1F4FF}", "?": "\u2754",
-    BONE: "\u{1F9B4}", PENT: "\u2721", BLU_6: "\u{1F535}6", RED_6: "\u{1F534}6"
+    BONE: "\u{1F9B4}", PENT: "\u2721", BLU_6: "\u{1F535}6", RED_6: "\u{1F534}6",
+    TRAP: "\u{1F4A9}", CHEESE: "\u{1F9C0}", BEER: "\u{1F37A}", BAG: "\u{1F4B0}", HAT: "\u{1F3A9}", WINT: "\u{1F46E}", RAIN: "\u{1F4B8}"
   };
 
-  const SYMBOL_CLASSES = { WILD: "wild", SCAT: "scatter", BONUS: "bonus", DYN: "bonus", BLU_6: "sixblu", RED_6: "sixred" };
+  const SYMBOL_CLASSES = { WILD: "wild", SCAT: "scatter", BONUS: "bonus", DYN: "bonus", BLU_6: "sixblu", RED_6: "sixred", WINT: "wanted", RAIN: "rain" };
   const SYMBOL_POOL = {
+    blackjack: ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"],
     slots: ["CHERRY", "LEMON", "BAR", "BELL", "SEVEN"],
     slots_v2: ["SKULL", "BONE", "REAPR", "BLOOD", "PENT", "WILD"],
+    le_bandit: ["TRAP", "CHEESE", "BEER", "BAG", "HAT", "WINT", "WILD", "RAIN", "COIN"],
     slots_v3: ["RUBY", "EMER", "CLUB", "RING", "SKULL", "REAPR", "BLOOD", "WILD", "SCAT"],
     slots_v4: ["LEAF", "STON", "MASK", "IDOL", "ORAC", "FRGT", "WILD", "SCAT"],
     slots_v6: ["COIN", "ORE", "GEM", "PICK", "CART", "RELC", "WILD", "SCAT"]
@@ -160,12 +165,13 @@ window.GTModules = window.GTModules || {};
   function buildMachineDefinitions() {
     const slotsDefs = typeof slotsModule.getDefinitions === "function" ? slotsModule.getDefinitions() : {};
     const fallback = {
-      blackjack: { name: "Blackjack", minBet: 1, maxBet: 50000, maxPayoutMultiplier: 2.5, reels: 0, rows: 0 },
+      blackjack: { name: "Blackjack", minBet: 1, maxBet: 20000, maxPayoutMultiplier: 2.5, reels: 0, rows: 0 },
       slots: { name: "Classic Slots", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10, reels: 3, rows: 1 },
       slots_v2: { name: "Neon Mine", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 50, reels: 5, rows: 4 },
       slots_v3: { name: "Blood Vault", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 4 },
       slots_v4: { name: "Ancient Jungle", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 4 },
-      slots_v6: { name: "Deep Core", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 3 }
+      slots_v6: { name: "Deep Core", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 3 },
+      le_bandit: { name: "Le Bandit", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10000, reels: 6, rows: 5 }
     };
     const out = {};
     GAME_IDS.forEach((id) => {
@@ -402,6 +408,128 @@ window.GTModules = window.GTModules || {};
       lineIds: lineIds,
       bet: buyBonus ? bet * 10 : bet,
       summary: totalMult > 0 ? "Wicked Wheel!" : ""
+    };
+  }
+
+  const LE_BANDIT_PAYTABLE = {
+    TRAP: [0, 0, 0.1, 0.2, 0.3, 0.4],
+    CHEESE: [0, 0, 0.2, 0.3, 0.4, 0.5],
+    BEER: [0, 0, 0.3, 0.4, 0.5, 0.6],
+    BAG: [0, 0, 0.4, 0.5, 0.6, 0.7],
+    HAT: [0, 0, 0.5, 0.6, 0.7, 0.8],
+    WINT: [0, 0, 0.6, 0.7, 0.8, 0.9],
+    WILD: [0, 0, 0.7, 0.8, 0.9, 1.0]
+  };
+
+  function simulateLeBandit(machine, bet, buyBonus) {
+    const pool = [
+      ...Array(15).fill("TRAP"),
+      ...Array(12).fill("CHEESE"),
+      ...Array(10).fill("BEER"),
+      ...Array(8).fill("BAG"),
+      ...Array(6).fill("HAT"),
+      ...Array(4).fill("WINT"),
+      ...Array(2).fill("WILD")
+    ];
+    const reelsCount = 6;
+    const rows = 5;
+
+    let reels = [];
+    let lines = [];
+    let lineIds = [];
+    let totalPayout = 0;
+    let coinWins = 0;
+    let rainOfGoldTriggered = false;
+
+    // Generate grid
+    let grid = [];
+    for (let r = 0; r < rows; r++) {
+      let rowSymbols = [];
+      for (let c = 0; c < reelsCount; c++) {
+        let sym = pool[Math.floor(Math.random() * pool.length)];
+        // Simulate Coin symbols appearing
+        if (Math.random() < 0.05) { // 5% chance for a coin
+          sym = "COIN";
+        }
+        rowSymbols.push(sym);
+      }
+      grid.push(rowSymbols);
+      reels.push(rowSymbols.join(","));
+    }
+
+    // Evaluate cluster pays (simplified: check for 3+ adjacent matches horizontally/vertically)
+    // This is a very simplified cluster pay logic, not true to the original game's complex mechanics.
+    // For a real cluster pay, you'd need a flood-fill algorithm.
+    let visited = new Set();
+    function getCluster(r, c, targetSym) {
+      if (r < 0 || r >= rows || c < 0 || c >= reelsCount || visited.has(`${r}_${c}`) || grid[r][c] !== targetSym) {
+        return [];
+      }
+      visited.add(`${r}_${c}`);
+      let cluster = [{ r, c }];
+      cluster = cluster.concat(getCluster(r + 1, c, targetSym));
+      cluster = cluster.concat(getCluster(r - 1, c, targetSym));
+      cluster = cluster.concat(getCluster(r, c + 1, targetSym));
+      cluster = cluster.concat(getCluster(r, c - 1, targetSym));
+      return cluster;
+    }
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < reelsCount; c++) {
+        const sym = grid[r][c];
+        if (sym === "COIN" || sym === "RAIN") continue; // Coins and Rain are handled separately
+        if (!visited.has(`${r}_${c}`)) {
+          const cluster = getCluster(r, c, sym);
+          if (cluster.length >= 3) { // Simplified: 3+ cluster pays
+            const target = sym === "WILD" ? "WILD" : sym;
+            const mult = LE_BANDIT_PAYTABLE[target][Math.min(cluster.length - 1, LE_BANDIT_PAYTABLE[target].length - 1)] || 0;
+            if (mult > 0) {
+              totalPayout += bet * mult;
+              lines.push(`${cluster.length}x ${SYMBOL_LABELS[target]}`);
+            }
+          }
+        }
+      }
+    }
+
+    // Evaluate Coins
+    grid.forEach((row) => {
+      row.forEach((sym) => {
+        if (sym === "COIN") {
+          coinWins += Math.floor(Math.random() * 10) + 1; // Random coin value 1-10
+        }
+      });
+    });
+
+    // Evaluate Rain of Gold (SCAT)
+    let rainCount = 0;
+    grid.forEach((row) => {
+      row.forEach((sym) => {
+        if (sym === "RAIN") {
+          rainCount++;
+        }
+      });
+    });
+
+    if (rainCount >= 3) { // Simplified: 3+ Rain symbols trigger Rain of Gold
+      rainOfGoldTriggered = true;
+      lines.push("Rain of Gold!");
+      // Apply a multiplier to all wins, or a direct payout
+      totalPayout += bet * (Math.floor(Math.random() * 20) + 10); // 10-30x bet bonus
+    }
+
+    // Final Payout
+    totalPayout += coinWins * bet; // Coin wins are multipliers of the bet
+
+    return {
+      gameId: "le_bandit",
+      reels: reels,
+      payoutWanted: totalPayout,
+      outcome: totalPayout > 0 ? (rainOfGoldTriggered ? "jackpot" : "win") : "lose",
+      lineWins: lines,
+      lineIds: [], // Le Bandit uses cluster pays, not traditional lines
+      bet: buyBonus ? bet * 10 : bet, // Assuming bonus buy is 10x bet
+      summary: rainOfGoldTriggered ? "Rain of Gold!" : (coinWins > 0 ? "Coin Wins!" : "")
     };
   }
 
@@ -1045,7 +1173,7 @@ window.GTModules = window.GTModules || {};
       if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: 0 WL";
       if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: 0";
       if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: 0 WL";
-      if (els.stage instanceof HTMLElement) els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6");
+      if (els.stage instanceof HTMLElement) els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit");
       if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.disabled = true;
       if (els.buyBonusBtn instanceof HTMLButtonElement) {
         els.buyBonusBtn.classList.add("hidden");
@@ -1063,8 +1191,12 @@ window.GTModules = window.GTModules || {};
     if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: " + machine.stats.totalPayout + " WL";
 
     if (els.stage instanceof HTMLElement) {
-      els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6");
-      els.stage.classList.add("theme-" + machine.type);
+      const currentType = machine.type;
+      els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit");
+      if (typeof currentType === "string") {
+        if (currentType === "le_bandit") els.stage.classList.add("theme-le_bandit");
+        else if (currentType.startsWith("slots")) els.stage.classList.add("theme-" + currentType);
+      }
     }
 
     // Toggle controls based on game type
@@ -1112,7 +1244,7 @@ window.GTModules = window.GTModules || {};
       }
     }
 
-    const buyEnabled = machine.type === "slots_v2";
+    const buyEnabled = machine.type === "slots_v2" || machine.type === "le_bandit";
     if (els.buyBonusBtn instanceof HTMLButtonElement) {
       els.buyBonusBtn.classList.toggle("hidden", !buyEnabled);
       if (buyEnabled) {
@@ -1453,7 +1585,7 @@ window.GTModules = window.GTModules || {};
       return;
     }
 
-    const buyBonus = mode === "buybonus" && machine.type === "slots_v2";
+    const buyBonus = mode === "buybonus" && (machine.type === "slots_v2" || machine.type === "le_bandit");
     const buyX = buyBonus ? 10 : 1;
     const bet = clampBetToMachine(machine, state.currentBetValue);
 
@@ -1482,6 +1614,8 @@ window.GTModules = window.GTModules || {};
       let rawResult = {};
       if (machine.type === "slots_v2") {
         rawResult = simulateSixSixSix(machine, bet, buyBonus);
+      } else if (machine.type === "le_bandit") {
+        rawResult = simulateLeBandit(machine, bet, buyBonus);
       } else if (typeof slotsModule.spin === "function") {
         rawResult = slotsModule.spin(machine.type, bet, buyBonus ? { mode: "buybonus" } : {}) || {};
       } else {
@@ -1516,7 +1650,7 @@ window.GTModules = window.GTModules || {};
       };
 
       // -- Asynchronous Sequential Stop Animation --
-      if (machine.type === "slots_v2") {
+      if (machine.type === "slots_v2" || machine.type === "le_bandit") {
         // Stop background fast randomizing
         if (state.spinTimer) window.clearInterval(state.spinTimer);
         state.ephemeral.stoppedCols = 0;
@@ -1629,6 +1763,8 @@ window.GTModules = window.GTModules || {};
           let rawResult = {};
           if (current.type === "slots_v2") {
             rawResult = simulateSixSixSix(current, bet, buyBonus);
+          } else if (current.type === "le_bandit") {
+            rawResult = simulateLeBandit(current, bet, buyBonus);
           } else {
             rawResult = slotsModule.spin(current.type, bet, buyBonus ? { mode: "buybonus" } : {}) || {};
           }

@@ -332,6 +332,29 @@
       border-color: rgba(255, 150, 95, 0.8);
     }
 
+    .stage.theme-le_bandit {
+      border-color: rgba(218, 165, 32, 0.85);
+      background:
+        radial-gradient(circle at 30% 10%, rgba(218, 165, 32, 0.08), transparent 50%),
+        linear-gradient(180deg, rgba(40, 28, 10, 0.97), rgba(25, 15, 5, 0.97));
+    }
+
+    .stage.theme-le_bandit .board-wrap {
+      border-color: rgba(218, 165, 32, 0.4);
+      background: linear-gradient(180deg, rgba(35, 22, 8, 0.96), rgba(20, 12, 4, 0.96));
+    }
+
+    .cell.wanted {
+      border-color: rgba(218, 165, 32, 0.88);
+      box-shadow: 0 0 14px rgba(218, 165, 32, 0.35);
+    }
+
+    .cell.rain {
+      border-color: rgba(50, 205, 50, 0.85);
+      box-shadow: 0 0 16px rgba(50, 205, 50, 0.35);
+      animation: sixPulse 1.2s infinite alternate ease-in-out;
+    }
+
     .stage-head {
       display: flex;
       flex-wrap: wrap;

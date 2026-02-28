@@ -10,13 +10,14 @@
   const authStorageModule = (window.GTModules && window.GTModules.authStorage) || {};
   const dbModule = (window.GTModules && window.GTModules.db) || {};
   const slotsModule = (window.GTModules && window.GTModules.slots) || {};
-  const SLOT_MACHINE_IDS = ["slots", "slots_v2", "slots_v3", "slots_v4", "slots_v6"];
+  const SLOT_MACHINE_IDS = ["slots", "slots_v2", "slots_v3", "slots_v4", "slots_v6", "le_bandit"];
   const SLOT_SYMBOLS = {
     slots: ["CHERRY", "LEMON", "BAR", "BELL", "SEVEN"],
     slots_v2: ["GEM", "PICK", "MINER", "GOLD", "DYN", "WILD", "SCAT", "BONUS"],
     slots_v3: ["RUBY", "EMER", "CLUB", "RING", "SKULL", "REAPR", "BLOOD", "WILD", "SCAT"],
     slots_v4: ["LEAF", "STON", "MASK", "IDOL", "ORAC", "FRGT", "WILD", "SCAT"],
-    slots_v6: ["COIN", "ORE", "GEM", "PICK", "CART", "RELC", "WILD", "SCAT"]
+    slots_v6: ["COIN", "ORE", "GEM", "PICK", "CART", "RELC", "WILD", "SCAT"],
+    le_bandit: ["TRAP", "CHEESE", "BEER", "BAG", "HAT", "WINT", "WILD", "RAIN", "COIN"]
   };
 
   const MACHINE_DEFS = buildMachineDefinitions();
@@ -109,7 +110,8 @@
       slots_v2: { maxPayoutMultiplier: 50, reels: 5, rows: 4 },
       slots_v3: { maxPayoutMultiplier: 5000, reels: 5, rows: 4 },
       slots_v4: { maxPayoutMultiplier: 5000, reels: 5, rows: 4 },
-      slots_v6: { maxPayoutMultiplier: 5000, reels: 5, rows: 3 }
+      slots_v6: { maxPayoutMultiplier: 5000, reels: 5, rows: 3 },
+      le_bandit: { maxPayoutMultiplier: 10000, reels: 6, rows: 5 }
     };
     const out = {
       reme_roulette: {
