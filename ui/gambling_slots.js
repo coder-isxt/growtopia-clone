@@ -389,6 +389,7 @@ window.GTModules = window.GTModules || {};
 
   function resolveLockCurrencies() {
     const fallback = [
+      { id: 43, key: "ruby_lock", value: 1000000, short: "RL" },
       { id: 42, key: "emerald_lock", value: 10000, short: "EL" },
       { id: 24, key: "obsidian_lock", value: 100, short: "OL" },
       { id: 9, key: "world_lock", value: 1, short: "WL" }
@@ -405,7 +406,12 @@ window.GTModules = window.GTModules || {};
           if (!Number.isInteger(id) || id <= 0) continue;
           const value = Math.max(1, Math.floor(Number(row.lockValue) || 1));
           const key = String(row.key || "").trim() || ("lock_" + id);
-          const short = key === "emerald_lock" ? "EL" : (key === "obsidian_lock" ? "OL" : "WL");
+
+          let short = "WL";
+          if (key === "ruby_lock") short = "RL";
+          else if (key === "emerald_lock") short = "EL";
+          else if (key === "obsidian_lock") short = "OL";
+
           out.push({ id, key, value, short });
         }
         if (out.length) {

@@ -146,6 +146,7 @@
 
   function resolveLockCurrencies() {
     const fallback = [
+      { id: 43, key: "ruby_lock", name: "Ruby Lock", value: 1000000, short: "RL" },
       { id: 42, key: "emerald_lock", name: "Emerald Lock", value: 10000, short: "EL" },
       { id: 24, key: "obsidian_lock", name: "Obsidian Lock", value: 100, short: "OL" },
       { id: 9, key: "world_lock", name: "World Lock", value: 1, short: "WL" }
@@ -163,9 +164,12 @@
           const value = Math.max(1, Math.floor(Number(row.lockValue) || 1));
           const key = String(row.key || "").trim() || ("lock_" + id);
           const name = String(row.name || key).trim().slice(0, 32) || ("Lock " + id);
-          const short = key === "emerald_lock"
-            ? "EL"
-            : (key === "obsidian_lock" ? "OL" : "WL");
+
+          let short = "WL";
+          if (key === "ruby_lock") short = "RL";
+          else if (key === "emerald_lock") short = "EL";
+          else if (key === "obsidian_lock") short = "OL";
+
           out.push({ id, key, name, value, short });
         }
         if (out.length) {
@@ -792,9 +796,9 @@
       const suitClass = getCardSuitClass(suit);
       return (
         "<div class=\"spec-card " + suitClass + "\">" +
-          "<div class=\"spec-card-corner\">" + escapeHtml(rank) + suit + "</div>" +
-          "<div class=\"spec-card-center\">" + escapeHtml(rank) + "</div>" +
-          "<div class=\"spec-card-suit\">" + suit + "</div>" +
+        "<div class=\"spec-card-corner\">" + escapeHtml(rank) + suit + "</div>" +
+        "<div class=\"spec-card-center\">" + escapeHtml(rank) + "</div>" +
+        "<div class=\"spec-card-suit\">" + suit + "</div>" +
         "</div>"
       );
     }).join("");
@@ -901,8 +905,8 @@
         const cls = getSlotsSymbolClass(tok);
         boardHtml +=
           "<div class='slotsv2-cell " + cls + "'>" +
-            "<span class='slotsv2-glyph'>" + escapeHtml(getSlotsSymbolLabel(tok)) + "</span>" +
-            "<span class='slotsv2-token'>" + escapeHtml(normalizeSlotsToken(tok) || "?") + "</span>" +
+          "<span class='slotsv2-glyph'>" + escapeHtml(getSlotsSymbolLabel(tok)) + "</span>" +
+          "<span class='slotsv2-token'>" + escapeHtml(normalizeSlotsToken(tok) || "?") + "</span>" +
           "</div>";
       }
       boardHtml += "</div>";
@@ -916,7 +920,7 @@
 
     return (
       "<div class='slotsv2-board slotsv2-idle' style='--slots-cols:" + colCount + ";--slots-rows:" + rowCount + ";'>" +
-        boardHtml +
+      boardHtml +
       "</div>" +
       "<div class='slotsv2-lines'>" + badges + "</div>"
     );
@@ -1018,23 +1022,23 @@
     const stats = machine.stats || {};
     const headerHtml =
       "<div class=\"spec-head\">" +
-        "<div class=\"spec-title\">" + escapeHtml(machine.typeName) + " at " + machine.tx + "," + machine.ty + "</div>" +
-        "<div class=\"spec-tags\">" +
-          "<span class=\"spec-tag\">Owner: " + escapeHtml(getMachineOwnerLabel(machine)) + "</span>" +
-          "<span class=\"spec-tag " + (machine.inUseAccountId ? "live" : "") + "\">" +
-            (machine.inUseAccountId ? ("LIVE @" + escapeHtml(machine.inUseName || machine.inUseAccountId)) : "Idle") +
-          "</span>" +
-          "<span class=\"spec-tag\">Bank: " + machine.earningsLocks + " WL</span>" +
-          "<span class=\"spec-tag\">Max Bet: " + machine.maxBet + " WL</span>" +
-        "</div>" +
+      "<div class=\"spec-title\">" + escapeHtml(machine.typeName) + " at " + machine.tx + "," + machine.ty + "</div>" +
+      "<div class=\"spec-tags\">" +
+      "<span class=\"spec-tag\">Owner: " + escapeHtml(getMachineOwnerLabel(machine)) + "</span>" +
+      "<span class=\"spec-tag " + (machine.inUseAccountId ? "live" : "") + "\">" +
+      (machine.inUseAccountId ? ("LIVE @" + escapeHtml(machine.inUseName || machine.inUseAccountId)) : "Idle") +
+      "</span>" +
+      "<span class=\"spec-tag\">Bank: " + machine.earningsLocks + " WL</span>" +
+      "<span class=\"spec-tag\">Max Bet: " + machine.maxBet + " WL</span>" +
+      "</div>" +
       "</div>";
 
     const metricsHtml =
       "<div class=\"spec-metrics\">" +
-        "<div class=\"spec-metric\"><span>Plays</span><strong>" + (stats.plays || 0) + "</strong></div>" +
-        "<div class=\"spec-metric\"><span>Total Bet</span><strong>" + (stats.totalBet || 0) + " WL</strong></div>" +
-        "<div class=\"spec-metric\"><span>Total Payout</span><strong>" + (stats.totalPayout || 0) + " WL</strong></div>" +
-        "<div class=\"spec-metric\"><span>Last At</span><strong>" + escapeHtml(formatTs(stats.lastAt)) + "</strong></div>" +
+      "<div class=\"spec-metric\"><span>Plays</span><strong>" + (stats.plays || 0) + "</strong></div>" +
+      "<div class=\"spec-metric\"><span>Total Bet</span><strong>" + (stats.totalBet || 0) + " WL</strong></div>" +
+      "<div class=\"spec-metric\"><span>Total Payout</span><strong>" + (stats.totalPayout || 0) + " WL</strong></div>" +
+      "<div class=\"spec-metric\"><span>Last At</span><strong>" + escapeHtml(formatTs(stats.lastAt)) + "</strong></div>" +
       "</div>";
 
     let modeHtml = "";
@@ -1042,52 +1046,52 @@
       const round = machine.blackjackRound;
       const handsHtml = round && Array.isArray(round.hands)
         ? round.hands.map((hand, index) => {
-            return (
-              "<div class=\"spec-bj-lane\">" +
-                "<div class=\"spec-bj-head\">Hand " + (index + 1) + " | Bet " + hand.bet + " WL | " + escapeHtml(hand.outcome || (hand.done ? "done" : "playing")) + "</div>" +
-                "<div class=\"spec-cards\">" + renderCardStrip(hand.cards) + "</div>" +
-              "</div>"
-            );
-          }).join("")
+          return (
+            "<div class=\"spec-bj-lane\">" +
+            "<div class=\"spec-bj-head\">Hand " + (index + 1) + " | Bet " + hand.bet + " WL | " + escapeHtml(hand.outcome || (hand.done ? "done" : "playing")) + "</div>" +
+            "<div class=\"spec-cards\">" + renderCardStrip(hand.cards) + "</div>" +
+            "</div>"
+          );
+        }).join("")
         : "<div class=\"spec-note\">No active blackjack hand.</div>";
       modeHtml =
         "<div class=\"spec-mode spec-blackjack\">" +
-          "<div class=\"spec-mode-title\">Blackjack Table" + (round && round.playerName ? (" - @" + escapeHtml(round.playerName)) : "") + "</div>" +
-          "<div class=\"spec-blackjack-table\">" +
-            "<div class=\"spec-bj-lane dealer\">" +
-              "<div class=\"spec-bj-head\">Dealer</div>" +
-              "<div class=\"spec-cards\">" + renderCardStrip(round && round.dealerCards) + "</div>" +
-            "</div>" +
-            "<div class=\"spec-bj-divider\"></div>" +
-            handsHtml +
-          "</div>" +
-          (round && round.summary ? ("<div class=\"spec-note\">" + escapeHtml(round.summary) + "</div>") : "") +
+        "<div class=\"spec-mode-title\">Blackjack Table" + (round && round.playerName ? (" - @" + escapeHtml(round.playerName)) : "") + "</div>" +
+        "<div class=\"spec-blackjack-table\">" +
+        "<div class=\"spec-bj-lane dealer\">" +
+        "<div class=\"spec-bj-head\">Dealer</div>" +
+        "<div class=\"spec-cards\">" + renderCardStrip(round && round.dealerCards) + "</div>" +
+        "</div>" +
+        "<div class=\"spec-bj-divider\"></div>" +
+        handsHtml +
+        "</div>" +
+        (round && round.summary ? ("<div class=\"spec-note\">" + escapeHtml(round.summary) + "</div>") : "") +
         "</div>";
     } else if (machine.type.indexOf("slots") === 0) {
       modeHtml =
         "<div class=\"spec-mode\">" +
-          "<div class=\"spec-mode-title\">Slots Snapshot</div>" +
-          buildSlotsBoardHtml(stats) +
-          "<div class=\"spec-grid\">" +
-            "<div><span>Outcome</span><strong>" + escapeHtml(stats.lastOutcome || "-") + "</strong></div>" +
-            "<div><span>Multiplier</span><strong>x" + Number(stats.lastMultiplier || 0).toFixed(2) + "</strong></div>" +
-            "<div><span>Player</span><strong>" + escapeHtml(stats.lastPlayerName || "-") + "</strong></div>" +
-            "<div><span>Updated</span><strong>" + escapeHtml(formatTs(stats.lastAt)) + "</strong></div>" +
-          "</div>" +
-          (stats.lastSlotsSummary ? ("<div class=\"spec-note\">" + escapeHtml(stats.lastSlotsSummary) + "</div>") : "") +
+        "<div class=\"spec-mode-title\">Slots Snapshot</div>" +
+        buildSlotsBoardHtml(stats) +
+        "<div class=\"spec-grid\">" +
+        "<div><span>Outcome</span><strong>" + escapeHtml(stats.lastOutcome || "-") + "</strong></div>" +
+        "<div><span>Multiplier</span><strong>x" + Number(stats.lastMultiplier || 0).toFixed(2) + "</strong></div>" +
+        "<div><span>Player</span><strong>" + escapeHtml(stats.lastPlayerName || "-") + "</strong></div>" +
+        "<div><span>Updated</span><strong>" + escapeHtml(formatTs(stats.lastAt)) + "</strong></div>" +
+        "</div>" +
+        (stats.lastSlotsSummary ? ("<div class=\"spec-note\">" + escapeHtml(stats.lastSlotsSummary) + "</div>") : "") +
         "</div>";
     } else {
       modeHtml =
         "<div class=\"spec-mode\">" +
-          "<div class=\"spec-mode-title\">Roulette Snapshot</div>" +
-          "<div class=\"spec-grid\">" +
-            "<div><span>Player Roll</span><strong>" + (stats.lastPlayerRoll || 0) + "</strong></div>" +
-            "<div><span>House Roll</span><strong>" + (stats.lastHouseRoll || 0) + "</strong></div>" +
-            "<div><span>Player Reme</span><strong>" + (stats.lastPlayerReme || 0) + "</strong></div>" +
-            "<div><span>House Reme</span><strong>" + (stats.lastHouseReme || 0) + "</strong></div>" +
-            "<div><span>Multiplier</span><strong>x" + Number(stats.lastMultiplier || 0).toFixed(2) + "</strong></div>" +
-            "<div><span>Outcome</span><strong>" + escapeHtml(stats.lastOutcome || "-") + "</strong></div>" +
-          "</div>" +
+        "<div class=\"spec-mode-title\">Roulette Snapshot</div>" +
+        "<div class=\"spec-grid\">" +
+        "<div><span>Player Roll</span><strong>" + (stats.lastPlayerRoll || 0) + "</strong></div>" +
+        "<div><span>House Roll</span><strong>" + (stats.lastHouseRoll || 0) + "</strong></div>" +
+        "<div><span>Player Reme</span><strong>" + (stats.lastPlayerReme || 0) + "</strong></div>" +
+        "<div><span>House Reme</span><strong>" + (stats.lastHouseReme || 0) + "</strong></div>" +
+        "<div><span>Multiplier</span><strong>x" + Number(stats.lastMultiplier || 0).toFixed(2) + "</strong></div>" +
+        "<div><span>Outcome</span><strong>" + escapeHtml(stats.lastOutcome || "-") + "</strong></div>" +
+        "</div>" +
         "</div>";
     }
 
@@ -1142,7 +1146,7 @@
         const mark = row.inUseAccountId ? " [IN USE]" : "";
         return (
           "<option value=\"" + escapeHtml(row.tileKey) + "\">" +
-            escapeHtml(row.typeName + " @ " + row.tx + "," + row.ty + mark) +
+          escapeHtml(row.typeName + " @ " + row.tx + "," + row.ty + mark) +
           "</option>"
         );
       }).join("");
