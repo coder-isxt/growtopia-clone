@@ -3,11 +3,11 @@ window.GTModules = window.GTModules || {};
 window.GTModules.quests = (function createQuestsModule() {
   const DAILY_QUESTS = [
     {
-      id: "break_80_blocks",
-      label: "Break 80 blocks",
-      target: 80,
+      id: "break_100_blocks",
+      label: "Break 100 blocks",
+      target: 100,
       event: "break_block",
-      rewards: { gems: 80 }
+      rewards: { gems: 90 }
     },
     {
       id: "place_60_blocks",
@@ -15,35 +15,6 @@ window.GTModules.quests = (function createQuestsModule() {
       target: 60,
       event: "place_block",
       rewards: { gems: 70 }
-    },
-    {
-      id: "visit_3_worlds",
-      label: "Visit 3 worlds",
-      target: 3,
-      event: "visit_world",
-      uniqueWorldVisit: true,
-      rewards: { gems: 30 }
-    },
-    {
-      id: "harvest_8_trees",
-      label: "Harvest 8 trees",
-      target: 8,
-      event: "tree_harvest",
-      rewards: { gems: 45 }
-    },
-    {
-      id: "earn_250_gems_daily",
-      label: "Earn 250 gems",
-      target: 250,
-      event: "gems_earned",
-      rewards: { gems: 65 }
-    },
-    {
-      id: "trade_once",
-      label: "Trade once",
-      target: 1,
-      event: "trade_complete",
-      rewards: { gems: 25 }
     }
   ];
 
