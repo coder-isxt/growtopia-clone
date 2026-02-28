@@ -995,7 +995,7 @@ window.GTModules = window.GTModules || {};
       const bankText = INFINITE_BANK ? "Infinite" : (machine.earningsLocks + " WL");
       els.statBank.textContent = "Bank: " + bankText;
     }
-    if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: " + machine.maxBet + " WL";
+    if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: " + machine.maxBet + "";
     if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: " + machine.stats.plays;
     if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: " + machine.stats.totalPayout + " WL";
 
