@@ -1206,6 +1206,9 @@
       let danceUntilMs = 0;
       let isFrozenByAdmin = false;
       let isGodModeByAdmin = false;
+      let isChatMutedByAdmin = false;
+      let chatMutedReason = "";
+      let chatMutedByAdminName = "";
       let frozenByAdminBy = "";
       let lastFrozenHintAtMs = -9999;
       let suppressSpawnSafetyUntilMs = 0;
@@ -1284,6 +1287,7 @@
         roles: {},
         audit: [],
         bans: {},
+        chatMutes: {},
         sessions: {},
         inventories: {},
         globalPlayers: {}
@@ -1803,6 +1807,85 @@
         return { active: true, expired: false, type: "temporary", remainingMs, reason: normalized.reason };
       }
 
+      function normalizeChatMuteRecord(record) {
+        if (!record) return null;
+        if (record === true) {
+          return { muted: true, reason: "", mutedBy: "", createdAt: 0, expiresAt: 0 };
+        }
+        if (typeof record !== "object") return null;
+        const row = record || {};
+        if (row.muted === false) return null;
+        return {
+          muted: true,
+          reason: (row.reason || "").toString().slice(0, 120),
+          mutedBy: (row.mutedBy || row.by || "").toString().slice(0, 20),
+          createdAt: Number(row.createdAt) || 0,
+          expiresAt: Number(row.expiresAt) || 0
+        };
+      }
+
+      function getChatMuteStatus(record, nowMs) {
+        const normalized = normalizeChatMuteRecord(record);
+        if (!normalized) {
+          return { active: false, expired: false, remainingMs: 0, reason: "", mutedBy: "", permanent: false };
+        }
+        const expiresAt = Math.max(0, Number(normalized.expiresAt) || 0);
+        if (!expiresAt) {
+          return {
+            active: true,
+            expired: false,
+            remainingMs: Infinity,
+            reason: normalized.reason,
+            mutedBy: normalized.mutedBy,
+            permanent: true
+          };
+        }
+        const remainingMs = expiresAt - nowMs;
+        if (remainingMs <= 0) {
+          return {
+            active: false,
+            expired: true,
+            remainingMs: 0,
+            reason: normalized.reason,
+            mutedBy: normalized.mutedBy,
+            permanent: false
+          };
+        }
+        return {
+          active: true,
+          expired: false,
+          remainingMs,
+          reason: normalized.reason,
+          mutedBy: normalized.mutedBy,
+          permanent: false
+        };
+      }
+
+      function copyTextToClipboard(text) {
+        const safeText = String(text || "").trim();
+        if (!safeText) return Promise.resolve(false);
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function" && window.isSecureContext) {
+          return navigator.clipboard.writeText(safeText).then(() => true).catch(() => false);
+        }
+        return new Promise((resolve) => {
+          try {
+            const area = document.createElement("textarea");
+            area.value = safeText;
+            area.setAttribute("readonly", "readonly");
+            area.style.position = "fixed";
+            area.style.opacity = "0";
+            area.style.pointerEvents = "none";
+            document.body.appendChild(area);
+            area.select();
+            const ok = document.execCommand("copy");
+            area.remove();
+            resolve(Boolean(ok));
+          } catch (error) {
+            resolve(false);
+          }
+        });
+      }
+
       function setAdminOpen(open) {
         if (typeof document !== "undefined" && document.body) {
           document.body.classList.toggle("admin-dashboard-open", false);
@@ -2300,11 +2383,14 @@
         }).join("");
         const adminActionOptions = [
           { id: "viewinv", label: "View Inventory", perm: "panel_open" },
+          { id: "copy_discord", label: "Copy Discord Tag", perm: "panel_open" },
           { id: "kick", label: "Kick", perm: "kick" },
           { id: "resetinv", label: "Reset Inventory", perm: "resetinv" },
           { id: "unban", label: "Unban", perm: "unban" },
           { id: "tempban", label: "Temp Ban", perm: "tempban" },
           { id: "permban", label: "Perm Ban", perm: "permban" },
+          { id: "mutechat", label: "Mute Chat", perm: "kick" },
+          { id: "unmutechat", label: "Unmute Chat", perm: "kick" },
           { id: "freeze", label: "Freeze", perm: "freeze" },
           { id: "unfreeze", label: "Unfreeze", perm: "unfreeze" },
           { id: "godmode", label: "Godmode", perm: "godmode" },
@@ -2323,6 +2409,23 @@
         const actionOptionsMarkup = adminActionOptions.map((row) => {
           return '<option value="' + escapeHtml(row.id) + '">' + escapeHtml(row.label) + "</option>";
         }).join("");
+        const consolePresetRows = [
+          { id: "viewinv", label: "View Inv", perm: "panel_open" },
+          { id: "give_block", label: "Give Block", perm: "give_block", amount: "50" },
+          { id: "tempban", label: "Temp Ban 12h", perm: "tempban", duration: "12h", reason: "Banned by admin" },
+          { id: "permban", label: "Perm Ban", perm: "permban", reason: "Permanently banned by admin" },
+          { id: "unban", label: "Unban", perm: "unban" },
+          { id: "mutechat", label: "Mute Chat", perm: "kick", reason: "Muted by admin" },
+          { id: "unmutechat", label: "Unmute Chat", perm: "kick" },
+          { id: "kick", label: "Kick", perm: "kick" },
+          { id: "announce_user", label: "DM Notice", perm: "announce_user" }
+        ].filter((row) => hasAdminPermission(row.perm));
+        const consolePresetMarkup = consolePresetRows.map((row) => {
+          const durationAttr = row.duration ? (' data-duration="' + escapeHtml(row.duration) + '"') : "";
+          const reasonAttr = row.reason ? (' data-reason="' + escapeHtml(row.reason) + '"') : "";
+          const amountAttr = row.amount ? (' data-amount="' + escapeHtml(row.amount) + '"') : "";
+          return '<button type="button" data-admin-act="consolepreset" data-action="' + escapeHtml(row.id) + '"' + durationAttr + reasonAttr + amountAttr + ">" + escapeHtml(row.label) + "</button>";
+        }).join("");
         const backupOptionsMarkup = getAdminBackupOptionsMarkup();
         const consoleBlockOptions = buildAdminConsoleOptionRows("give_block");
         const consoleFarmableOptions = buildAdminConsoleOptionRows("give_farmable");
@@ -2334,7 +2437,12 @@
             <div class="admin-card-header">
               <div class="admin-audit-title">Action Console</div>
             </div>
+            <div class="admin-console-presets">${consolePresetMarkup}</div>
             <div class="admin-console-help">Flow: choose player, choose action, fill required fields, then execute.</div>
+            <div class="admin-console-summary">
+              <span class="admin-console-target-summary">Target: none</span>
+              <span class="admin-console-action-summary">Action: none</span>
+            </div>
             <div class="admin-console-grid">
               <div class="admin-console-field admin-console-field-wide">
                 <label>Find Player</label>
@@ -2439,16 +2547,44 @@
           const account = adminState.accounts[accountId] || {};
           const username = account.username || accountId;
           const discordInfo = account.discordUsername ? ` (@${account.discordUsername} | ${account.discordId})` : "";
+          const discordCopyText = account.discordUsername
+            ? ("@" + account.discordUsername + (account.discordId ? " (" + account.discordId + ")" : ""))
+            : "";
           const banStatus = getBanStatus(adminState.bans[accountId], nowMs);
+          const chatMuteStatus = getChatMuteStatus(adminState.chatMutes[accountId], nowMs);
           const banned = banStatus.active;
+          const chatMuted = chatMuteStatus.active;
           const online = Boolean(adminState.sessions[accountId] && adminState.sessions[accountId].sessionId);
           const invTotal = totalInventoryCount(adminState.inventories[accountId]);
           const role = getAccountRole(accountId, username);
           const banText = banned
             ? (banStatus.type === "permanent" ? "Perm Banned" : "Temp Banned (" + formatRemainingMs(banStatus.remainingMs) + ")")
             : "Active";
+          const chatMuteText = chatMuted
+            ? (chatMuteStatus.permanent ? "Chat Muted" : ("Chat Muted (" + formatRemainingMs(chatMuteStatus.remainingMs) + ")"))
+            : "Chat Open";
           const onlineStatusClass = online ? "online" : "offline";
           const banStatusClass = banned ? "banned" : "active";
+          const chatMuteStatusClass = chatMuted ? "muted" : "neutral";
+          const quickButtons = [];
+          quickButtons.push('<button class="admin-quick-btn" data-admin-act="viewinv" data-account-id="' + escapeHtml(accountId) + '">View Inv</button>');
+          if (hasAdminPermission("kick")) {
+            quickButtons.push('<button class="admin-quick-btn admin-quick-btn-warn" data-admin-act="quickkick" data-account-id="' + escapeHtml(accountId) + '">Kick</button>');
+            quickButtons.push('<button class="admin-quick-btn admin-quick-btn-warn" data-admin-act="quickmutechat" data-account-id="' + escapeHtml(accountId) + '">Mute Chat</button>');
+            quickButtons.push('<button class="admin-quick-btn" data-admin-act="quickunmutechat" data-account-id="' + escapeHtml(accountId) + '">Unmute Chat</button>');
+          }
+          if (hasAdminPermission("tempban")) {
+            quickButtons.push('<button class="admin-quick-btn admin-quick-btn-danger" data-admin-act="quicktempban" data-account-id="' + escapeHtml(accountId) + '">Temp Ban 12h</button>');
+          }
+          if (hasAdminPermission("permban")) {
+            quickButtons.push('<button class="admin-quick-btn admin-quick-btn-danger" data-admin-act="quickpermban" data-account-id="' + escapeHtml(accountId) + '">Perm Ban</button>');
+          }
+          if (hasAdminPermission("unban")) {
+            quickButtons.push('<button class="admin-quick-btn" data-admin-act="quickunban" data-account-id="' + escapeHtml(accountId) + '">Unban</button>');
+          }
+          quickButtons.push(
+            '<button class="admin-quick-btn" data-admin-act="quickcopydiscord" data-account-id="' + escapeHtml(accountId) + '" data-copy-text="' + escapeHtml(discordCopyText) + '"' + (discordCopyText ? "" : " disabled") + ">Copy Discord</button>'
+          );
           return `
             <div class="admin-row" data-account-id="${escapeHtml(accountId)}">
               <div class="admin-meta">
@@ -2456,12 +2592,13 @@
                 <div class="admin-status-row">
                   <span class="admin-status ${onlineStatusClass}">${online ? "Online" : "Offline"}</span>
                   <span class="admin-status ${banStatusClass}">${escapeHtml(banText)}</span>
+                  <span class="admin-status ${chatMuteStatusClass}">${escapeHtml(chatMuteText)}</span>
                   <span class="admin-status neutral">Blocks ${invTotal}</span>
                 </div>
                 <div class="admin-sub">${escapeHtml(accountId)}</div>
               </div>
               <div class="admin-actions-row">
-                <button data-admin-act="viewinv" data-account-id="${escapeHtml(accountId)}">View Inv</button>
+                ${quickButtons.join("")}
               </div>
             </div>
           `;
@@ -2680,6 +2817,7 @@
         adminAccountsEl.querySelectorAll(".admin-logs-list").forEach((el) => scrollElementToBottom(el));
         adminAccountsEl.querySelectorAll(".admin-anticheat-list").forEach((el) => scrollElementToBottom(el));
         updateAdminConsoleOptionVisibility();
+        updateAdminConsoleSelectionSummary();
       }
 
       function buildAdminConsoleOptionRows(action) {
@@ -2770,6 +2908,22 @@
         }
       }
 
+      function updateAdminConsoleSelectionSummary() {
+        const targetSummaryEl = adminAccountsEl.querySelector(".admin-console-target-summary");
+        const actionSummaryEl = adminAccountsEl.querySelector(".admin-console-action-summary");
+        if (!(targetSummaryEl instanceof HTMLElement) || !(actionSummaryEl instanceof HTMLElement)) return;
+        const playerSelectEl = adminAccountsEl.querySelector(".admin-console-player");
+        const actionSelectEl = adminAccountsEl.querySelector(".admin-console-action");
+        const targetLabel = playerSelectEl instanceof HTMLSelectElement
+          ? (playerSelectEl.selectedOptions[0] ? playerSelectEl.selectedOptions[0].text : "")
+          : "";
+        const actionLabel = actionSelectEl instanceof HTMLSelectElement
+          ? (actionSelectEl.selectedOptions[0] ? actionSelectEl.selectedOptions[0].text : "")
+          : "";
+        targetSummaryEl.textContent = "Target: " + (targetLabel || "none");
+        actionSummaryEl.textContent = "Action: " + (actionLabel || "none");
+      }
+
       function updateAdminConsoleOptionVisibility() {
         const actionEl = adminAccountsEl.querySelector(".admin-console-action");
         if (!(actionEl instanceof HTMLSelectElement)) return;
@@ -2798,6 +2952,15 @@
           if (map.reason instanceof HTMLElement) map.reason.classList.remove("hidden");
         } else if (action === "permban") {
           if (map.reason instanceof HTMLElement) map.reason.classList.remove("hidden");
+        } else if (action === "mutechat") {
+          if (map.reason instanceof HTMLElement) map.reason.classList.remove("hidden");
+          const reasonInput = adminAccountsEl.querySelector(".admin-console-reason");
+          if (reasonInput instanceof HTMLInputElement) {
+            const currentReason = String(reasonInput.value || "").trim();
+            if (!currentReason || currentReason.toLowerCase() === "banned by admin" || currentReason.toLowerCase() === "permanently banned by admin") {
+              reasonInput.value = "Muted by admin";
+            }
+          }
         } else if (action === "setrole") {
           if (map.role instanceof HTMLElement) map.role.classList.remove("hidden");
         } else if (action === "give_block") {
@@ -2835,6 +2998,7 @@
           searchEl.placeholder = getAdminConsoleItemSearchPlaceholder(action);
         }
         refreshAdminConsoleItemOptions(action, query);
+        updateAdminConsoleSelectionSummary();
       }
 
       function handleAdminAction(event) {
@@ -2849,6 +3013,7 @@
             const playerSelectEl = adminAccountsEl.querySelector(".admin-console-player");
             if (rowAccountId && playerSelectEl instanceof HTMLSelectElement) {
               playerSelectEl.value = rowAccountId;
+              updateAdminConsoleSelectionSummary();
             }
           }
           return;
@@ -2870,6 +3035,30 @@
           const next = Math.max(1, Math.min(1000000, Math.floor(Number(target.dataset.amount) || 1)));
           amountInput.value = String(next);
           amountInput.dispatchEvent(new Event("input", { bubbles: true }));
+          return;
+        }
+        if (action === "consolepreset") {
+          const actionSelectEl = adminAccountsEl.querySelector(".admin-console-action");
+          if (!(actionSelectEl instanceof HTMLSelectElement)) return;
+          const nextAction = String(target.dataset.action || "").trim();
+          if (!nextAction) return;
+          const hasOption = Array.from(actionSelectEl.options).some((row) => String(row.value || "") === nextAction);
+          if (!hasOption) return;
+          actionSelectEl.value = nextAction;
+          const durationEl = adminAccountsEl.querySelector(".admin-console-duration");
+          if (durationEl instanceof HTMLInputElement && target.dataset.duration) {
+            durationEl.value = String(target.dataset.duration || "").trim() || durationEl.value;
+          }
+          const reasonEl = adminAccountsEl.querySelector(".admin-console-reason");
+          if (reasonEl instanceof HTMLInputElement && target.dataset.reason) {
+            reasonEl.value = String(target.dataset.reason || "").trim() || reasonEl.value;
+          }
+          const amountInput = adminAccountsEl.querySelector(".admin-console-amount");
+          if (amountInput instanceof HTMLInputElement && target.dataset.amount) {
+            const nextAmount = Math.max(1, Math.min(1000000, Math.floor(Number(target.dataset.amount) || 1)));
+            amountInput.value = String(nextAmount);
+          }
+          updateAdminConsoleOptionVisibility();
           return;
         }
         if (action === "togglecommands") {
@@ -2942,6 +3131,20 @@
             return;
           }
           const targetUsername = (adminState.accounts[targetAccountId] && adminState.accounts[targetAccountId].username) || targetAccountId;
+          if (selectedAction === "copy_discord") {
+            const account = adminState.accounts[targetAccountId] || {};
+            const copyText = account.discordUsername
+              ? ("@" + account.discordUsername + (account.discordId ? " (" + account.discordId + ")" : ""))
+              : "";
+            if (!copyText) {
+              postLocalSystemChat("Selected player has no Discord tag.");
+              return;
+            }
+            copyTextToClipboard(copyText).then((ok) => {
+              postLocalSystemChat(ok ? "Copied Discord tag for @" + targetUsername + "." : "Failed to copy Discord tag.");
+            });
+            return;
+          }
           if (selectedAction === "viewinv") {
             openAdminInventoryModal(targetAccountId);
             return;
@@ -2973,6 +3176,22 @@
             const reasonEl = adminAccountsEl.querySelector(".admin-console-reason");
             const reasonText = reasonEl instanceof HTMLInputElement ? reasonEl.value : "Banned by admin";
             applyAdminAction("permban", targetAccountId, "panel", { reason: reasonText });
+            return;
+          }
+          if (selectedAction === "mutechat") {
+            const reasonEl = adminAccountsEl.querySelector(".admin-console-reason");
+            const reasonText = reasonEl instanceof HTMLInputElement ? reasonEl.value : "Muted by admin";
+            const ok = applyAdminAction("mutechat", targetAccountId, "panel", { reason: reasonText });
+            if (ok) {
+              postLocalSystemChat("Chat muted for @" + targetUsername + ".");
+            }
+            return;
+          }
+          if (selectedAction === "unmutechat") {
+            const ok = applyAdminAction("unmutechat", targetAccountId, "panel", {});
+            if (ok) {
+              postLocalSystemChat("Chat unmuted for @" + targetUsername + ".");
+            }
             return;
           }
           if (selectedAction === "give_block") {
@@ -3119,8 +3338,79 @@
           return;
         }
         if (!accountId) return;
+        const playerSelectEl = adminAccountsEl.querySelector(".admin-console-player");
+        if (playerSelectEl instanceof HTMLSelectElement) {
+          playerSelectEl.value = accountId;
+          updateAdminConsoleSelectionSummary();
+        }
         if (action === "viewinv") {
           openAdminInventoryModal(accountId);
+          return;
+        }
+        if (action === "quickcopydiscord") {
+          const copyText = String(target.dataset.copyText || "").trim();
+          const username = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId;
+          if (!copyText) {
+            postLocalSystemChat("No Discord tag on @" + username + ".");
+            return;
+          }
+          copyTextToClipboard(copyText).then((ok) => {
+            postLocalSystemChat(ok ? "Copied Discord tag for @" + username + "." : "Failed to copy Discord tag.");
+          });
+          return;
+        }
+        if (action === "quicktempban") {
+          const username = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId;
+          const durationText = "12h";
+          const durationMs = parseDurationToMs(durationText);
+          const ok = applyAdminAction("tempban", accountId, "panel-quick", {
+            durationMs,
+            reason: "Temporarily banned by admin",
+            rawDuration: durationText
+          });
+          if (ok) {
+            postLocalSystemChat("Temp banned @" + username + " for " + durationText + ".");
+          }
+          return;
+        }
+        if (action === "quickkick") {
+          const username = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId;
+          const ok = applyAdminAction("kick", accountId, "panel-quick");
+          if (ok) {
+            postLocalSystemChat("Kicked @" + username + ".");
+          }
+          return;
+        }
+        if (action === "quickpermban") {
+          const username = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId;
+          const ok = applyAdminAction("permban", accountId, "panel-quick", { reason: "Permanently banned by admin" });
+          if (ok) {
+            postLocalSystemChat("Perm banned @" + username + ".");
+          }
+          return;
+        }
+        if (action === "quickunban") {
+          const username = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId;
+          const ok = applyAdminAction("unban", accountId, "panel-quick");
+          if (ok) {
+            postLocalSystemChat("Unbanned @" + username + ".");
+          }
+          return;
+        }
+        if (action === "quickmutechat") {
+          const username = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId;
+          const ok = applyAdminAction("mutechat", accountId, "panel-quick", { reason: "Muted by admin" });
+          if (ok) {
+            postLocalSystemChat("Chat muted for @" + username + ".");
+          }
+          return;
+        }
+        if (action === "quickunmutechat") {
+          const username = (adminState.accounts[accountId] && adminState.accounts[accountId].username) || accountId;
+          const ok = applyAdminAction("unmutechat", accountId, "panel-quick");
+          if (ok) {
+            postLocalSystemChat("Chat unmuted for @" + username + ".");
+          }
           return;
         }
         if (!network.db) return;
@@ -3212,6 +3502,10 @@
           adminBackupSelectedId = String(target.value || "").trim();
           return;
         }
+        if (target instanceof HTMLSelectElement && target.classList.contains("admin-console-player")) {
+          updateAdminConsoleSelectionSummary();
+          return;
+        }
         if (target instanceof HTMLInputElement && target.classList.contains("admin-console-player-filter")) {
           const select = adminAccountsEl.querySelector(".admin-console-player");
           if (!(select instanceof HTMLSelectElement)) return;
@@ -3228,6 +3522,7 @@
           if (firstVisible && (select.selectedOptions.length === 0 || select.selectedOptions[0].hidden)) {
             select.value = firstVisible;
           }
+          updateAdminConsoleSelectionSummary();
           return;
         }
         if (target instanceof HTMLInputElement && target.classList.contains("admin-console-item-search")) {
@@ -3311,6 +3606,21 @@
         select.disabled = false;
         if (filtered.some((opt) => opt.value === prev)) {
           select.value = prev;
+        }
+      }
+
+      function handleAdminKeydown(event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (event.key !== "Enter") return;
+        const insideConsole = target.closest(".admin-console");
+        if (!(insideConsole instanceof HTMLElement)) return;
+        if (target instanceof HTMLTextAreaElement) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const runButton = adminAccountsEl.querySelector('button[data-admin-act="runconsole"]');
+        if (runButton instanceof HTMLButtonElement && !runButton.disabled) {
+          runButton.click();
         }
       }
 
@@ -3847,11 +4157,12 @@
         const targetRole = getAccountRole(accountId, targetUsername);
         const affectsTarget = action !== "tp";
         const isSelfTarget = accountId === playerProfileId;
-        if (!hasAdminPermission(action)) {
+        const permissionAction = (action === "mutechat" || action === "unmutechat") ? "kick" : action;
+        if (!hasAdminPermission(permissionAction)) {
           postLocalSystemChat("Permission denied for action: " + action);
           return false;
         }
-        if (isSelfTarget && (action === "kick" || action === "tempban" || action === "permban")) {
+        if (isSelfTarget && (action === "kick" || action === "tempban" || action === "permban" || action === "mutechat")) {
           postLocalSystemChat("You cannot use " + action + " on yourself.");
           return false;
         }
@@ -3911,6 +4222,33 @@
             if (!out || !out.ok) return;
             logAdminAudit("Admin(" + sourceTag + ") kicked account " + accountId + ".");
             pushAdminAuditEntry("kick", accountId, "");
+          }).catch(() => {});
+          return true;
+        }
+        if (action === "mutechat") {
+          const durationMs = Math.max(0, Math.floor(Number(options.durationMs) || 0));
+          const reason = (options.reason || "Muted by admin").toString().slice(0, 120);
+          const payload = {
+            muted: true,
+            reason,
+            mutedBy: (playerName || "admin").toString().slice(0, 20),
+            createdAt: Date.now()
+          };
+          if (durationMs > 0) {
+            payload.expiresAt = Date.now() + durationMs;
+          }
+          proxyAdminSet("/" + BASE_PATH + "/chat-mutes/" + accountId, payload).then((out) => {
+            if (!out || !out.ok) return;
+            logAdminAudit("Admin(" + sourceTag + ") muted chat for account " + accountId + ".");
+            pushAdminAuditEntry("mutechat", accountId, durationMs > 0 ? ("durationMs=" + durationMs + " reason=" + reason) : ("reason=" + reason));
+          }).catch(() => {});
+          return true;
+        }
+        if (action === "unmutechat") {
+          proxyAdminRemove("/" + BASE_PATH + "/chat-mutes/" + accountId).then((out) => {
+            if (!out || !out.ok) return;
+            logAdminAudit("Admin(" + sourceTag + ") unmuted chat for account " + accountId + ".");
+            pushAdminAuditEntry("unmutechat", accountId, "");
           }).catch(() => {});
           return true;
         }
@@ -6359,6 +6697,9 @@
         if (network.myBanRef && network.handlers.myBan) {
           network.myBanRef.off("value", network.handlers.myBan);
         }
+        if (network.myChatMuteRef && network.handlers.myChatMute) {
+          network.myChatMuteRef.off("value", network.handlers.myChatMute);
+        }
         if (network.accountsRef && network.handlers.adminAccounts) {
           network.accountsRef.off("value", network.handlers.adminAccounts);
         }
@@ -6373,6 +6714,9 @@
         }
         if (network.bansRef && network.handlers.adminBans) {
           network.bansRef.off("value", network.handlers.adminBans);
+        }
+        if (network.chatMutesRef && network.handlers.adminChatMutes) {
+          network.chatMutesRef.off("value", network.handlers.adminChatMutes);
         }
         if (network.sessionsRootRef && network.handlers.adminSessions) {
           network.sessionsRootRef.off("value", network.handlers.adminSessions);
@@ -6421,6 +6765,9 @@
           if (network.bansRef && network.handlers.adminBans) {
             network.bansRef.on("value", network.handlers.adminBans);
           }
+          if (network.chatMutesRef && network.handlers.adminChatMutes) {
+            network.chatMutesRef.on("value", network.handlers.adminChatMutes);
+          }
           if (network.sessionsRootRef && network.handlers.adminSessions) {
             network.sessionsRootRef.on("value", network.handlers.adminSessions);
           }
@@ -6446,6 +6793,9 @@
           if (network.bansRef && network.handlers.adminBans) {
             network.bansRef.off("value", network.handlers.adminBans);
           }
+          if (network.chatMutesRef && network.handlers.adminChatMutes) {
+            network.chatMutesRef.off("value", network.handlers.adminChatMutes);
+          }
           if (network.sessionsRootRef && network.handlers.adminSessions) {
             network.sessionsRootRef.off("value", network.handlers.adminSessions);
           }
@@ -6464,6 +6814,7 @@
           adminState.audit = [];
           refreshAuditActionFilterOptions();
           adminState.bans = {};
+          adminState.chatMutes = {};
           adminState.sessions = {};
           adminState.inventories = {};
           antiCheatMessages.length = 0;
@@ -6525,6 +6876,9 @@
         lastHandledPrivateAnnouncementId = "";
         isFrozenByAdmin = false;
         isGodModeByAdmin = false;
+        isChatMutedByAdmin = false;
+        chatMutedReason = "";
+        chatMutedByAdminName = "";
         frozenByAdminBy = "";
         progressionXp = 0;
         progressionLevel = 1;
@@ -6638,6 +6992,12 @@
         if (handleAdminChatCommand(trimmed)) {
           chatInputEl.value = "";
           setChatOpen(false);
+          return;
+        }
+        if (isChatMutedByAdmin) {
+          const byText = chatMutedByAdminName ? (" by @" + chatMutedByAdminName) : "";
+          const reasonText = chatMutedReason ? (" Reason: " + chatMutedReason + ".") : "";
+          postLocalSystemChat("You are chat muted" + byText + "." + reasonText);
           return;
         }
         const text = trimmed.slice(0, 120);
@@ -11799,6 +12159,7 @@
         eventsModule.on(adminAccountsEl, "click", handleAdminAction);
         eventsModule.on(adminAccountsEl, "change", handleAdminInputChange);
         eventsModule.on(adminAccountsEl, "input", handleAdminInputChange);
+        eventsModule.on(adminAccountsEl, "keydown", handleAdminKeydown);
         eventsModule.on(chatSendBtn, "click", () => {
           sendChatMessage();
         });
@@ -11871,11 +12232,13 @@
           network.forceReloadRef = network.db.ref(BASE_PATH + "/system/force-reload");
           network.announcementRef = network.db.ref(BASE_PATH + "/system/announcement");
           network.myBanRef = network.db.ref(BASE_PATH + "/bans/" + playerProfileId);
+          network.myChatMuteRef = network.db.ref(BASE_PATH + "/chat-mutes/" + playerProfileId);
           network.accountsRef = network.db.ref(BASE_PATH + "/accounts");
           network.usernamesRef = network.db.ref(BASE_PATH + "/usernames");
           network.adminRolesRef = network.db.ref(BASE_PATH + "/admin-roles");
           network.adminAuditRef = network.db.ref(BASE_PATH + "/admin-audit").limitToLast(120);
           network.bansRef = network.db.ref(BASE_PATH + "/bans");
+          network.chatMutesRef = network.db.ref(BASE_PATH + "/chat-mutes");
           network.sessionsRootRef = network.db.ref(BASE_PATH + "/account-sessions");
           network.inventoriesRootRef = network.db.ref(BASE_PATH + "/player-inventories");
           setNetworkState("Connecting...", false);
@@ -12212,6 +12575,16 @@
             }
             forceLogout("Your account is temporarily banned for " + formatRemainingMs(status.remainingMs) + "." + reasonText);
           };
+          network.handlers.myChatMute = (snapshot) => {
+            const nowMs = Date.now();
+            const status = getChatMuteStatus(snapshot && snapshot.val ? snapshot.val() : null, nowMs);
+            if (status.expired && snapshot && snapshot.ref && typeof snapshot.ref.remove === "function") {
+              snapshot.ref.remove().catch(() => {});
+            }
+            isChatMutedByAdmin = status.active;
+            chatMutedReason = status.reason || "";
+            chatMutedByAdminName = status.mutedBy || "";
+          };
           network.handlers.forceReload = (snapshot) => {
             const value = snapshot.val() || {};
             const eventId = (value.id || "").toString();
@@ -12338,6 +12711,17 @@
               renderAdminPanelFromLiveUpdate();
             });
           };
+          network.handlers.adminChatMutes = (snapshot) => {
+            processReadTaskLatest("admin_chat_mutes", {
+              exists: snapshot.exists(),
+              value: snapshot.val() || {}
+            }, (processed) => {
+              adminState.chatMutes = processed && processed.value && typeof processed.value === "object"
+                ? processed.value
+                : {};
+              renderAdminPanelFromLiveUpdate();
+            });
+          };
           network.handlers.adminSessions = (snapshot) => {
             processReadTaskLatest("admin_sessions", {
               exists: snapshot.exists(),
@@ -12382,6 +12766,7 @@
           network.worldsIndexRef.on("value", network.handlers.worldsIndex);
           network.globalPlayersRef.on("value", network.handlers.globalPlayers);
           network.myBanRef.on("value", network.handlers.myBan);
+          network.myChatMuteRef.on("value", network.handlers.myChatMute);
           network.forceReloadRef.on("value", network.handlers.forceReload);
           network.announcementRef.on("value", network.handlers.announcement);
           network.adminRolesRef.on("value", network.handlers.adminRoles);
