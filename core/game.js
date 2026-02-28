@@ -2381,6 +2381,7 @@
           const label = "@" + username + " [" + role + (online ? ", online" : ", offline") + "]";
           return '<option value="' + escapeHtml(accountId) + '">' + escapeHtml(label) + "</option>";
         }).join("");
+        const canUseGiveAction = hasAdminPermission("give_block") || hasAdminPermission("give_item") || hasAdminPermission("give_title");
         const adminActionOptions = [
           { id: "viewinv", label: "View Inventory", perm: "panel_open" },
           { id: "copy_discord", label: "Copy Discord Tag", perm: "panel_open" },
@@ -2395,11 +2396,7 @@
           { id: "unfreeze", label: "Unfreeze", perm: "unfreeze" },
           { id: "godmode", label: "Godmode", perm: "godmode" },
           { id: "setrole", label: "Set Role", perm: hasAdminPermission("setrole") ? "setrole" : "setrole_limited" },
-          { id: "give_block", label: "Give Block", perm: "give_block" },
-          { id: "give_farmable", label: "Give Farmable", perm: "give_block" },
-          { id: "give_seed", label: "Give Seed", perm: "give_block" },
-          { id: "give_item", label: "Give Cosmetic", perm: "give_item" },
-          { id: "give_title", label: "Add Title", perm: "give_title" },
+          ...(canUseGiveAction ? [{ id: "give", label: "Give", perm: "panel_open" }] : []),
           { id: "remove_title", label: "Remove Title", perm: "remove_title" },
           { id: "reach", label: "Set Reach", perm: "reach" },
           { id: "announce_user", label: "Private Announcement", perm: "announce_user" },
@@ -2410,11 +2407,7 @@
           return '<option value="' + escapeHtml(row.id) + '">' + escapeHtml(row.label) + "</option>";
         }).join("");
         const backupOptionsMarkup = getAdminBackupOptionsMarkup();
-        const consoleBlockOptions = buildAdminConsoleOptionRows("give_block");
-        const consoleFarmableOptions = buildAdminConsoleOptionRows("give_farmable");
-        const consoleSeedOptions = buildAdminConsoleOptionRows("give_seed");
-        const consoleItemOptions = buildAdminConsoleOptionRows("give_item");
-        const consoleTitleOptions = buildAdminConsoleOptionRows("give_title");
+        const consoleGiveOptions = buildAdminConsoleOptionRows("give");
         const adminConsoleMarkup = `
           <div class="admin-console admin-card">
             <div class="admin-card-header">
@@ -2452,34 +2445,10 @@
                   ${assignable.map((r) => '<option value="' + escapeHtml(r) + '">' + escapeHtml(r) + "</option>").join("")}
                 </select>
               </div>
-              <div class="admin-console-opt admin-console-opt-block hidden admin-console-field">
-                <label>Block</label>
-                <select class="admin-console-block">
-                  ${consoleBlockOptions.map((row) => '<option value="' + escapeHtml(row.value) + '">' + escapeHtml(row.label) + "</option>").join("")}
-                </select>
-              </div>
-              <div class="admin-console-opt admin-console-opt-farmable hidden admin-console-field">
-                <label>Farmable</label>
-                <select class="admin-console-farmable">
-                  ${consoleFarmableOptions.map((row) => '<option value="' + escapeHtml(row.value) + '">' + escapeHtml(row.label) + "</option>").join("")}
-                </select>
-              </div>
-              <div class="admin-console-opt admin-console-opt-seed hidden admin-console-field">
-                <label>Seed</label>
-                <select class="admin-console-seed">
-                  ${consoleSeedOptions.map((row) => '<option value="' + escapeHtml(row.value) + '">' + escapeHtml(row.label) + "</option>").join("")}
-                </select>
-              </div>
-              <div class="admin-console-opt admin-console-opt-item hidden admin-console-field">
-                <label>Cosmetic</label>
-                <select class="admin-console-item">
-                  ${consoleItemOptions.map((row) => '<option value="' + escapeHtml(row.value) + '">' + escapeHtml(row.label) + "</option>").join("")}
-                </select>
-              </div>
-              <div class="admin-console-opt admin-console-opt-title hidden admin-console-field">
-                <label>Title</label>
-                <select class="admin-console-title">
-                  ${consoleTitleOptions.map((row) => '<option value="' + escapeHtml(row.value) + '">' + escapeHtml(row.label) + "</option>").join("")}
+              <div class="admin-console-opt admin-console-opt-give hidden admin-console-field admin-console-field-wide">
+                <label>Item</label>
+                <select class="admin-console-give">
+                  ${consoleGiveOptions.map((row) => '<option value="' + escapeHtml(row.value) + '">' + escapeHtml(row.label) + "</option>").join("")}
                 </select>
               </div>
               <div class="admin-console-opt admin-console-opt-amount hidden admin-console-field">
@@ -2830,24 +2799,68 @@
             const name = String(title && title.name || id || "Title");
             return { value: id, label: name + " (" + id + ")" };
           });
+        } else if (safeAction === "give") {
+          const merged = [];
+          if (hasAdminPermission("give_block")) {
+            NORMAL_BLOCK_INVENTORY_IDS.forEach((id) => {
+              const key = getBlockKeyById(id);
+              const name = blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Block " + id);
+              merged.push({ value: "block:" + key, label: "[Block] " + name + " (" + key + ")" });
+            });
+            FARMABLE_INVENTORY_IDS.forEach((id) => {
+              const key = getBlockKeyById(id);
+              const name = blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Farmable " + id);
+              merged.push({ value: "block:" + key, label: "[Farmable] " + name + " (" + key + ")" });
+            });
+            SEED_INVENTORY_IDS.forEach((id) => {
+              const key = getBlockKeyById(id);
+              const name = blockDefs[id] && blockDefs[id].name ? blockDefs[id].name : ("Seed " + id);
+              merged.push({ value: "block:" + key, label: "[Seed] " + name + " (" + key + ")" });
+            });
+          }
+          if (hasAdminPermission("give_item")) {
+            COSMETIC_ITEMS.forEach((item) => {
+              const id = String(item && item.id || "");
+              const name = String(item && item.name || id || "Cosmetic");
+              merged.push({ value: "cosmetic:" + id, label: "[Cosmetic] " + name + " (" + id + ")" });
+            });
+          }
+          if (hasAdminPermission("give_title")) {
+            TITLE_CATALOG.forEach((title) => {
+              const id = String(title && title.id || "");
+              const name = String(title && title.name || id || "Title");
+              merged.push({ value: "title:" + id, label: "[Title] " + name + " (" + id + ")" });
+            });
+          }
+          rows = merged;
         }
         rows = rows.filter((row) => row && row.value && row.label);
+        const dedup = new Map();
+        rows.forEach((row) => {
+          const key = String(row.value || "");
+          if (!key || dedup.has(key)) return;
+          dedup.set(key, row);
+        });
+        rows = Array.from(dedup.values());
         rows.sort((a, b) => String(a.label || "").localeCompare(String(b.label || ""), undefined, { sensitivity: "base" }));
         return rows;
       }
 
       function getAdminConsoleSelectByAction(action) {
         const safeAction = String(action || "");
+        if (safeAction === "give" || safeAction === "remove_title") return adminAccountsEl.querySelector(".admin-console-give");
         if (safeAction === "give_block") return adminAccountsEl.querySelector(".admin-console-block");
         if (safeAction === "give_farmable") return adminAccountsEl.querySelector(".admin-console-farmable");
         if (safeAction === "give_seed") return adminAccountsEl.querySelector(".admin-console-seed");
         if (safeAction === "give_item") return adminAccountsEl.querySelector(".admin-console-item");
-        if (safeAction === "give_title" || safeAction === "remove_title") return adminAccountsEl.querySelector(".admin-console-title");
+        if (safeAction === "give_title") return adminAccountsEl.querySelector(".admin-console-title");
         return null;
       }
 
       function getAdminConsoleItemSearchPlaceholder(action) {
         const safeAction = String(action || "");
+        if (safeAction === "give") return "Search blocks, seeds, cosmetics, and titles";
+        if (safeAction === "remove_title") return "Search titles by name or id";
         if (safeAction === "give_block") return "Search blocks by name or key";
         if (safeAction === "give_farmable") return "Search farmables by name or key";
         if (safeAction === "give_seed") return "Search seeds by name or key";
@@ -2893,11 +2906,7 @@
           duration: adminAccountsEl.querySelector(".admin-console-opt-duration"),
           reason: adminAccountsEl.querySelector(".admin-console-opt-reason"),
           role: adminAccountsEl.querySelector(".admin-console-opt-role"),
-          block: adminAccountsEl.querySelector(".admin-console-opt-block"),
-          farmable: adminAccountsEl.querySelector(".admin-console-opt-farmable"),
-          seed: adminAccountsEl.querySelector(".admin-console-opt-seed"),
-          item: adminAccountsEl.querySelector(".admin-console-opt-item"),
-          title: adminAccountsEl.querySelector(".admin-console-opt-title"),
+          give: adminAccountsEl.querySelector(".admin-console-opt-give"),
           itemSearch: adminAccountsEl.querySelector(".admin-console-opt-item-search"),
           amount: adminAccountsEl.querySelector(".admin-console-opt-amount"),
           backup: adminAccountsEl.querySelector(".admin-console-opt-backup"),
@@ -2924,25 +2933,9 @@
           }
         } else if (action === "setrole") {
           if (map.role instanceof HTMLElement) map.role.classList.remove("hidden");
-        } else if (action === "give_block") {
+        } else if (action === "give" || action === "remove_title") {
           if (map.itemSearch instanceof HTMLElement) map.itemSearch.classList.remove("hidden");
-          if (map.block instanceof HTMLElement) map.block.classList.remove("hidden");
-          if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
-        } else if (action === "give_farmable") {
-          if (map.itemSearch instanceof HTMLElement) map.itemSearch.classList.remove("hidden");
-          if (map.farmable instanceof HTMLElement) map.farmable.classList.remove("hidden");
-          if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
-        } else if (action === "give_seed") {
-          if (map.itemSearch instanceof HTMLElement) map.itemSearch.classList.remove("hidden");
-          if (map.seed instanceof HTMLElement) map.seed.classList.remove("hidden");
-          if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
-        } else if (action === "give_item") {
-          if (map.itemSearch instanceof HTMLElement) map.itemSearch.classList.remove("hidden");
-          if (map.item instanceof HTMLElement) map.item.classList.remove("hidden");
-          if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
-        } else if (action === "give_title" || action === "remove_title") {
-          if (map.itemSearch instanceof HTMLElement) map.itemSearch.classList.remove("hidden");
-          if (map.title instanceof HTMLElement) map.title.classList.remove("hidden");
+          if (map.give instanceof HTMLElement) map.give.classList.remove("hidden");
           if (map.amount instanceof HTMLElement) map.amount.classList.remove("hidden");
         } else if (action === "reach") {
           if (map.reach instanceof HTMLElement) map.reach.classList.remove("hidden");
@@ -3129,74 +3122,77 @@
             }
             return;
           }
-          if (selectedAction === "give_block") {
-            const blockEl = adminAccountsEl.querySelector(".admin-console-block");
+          if (selectedAction === "give") {
+            const giveEl = adminAccountsEl.querySelector(".admin-console-give");
             const amountEl = adminAccountsEl.querySelector(".admin-console-amount");
-            if (!(blockEl instanceof HTMLSelectElement) || !(amountEl instanceof HTMLInputElement)) return;
-            const blockRef = blockEl.value || "";
+            if (!(giveEl instanceof HTMLSelectElement) || !(amountEl instanceof HTMLInputElement)) return;
+            const selectedValue = String(giveEl.value || "").trim();
             const amount = Number(amountEl.value);
-            const safeId = parseBlockRef(blockRef);
-            if (!NORMAL_BLOCK_INVENTORY_IDS.includes(safeId)) {
-              postLocalSystemChat("Selected block is not a normal block.");
+            if (!selectedValue) {
+              postLocalSystemChat("Select an item to give.");
               return;
             }
-            const ok = applyInventoryGrant(targetAccountId, blockRef, amount, "panel", targetUsername);
-            if (ok) {
-              postLocalSystemChat("Added " + amount + " of block " + blockRef + " to @" + targetUsername + ".");
+            let grantType = "";
+            let grantRef = "";
+            const separatorIndex = selectedValue.indexOf(":");
+            if (separatorIndex > 0) {
+              grantType = selectedValue.slice(0, separatorIndex).toLowerCase();
+              grantRef = selectedValue.slice(separatorIndex + 1).trim();
+            } else {
+              const legacyValue = selectedValue.trim();
+              if (TITLE_LOOKUP[legacyValue]) {
+                grantType = "title";
+                grantRef = legacyValue;
+              } else if (COSMETIC_ITEMS.some((item) => String(item && item.id || "") === legacyValue)) {
+                grantType = "cosmetic";
+                grantRef = legacyValue;
+              } else {
+                grantType = "block";
+                grantRef = legacyValue;
+              }
             }
-            return;
-          }
-          if (selectedAction === "give_farmable") {
-            const farmableEl = adminAccountsEl.querySelector(".admin-console-farmable");
-            const amountEl = adminAccountsEl.querySelector(".admin-console-amount");
-            if (!(farmableEl instanceof HTMLSelectElement) || !(amountEl instanceof HTMLInputElement)) return;
-            const blockRef = farmableEl.value || "";
-            const amount = Number(amountEl.value);
-            const safeId = parseBlockRef(blockRef);
-            if (!FARMABLE_INVENTORY_IDS.includes(safeId)) {
-              postLocalSystemChat("Selected block is not a farmable.");
+            if (!grantRef) {
+              postLocalSystemChat("Invalid give selection.");
               return;
             }
-            const ok = applyInventoryGrant(targetAccountId, blockRef, amount, "panel", targetUsername);
-            if (ok) {
-              postLocalSystemChat("Added " + amount + " of farmable " + blockRef + " to @" + targetUsername + ".");
+            if (grantType === "block") {
+              const ok = applyInventoryGrant(targetAccountId, grantRef, amount, "panel", targetUsername);
+              if (ok) {
+                postLocalSystemChat("Added " + amount + " of block " + grantRef + " to @" + targetUsername + ".");
+              }
+              return;
             }
+            if (grantType === "cosmetic") {
+              const ok = applyCosmeticItemGrant(targetAccountId, grantRef, amount, "panel", targetUsername);
+              if (ok) {
+                postLocalSystemChat("Added item " + grantRef + " x" + amount + " to @" + targetUsername + ".");
+              }
+              return;
+            }
+            if (grantType === "title") {
+              const ok = applyTitleGrant(targetAccountId, grantRef, amount, "panel", targetUsername, false);
+              if (ok) {
+                postLocalSystemChat("Added title " + grantRef + " x" + amount + " to @" + targetUsername + ".");
+              }
+              return;
+            }
+            postLocalSystemChat("Unsupported give type.");
             return;
           }
-          if (selectedAction === "give_seed") {
-            const seedEl = adminAccountsEl.querySelector(".admin-console-seed");
+          if (selectedAction === "remove_title") {
+            const giveEl = adminAccountsEl.querySelector(".admin-console-give");
             const amountEl = adminAccountsEl.querySelector(".admin-console-amount");
-            if (!(seedEl instanceof HTMLSelectElement) || !(amountEl instanceof HTMLInputElement)) return;
-            const seedRef = seedEl.value || "";
+            if (!(giveEl instanceof HTMLSelectElement) || !(amountEl instanceof HTMLInputElement)) return;
+            const selectedValue = String(giveEl.value || "").trim();
             const amount = Number(amountEl.value);
-            const ok = applyInventoryGrant(targetAccountId, seedRef, amount, "panel", targetUsername);
-            if (ok) {
-              postLocalSystemChat("Added " + amount + " of seed " + seedRef + " to @" + targetUsername + ".");
+            const titleId = selectedValue.startsWith("title:") ? selectedValue.slice(6).trim() : selectedValue;
+            if (!titleId) {
+              postLocalSystemChat("Select a title to remove.");
+              return;
             }
-            return;
-          }
-          if (selectedAction === "give_item") {
-            const itemEl = adminAccountsEl.querySelector(".admin-console-item");
-            const amountEl = adminAccountsEl.querySelector(".admin-console-amount");
-            if (!(itemEl instanceof HTMLSelectElement) || !(amountEl instanceof HTMLInputElement)) return;
-            const itemId = itemEl.value || "";
-            const amount = Number(amountEl.value);
-            const ok = applyCosmeticItemGrant(targetAccountId, itemId, amount, "panel", targetUsername);
+            const ok = applyTitleGrant(targetAccountId, titleId, amount, "panel", targetUsername, true);
             if (ok) {
-              postLocalSystemChat("Added item " + itemId + " x" + amount + " to @" + targetUsername + ".");
-            }
-            return;
-          }
-          if (selectedAction === "give_title" || selectedAction === "remove_title") {
-            const titleEl = adminAccountsEl.querySelector(".admin-console-title");
-            const amountEl = adminAccountsEl.querySelector(".admin-console-amount");
-            if (!(titleEl instanceof HTMLSelectElement) || !(amountEl instanceof HTMLInputElement)) return;
-            const titleId = titleEl.value || "";
-            const amount = Number(amountEl.value);
-            const removeMode = selectedAction === "remove_title";
-            const ok = applyTitleGrant(targetAccountId, titleId, amount, "panel", targetUsername, removeMode);
-            if (ok) {
-              postLocalSystemChat((removeMode ? "Removed title " : "Added title ") + titleId + " x" + amount + (removeMode ? " from @" : " to @") + targetUsername + ".");
+              postLocalSystemChat("Removed title " + titleId + " x" + amount + " from @" + targetUsername + ".");
             }
             return;
           }
