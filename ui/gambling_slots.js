@@ -257,6 +257,62 @@ window.GTModules = window.GTModules || {};
     return result;
   }
 
+  function simulateSixSixSix(machine, bet, state = {}) {
+
+  const pool = ["SKULL","BLOOD","REAPR","WILD","SCAT"];
+  const reelsCount = machine.reels;
+  const rows = machine.rows;
+
+  if (!state.grid) {
+    state.grid = Array.from({length: rows}, () =>
+      Array.from({length: reelsCount}, () =>
+        pool[Math.floor(Math.random()*pool.length)]
+      )
+    );
+  }
+
+  // --- Sticky wild mechanic ---
+  let newWild = false;
+
+  for (let r=0;r<rows;r++){
+    for (let c=0;c<reelsCount;c++){
+      if (state.grid[r][c] === "WILD") continue;
+
+      if (Math.random() < 0.18) {
+        state.grid[r][c] = "WILD";
+        newWild = true;
+      }
+    }
+  }
+
+  // --- payout calculation ---
+  let payout = 0;
+
+  let wildCount = 0;
+  state.grid.forEach(row =>
+    row.forEach(s => { if (s==="WILD") wildCount++; })
+  );
+
+  payout += wildCount * bet * 0.5;
+
+  // --- respin logic ---
+  if (newWild) {
+    state.respins = (state.respins || 0) + 1;
+    state.next = true;
+  } else {
+    state.next = false;
+  }
+
+  return {
+    reels: state.grid.flat(),
+    payoutWanted: payout,
+    outcome: payout>0 ? "win":"lose",
+    lineWins: [`${wildCount} wilds`],
+    lineIds:[1],
+    state
+  };
+}
+
   function resolveLockCurrencies() {
     const fallback = [
       { id: 42, key: "emerald_lock", value: 10000, short: "EL" },
