@@ -1397,7 +1397,6 @@ if (wrap instanceof HTMLElement) {
 
   function init() {
     bindEvents();
-    renderAll();
 
     const saved = loadSavedCredentials();
     if (els.authUsername instanceof HTMLInputElement && saved.username) els.authUsername.value = String(saved.username || "").slice(0, 20);
@@ -1413,7 +1412,8 @@ if (wrap instanceof HTMLElement) {
         typeName: def.name,
         reels: def.reels,
         rows: def.rows,
-        maxPayoutMultiplier: def.maxPayoutMultiplier
+        maxPayoutMultiplier: def.maxPayoutMultiplier,
+        stats: { ...STANDALONE_MACHINE.stats }
       };
     });
     state.selectedMachineKey = state.machines[0].tileKey;
@@ -1423,6 +1423,7 @@ if (wrap instanceof HTMLElement) {
     // If we have saved credentials, we might want to auto-login or just show login screen pre-filled.
     // For now, we show login screen.
     switchView("login");
+    renderAll();
   }
 
   init();
