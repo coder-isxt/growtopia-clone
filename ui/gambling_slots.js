@@ -294,7 +294,14 @@ window.GTModules = window.GTModules || {};
   };
 
   function simulateSixSixSix(machine, bet, buyBonus) {
-    const pool = ["SKULL", "BONE", "REAPR", "BLOOD", "PENT", "WILD"];
+    const pool = [
+      ...Array(15).fill("SKULL"),
+      ...Array(12).fill("BONE"),
+      ...Array(10).fill("BLOOD"),
+      ...Array(6).fill("PENT"),
+      ...Array(3).fill("REAPR"),
+      ...Array(2).fill("WILD")
+    ];
     const reelsCount = 5;
     const rows = 4;
 
@@ -302,6 +309,9 @@ window.GTModules = window.GTModules || {};
     let lines = [];
     let lineIds = [];
     let totalMult = 0;
+
+    // High volatility prob adjustments
+    const sixProb = buyBonus ? 0.045 : 0.012; // Far lower drop rate to ensure big swings
 
     // Generate grid
     let grid = [];
@@ -311,8 +321,8 @@ window.GTModules = window.GTModules || {};
         let sym = pool[Math.floor(Math.random() * pool.length)];
 
         // "6" symbols only appear on reels 1, 3, 5 (cols 0, 2, 4)
-        if ((c === 0 || c === 2 || c === 4) && Math.random() < (buyBonus ? 0.15 : 0.05)) {
-          sym = Math.random() < 0.25 ? "RED_6" : "BLU_6";
+        if ((c === 0 || c === 2 || c === 4) && Math.random() < sixProb) {
+          sym = Math.random() < 0.12 ? "RED_6" : "BLU_6";
         }
         rowSymbols.push(sym);
       }
