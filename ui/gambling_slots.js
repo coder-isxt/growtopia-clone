@@ -107,6 +107,7 @@ window.GTModules = window.GTModules || {};
     handlers: { inventory: null },
     spinBusy: false,
     spinTimer: 0,
+    currentBetValue: 1,
     ephemeral: { rows: null, lineIds: [], lineWins: [] }
   };
 
@@ -123,8 +124,7 @@ window.GTModules = window.GTModules || {};
     walletLabel: document.getElementById("walletLabel"),
     machineSelect: document.getElementById("machineSelect"),
     machineList: document.getElementById("machineList"),
-    betInput: document.getElementById("betInput"),
-    setMaxBtn: document.getElementById("setMaxBtn"),
+    currentBetDisplay: document.getElementById("currentBetDisplay"),
     spinBtn: document.getElementById("spinBtn"),
     bjHitBtn: document.getElementById("bjHitBtn"),
     bjStandBtn: document.getElementById("bjStandBtn"),
@@ -978,7 +978,6 @@ window.GTModules = window.GTModules || {};
       if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: 0 WL";
       if (els.stage instanceof HTMLElement) els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6");
       if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.disabled = true;
-      if (els.setMaxBtn instanceof HTMLButtonElement) els.setMaxBtn.disabled = true;
       if (els.buyBonusBtn instanceof HTMLButtonElement) {
         els.buyBonusBtn.classList.add("hidden");
         els.buyBonusBtn.disabled = true;
@@ -1004,23 +1003,15 @@ window.GTModules = window.GTModules || {};
     const bjState = machine.stats.blackjackState;
     const activeHand = (bjState && bjState.hands && bjState.hands[bjState.activeHandIndex]) || null;
 
-    const bet = clampBetToMachine(machine, els.betInput && els.betInput.value);
-    if (els.betInput instanceof HTMLInputElement) {
-      const min = machine.minBet;
-      const max = Math.max(min, getSpinMaxBet(machine));
-      els.betInput.min = String(min);
-      els.betInput.max = String(max);
-      // Only update value if not busy to avoid jumping while typing
-      if (!state.spinBusy && (!bjState || !bjState.active)) {
-        els.betInput.value = String(bet);
-      }
-      els.betInput.disabled = state.spinBusy || (isBlackjack && bjState && bjState.active);
+    const bet = clampBetToMachine(machine, state.currentBetValue);
+
+    if (els.currentBetDisplay instanceof HTMLElement) {
+      els.currentBetDisplay.textContent = bet + " WL";
     }
+
     const maxStake = Math.max(machine.minBet, getSpinMaxBet(machine));
     const busyByOther = Boolean(machine.inUseAccountId && machine.inUseAccountId !== (state.user && state.user.accountId));
-    const canBet = !state.spinBusy && !busyByOther && maxStake >= machine.minBet && state.walletLocks >= machine.minBet;
-
-    if (els.setMaxBtn instanceof HTMLButtonElement) els.setMaxBtn.disabled = !canBet || (isBlackjack && bjState && bjState.active);
+    const canBet = !state.spinBusy && !busyByOther && maxStake >= machine.minBet && state.walletLocks >= bet;
 
     // Blackjack specific buttons
     if (els.bjHitBtn) els.bjHitBtn.classList.toggle("hidden", !isBlackjack);
@@ -1051,10 +1042,9 @@ window.GTModules = window.GTModules || {};
     if (els.buyBonusBtn instanceof HTMLButtonElement) {
       els.buyBonusBtn.classList.toggle("hidden", !buyEnabled);
       if (buyEnabled) {
-        const cost = clampBetToMachine(machine, els.betInput && els.betInput.value) * 10;
+        const cost = bet * 10;
         els.buyBonusBtn.textContent = "Buy Bonus " + cost + " WL";
-        const buyCost = clampBetToMachine(machine, els.betInput && els.betInput.value) * 10;
-        els.buyBonusBtn.disabled = !canBet || state.walletLocks < buyCost;
+        els.buyBonusBtn.disabled = !canBet || state.walletLocks < cost;
       }
     }
   }
@@ -1218,7 +1208,7 @@ window.GTModules = window.GTModules || {};
     if (action === 'deal') {
       if (els.lastWinLabel) els.lastWinLabel.classList.add("hidden");
       if (bj.active) return;
-      const bet = clampBetToMachine(machine, els.betInput && els.betInput.value);
+      const bet = clampBetToMachine(machine, state.currentBetValue);
       if (state.walletLocks < bet) return;
 
       // Deduct bet
@@ -1391,7 +1381,7 @@ window.GTModules = window.GTModules || {};
 
     const buyBonus = mode === "buybonus" && machine.type === "slots_v2";
     const buyX = buyBonus ? 10 : 1;
-    const bet = clampBetToMachine(machine, els.betInput && els.betInput.value);
+    const bet = clampBetToMachine(machine, state.currentBetValue);
     const maxByBank = getSpinMaxBet(machine);
     if (bet > maxByBank) {
       return;
@@ -1704,28 +1694,24 @@ window.GTModules = window.GTModules || {};
       });
     }
 
-    if (els.setMaxBtn instanceof HTMLButtonElement) {
-      els.setMaxBtn.addEventListener("click", () => {
-        const machine = getSelectedMachine();
-        if (!machine || !(els.betInput instanceof HTMLInputElement)) return;
-        els.betInput.value = String(Math.max(machine.minBet, getSpinMaxBet(machine)));
-        renderMachineStats();
-      });
-    }
-
     const betBtns = document.querySelectorAll(".bet-btn");
     betBtns.forEach(btn => {
       btn.addEventListener("click", (e) => {
         const machine = getSelectedMachine();
-        if (!machine || !(els.betInput instanceof HTMLInputElement)) return;
+        if (!machine) return;
+
+        // Prevent changing bet while spin is active or BJ is active
+        if (state.spinBusy) return;
+        if (machine.type === 'blackjack' && machine.stats.blackjackState && machine.stats.blackjackState.active) return;
 
         let target = e.target;
-        // fallback in case of nested spans
         if (!target.dataset.bet && target.parentElement.dataset.bet) target = target.parentElement;
 
         const val = parseInt(target.dataset.bet, 10);
         if (!isNaN(val)) {
-          els.betInput.value = String(clampBetToMachine(machine, val));
+          state.currentBetValue = val;
+          betBtns.forEach(b => b.classList.remove("active"));
+          target.classList.add("active");
           renderMachineStats();
         }
       });
@@ -1739,19 +1725,7 @@ window.GTModules = window.GTModules || {};
     if (els.bjDoubleBtn) els.bjDoubleBtn.addEventListener("click", () => runBlackjackAction("double"));
     if (els.bjSplitBtn) els.bjSplitBtn.addEventListener("click", () => runBlackjackAction("split"));
 
-    if (els.betInput instanceof HTMLInputElement) {
-      els.betInput.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter") return;
-        event.preventDefault();
-        runSpin("spin");
-      });
-      els.betInput.addEventListener("input", () => {
-        const machine = getSelectedMachine();
-        if (!machine) return;
-        els.betInput.value = String(clampBetToMachine(machine, els.betInput.value));
-        renderMachineStats();
-      });
-    }
+
 
     if (els.backToLobbyBtn instanceof HTMLButtonElement) {
       els.backToLobbyBtn.addEventListener("click", () => switchView("lobby"));

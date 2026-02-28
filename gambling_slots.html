@@ -267,6 +267,13 @@
       cursor: pointer;
     }
 
+    .chip.active {
+      border-color: rgba(255, 206, 106, 0.8);
+      color: #ffe9a7;
+      background: rgba(70, 40, 10, 0.9);
+      box-shadow: 0 0 10px rgba(255, 206, 106, 0.3);
+    }
+
     .chip:hover {
       filter: brightness(1.08);
     }
@@ -956,7 +963,7 @@
           <div class="game-controls"
             style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px;">
             <div class="chips" id="betChips" style="justify-content: center;">
-              <span class="chip bet-btn" data-bet="1">1 WL</span>
+              <span class="chip bet-btn active" data-bet="1">1 WL</span>
               <span class="chip bet-btn" data-bet="5">5 WL</span>
               <span class="chip bet-btn" data-bet="10">10 WL</span>
               <span class="chip bet-btn" data-bet="50">50 WL</span>
@@ -968,10 +975,10 @@
             </div>
 
             <div style="display: flex; gap: 10px; align-items: center;">
-              <span style="font-size: 10px; color: #ffcccc;">Bet:</span>
-              <input id="betInput" type="number" min="1" step="1" value="1" placeholder="Bet WL" style="width: 140px;">
+              <span style="font-size: 10px; color: #ffcccc;">Current Bet: <span id="currentBetDisplay"
+                  style="color: #ffce6a; font-weight: bold; font-size: 12px; margin-right: 15px;">1 WL</span></span>
+
               <button id="spinBtn" type="button" style="min-width: 80px; font-weight: bold;">SPIN</button>
-              <button id="setMaxBtn" type="button">Max</button>
               <button id="bjHitBtn" type="button" class="hidden">Hit</button>
               <button id="bjStandBtn" type="button" class="hidden">Stand</button>
               <button id="bjDoubleBtn" type="button" class="hidden">Double</button>
