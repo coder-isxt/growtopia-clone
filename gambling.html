@@ -196,7 +196,7 @@
 
     .summary {
       display: grid;
-      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
       gap: 8px;
       margin-bottom: 12px;
     }
@@ -276,6 +276,76 @@
       font-size: 9px;
     }
 
+    .machine-bank-controls {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .machine-bank-controls input {
+      width: 96px;
+      padding: 7px 8px;
+      font-size: 9px;
+    }
+
+    .machine-bank-controls button {
+      padding: 7px 10px;
+      font-size: 9px;
+    }
+
+    .machine-bank-controls .bank-muted {
+      color: var(--muted);
+      font-size: 8px;
+    }
+
+    .tax-controls {
+      border: 1px solid rgba(111, 164, 235, 0.4);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: rgba(4, 13, 27, 0.55);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .tax-controls input {
+      width: 92px;
+      padding: 8px;
+      font-size: 9px;
+    }
+
+    .tax-controls .tax-note {
+      color: var(--muted);
+      font-size: 8px;
+      line-height: 1.5;
+    }
+
+    .spectate {
+      border: 1px solid rgba(111, 164, 235, 0.4);
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 10px;
+      background: rgba(4, 13, 27, 0.55);
+      min-height: 120px;
+    }
+
+    .spectate-title {
+      color: #afe1ff;
+      font-size: 10px;
+      margin-bottom: 8px;
+    }
+
+    .spectate-body {
+      color: #dbe9ff;
+      font-size: 9px;
+      line-height: 1.7;
+      white-space: pre-line;
+      word-break: break-word;
+    }
+
     .empty {
       padding: 18px;
       color: var(--muted);
@@ -340,7 +410,15 @@
           <div class="summary-box"><span class="k">Machines</span><span class="v" id="sumMachines">0</span></div>
           <div class="summary-box"><span class="k">Total Bank</span><span class="v" id="sumBank">0 WL</span></div>
           <div class="summary-box"><span class="k">Your Machines</span><span class="v" id="sumMine">0</span></div>
+          <div class="summary-box"><span class="k">Your WL</span><span class="v" id="sumWallet">0 WL</span></div>
           <div class="summary-box"><span class="k">Owner Tax</span><span class="v" id="sumTax">0% / 0 WL</span></div>
+        </div>
+
+        <div class="tax-controls hidden" id="taxControls">
+          <span class="tax-note">World owner tax control:</span>
+          <input id="taxPercentInput" type="number" min="0" max="100" step="1" placeholder="Tax %">
+          <button id="saveTaxBtn" type="button">Save Tax</button>
+          <span class="tax-note">Applies to all gambling machine collections in this world.</span>
         </div>
 
         <div class="table-wrap" id="machineTableWrap">
@@ -353,11 +431,18 @@
                 <th>Bank</th>
                 <th>State</th>
                 <th>Max Bet</th>
+                <th>Bank Actions</th>
+                <th>Spectate</th>
               </tr>
             </thead>
             <tbody id="machineTbody"></tbody>
           </table>
           <div class="empty hidden" id="machineEmpty">No machines found in this world.</div>
+        </div>
+
+        <div class="spectate" id="spectatePanel">
+          <div class="spectate-title">Spectate</div>
+          <div class="spectate-body" id="spectateBody">Pick a machine to spectate.</div>
         </div>
       </section>
     </main>
@@ -369,6 +454,7 @@
 
   <script src="config/firebase-config.js"></script>
   <script src="config/settings.js"></script>
+  <script src="items/catalog.js"></script>
   <script src="system/db.js"></script>
   <script src="system/auth.js"></script>
   <script src="system/auth_storage.js"></script>

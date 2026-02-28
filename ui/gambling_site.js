@@ -12,6 +12,7 @@
   const slotsModule = (window.GTModules && window.GTModules.slots) || {};
 
   const MACHINE_DEFS = buildMachineDefinitions();
+  const WORLD_LOCK_ITEM_ID = resolveWorldLockItemId();
 
   const state = {
     db: null,
@@ -24,14 +25,18 @@
     refs: {
       lock: null,
       machines: null,
-      ownerTax: null
+      ownerTax: null,
+      inventoryLocks: null
     },
     handlers: {
       lock: null,
       machines: null,
-      ownerTax: null
+      ownerTax: null,
+      inventoryLocks: null
     },
-    machineSearch: ""
+    machineSearch: "",
+    walletLocks: 0,
+    selectedSpectateTileKey: ""
   };
 
   const els = {
@@ -54,9 +59,14 @@
     sumMachines: document.getElementById("sumMachines"),
     sumBank: document.getElementById("sumBank"),
     sumMine: document.getElementById("sumMine"),
+    sumWallet: document.getElementById("sumWallet"),
     sumTax: document.getElementById("sumTax"),
+    taxControls: document.getElementById("taxControls"),
+    taxPercentInput: document.getElementById("taxPercentInput"),
+    saveTaxBtn: document.getElementById("saveTaxBtn"),
     machineTbody: document.getElementById("machineTbody"),
-    machineEmpty: document.getElementById("machineEmpty")
+    machineEmpty: document.getElementById("machineEmpty"),
+    spectateBody: document.getElementById("spectateBody")
   };
 
   function buildMachineDefinitions() {
@@ -91,6 +101,22 @@
 
   function normalizeUsername(value) {
     return String(value || "").trim().toLowerCase();
+  }
+
+  function resolveWorldLockItemId() {
+    const catalog = (window.GTModules && window.GTModules.itemCatalog) || {};
+    if (typeof catalog.getBlocks === "function") {
+      const rows = catalog.getBlocks();
+      if (Array.isArray(rows)) {
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i] || {};
+          if (String(row.key || "").trim() !== "world_lock") continue;
+          const id = Math.floor(Number(row.id));
+          if (Number.isInteger(id) && id > 0) return id;
+        }
+      }
+    }
+    return 9;
   }
 
   function normalizeWorldId(value) {
@@ -242,9 +268,64 @@
   function normalizeOwnerTax(value) {
     if (!value || typeof value !== "object") return null;
     const percentRaw = value.taxPercent !== undefined ? value.taxPercent : value.percent;
+    const txRaw = Math.floor(Number(value.tx));
+    const tyRaw = Math.floor(Number(value.ty));
     return {
       percent: Math.max(0, Math.min(100, Math.floor(Number(percentRaw) || 0))),
-      earningsLocks: Math.max(0, Math.floor(Number(value.earningsLocks) || 0))
+      earningsLocks: Math.max(0, Math.floor(Number(value.earningsLocks) || 0)),
+      tx: Number.isInteger(txRaw) ? txRaw : -1,
+      ty: Number.isInteger(tyRaw) ? tyRaw : -1,
+      ownerAccountId: String(value.ownerAccountId || "").trim(),
+      ownerName: String(value.ownerName || "").trim().slice(0, 20)
+    };
+  }
+
+  function normalizeMachineStats(value) {
+    const row = value && typeof value === "object" ? value : {};
+    return {
+      plays: Math.max(0, Math.floor(Number(row.plays) || 0)),
+      totalBet: Math.max(0, Math.floor(Number(row.totalBet) || 0)),
+      totalPayout: Math.max(0, Math.floor(Number(row.totalPayout) || 0)),
+      lastPlayerRoll: Math.max(0, Math.floor(Number(row.lastPlayerRoll) || 0)),
+      lastHouseRoll: Math.max(0, Math.floor(Number(row.lastHouseRoll) || 0)),
+      lastPlayerReme: Math.max(0, Math.floor(Number(row.lastPlayerReme) || 0)),
+      lastHouseReme: Math.max(0, Math.floor(Number(row.lastHouseReme) || 0)),
+      lastMultiplier: Math.max(0, Number(row.lastMultiplier) || 0),
+      lastOutcome: String(row.lastOutcome || "").slice(0, 24),
+      lastSlotsText: String(row.lastSlotsText || "").slice(0, 220),
+      lastSlotsSummary: String(row.lastSlotsSummary || "").slice(0, 220),
+      lastSlotsLines: String(row.lastSlotsLines || "").slice(0, 220),
+      lastPlayerName: String(row.lastPlayerName || "").slice(0, 24),
+      lastAt: Math.max(0, Math.floor(Number(row.lastAt) || 0))
+    };
+  }
+
+  function normalizeBlackjackRound(value) {
+    if (!value || typeof value !== "object") return null;
+    const handsRaw = Array.isArray(value.hands) ? value.hands : [];
+    const dealerCardsRaw = Array.isArray(value.dealerCards) ? value.dealerCards : [];
+    return {
+      active: Boolean(value.active),
+      playerName: String(value.playerName || "").slice(0, 20),
+      summary: String(value.summary || "").slice(0, 220),
+      aggregateOutcome: String(value.aggregateOutcome || "").slice(0, 24),
+      totalPayout: Math.max(0, Math.floor(Number(value.totalPayout) || 0)),
+      dealerCards: dealerCardsRaw
+        .map((n) => Math.max(1, Math.min(13, Math.floor(Number(n) || 1))))
+        .slice(0, 16),
+      hands: handsRaw.slice(0, 4).map((handRaw) => {
+        const hand = handRaw && typeof handRaw === "object" ? handRaw : {};
+        const cardsRaw = Array.isArray(hand.cards) ? hand.cards : [];
+        return {
+          cards: cardsRaw
+            .map((n) => Math.max(1, Math.min(13, Math.floor(Number(n) || 1))))
+            .slice(0, 16),
+          bet: Math.max(1, Math.floor(Number(hand.bet) || 1)),
+          done: Boolean(hand.done),
+          outcome: String(hand.outcome || "").slice(0, 24),
+          payout: Math.max(0, Math.floor(Number(hand.payout) || 0))
+        };
+      })
     };
   }
 
@@ -274,7 +355,9 @@
       inUseAccountId: String(raw.inUseAccountId || "").trim(),
       inUseName: String(raw.inUseName || "").trim().slice(0, 20),
       earningsLocks: Math.max(0, Math.floor(Number(raw.earningsLocks) || 0)),
-      updatedAt: Math.max(0, Math.floor(Number(raw.updatedAt) || 0))
+      updatedAt: Math.max(0, Math.floor(Number(raw.updatedAt) || 0)),
+      stats: normalizeMachineStats(raw.stats),
+      blackjackRound: normalizeBlackjackRound(raw.blackjackRound)
     };
   }
 
@@ -321,16 +404,21 @@
     if (state.refs.lock && state.handlers.lock) state.refs.lock.off("value", state.handlers.lock);
     if (state.refs.machines && state.handlers.machines) state.refs.machines.off("value", state.handlers.machines);
     if (state.refs.ownerTax && state.handlers.ownerTax) state.refs.ownerTax.off("value", state.handlers.ownerTax);
+    if (state.refs.inventoryLocks && state.handlers.inventoryLocks) state.refs.inventoryLocks.off("value", state.handlers.inventoryLocks);
 
     state.refs.lock = null;
     state.refs.machines = null;
     state.refs.ownerTax = null;
+    state.refs.inventoryLocks = null;
     state.handlers.lock = null;
     state.handlers.machines = null;
     state.handlers.ownerTax = null;
+    state.handlers.inventoryLocks = null;
     state.worldLock = null;
     state.ownerTax = null;
     state.machines = [];
+    state.walletLocks = 0;
+    state.selectedSpectateTileKey = "";
   }
 
   function renderSummary() {
@@ -343,6 +431,7 @@
     if (els.sumMachines instanceof HTMLElement) els.sumMachines.textContent = String(rows.length);
     if (els.sumBank instanceof HTMLElement) els.sumBank.textContent = String(totalBank) + " WL";
     if (els.sumMine instanceof HTMLElement) els.sumMine.textContent = String(mine);
+    if (els.sumWallet instanceof HTMLElement) els.sumWallet.textContent = String(state.walletLocks) + " WL";
     if (els.sumTax instanceof HTMLElement) els.sumTax.textContent = String(tax.percent) + "% / " + String(tax.earningsLocks) + " WL";
   }
 
@@ -446,12 +535,70 @@
 
       tdMaxBet.appendChild(wrap);
 
+      const tdBankActions = document.createElement("td");
+      const bankWrap = document.createElement("div");
+      bankWrap.className = "machine-bank-controls";
+      const bankAmountInput = document.createElement("input");
+      bankAmountInput.type = "number";
+      bankAmountInput.min = "1";
+      bankAmountInput.step = "1";
+      bankAmountInput.placeholder = "WL amount";
+      bankAmountInput.value = "1";
+      bankAmountInput.dataset.tileKey = machine.tileKey;
+      bankAmountInput.dataset.bankAmount = "1";
+
+      const refillBtn = document.createElement("button");
+      refillBtn.type = "button";
+      refillBtn.textContent = "Refill";
+      refillBtn.dataset.tileKey = machine.tileKey;
+      refillBtn.dataset.act = "refill-bank";
+
+      const withdrawBtn = document.createElement("button");
+      withdrawBtn.type = "button";
+      withdrawBtn.textContent = "Withdraw";
+      withdrawBtn.dataset.tileKey = machine.tileKey;
+      withdrawBtn.dataset.act = "withdraw-bank";
+
+      const emptyBtn = document.createElement("button");
+      emptyBtn.type = "button";
+      emptyBtn.textContent = "Empty";
+      emptyBtn.dataset.tileKey = machine.tileKey;
+      emptyBtn.dataset.act = "empty-bank";
+
+      const canBank = canCollectMachine(machine);
+      bankAmountInput.disabled = !canBank;
+      refillBtn.disabled = !canBank;
+      withdrawBtn.disabled = !canBank;
+      emptyBtn.disabled = !canBank || machine.earningsLocks <= 0;
+
+      bankWrap.appendChild(bankAmountInput);
+      bankWrap.appendChild(refillBtn);
+      bankWrap.appendChild(withdrawBtn);
+      bankWrap.appendChild(emptyBtn);
+      if (!canBank) {
+        const bankMuted = document.createElement("span");
+        bankMuted.className = "bank-muted";
+        bankMuted.textContent = "Machine owner only";
+        bankWrap.appendChild(bankMuted);
+      }
+      tdBankActions.appendChild(bankWrap);
+
+      const tdSpectate = document.createElement("td");
+      const spectateBtn = document.createElement("button");
+      spectateBtn.type = "button";
+      spectateBtn.textContent = state.selectedSpectateTileKey === machine.tileKey ? "Spectating" : "Spectate";
+      spectateBtn.dataset.tileKey = machine.tileKey;
+      spectateBtn.dataset.act = "spectate-machine";
+      tdSpectate.appendChild(spectateBtn);
+
       tr.appendChild(tdTile);
       tr.appendChild(tdType);
       tr.appendChild(tdOwner);
       tr.appendChild(tdBank);
       tr.appendChild(tdState);
       tr.appendChild(tdMaxBet);
+      tr.appendChild(tdBankActions);
+      tr.appendChild(tdSpectate);
       frag.appendChild(tr);
     });
 
@@ -460,8 +607,291 @@
 
   function renderAll() {
     renderScope();
+    renderTaxControls();
     renderSummary();
     renderMachines();
+    renderSpectate();
+  }
+
+  function findMachineByTileKey(tileKey) {
+    const safe = String(tileKey || "");
+    const rows = Array.isArray(state.machines) ? state.machines : [];
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].tileKey === safe) return rows[i];
+    }
+    return null;
+  }
+
+  function formatCard(value) {
+    const c = Math.max(1, Math.min(13, Math.floor(Number(value) || 1)));
+    if (c === 1) return "A";
+    if (c === 11) return "J";
+    if (c === 12) return "Q";
+    if (c === 13) return "K";
+    return String(c);
+  }
+
+  function formatTs(ts) {
+    const safe = Math.max(0, Math.floor(Number(ts) || 0));
+    if (!safe) return "-";
+    const d = new Date(safe);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    const ss = String(d.getSeconds()).padStart(2, "0");
+    return hh + ":" + mm + ":" + ss;
+  }
+
+  function renderSpectate() {
+    if (!(els.spectateBody instanceof HTMLElement)) return;
+    const rows = Array.isArray(state.machines) ? state.machines : [];
+    if (!rows.length) {
+      els.spectateBody.textContent = "No machines to spectate in this world.";
+      return;
+    }
+    let machine = findMachineByTileKey(state.selectedSpectateTileKey);
+    if (!machine) {
+      machine = rows.find((row) => row.inUseAccountId) || rows[0];
+      state.selectedSpectateTileKey = machine ? machine.tileKey : "";
+    }
+    if (!machine) {
+      els.spectateBody.textContent = "Pick a machine to spectate.";
+      return;
+    }
+
+    const stats = machine.stats || {};
+    const lines = [];
+    lines.push("Tile: " + machine.tx + "," + machine.ty + " | " + machine.typeName);
+    lines.push("Owner: " + getMachineOwnerLabel(machine));
+    lines.push("In use: " + (machine.inUseAccountId ? ("yes" + (machine.inUseName ? " by @" + machine.inUseName : "")) : "no"));
+    lines.push("Bank: " + machine.earningsLocks + " WL | Max Bet: " + machine.maxBet + " WL");
+    lines.push("Plays: " + stats.plays + " | Total Bet: " + stats.totalBet + " | Total Payout: " + stats.totalPayout);
+    lines.push("Last Outcome: " + (stats.lastOutcome || "-") + " | Last At: " + formatTs(stats.lastAt));
+
+    if (machine.type === "blackjack" && machine.blackjackRound && machine.blackjackRound.active) {
+      const round = machine.blackjackRound;
+      const dealerCards = round.dealerCards.map((card) => formatCard(card)).join(" ");
+      const handTexts = round.hands.map((hand, index) => {
+        const cards = hand.cards.map((card) => formatCard(card)).join(" ");
+        return "Hand " + (index + 1) + ": [" + cards + "] bet=" + hand.bet + " outcome=" + (hand.outcome || "-");
+      });
+      lines.push("Blackjack: ACTIVE" + (round.playerName ? " @" + round.playerName : ""));
+      lines.push("Dealer: " + (dealerCards || "-"));
+      if (handTexts.length) lines.push(handTexts.join(" | "));
+      if (round.summary) lines.push("Round: " + round.summary);
+    } else if (machine.type.indexOf("slots") === 0) {
+      if (stats.lastSlotsSummary) lines.push("Last Slots: " + stats.lastSlotsSummary);
+      if (stats.lastSlotsLines) lines.push("Lines: " + stats.lastSlotsLines);
+      if (stats.lastSlotsText) lines.push("Board: " + stats.lastSlotsText);
+    } else {
+      if (stats.lastPlayerRoll || stats.lastHouseRoll) {
+        lines.push("Last rolls: player=" + stats.lastPlayerRoll + " house=" + stats.lastHouseRoll);
+        lines.push("Last reme: player=" + stats.lastPlayerReme + " house=" + stats.lastHouseReme + " x" + stats.lastMultiplier);
+      }
+    }
+
+    els.spectateBody.textContent = lines.join("\n");
+  }
+
+  function renderTaxControls() {
+    if (!(els.taxControls instanceof HTMLElement)) return;
+    const show = Boolean(state.user && state.worldId && isWorldLockOwner());
+    els.taxControls.classList.toggle("hidden", !show);
+    if (!show) return;
+    const tax = state.ownerTax;
+    const hasTaxMachine = Boolean(tax && Number.isInteger(tax.tx) && tax.tx >= 0 && Number.isInteger(tax.ty) && tax.ty >= 0);
+    if (els.taxPercentInput instanceof HTMLInputElement) {
+      if (hasTaxMachine) {
+        els.taxPercentInput.disabled = false;
+        els.taxPercentInput.value = String(Math.max(0, Math.min(100, Math.floor(Number(tax && tax.percent) || 0))));
+      } else {
+        els.taxPercentInput.disabled = true;
+        els.taxPercentInput.value = "";
+      }
+    }
+    if (els.saveTaxBtn instanceof HTMLButtonElement) {
+      els.saveTaxBtn.disabled = !hasTaxMachine;
+    }
+  }
+
+  function parsePositiveAmount(rawValue) {
+    const parsed = Math.floor(Number(rawValue));
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+    return parsed;
+  }
+
+  function readTxnNumber(txn, fallback) {
+    const safeFallback = Math.max(0, Math.floor(Number(fallback) || 0));
+    const snap = txn && txn.snapshot ? txn.snapshot : null;
+    const value = snap && typeof snap.val === "function" ? snap.val() : safeFallback;
+    return Math.max(0, Math.floor(Number(value) || 0));
+  }
+
+  async function adjustWalletLocks(amountDelta) {
+    const user = state.user;
+    if (!user || !state.worldId) return { ok: false, reason: "not-ready", amount: 0 };
+    if (!state.refs.inventoryLocks) return { ok: false, reason: "missing-wallet-ref", amount: 0 };
+    const delta = Math.floor(Number(amountDelta) || 0);
+    if (!Number.isInteger(delta) || delta === 0) return { ok: false, reason: "invalid-delta", amount: 0 };
+
+    const txn = await state.refs.inventoryLocks.transaction((currentRaw) => {
+      const current = Math.max(0, Math.floor(Number(currentRaw) || 0));
+      const next = current + delta;
+      if (next < 0) return;
+      return next;
+    });
+
+    if (!txn || !txn.committed) {
+      return { ok: false, reason: delta < 0 ? "not-enough-locks" : "wallet-update-rejected", amount: 0 };
+    }
+    const next = readTxnNumber(txn, state.walletLocks);
+    state.walletLocks = next;
+    return { ok: true, next, amount: Math.abs(delta) };
+  }
+
+  async function refillMachineBank(tileKey, amountRaw) {
+    const machine = findMachineByTileKey(tileKey);
+    if (!machine || !state.user || !state.worldId) return;
+    if (!canCollectMachine(machine)) {
+      makeStatus("Only machine owner can refill the machine.", "error");
+      return;
+    }
+    const amount = parsePositiveAmount(amountRaw);
+    if (!amount) {
+      makeStatus("Invalid refill amount.", "error");
+      return;
+    }
+
+    try {
+      const walletTxn = await adjustWalletLocks(-amount);
+      if (!walletTxn.ok) {
+        makeStatus(walletTxn.reason === "not-enough-locks" ? "Not enough World Locks in your inventory." : "Failed to spend World Locks.", "error");
+        return;
+      }
+
+      const db = await ensureDb();
+      const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
+      const machineRef = db.ref(basePath + "/worlds/" + state.worldId + "/gamble-machines/" + machine.tileKey);
+      const myAccountId = state.user.accountId;
+
+      const txn = await machineRef.transaction((currentRaw) => {
+        const current = normalizeMachineRecord(machine.tileKey, currentRaw);
+        if (!current) return currentRaw;
+        if (!current.ownerAccountId || current.ownerAccountId !== myAccountId) return currentRaw;
+        return {
+          ...currentRaw,
+          earningsLocks: Math.max(0, Math.floor(Number(current.earningsLocks) || 0)) + amount,
+          updatedAt: Date.now()
+        };
+      });
+
+      if (!txn || !txn.committed) {
+        await adjustWalletLocks(amount);
+        makeStatus("Refill rejected. Your WL were refunded.", "error");
+        return;
+      }
+
+      makeStatus("Refilled machine with " + amount + " WL.", "ok");
+    } catch (error) {
+      await adjustWalletLocks(amount);
+      makeStatus((error && error.message) || "Failed to refill machine.", "error");
+    }
+  }
+
+  async function withdrawMachineBank(tileKey, amountRaw, emptyAll) {
+    const machine = findMachineByTileKey(tileKey);
+    if (!machine || !state.user || !state.worldId) return;
+    if (!canCollectMachine(machine)) {
+      makeStatus("Only machine owner can withdraw from the machine.", "error");
+      return;
+    }
+    const requestedAmount = emptyAll
+      ? Math.max(0, Math.floor(Number(machine.earningsLocks) || 0))
+      : parsePositiveAmount(amountRaw);
+    if (!requestedAmount) {
+      makeStatus(emptyAll ? "Machine bank is already empty." : "Invalid withdraw amount.", "error");
+      return;
+    }
+
+    try {
+      const db = await ensureDb();
+      const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
+      const machineRef = db.ref(basePath + "/worlds/" + state.worldId + "/gamble-machines/" + machine.tileKey);
+      const myAccountId = state.user.accountId;
+      let withdrawn = 0;
+
+      const txn = await machineRef.transaction((currentRaw) => {
+        const current = normalizeMachineRecord(machine.tileKey, currentRaw);
+        if (!current) return currentRaw;
+        if (!current.ownerAccountId || current.ownerAccountId !== myAccountId) return currentRaw;
+        const bank = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
+        if (bank <= 0) return currentRaw;
+        const amount = emptyAll ? bank : Math.min(bank, requestedAmount);
+        withdrawn = amount;
+        return {
+          ...currentRaw,
+          earningsLocks: Math.max(0, bank - amount),
+          updatedAt: Date.now()
+        };
+      });
+
+      if (!txn || !txn.committed || withdrawn <= 0) {
+        makeStatus("Withdraw rejected.", "error");
+        return;
+      }
+
+      const walletTxn = await adjustWalletLocks(withdrawn);
+      if (!walletTxn.ok) {
+        await machineRef.transaction((currentRaw) => {
+          const current = normalizeMachineRecord(machine.tileKey, currentRaw);
+          if (!current) return currentRaw;
+          if (!current.ownerAccountId || current.ownerAccountId !== myAccountId) return currentRaw;
+          return {
+            ...currentRaw,
+            earningsLocks: Math.max(0, Math.floor(Number(current.earningsLocks) || 0)) + withdrawn,
+            updatedAt: Date.now()
+          };
+        });
+        makeStatus("Failed to move withdrawn WL to your inventory. Machine bank restored.", "error");
+        return;
+      }
+
+      makeStatus((emptyAll ? "Emptied machine bank: " : "Withdrew ") + withdrawn + " WL.", "ok");
+    } catch (error) {
+      makeStatus((error && error.message) || "Failed to withdraw from machine.", "error");
+    }
+  }
+
+  async function saveTaxPercent() {
+    if (!state.user || !state.worldId) return;
+    if (!isWorldLockOwner()) {
+      makeStatus("Only world owner can modify tax amount.", "error");
+      return;
+    }
+    const tax = state.ownerTax;
+    if (!tax || !Number.isInteger(tax.tx) || tax.tx < 0 || !Number.isInteger(tax.ty) || tax.ty < 0) {
+      makeStatus("Owner tax machine not found in this world.", "error");
+      return;
+    }
+    if (!(els.taxPercentInput instanceof HTMLInputElement)) return;
+    const nextPercent = Math.max(0, Math.min(100, Math.floor(Number(els.taxPercentInput.value) || 0)));
+
+    try {
+      const db = await ensureDb();
+      const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
+      const taxRef = db.ref(basePath + "/worlds/" + state.worldId + "/owner-tax");
+      await taxRef.set({
+        tx: tax.tx,
+        ty: tax.ty,
+        taxPercent: nextPercent,
+        ownerAccountId: String(state.worldLock && state.worldLock.ownerAccountId || state.user.accountId || "").trim(),
+        ownerName: String(state.worldLock && state.worldLock.ownerName || state.user.username || "").trim().slice(0, 20),
+        earningsLocks: Math.max(0, Math.floor(Number(tax.earningsLocks) || 0)),
+        updatedAt: Date.now()
+      });
+      makeStatus("Updated world owner tax to " + nextPercent + "%.", "ok");
+    } catch (error) {
+      makeStatus((error && error.message) || "Failed to save tax amount.", "error");
+    }
   }
 
   function normalizeAdminRole(rawRole) {
@@ -619,6 +1049,7 @@
       state.refs.lock = root.child("lock");
       state.refs.machines = root.child("gamble-machines");
       state.refs.ownerTax = root.child("owner-tax");
+      state.refs.inventoryLocks = db.ref(basePath + "/player-inventories/" + state.user.accountId + "/" + WORLD_LOCK_ITEM_ID);
 
       state.handlers.lock = (snapshot) => {
         state.worldLock = normalizeLockRecord(snapshot.val());
@@ -634,16 +1065,24 @@
           });
         }
         state.machines = rows;
+        if (state.selectedSpectateTileKey && !rows.some((row) => row.tileKey === state.selectedSpectateTileKey)) {
+          state.selectedSpectateTileKey = "";
+        }
         renderAll();
       };
       state.handlers.ownerTax = (snapshot) => {
         state.ownerTax = normalizeOwnerTax(snapshot.val());
         renderAll();
       };
+      state.handlers.inventoryLocks = (snapshot) => {
+        state.walletLocks = Math.max(0, Math.floor(Number(snapshot && snapshot.val ? snapshot.val() : 0) || 0));
+        renderSummary();
+      };
 
       state.refs.lock.on("value", state.handlers.lock);
       state.refs.machines.on("value", state.handlers.machines);
       state.refs.ownerTax.on("value", state.handlers.ownerTax);
+      state.refs.inventoryLocks.on("value", state.handlers.inventoryLocks);
 
       makeStatus("Loaded world " + safeWorldId + ".", "ok");
       renderAll();
@@ -652,15 +1091,6 @@
     } finally {
       setWorldBusy(false);
     }
-  }
-
-  function findMachineByTileKey(tileKey) {
-    const safe = String(tileKey || "");
-    const rows = Array.isArray(state.machines) ? state.machines : [];
-    for (let i = 0; i < rows.length; i++) {
-      if (rows[i].tileKey === safe) return rows[i];
-    }
-    return null;
   }
 
   async function saveMachineMaxBet(tileKey, inputValue) {
@@ -790,13 +1220,52 @@
       els.machineTbody.addEventListener("click", (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        if (target.dataset.act !== "save-maxbet") return;
         const tileKey = String(target.dataset.tileKey || "").trim();
-        if (!tileKey) return;
+        const act = String(target.dataset.act || "").trim();
+        if (!tileKey || !act) return;
 
-        const input = els.machineTbody.querySelector('input[data-tile-key="' + tileKey + '"]');
-        if (!(input instanceof HTMLInputElement)) return;
-        saveMachineMaxBet(tileKey, input.value);
+        if (act === "spectate-machine") {
+          state.selectedSpectateTileKey = tileKey;
+          renderMachines();
+          renderSpectate();
+          return;
+        }
+
+        if (act === "save-maxbet") {
+          const input = els.machineTbody.querySelector('input[data-tile-key="' + tileKey + '"]:not([data-bank-amount])');
+          if (!(input instanceof HTMLInputElement)) return;
+          saveMachineMaxBet(tileKey, input.value);
+          return;
+        }
+
+        if (act === "refill-bank" || act === "withdraw-bank") {
+          const bankInput = els.machineTbody.querySelector('input[data-tile-key="' + tileKey + '"][data-bank-amount]');
+          if (!(bankInput instanceof HTMLInputElement)) return;
+          if (act === "refill-bank") {
+            refillMachineBank(tileKey, bankInput.value);
+          } else {
+            withdrawMachineBank(tileKey, bankInput.value, false);
+          }
+          return;
+        }
+
+        if (act === "empty-bank") {
+          withdrawMachineBank(tileKey, 0, true);
+        }
+      });
+    }
+
+    if (els.saveTaxBtn instanceof HTMLButtonElement) {
+      els.saveTaxBtn.addEventListener("click", () => {
+        saveTaxPercent();
+      });
+    }
+
+    if (els.taxPercentInput instanceof HTMLInputElement) {
+      els.taxPercentInput.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        saveTaxPercent();
       });
     }
 
