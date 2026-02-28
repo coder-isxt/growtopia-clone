@@ -2460,8 +2460,7 @@
                     <button type="button" data-admin-act="setconsoleamount" data-amount="10">10</button>
                     <button type="button" data-admin-act="setconsoleamount" data-amount="50">50</button>
                     <button type="button" data-admin-act="setconsoleamount" data-amount="100">100</button>
-                    <button type="button" data-admin-act="setconsoleamount" data-amount="500">500</button>
-                    <button type="button" data-admin-act="setconsoleamount" data-amount="1000">1000</button>
+                    <button type="button" data-admin-act="setconsoleamount" data-amount="300">300</button>
                   </div>
                 </div>
               </div>
