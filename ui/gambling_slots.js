@@ -526,25 +526,52 @@ window.GTModules = window.GTModules || {};
         const tok = normalizeToken(rows[r] && rows[r][c] ? rows[r][c] : "?");
         const cls = symbolClass(tok);
         const hit = hitMask[r + "_" + c] ? " hit" : "";
-        boardHtml += "<div class=\"cell " + cls + hit + "\"><span class=\"icon\">" + escapeHtml(symbolIcon(tok)) + "</span><span class=\"txt\">" + escapeHtml(symbolLabel(tok)) + "</span></div>";
+        boardHtml += "<div class=\"cell " + cls + hit + "\" data-col=\"" + c + "\" data-row=\"" + r + "\"><span class=\"icon\">" + escapeHtml(symbolIcon(tok)) + "</span><span class=\"txt\">" + escapeHtml(symbolLabel(tok)) + "</span></div>";
       }
       boardHtml += "</div>";
     }
     els.slotBoard.style.setProperty("--cols", String(colCount));
     els.slotBoard.innerHTML = boardHtml;
 
-    let overlay = "";
-    for (let i = 0; i < model.lineIds.length; i++) {
-      const pattern = linePattern(model.lineIds[i], colCount, rowCount, safeMachineType);
-      const points = [];
-      for (let c = 0; c < pattern.length; c++) {
-        const x = ((c + 0.5) / colCount) * 100;
-        const y = ((pattern[c] + 0.5) / rowCount) * 100;
-        points.push(x.toFixed(2) + "," + y.toFixed(2));
-      }
-      overlay += "<polyline points=\"" + points.join(" ") + "\"></polyline>";
+    // --- draw paylines using real DOM cell centers (pixel-perfect) ---
+els.slotOverlay.innerHTML = "";
+
+const wrap = els.boardWrap;
+if (wrap instanceof HTMLElement) {
+  const wrapRect = wrap.getBoundingClientRect();
+
+  // Make SVG coordinate system match boardWrap pixels
+  const w = wrap.clientWidth;
+  const h = wrap.clientHeight;
+  els.slotOverlay.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  els.slotOverlay.setAttribute("width", String(w));
+  els.slotOverlay.setAttribute("height", String(h));
+
+  const getCellCenter = (col, row) => {
+    const el = wrap.querySelector(`.cell[data-col="${col}"][data-row="${row}"]`);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return {
+      x: (r.left - wrapRect.left) + r.width / 2,
+      y: (r.top - wrapRect.top) + r.height / 2
+    };
+  };
+
+  for (let i = 0; i < model.lineIds.length; i++) {
+    const pattern = linePattern(model.lineIds[i], colCount, rowCount, safeMachineType);
+
+    const pts = [];
+    for (let c = 0; c < pattern.length; c++) {
+      const p = getCellCenter(c, pattern[c]);
+      if (p) pts.push(p);
     }
-    els.slotOverlay.innerHTML = overlay;
+    if (pts.length < 2) continue;
+
+    const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    poly.setAttribute("points", pts.map(p => `${p.x},${p.y}`).join(" "));
+    els.slotOverlay.appendChild(poly);
+  }
+}
 
     const lineWins = model.lineWins.length ? model.lineWins : (model.lineIds.length ? model.lineIds.map((id) => "Line " + id) : []);
     if (lineWins.length) {
