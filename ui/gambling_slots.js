@@ -4,7 +4,7 @@ window.GTModules = window.GTModules || {};
   "use strict";
 
   const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
-  const GAME_IDS = ["blackjack", "slots", "slots_v2", "slots_v3", "slots_v4", "slots_v6"];
+  const GAME_IDS = ["blackjack", "slots_v2"];
 
   // This page is now a standalone casino site.
   // World-based machine browsing is on gambling.html
@@ -44,11 +44,7 @@ window.GTModules = window.GTModules || {};
   const INFINITE_BANK = true; // toggle to make all banks infinite in the UI
   const UI_GAME_ALIASES = {
     blackjack: "Blackjack Table",
-    slots: "Nebula Run",
-    slots_v2: "Crystal Forge",
-    slots_v3: "Spectral Vault",
-    slots_v4: "Emerald Oasis",
-    slots_v6: "Quantum Core"
+    slots_v2: "Royal Fortune"
   };
   const PAYLINES_5 = [
     [1, 1, 1, 1, 1],
@@ -219,19 +215,34 @@ window.GTModules = window.GTModules || {};
   // Standalone/casino spin logic
   function simulateStandaloneSpin(machine, bet) {
     const pool = SYMBOL_POOL[machine.type] || SYMBOL_POOL.slots;
-    const reels = [
-      pool[Math.floor(Math.random() * pool.length)],
-      pool[Math.floor(Math.random() * pool.length)],
-      pool[Math.floor(Math.random() * pool.length)]
-    ];
+    const reelsCount = machine.reels || 3;
+    const reels = [];
+    for (let i = 0; i < reelsCount; i++) {
+      reels.push(pool[Math.floor(Math.random() * pool.length)]);
+    }
+
     let payout = 0;
     let lines = [];
-    if (reels[0] === reels[1] && reels[1] === reels[2]) {
-      payout = bet * 10;
-      lines = [1];
-    } else if (reels[0] === reels[1] || reels[1] === reels[2] || reels[0] === reels[2]) {
-      payout = bet * 2;
-      lines = [1];
+    
+    // Simple 5-reel logic: match 3+ from left
+    const first = reels[0];
+    let matchCount = 1;
+    for (let i = 1; i < reels.length; i++) {
+      if (reels[i] === first || reels[i] === "WILD") matchCount++;
+      else break;
+    }
+
+    if (matchCount >= 3) {
+      const mult = matchCount === 5 ? 50 : (matchCount === 4 ? 10 : 2);
+      payout += bet * mult;
+      lines.push(matchCount + "x " + first);
+    }
+
+    // Bonus scatter check
+    const scatters = reels.filter(s => s === "SCAT" || s === "BONUS").length;
+    if (scatters >= 3) {
+      payout += bet * 15;
+      lines.push("Bonus Triggered!");
     }
     const result = {
       reels,
@@ -729,7 +740,7 @@ if (wrap instanceof HTMLElement) {
     return out;
   }
 
-  function startSpinFx(machine) {
+  function startSpinFx(machine, isBonus) {
     stopSpinFx();
     state.spinBusy = true;
     if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
@@ -743,7 +754,7 @@ if (wrap instanceof HTMLElement) {
       tick += 1;
       state.ephemeral.rows = randomRowsForMachine(machine, tick);
       state.ephemeral.lineIds = [];
-      state.ephemeral.lineWins = ["Spinning..."];
+      state.ephemeral.lineWins = [isBonus ? "BONUS BUY..." : "Spinning..."];
       renderBoard();
     }, 90);
   }
@@ -1175,7 +1186,7 @@ if (wrap instanceof HTMLElement) {
       return;
     }
 
-    startSpinFx(machine);
+    startSpinFx(machine, buyBonus);
 
     const debit = await adjustWallet(-wager);
     if (!debit.ok) {
@@ -1191,6 +1202,10 @@ if (wrap instanceof HTMLElement) {
 
     // Standalone / Casino Mode Handling
     if (machine.tileKey.startsWith("demo_")) {
+      if (buyBonus) {
+        await sleep(1500); // Fake bonus delay
+      }
+
       const rawResult = slotsModule.spin(machine.type, bet, buyBonus ? { mode: "buybonus" } : {}) || {};
       const resultWager = Math.max(1, Math.floor(Number(rawResult.bet) || wager));
       const wanted = Math.max(0, Math.floor(Number(rawResult.payoutWanted) || 0));
@@ -1204,6 +1219,11 @@ if (wrap instanceof HTMLElement) {
         if (!lines.length && rawResult.summary) {
           lines.push(String(rawResult.summary));
         }
+      }
+      
+      // Force a win if buying bonus in demo mode for satisfaction
+      if (buyBonus && wanted === 0) {
+         // In a real app we wouldn't force it, but for "animated bonus" feel we might want to ensure something happens
       }
 
       applied = true;
@@ -1237,7 +1257,7 @@ if (wrap instanceof HTMLElement) {
       state.ephemeral.lineWins = resolved.lineWins;
       state.ephemeral.lineIds = resolved.lineIds;
       renderBoard();
-      if (resolved.outcome === "win" || resolved.outcome === "jackpot") {
+      if (resolved.outcome === "win" || resolved.outcome === "jackpot" || buyBonus) {
         if (els.boardWrap instanceof HTMLElement) {
           els.boardWrap.classList.add("winfx");
           window.setTimeout(() => { if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx"); }, 420);
