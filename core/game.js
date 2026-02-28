@@ -139,6 +139,12 @@
         const id = machine ? Math.floor(Number(machine.id) || 0) : 0;
         return id > 0 ? id : 51;
       })();
+      const MANNEQUIN_ID = (() => {
+        const machine = Object.values(blockDefs).find((def) => def && def.key === "mannequin_block");
+        const id = machine ? Math.floor(Number(machine.id) || 0) : 0;
+        return id > 0 ? id : 54;
+      })();
+      const mannequinOutfitsByTile = new Map();
       const isInventoryObtainableBlockId = (id) => {
         if (!Number.isInteger(id) || id <= 0) return false;
         if (id === QUEST_NPC_ID) return false;
@@ -1013,6 +1019,7 @@
             scope.STAIR_ROTATION_IDS = STAIR_ROTATION_IDS;
             scope.SPIKE_ROTATION_IDS = SPIKE_ROTATION_IDS;
             scope.DISPLAY_BLOCK_ID = DISPLAY_BLOCK_ID;
+            scope.MANNEQUIN_BLOCK_ID = MANNEQUIN_ID;
             scope.SIGN_ID = SIGN_ID;
             scope.VENDING_ID = VENDING_ID;
             scope.WATER_ID = WATER_ID;
@@ -1037,6 +1044,7 @@
             scope.getBlockDurability = getBlockDurability;
             scope.isPlantSeedBlockId = isPlantSeedBlockId;
             scope.getLocalDisplayItem = getLocalDisplayItem;
+            scope.getLocalMannequinOutfit = getLocalMannequinOutfit;
             scope.getSignController = getSignController;
             scope.getVendingController = getVendingController;
             scope.getPlantsController = getPlantsController;
@@ -5973,6 +5981,7 @@
         const signCtrl = getSignController();
         if (signCtrl && typeof signCtrl.clearAll === "function") signCtrl.clearAll();
         displayItemsByTile.clear();
+        mannequinOutfitsByTile.clear();
         doorAccessByTile.clear();
         antiGravityByTile.clear();
         clearTreePlants();
@@ -7593,6 +7602,150 @@
         }).catch(() => {});
       }
 
+      function createEmptyMannequinOutfit() {
+        const out = {};
+        for (let i = 0; i < COSMETIC_SLOTS.length; i++) {
+          out[COSMETIC_SLOTS[i]] = "";
+        }
+        return out;
+      }
+
+      function normalizeMannequinOutfitRecord(value) {
+        if (!value || typeof value !== "object") return null;
+        const sourceOutfit = value.equippedCosmetics && typeof value.equippedCosmetics === "object"
+          ? value.equippedCosmetics
+          : (value.cosmetics && typeof value.cosmetics === "object"
+            ? value.cosmetics
+            : (value.equipped && typeof value.equipped === "object" ? value.equipped : {}));
+        const outfit = createEmptyMannequinOutfit();
+        for (let i = 0; i < COSMETIC_SLOTS.length; i++) {
+          const slot = COSMETIC_SLOTS[i];
+          const id = String(sourceOutfit[slot] || "").trim();
+          outfit[slot] = id && COSMETIC_LOOKUP[slot] && COSMETIC_LOOKUP[slot][id] ? id : "";
+        }
+        return {
+          ownerAccountId: String(value.ownerAccountId || "").trim().slice(0, 64),
+          ownerName: String(value.ownerName || "").trim().slice(0, 20),
+          equippedCosmetics: outfit,
+          updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : 0
+        };
+      }
+
+      function setLocalMannequinOutfit(tx, ty, value) {
+        const key = getTileKey(tx, ty);
+        const normalized = normalizeMannequinOutfitRecord(value);
+        if (!normalized) {
+          mannequinOutfitsByTile.delete(key);
+          return;
+        }
+        mannequinOutfitsByTile.set(key, normalized);
+      }
+
+      function getLocalMannequinOutfit(tx, ty) {
+        return mannequinOutfitsByTile.get(getTileKey(tx, ty)) || null;
+      }
+
+      function saveMannequinOutfit(tx, ty, value) {
+        const normalized = normalizeMannequinOutfitRecord(value);
+        setLocalMannequinOutfit(tx, ty, normalized);
+        if (!network.enabled || !network.mannequinsRef) return;
+        const ref = network.mannequinsRef.child(getTileKey(tx, ty));
+        if (!normalized) {
+          ref.remove().catch(() => {});
+          return;
+        }
+        ref.set({
+          ownerAccountId: normalized.ownerAccountId,
+          ownerName: normalized.ownerName,
+          equippedCosmetics: normalized.equippedCosmetics,
+          updatedAt: firebase.database.ServerValue.TIMESTAMP
+        }).catch(() => {});
+      }
+
+      function grantMannequinOutfitToInventory(record) {
+        const normalized = normalizeMannequinOutfitRecord(record);
+        if (!normalized) return 0;
+        const outfit = normalized.equippedCosmetics || {};
+        let granted = 0;
+        for (let i = 0; i < COSMETIC_SLOTS.length; i++) {
+          const slot = COSMETIC_SLOTS[i];
+          const cosmeticId = String(outfit[slot] || "").trim();
+          if (!cosmeticId) continue;
+          if (!COSMETIC_LOOKUP[slot] || !COSMETIC_LOOKUP[slot][cosmeticId]) continue;
+          cosmeticInventory[cosmeticId] = clampInventoryCount((cosmeticInventory[cosmeticId] || 0) + 1);
+          granted += 1;
+        }
+        return granted;
+      }
+
+      function tryPlaceCosmeticIntoMannequin(tx, ty, entry) {
+        const result = { handled: false, blockWorldDrop: false };
+        if (!inWorld) return result;
+        if (!entry || entry.type !== "cosmetic") return result;
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return result;
+        if (world[ty][tx] !== MANNEQUIN_ID) return result;
+        result.blockWorldDrop = true;
+        if (!canEditTarget(tx, ty)) return result;
+        if (!canEditCurrentWorld()) {
+          notifyWorldLockedDenied();
+          return result;
+        }
+        if (!isWorldLocked() || !isWorldLockOwner()) {
+          notifyOwnerOnlyWorldEdit("mannequins");
+          return result;
+        }
+        const cosmeticId = String(entry.cosmeticId || "").trim();
+        if (!cosmeticId || (cosmeticInventory[cosmeticId] || 0) <= 0) return result;
+        const cosmeticItem = COSMETIC_ITEMS.find((row) => row && row.id === cosmeticId) || null;
+        const slot = cosmeticItem && cosmeticItem.slot ? String(cosmeticItem.slot) : "";
+        if (!slot || !COSMETIC_LOOKUP[slot] || !COSMETIC_LOOKUP[slot][cosmeticId]) return result;
+
+        const current = getLocalMannequinOutfit(tx, ty) || {
+          ownerAccountId: String(currentWorldLock && currentWorldLock.ownerAccountId || playerProfileId || "").trim().slice(0, 64),
+          ownerName: String(currentWorldLock && currentWorldLock.ownerName || playerName || "").trim().slice(0, 20),
+          equippedCosmetics: createEmptyMannequinOutfit(),
+          updatedAt: Date.now()
+        };
+        const nextOutfit = createEmptyMannequinOutfit();
+        const currentOutfit = current.equippedCosmetics && typeof current.equippedCosmetics === "object"
+          ? current.equippedCosmetics
+          : {};
+        for (let i = 0; i < COSMETIC_SLOTS.length; i++) {
+          const currentSlot = COSMETIC_SLOTS[i];
+          const currentId = String(currentOutfit[currentSlot] || "").trim();
+          nextOutfit[currentSlot] = currentId && COSMETIC_LOOKUP[currentSlot] && COSMETIC_LOOKUP[currentSlot][currentId]
+            ? currentId
+            : "";
+        }
+        const previousId = String(nextOutfit[slot] || "").trim();
+        if (previousId === cosmeticId) {
+          result.handled = true;
+          return result;
+        }
+        if (previousId) {
+          cosmeticInventory[previousId] = clampInventoryCount((cosmeticInventory[previousId] || 0) + 1);
+        }
+        cosmeticInventory[cosmeticId] = Math.max(0, Math.floor(Number(cosmeticInventory[cosmeticId] || 0) - 1));
+        if ((cosmeticInventory[cosmeticId] || 0) <= 0) {
+          for (let i = 0; i < COSMETIC_SLOTS.length; i++) {
+            const equippedSlot = COSMETIC_SLOTS[i];
+            if (equippedCosmetics[equippedSlot] === cosmeticId) equippedCosmetics[equippedSlot] = "";
+          }
+        }
+        nextOutfit[slot] = cosmeticId;
+        saveMannequinOutfit(tx, ty, {
+          ownerAccountId: String(currentWorldLock && currentWorldLock.ownerAccountId || current.ownerAccountId || playerProfileId || "").trim().slice(0, 64),
+          ownerName: String(currentWorldLock && currentWorldLock.ownerName || current.ownerName || playerName || "").trim().slice(0, 20),
+          equippedCosmetics: nextOutfit,
+          updatedAt: Date.now()
+        });
+        saveInventory();
+        refreshToolbar();
+        syncPlayer(true);
+        result.handled = true;
+        return result;
+      }
+
       function grantDisplayItemToInventory(item) {
         const normalized = normalizeDisplayItemRecord(item);
         if (!normalized) return false;
@@ -8805,6 +8958,7 @@
         const signCtrl = getSignController();
         if (signCtrl && typeof signCtrl.clearAll === "function") signCtrl.clearAll();
         displayItemsByTile.clear();
+        mannequinOutfitsByTile.clear();
         doorAccessByTile.clear();
         antiGravityByTile.clear();
         cameraConfigsByTile.clear();
@@ -8875,6 +9029,7 @@
           dbOps.push(proxyAdminRemove(worldRootPath + "/chests"));
           dbOps.push(proxyAdminRemove(worldRootPath + "/signs"));
           dbOps.push(proxyAdminRemove(worldRootPath + "/displays"));
+          dbOps.push(proxyAdminRemove(worldRootPath + "/mannequins"));
           dbOps.push(proxyAdminRemove(worldRootPath + "/doors"));
           dbOps.push(proxyAdminRemove(worldRootPath + "/anti-gravity"));
           dbOps.push(proxyAdminRemove(worldRootPath + "/plants"));
@@ -9096,6 +9251,13 @@
                 ) ? firebase.database.ServerValue.TIMESTAMP : Date.now()
               }).catch(() => {});
             }
+          } else if (id === MANNEQUIN_ID) {
+            saveMannequinOutfit(tx, ty, {
+              ownerAccountId: String(currentWorldLock && currentWorldLock.ownerAccountId || playerProfileId || "").trim().slice(0, 64),
+              ownerName: String(currentWorldLock && currentWorldLock.ownerName || playerName || "").trim().slice(0, 20),
+              equippedCosmetics: createEmptyMannequinOutfit(),
+              updatedAt: Date.now()
+            });
           } else if (isPlantSeedBlockId(id)) {
             const seedCfg = getPlantSeedConfig(id) || {};
             const ctrl = getPlantsController();
@@ -9380,6 +9542,14 @@
             grantDisplayItemToInventory(existingDisplay);
           }
           saveDisplayItem(tx, ty, null);
+        }
+        if (id === MANNEQUIN_ID) {
+          const mannequin = getLocalMannequinOutfit(tx, ty);
+          const restored = grantMannequinOutfitToInventory(mannequin);
+          saveMannequinOutfit(tx, ty, null);
+          if (restored > 0) {
+            syncPlayer(true);
+          }
         }
         if (isDonationBoxBlockId(id)) {
           const donationCtrl = getDonationController();
@@ -10072,6 +10242,15 @@
         if (network.displaysRef && network.handlers.displayRemoved) {
           network.displaysRef.off("child_removed", network.handlers.displayRemoved);
         }
+        if (network.mannequinsRef && network.handlers.mannequinAdded) {
+          network.mannequinsRef.off("child_added", network.handlers.mannequinAdded);
+        }
+        if (network.mannequinsRef && network.handlers.mannequinChanged) {
+          network.mannequinsRef.off("child_changed", network.handlers.mannequinChanged);
+        }
+        if (network.mannequinsRef && network.handlers.mannequinRemoved) {
+          network.mannequinsRef.off("child_removed", network.handlers.mannequinRemoved);
+        }
         if (network.doorsRef && network.handlers.doorAdded) {
           network.doorsRef.off("child_added", network.handlers.doorAdded);
         }
@@ -10138,6 +10317,7 @@
         network.chestsRef = null;
         network.signsRef = null;
         network.displaysRef = null;
+        network.mannequinsRef = null;
         network.doorsRef = null;
         network.antiGravRef = null;
         network.plantsRef = null;
@@ -10181,6 +10361,9 @@
         network.handlers.displayAdded = null;
         network.handlers.displayChanged = null;
         network.handlers.displayRemoved = null;
+        network.handlers.mannequinAdded = null;
+        network.handlers.mannequinChanged = null;
+        network.handlers.mannequinRemoved = null;
         network.handlers.doorAdded = null;
         network.handlers.doorChanged = null;
         network.handlers.doorRemoved = null;
@@ -10210,6 +10393,7 @@
         const signCtrl = getSignController();
         if (signCtrl && typeof signCtrl.clearAll === "function") signCtrl.clearAll();
         displayItemsByTile.clear();
+        mannequinOutfitsByTile.clear();
         doorAccessByTile.clear();
         antiGravityByTile.clear();
         cameraConfigsByTile.clear();
@@ -10415,6 +10599,7 @@
         network.chestsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/chests");
         network.signsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/signs");
         network.displaysRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/displays");
+        network.mannequinsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/mannequins");
         network.doorsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/doors");
         network.antiGravRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/anti-gravity");
         network.plantsRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/plants");
@@ -10476,6 +10661,7 @@
             }
             setLocalSignText(tx, ty, null);
             setLocalDisplayItem(tx, ty, null);
+            setLocalMannequinOutfit(tx, ty, null);
             setLocalDoorAccess(tx, ty, null);
             setLocalAntiGravityState(tx, ty, null);
             setLocalCameraConfig(tx, ty, null);
@@ -10508,6 +10694,9 @@
           }
           if (id !== DISPLAY_BLOCK_ID) {
             setLocalDisplayItem(tx, ty, null);
+          }
+          if (id !== MANNEQUIN_ID) {
+            setLocalMannequinOutfit(tx, ty, null);
           }
           if (id !== DOOR_BLOCK_ID) {
             setLocalDoorAccess(tx, ty, null);
@@ -10544,6 +10733,7 @@
             }
             setLocalSignText(tx, ty, null);
             setLocalDisplayItem(tx, ty, null);
+            setLocalMannequinOutfit(tx, ty, null);
             setLocalDoorAccess(tx, ty, null);
             setLocalAntiGravityState(tx, ty, null);
             setLocalCameraConfig(tx, ty, null);
@@ -10564,6 +10754,7 @@
           }
           setLocalSignText(tx, ty, null);
           setLocalDisplayItem(tx, ty, null);
+          setLocalMannequinOutfit(tx, ty, null);
           setLocalDoorAccess(tx, ty, null);
           setLocalAntiGravityState(tx, ty, null);
           setLocalTreePlant(tx, ty, null);
@@ -10749,6 +10940,17 @@
           if (!tile) return;
           setLocalDisplayItem(tile.tx, tile.ty, null);
         };
+        network.handlers.mannequinAdded = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalMannequinOutfit(tile.tx, tile.ty, snapshot.val());
+        };
+        network.handlers.mannequinChanged = network.handlers.mannequinAdded;
+        network.handlers.mannequinRemoved = (snapshot) => {
+          const tile = parseTileKey(snapshot.key || "");
+          if (!tile) return;
+          setLocalMannequinOutfit(tile.tx, tile.ty, null);
+        };
         network.handlers.doorAdded = (snapshot) => {
           const tile = parseTileKey(snapshot.key || "");
           if (!tile) return;
@@ -10856,6 +11058,11 @@
           network.displaysRef.on("child_added", network.handlers.displayAdded);
           network.displaysRef.on("child_changed", network.handlers.displayChanged);
           network.displaysRef.on("child_removed", network.handlers.displayRemoved);
+        }
+        if (network.mannequinsRef && network.handlers.mannequinAdded) {
+          network.mannequinsRef.on("child_added", network.handlers.mannequinAdded);
+          network.mannequinsRef.on("child_changed", network.handlers.mannequinChanged);
+          network.mannequinsRef.on("child_removed", network.handlers.mannequinRemoved);
         }
         if (network.doorsRef && network.handlers.doorAdded) {
           network.doorsRef.on("child_added", network.handlers.doorAdded);
@@ -12454,6 +12661,18 @@
           if (pos.tx >= 0 && pos.ty >= 0 && pos.tx < WORLD_W && pos.ty < WORLD_H && world[pos.ty][pos.tx] === DISPLAY_BLOCK_ID) {
             if (tryPlaceItemIntoDisplay(pos.tx, pos.ty, inventoryDrag.entry)) {
               suppressInventoryClickUntilMs = performance.now() + 180;
+              stopInventoryDrag();
+              return;
+            }
+          }
+          if (pos.tx >= 0 && pos.ty >= 0 && pos.tx < WORLD_W && pos.ty < WORLD_H && world[pos.ty][pos.tx] === MANNEQUIN_ID) {
+            const mannequinResult = tryPlaceCosmeticIntoMannequin(pos.tx, pos.ty, inventoryDrag.entry);
+            if (mannequinResult && mannequinResult.handled) {
+              suppressInventoryClickUntilMs = performance.now() + 180;
+              stopInventoryDrag();
+              return;
+            }
+            if (mannequinResult && mannequinResult.blockWorldDrop) {
               stopInventoryDrag();
               return;
             }

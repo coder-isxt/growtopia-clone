@@ -265,6 +265,63 @@ function drawBackground() {
               continue;
             }
 
+            if (id === MANNEQUIN_BLOCK_ID) {
+              const mannequinImageDrawn = drawBlockImage(def, x, y);
+              if (!mannequinImageDrawn) {
+                ctx.fillStyle = def.color || "#8f7f71";
+                ctx.fillRect(x, y, TILE, TILE);
+                ctx.fillStyle = "rgba(25, 32, 41, 0.45)";
+                ctx.fillRect(x + 7, y + TILE - 5, TILE - 14, 3);
+                ctx.fillStyle = "rgba(246, 238, 228, 0.35)";
+                ctx.fillRect(x + 9, y + 5, TILE - 18, TILE - 13);
+              }
+              const mannequin = typeof getLocalMannequinOutfit === "function"
+                ? getLocalMannequinOutfit(tx, ty)
+                : null;
+              const outfit = mannequin && mannequin.equippedCosmetics && typeof mannequin.equippedCosmetics === "object"
+                ? mannequin.equippedCosmetics
+                : {};
+              const mannequinPx = x + Math.round((TILE - PLAYER_W) / 2);
+              const mannequinPy = y + Math.max(0, TILE - PLAYER_H - 1);
+              const mannequinFacing = 1;
+              const mannequinPose = {
+                bodyBob: 0,
+                bodyTilt: 0,
+                wingFlap: 0,
+                wingOpen: 0.2,
+                swordSwing: 0,
+                eyeYOffset: 0,
+                eyeHeight: 3,
+                armSwing: 0,
+                legSwing: 0,
+                hitStrength: 0,
+                hitMode: "",
+                hitDirectionY: 0
+              };
+              ctx.save();
+              ctx.globalAlpha = 0.96;
+              drawWings(mannequinPx, mannequinPy, String(outfit.wings || ""), mannequinFacing, 0, 0.2);
+              drawHumanoid(
+                mannequinPx,
+                mannequinPy,
+                mannequinFacing,
+                "#4d5868",
+                "#b98a78",
+                "#0d0d0d",
+                String(outfit.shirts || ""),
+                String(outfit.pants || ""),
+                String(outfit.shoes || ""),
+                String(outfit.hats || ""),
+                mannequinPose,
+                0.75,
+                0
+              );
+              drawSword(mannequinPx, mannequinPy, String(outfit.swords || ""), mannequinFacing, 0, 0, 0);
+              ctx.restore();
+              //drawBlockDamageOverlay(tx, ty, id, x, y);
+              continue;
+            }
+
             if (id === SIGN_ID && drawBlockImage(def, x, y)) {
               //drawBlockDamageOverlay(tx, ty, id, x, y);
               continue;
