@@ -341,9 +341,182 @@
     .spectate-body {
       color: #dbe9ff;
       font-size: 9px;
-      line-height: 1.7;
-      white-space: pre-line;
+      line-height: 1.6;
       word-break: break-word;
+    }
+
+    .spec-empty {
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .spec-head {
+      margin-bottom: 8px;
+    }
+
+    .spec-title {
+      color: #dcf0ff;
+      font-size: 10px;
+      margin-bottom: 6px;
+    }
+
+    .spec-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .spec-tag {
+      border: 1px solid rgba(111, 164, 235, 0.45);
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 8px;
+      color: #d8e8ff;
+      background: rgba(15, 36, 63, 0.76);
+    }
+
+    .spec-tag.live {
+      border-color: rgba(255, 214, 107, 0.6);
+      color: #ffde8d;
+      background: rgba(69, 49, 13, 0.65);
+    }
+
+    .spec-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(100px, 1fr));
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .spec-metric {
+      border: 1px solid rgba(111, 164, 235, 0.35);
+      border-radius: 8px;
+      padding: 7px;
+      background: rgba(8, 20, 38, 0.72);
+    }
+
+    .spec-metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 7px;
+      margin-bottom: 4px;
+    }
+
+    .spec-metric strong {
+      font-size: 9px;
+      color: #f3f9ff;
+      font-weight: normal;
+    }
+
+    .spec-mode {
+      border: 1px solid rgba(111, 164, 235, 0.35);
+      border-radius: 9px;
+      padding: 8px;
+      background: rgba(8, 19, 36, 0.7);
+    }
+
+    .spec-mode-title {
+      font-size: 9px;
+      color: #9ed8ff;
+      margin-bottom: 7px;
+    }
+
+    .spec-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(90px, 1fr));
+      gap: 6px;
+    }
+
+    .spec-grid div {
+      border: 1px solid rgba(111, 164, 235, 0.28);
+      border-radius: 8px;
+      padding: 6px;
+      background: rgba(4, 12, 24, 0.72);
+    }
+
+    .spec-grid span {
+      display: block;
+      color: var(--muted);
+      font-size: 7px;
+      margin-bottom: 3px;
+    }
+
+    .spec-grid strong {
+      color: #f2f8ff;
+      font-size: 9px;
+      font-weight: normal;
+    }
+
+    .spec-row {
+      margin-bottom: 6px;
+    }
+
+    .spec-row-head {
+      font-size: 8px;
+      color: #badfff;
+      margin-bottom: 5px;
+    }
+
+    .spec-cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .spec-cards-empty {
+      color: var(--muted);
+      font-size: 8px;
+    }
+
+    .spec-card {
+      width: 46px;
+      min-height: 62px;
+      border: 1px solid rgba(111, 164, 235, 0.55);
+      border-radius: 7px;
+      background: linear-gradient(180deg, #f7fbff, #e8f1ff);
+      color: #12233d;
+      padding: 4px 5px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+    }
+
+    .spec-card.red {
+      color: #b22c2c;
+      border-color: rgba(255, 133, 133, 0.7);
+      background: linear-gradient(180deg, #fff9f9, #ffe9e9);
+    }
+
+    .spec-card.black {
+      color: #1c2f4f;
+    }
+
+    .spec-card-corner {
+      font-size: 7px;
+      letter-spacing: 0.2px;
+    }
+
+    .spec-card-center {
+      text-align: center;
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .spec-card-suit {
+      text-align: right;
+      font-size: 10px;
+      line-height: 1;
+    }
+
+    .spec-note {
+      margin-top: 6px;
+      border: 1px solid rgba(111, 164, 235, 0.32);
+      border-radius: 8px;
+      padding: 6px 8px;
+      color: #d8e8ff;
+      font-size: 8px;
+      background: rgba(11, 24, 43, 0.72);
     }
 
     .empty {
@@ -359,6 +532,8 @@
       .summary { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
       .content-head { grid-template-columns: 1fr; }
       .content-head input { min-width: 0; }
+      .spec-metrics { grid-template-columns: repeat(2, minmax(100px, 1fr)); }
+      .spec-grid { grid-template-columns: repeat(2, minmax(90px, 1fr)); }
     }
   </style>
 </head>

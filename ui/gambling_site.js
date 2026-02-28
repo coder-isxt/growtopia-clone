@@ -12,7 +12,7 @@
   const slotsModule = (window.GTModules && window.GTModules.slots) || {};
 
   const MACHINE_DEFS = buildMachineDefinitions();
-  const WORLD_LOCK_ITEM_ID = resolveWorldLockItemId();
+  const LOCK_CURRENCIES = resolveLockCurrencies();
 
   const state = {
     db: null,
@@ -36,6 +36,7 @@
     },
     machineSearch: "",
     walletLocks: 0,
+    walletBreakdownText: "0 WL",
     selectedSpectateTileKey: ""
   };
 
@@ -103,20 +104,81 @@
     return String(value || "").trim().toLowerCase();
   }
 
-  function resolveWorldLockItemId() {
+  function resolveLockCurrencies() {
+    const fallback = [
+      { id: 42, key: "emerald_lock", name: "Emerald Lock", value: 10000, short: "EL" },
+      { id: 24, key: "obsidian_lock", name: "Obsidian Lock", value: 100, short: "OL" },
+      { id: 9, key: "world_lock", name: "World Lock", value: 1, short: "WL" }
+    ];
     const catalog = (window.GTModules && window.GTModules.itemCatalog) || {};
     if (typeof catalog.getBlocks === "function") {
       const rows = catalog.getBlocks();
       if (Array.isArray(rows)) {
+        const out = [];
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i] || {};
-          if (String(row.key || "").trim() !== "world_lock") continue;
+          if (!row.worldLock) continue;
           const id = Math.floor(Number(row.id));
-          if (Number.isInteger(id) && id > 0) return id;
+          if (!Number.isInteger(id) || id <= 0) continue;
+          const value = Math.max(1, Math.floor(Number(row.lockValue) || 1));
+          const key = String(row.key || "").trim() || ("lock_" + id);
+          const name = String(row.name || key).trim().slice(0, 32) || ("Lock " + id);
+          const short = key === "emerald_lock"
+            ? "EL"
+            : (key === "obsidian_lock" ? "OL" : "WL");
+          out.push({ id, key, name, value, short });
+        }
+        if (out.length) {
+          out.sort((a, b) => {
+            if (b.value !== a.value) return b.value - a.value;
+            return a.id - b.id;
+          });
+          return out;
         }
       }
     }
-    return 9;
+    return fallback;
+  }
+
+  function toLockCount(value) {
+    return Math.max(0, Math.floor(Number(value) || 0));
+  }
+
+  function getLockWalletFromInventory(value) {
+    const inv = value && typeof value === "object" ? value : {};
+    const byId = {};
+    let total = 0;
+    for (let i = 0; i < LOCK_CURRENCIES.length; i++) {
+      const row = LOCK_CURRENCIES[i];
+      const count = toLockCount(inv[row.id]);
+      byId[row.id] = count;
+      total += count * row.value;
+    }
+    return { byId, total };
+  }
+
+  function decomposeLockValue(totalValue) {
+    let remaining = toLockCount(totalValue);
+    const out = {};
+    for (let i = 0; i < LOCK_CURRENCIES.length; i++) {
+      const row = LOCK_CURRENCIES[i];
+      const count = Math.floor(remaining / row.value);
+      out[row.id] = Math.max(0, count);
+      remaining -= count * row.value;
+    }
+    return out;
+  }
+
+  function buildWalletBreakdownText(byId) {
+    const safeById = byId && typeof byId === "object" ? byId : {};
+    const parts = [];
+    for (let i = 0; i < LOCK_CURRENCIES.length; i++) {
+      const row = LOCK_CURRENCIES[i];
+      const count = toLockCount(safeById[row.id]);
+      if (count <= 0) continue;
+      parts.push(count + " " + row.short);
+    }
+    return parts.length ? parts.join(" | ") : "0 WL";
   }
 
   function normalizeWorldId(value) {
@@ -418,6 +480,7 @@
     state.ownerTax = null;
     state.machines = [];
     state.walletLocks = 0;
+    state.walletBreakdownText = "0 WL";
     state.selectedSpectateTileKey = "";
   }
 
@@ -431,7 +494,9 @@
     if (els.sumMachines instanceof HTMLElement) els.sumMachines.textContent = String(rows.length);
     if (els.sumBank instanceof HTMLElement) els.sumBank.textContent = String(totalBank) + " WL";
     if (els.sumMine instanceof HTMLElement) els.sumMine.textContent = String(mine);
-    if (els.sumWallet instanceof HTMLElement) els.sumWallet.textContent = String(state.walletLocks) + " WL";
+    if (els.sumWallet instanceof HTMLElement) {
+      els.sumWallet.textContent = String(state.walletLocks) + " WL (" + state.walletBreakdownText + ")";
+    }
     if (els.sumTax instanceof HTMLElement) els.sumTax.textContent = String(tax.percent) + "% / " + String(tax.earningsLocks) + " WL";
   }
 
@@ -631,6 +696,43 @@
     return String(c);
   }
 
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function getCardSuit(index, value) {
+    const suits = ["♠", "♥", "♦", "♣"];
+    const i = Math.abs((Math.floor(Number(index) || 0) + Math.floor(Number(value) || 1)) % suits.length);
+    return suits[i];
+  }
+
+  function getCardSuitClass(suit) {
+    if (suit === "♥" || suit === "♦") return "red";
+    return "black";
+  }
+
+  function renderCardStrip(cards) {
+    const src = Array.isArray(cards) ? cards : [];
+    if (!src.length) return "<div class=\"spec-cards-empty\">No cards</div>";
+    return src.map((value, index) => {
+      const rank = formatCard(value);
+      const suit = getCardSuit(index, value);
+      const suitClass = getCardSuitClass(suit);
+      return (
+        "<div class=\"spec-card " + suitClass + "\">" +
+          "<div class=\"spec-card-corner\">" + escapeHtml(rank) + suit + "</div>" +
+          "<div class=\"spec-card-center\">" + escapeHtml(rank) + "</div>" +
+          "<div class=\"spec-card-suit\">" + suit + "</div>" +
+        "</div>"
+      );
+    }).join("");
+  }
+
   function formatTs(ts) {
     const safe = Math.max(0, Math.floor(Number(ts) || 0));
     if (!safe) return "-";
@@ -645,7 +747,7 @@
     if (!(els.spectateBody instanceof HTMLElement)) return;
     const rows = Array.isArray(state.machines) ? state.machines : [];
     if (!rows.length) {
-      els.spectateBody.textContent = "No machines to spectate in this world.";
+      els.spectateBody.innerHTML = "<div class=\"spec-empty\">No machines to spectate in this world.</div>";
       return;
     }
     let machine = findMachineByTileKey(state.selectedSpectateTileKey);
@@ -654,42 +756,83 @@
       state.selectedSpectateTileKey = machine ? machine.tileKey : "";
     }
     if (!machine) {
-      els.spectateBody.textContent = "Pick a machine to spectate.";
+      els.spectateBody.innerHTML = "<div class=\"spec-empty\">Pick a machine to spectate.</div>";
       return;
     }
 
     const stats = machine.stats || {};
-    const lines = [];
-    lines.push("Tile: " + machine.tx + "," + machine.ty + " | " + machine.typeName);
-    lines.push("Owner: " + getMachineOwnerLabel(machine));
-    lines.push("In use: " + (machine.inUseAccountId ? ("yes" + (machine.inUseName ? " by @" + machine.inUseName : "")) : "no"));
-    lines.push("Bank: " + machine.earningsLocks + " WL | Max Bet: " + machine.maxBet + " WL");
-    lines.push("Plays: " + stats.plays + " | Total Bet: " + stats.totalBet + " | Total Payout: " + stats.totalPayout);
-    lines.push("Last Outcome: " + (stats.lastOutcome || "-") + " | Last At: " + formatTs(stats.lastAt));
+    const headerHtml =
+      "<div class=\"spec-head\">" +
+        "<div class=\"spec-title\">" + escapeHtml(machine.typeName) + " at " + machine.tx + "," + machine.ty + "</div>" +
+        "<div class=\"spec-tags\">" +
+          "<span class=\"spec-tag\">Owner: " + escapeHtml(getMachineOwnerLabel(machine)) + "</span>" +
+          "<span class=\"spec-tag " + (machine.inUseAccountId ? "live" : "") + "\">" +
+            (machine.inUseAccountId ? ("LIVE @" + escapeHtml(machine.inUseName || machine.inUseAccountId)) : "Idle") +
+          "</span>" +
+          "<span class=\"spec-tag\">Bank: " + machine.earningsLocks + " WL</span>" +
+          "<span class=\"spec-tag\">Max Bet: " + machine.maxBet + " WL</span>" +
+        "</div>" +
+      "</div>";
 
+    const metricsHtml =
+      "<div class=\"spec-metrics\">" +
+        "<div class=\"spec-metric\"><span>Plays</span><strong>" + (stats.plays || 0) + "</strong></div>" +
+        "<div class=\"spec-metric\"><span>Total Bet</span><strong>" + (stats.totalBet || 0) + " WL</strong></div>" +
+        "<div class=\"spec-metric\"><span>Total Payout</span><strong>" + (stats.totalPayout || 0) + " WL</strong></div>" +
+        "<div class=\"spec-metric\"><span>Last At</span><strong>" + escapeHtml(formatTs(stats.lastAt)) + "</strong></div>" +
+      "</div>";
+
+    let modeHtml = "";
     if (machine.type === "blackjack" && machine.blackjackRound && machine.blackjackRound.active) {
       const round = machine.blackjackRound;
-      const dealerCards = round.dealerCards.map((card) => formatCard(card)).join(" ");
-      const handTexts = round.hands.map((hand, index) => {
-        const cards = hand.cards.map((card) => formatCard(card)).join(" ");
-        return "Hand " + (index + 1) + ": [" + cards + "] bet=" + hand.bet + " outcome=" + (hand.outcome || "-");
-      });
-      lines.push("Blackjack: ACTIVE" + (round.playerName ? " @" + round.playerName : ""));
-      lines.push("Dealer: " + (dealerCards || "-"));
-      if (handTexts.length) lines.push(handTexts.join(" | "));
-      if (round.summary) lines.push("Round: " + round.summary);
+      const handsHtml = round.hands.map((hand, index) => {
+        return (
+          "<div class=\"spec-row\">" +
+            "<div class=\"spec-row-head\">Hand " + (index + 1) + " | Bet " + hand.bet + " WL | " + escapeHtml(hand.outcome || (hand.done ? "done" : "playing")) + "</div>" +
+            "<div class=\"spec-cards\">" + renderCardStrip(hand.cards) + "</div>" +
+          "</div>"
+        );
+      }).join("");
+      modeHtml =
+        "<div class=\"spec-mode spec-blackjack\">" +
+          "<div class=\"spec-mode-title\">Blackjack Live" + (round.playerName ? (" - @" + escapeHtml(round.playerName)) : "") + "</div>" +
+          "<div class=\"spec-row\">" +
+            "<div class=\"spec-row-head\">Dealer</div>" +
+            "<div class=\"spec-cards\">" + renderCardStrip(round.dealerCards) + "</div>" +
+          "</div>" +
+          handsHtml +
+          (round.summary ? ("<div class=\"spec-note\">" + escapeHtml(round.summary) + "</div>") : "") +
+        "</div>";
     } else if (machine.type.indexOf("slots") === 0) {
-      if (stats.lastSlotsSummary) lines.push("Last Slots: " + stats.lastSlotsSummary);
-      if (stats.lastSlotsLines) lines.push("Lines: " + stats.lastSlotsLines);
-      if (stats.lastSlotsText) lines.push("Board: " + stats.lastSlotsText);
+      modeHtml =
+        "<div class=\"spec-mode\">" +
+          "<div class=\"spec-mode-title\">Slots Snapshot</div>" +
+          "<div class=\"spec-grid\">" +
+            "<div><span>Outcome</span><strong>" + escapeHtml(stats.lastOutcome || "-") + "</strong></div>" +
+            "<div><span>Multiplier</span><strong>x" + Number(stats.lastMultiplier || 0).toFixed(2) + "</strong></div>" +
+            "<div><span>Player</span><strong>" + escapeHtml(stats.lastPlayerName || "-") + "</strong></div>" +
+            "<div><span>Updated</span><strong>" + escapeHtml(formatTs(stats.lastAt)) + "</strong></div>" +
+          "</div>" +
+          (stats.lastSlotsSummary ? ("<div class=\"spec-note\">" + escapeHtml(stats.lastSlotsSummary) + "</div>") : "") +
+          (stats.lastSlotsLines ? ("<div class=\"spec-note\">Lines: " + escapeHtml(stats.lastSlotsLines) + "</div>") : "") +
+          (stats.lastSlotsText ? ("<div class=\"spec-note\">Board: " + escapeHtml(stats.lastSlotsText) + "</div>") : "") +
+        "</div>";
     } else {
-      if (stats.lastPlayerRoll || stats.lastHouseRoll) {
-        lines.push("Last rolls: player=" + stats.lastPlayerRoll + " house=" + stats.lastHouseRoll);
-        lines.push("Last reme: player=" + stats.lastPlayerReme + " house=" + stats.lastHouseReme + " x" + stats.lastMultiplier);
-      }
+      modeHtml =
+        "<div class=\"spec-mode\">" +
+          "<div class=\"spec-mode-title\">Roulette Snapshot</div>" +
+          "<div class=\"spec-grid\">" +
+            "<div><span>Player Roll</span><strong>" + (stats.lastPlayerRoll || 0) + "</strong></div>" +
+            "<div><span>House Roll</span><strong>" + (stats.lastHouseRoll || 0) + "</strong></div>" +
+            "<div><span>Player Reme</span><strong>" + (stats.lastPlayerReme || 0) + "</strong></div>" +
+            "<div><span>House Reme</span><strong>" + (stats.lastHouseReme || 0) + "</strong></div>" +
+            "<div><span>Multiplier</span><strong>x" + Number(stats.lastMultiplier || 0).toFixed(2) + "</strong></div>" +
+            "<div><span>Outcome</span><strong>" + escapeHtml(stats.lastOutcome || "-") + "</strong></div>" +
+          "</div>" +
+        "</div>";
     }
 
-    els.spectateBody.textContent = lines.join("\n");
+    els.spectateBody.innerHTML = headerHtml + metricsHtml + modeHtml;
   }
 
   function renderTaxControls() {
@@ -719,13 +862,6 @@
     return parsed;
   }
 
-  function readTxnNumber(txn, fallback) {
-    const safeFallback = Math.max(0, Math.floor(Number(fallback) || 0));
-    const snap = txn && txn.snapshot ? txn.snapshot : null;
-    const value = snap && typeof snap.val === "function" ? snap.val() : safeFallback;
-    return Math.max(0, Math.floor(Number(value) || 0));
-  }
-
   async function adjustWalletLocks(amountDelta) {
     const user = state.user;
     if (!user || !state.worldId) return { ok: false, reason: "not-ready", amount: 0 };
@@ -734,18 +870,26 @@
     if (!Number.isInteger(delta) || delta === 0) return { ok: false, reason: "invalid-delta", amount: 0 };
 
     const txn = await state.refs.inventoryLocks.transaction((currentRaw) => {
-      const current = Math.max(0, Math.floor(Number(currentRaw) || 0));
-      const next = current + delta;
-      if (next < 0) return;
-      return next;
+      const currentObj = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+      const wallet = getLockWalletFromInventory(currentObj);
+      const nextTotal = wallet.total + delta;
+      if (nextTotal < 0) return;
+      const nextById = decomposeLockValue(nextTotal);
+      for (let i = 0; i < LOCK_CURRENCIES.length; i++) {
+        const row = LOCK_CURRENCIES[i];
+        currentObj[row.id] = toLockCount(nextById[row.id]);
+      }
+      return currentObj;
     });
 
     if (!txn || !txn.committed) {
       return { ok: false, reason: delta < 0 ? "not-enough-locks" : "wallet-update-rejected", amount: 0 };
     }
-    const next = readTxnNumber(txn, state.walletLocks);
-    state.walletLocks = next;
-    return { ok: true, next, amount: Math.abs(delta) };
+    const snap = txn && txn.snapshot ? txn.snapshot : null;
+    const nextWallet = getLockWalletFromInventory(snap && typeof snap.val === "function" ? snap.val() : {});
+    state.walletLocks = nextWallet.total;
+    state.walletBreakdownText = buildWalletBreakdownText(nextWallet.byId);
+    return { ok: true, next: nextWallet.total, amount: Math.abs(delta) };
   }
 
   async function refillMachineBank(tileKey, amountRaw) {
@@ -1049,7 +1193,7 @@
       state.refs.lock = root.child("lock");
       state.refs.machines = root.child("gamble-machines");
       state.refs.ownerTax = root.child("owner-tax");
-      state.refs.inventoryLocks = db.ref(basePath + "/player-inventories/" + state.user.accountId + "/" + WORLD_LOCK_ITEM_ID);
+      state.refs.inventoryLocks = db.ref(basePath + "/player-inventories/" + state.user.accountId);
 
       state.handlers.lock = (snapshot) => {
         state.worldLock = normalizeLockRecord(snapshot.val());
@@ -1075,7 +1219,9 @@
         renderAll();
       };
       state.handlers.inventoryLocks = (snapshot) => {
-        state.walletLocks = Math.max(0, Math.floor(Number(snapshot && snapshot.val ? snapshot.val() : 0) || 0));
+        const wallet = getLockWalletFromInventory(snapshot && snapshot.val ? snapshot.val() : {});
+        state.walletLocks = wallet.total;
+        state.walletBreakdownText = buildWalletBreakdownText(wallet.byId);
         renderSummary();
       };
 
