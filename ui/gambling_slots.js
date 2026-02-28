@@ -1117,6 +1117,11 @@ if (wrap instanceof HTMLElement) {
         if (els.lastWinLabel) { els.lastWinLabel.textContent = "Push"; els.lastWinLabel.classList.remove("hidden"); }
       } else {
         bj.message = "Dealer Wins.";
+        if (els.lastWinLabel) { 
+          els.lastWinLabel.textContent = "Dealer Wins"; 
+          els.lastWinLabel.classList.remove("hidden"); 
+          els.lastWinLabel.classList.remove("good");
+        }
       }
       renderAll();
     } else if (action === 'double') {
@@ -1134,6 +1139,11 @@ if (wrap instanceof HTMLElement) {
         await sleep(600);
         bj.active = false;
         bj.message = "Bust! You lost.";
+        if (els.lastWinLabel) { 
+          els.lastWinLabel.textContent = "Bust"; 
+          els.lastWinLabel.classList.remove("hidden");
+          els.lastWinLabel.classList.remove("good");
+        }
       } else {
         // Auto stand after double
         await sleep(600);
@@ -1157,6 +1167,11 @@ if (wrap instanceof HTMLElement) {
           if (els.lastWinLabel) { els.lastWinLabel.textContent = "Push"; els.lastWinLabel.classList.remove("hidden"); }
         } else {
           bj.message = "Dealer Wins.";
+          if (els.lastWinLabel) { 
+            els.lastWinLabel.textContent = "Dealer Wins"; 
+            els.lastWinLabel.classList.remove("hidden");
+            els.lastWinLabel.classList.remove("good");
+          }
         }
       }
       renderAll();
@@ -1269,8 +1284,11 @@ if (wrap instanceof HTMLElement) {
         if (payout > 0) {
           els.lastWinLabel.textContent = "Won: " + payout + " WL";
           els.lastWinLabel.classList.remove("hidden");
+          els.lastWinLabel.classList.add("good");
         } else {
-          els.lastWinLabel.classList.add("hidden");
+          els.lastWinLabel.textContent = "No Win";
+          els.lastWinLabel.classList.remove("hidden");
+          els.lastWinLabel.classList.remove("good");
         }
       }
       if (resolved.outcome === "win" || resolved.outcome === "jackpot" || buyBonus || payout > 0) {
@@ -1375,8 +1393,11 @@ if (wrap instanceof HTMLElement) {
         if (payout > 0) {
           els.lastWinLabel.textContent = "Won: " + payout + " WL";
           els.lastWinLabel.classList.remove("hidden");
+          els.lastWinLabel.classList.add("good");
         } else {
-          els.lastWinLabel.classList.add("hidden");
+          els.lastWinLabel.textContent = "No Win";
+          els.lastWinLabel.classList.remove("hidden");
+          els.lastWinLabel.classList.remove("good");
         }
       }
       
