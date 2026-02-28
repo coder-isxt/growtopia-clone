@@ -5242,3 +5242,61 @@ body.admin-dashboard-open .admin-inventory-modal {
   width: 100%;
   min-width: 0;
 }
+
+/* Fix: action console is not a 2-row admin-card; force stacked layout */
+#adminPanel .admin-console.admin-card {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  grid-template-rows: none !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: auto !important;
+  padding: 12px !important;
+}
+
+#adminPanel .admin-console.admin-card > .admin-card-header {
+  position: static !important;
+  top: auto !important;
+  z-index: auto !important;
+  margin: -12px -12px 0 !important;
+}
+
+#adminPanel .admin-console.admin-card > * {
+  position: relative;
+  z-index: 0;
+}
+
+#adminPanel .admin-console-presets {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  padding: 0 0 0;
+}
+
+#adminPanel .admin-console-presets button,
+#adminPanel .admin-console-action-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#adminPanel .admin-console-player-chip {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#adminPanel .admin-console-help,
+#adminPanel .admin-console-summary,
+#adminPanel .admin-console-requirements,
+#adminPanel .admin-console-action-shortcuts,
+#adminPanel .admin-console-player-results {
+  margin-top: 0 !important;
+}
