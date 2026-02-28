@@ -4,17 +4,10 @@ window.GTModules = window.GTModules || {};
   "use strict";
 
   const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
-  const LAST_WORLD_KEY = "gt_slots_site_world_v1";
   const SLOT_MACHINE_IDS = ["slots", "slots_v2", "slots_v3", "slots_v4", "slots_v6"];
 
-  // Casino lobby state (no stored house state; infinite house)
-  let CASINO_MODE = false; // false means normal world slots; true means lobby view
-  let CASINO_VIEW = "lobby"; // 'lobby' | 'slots' | 'coinflip'
-
-  // Simple in-browser casino games state
-  const SLOT_SYMBOLS = ["🍒","🍋","⭐","7","💎"]; // simple pool for visuals
-  function casinoWalletGet() { return state.walletLocks; }
-  function casinoWalletSet(v) { state.walletLocks = Math.max(0, Math.floor(Number(v) || 0)); renderSession(); }
+  // This page is now a standalone casino site.
+  // World-based machine browsing is on gambling.html
 
   // Demo casino mode: independent slot experience not tied to user-hosted machines
   const STANDALONE_MACHINE = {
@@ -106,13 +99,12 @@ window.GTModules = window.GTModules || {};
     db: null,
     network: {},
     user: null,
-    worldId: "",
     machines: [],
     selectedMachineKey: "",
     walletLocks: 0,
     walletBreakdownText: "0 WL",
-    refs: { machines: null, inventory: null },
-    handlers: { machines: null, inventory: null },
+    refs: { inventory: null },
+    handlers: { inventory: null },
     spinBusy: false,
     spinTimer: 0,
     history: [],
@@ -131,9 +123,6 @@ window.GTModules = window.GTModules || {};
     sessionLabel: document.getElementById("sessionLabel"),
     worldLabel: document.getElementById("worldLabel"),
     walletLabel: document.getElementById("walletLabel"),
-    worldInput: document.getElementById("worldInput"),
-    loadWorldBtn: document.getElementById("loadWorldBtn"),
-    worldStatus: document.getElementById("worldStatus"),
     machineSelect: document.getElementById("machineSelect"),
     machineList: document.getElementById("machineList"),
     gameTitle: document.getElementById("gameTitle"),
@@ -189,17 +178,6 @@ window.GTModules = window.GTModules || {};
     return out;
   }
 
-  // Casino wallet helpers
-  function getCasinoWallet() {
-    const raw = localStorage.getItem("casino_wallet");
-    let v = parseInt(raw, 10);
-    if (!Number.isFinite(v)) v = 100000; // default demo credits
-    return v;
-  }
-  function setCasinoWallet(n) {
-    localStorage.setItem("casino_wallet", String(n));
-  }
-
   // Standalone/casino spin logic
   function simulateStandaloneSpin(machine, bet) {
     const pool = SYMBOL_POOL[machine.type] || SYMBOL_POOL.slots;
@@ -226,24 +204,6 @@ window.GTModules = window.GTModules || {};
       summary: payout > 0 ? "Demo spin" : ""
     };
     return result;
-  }
-
-  async function runStandaloneSpin(mode) {
-    const machine = STANDALONE_MACHINE;
-    const bet = clampBetToMachine(machine, els.betInput && els.betInput.value);
-    const betFinal = Math.max(1, bet || 1);
-    const res = simulateStandaloneSpin(machine, betFinal);
-    const payout = res.payoutWanted || 0;
-    const w = getCasinoWallet();
-    setCasinoWallet(w + payout);
-    state.ephemeral.rows = rowsFromResult(res.reels, machine.type);
-    state.ephemeral.lineWins = res.lineWins;
-    state.ephemeral.lineIds = res.lineIds;
-    renderBoard();
-    const msg = payout > 0 ? `Demo Spin Won ${payout} WL` : `Demo Spin Lost ${betFinal} WL`;
-    setResult(msg, payout > 0 ? "win" : "");
-    pushHistory(msg, payout > 0 ? "win" : "");
-    renderAll();
   }
 
   function resolveLockCurrencies() {
@@ -274,16 +234,6 @@ window.GTModules = window.GTModules || {};
       }
     }
     return fallback;
-  }
-
-  function normalizeWorldId(value) {
-    return String(value || "")
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9_-]/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^[-_]+|[-_]+$/g, "")
-      .slice(0, 24);
   }
 
   function toCount(value) { return Math.max(0, Math.floor(Number(value) || 0)); }
@@ -431,15 +381,12 @@ window.GTModules = window.GTModules || {};
     return null;
   }
 
-  function getSelectedMachine() { if (CASINO_MODE) return STANDALONE_MACHINE; return getMachineByKey(state.selectedMachineKey); }
+  function getSelectedMachine() { return getMachineByKey(state.selectedMachineKey) || STANDALONE_MACHINE; }
   function machineLabel(machine) { return machine ? (machine.typeName + " @ " + machine.tx + "," + machine.ty) : "Unknown"; }
 
-  function clearWorldRefs() {
-    if (state.refs.machines && state.handlers.machines) state.refs.machines.off("value", state.handlers.machines);
+  function clearSessionRefs() {
     if (state.refs.inventory && state.handlers.inventory) state.refs.inventory.off("value", state.handlers.inventory);
-    state.refs.machines = null;
     state.refs.inventory = null;
-    state.handlers.machines = null;
     state.handlers.inventory = null;
     state.machines = [];
     state.selectedMachineKey = "";
@@ -496,19 +443,9 @@ window.GTModules = window.GTModules || {};
     }
   }
 
-  function loadLastWorld() {
-    try { return normalizeWorldId(localStorage.getItem(LAST_WORLD_KEY) || ""); }
-    catch (_error) { return ""; }
-  }
-
-  function saveLastWorld(worldId) {
-    try { localStorage.setItem(LAST_WORLD_KEY, normalizeWorldId(worldId)); }
-    catch (_error) { /* ignore */ }
-  }
-
   async function adjustWallet(delta) {
     const d = Math.floor(Number(delta) || 0);
-    if (!state.refs.inventory || !state.user || !state.worldId || d === 0) return { ok: false, reason: "not-ready" };
+    if (!state.refs.inventory || !state.user || d === 0) return { ok: false, reason: "not-ready" };
     const txn = await state.refs.inventory.transaction((raw) => {
       const currentObj = raw && typeof raw === "object" ? { ...raw } : {};
       const wallet = toWallet(currentObj);
@@ -556,25 +493,13 @@ window.GTModules = window.GTModules || {};
     if (els.authPassword instanceof HTMLInputElement) els.authPassword.disabled = busy;
   }
 
-  function setWorldBusy(isBusy) {
-    const busy = Boolean(isBusy);
-    if (els.worldInput instanceof HTMLInputElement) els.worldInput.disabled = busy;
-    if (els.loadWorldBtn instanceof HTMLButtonElement) els.loadWorldBtn.disabled = busy;
-    if (els.machineSelect instanceof HTMLSelectElement) els.machineSelect.disabled = busy;
-  }
-
   function renderSession() {
     if (els.sessionLabel instanceof HTMLElement) {
       els.sessionLabel.textContent = state.user ? ("@" + state.user.username + " (" + state.user.accountId + ")") : "Not logged in";
     }
-    if (els.worldLabel instanceof HTMLElement) els.worldLabel.textContent = state.worldId || "No world loaded";
+    if (els.worldLabel instanceof HTMLElement) els.worldLabel.textContent = "Casino";
     if (els.walletLabel instanceof HTMLElement) {
-      if (CASINO_MODE) {
-        const w = (typeof getCasinoWallet === 'function') ? getCasinoWallet() : 0;
-        els.walletLabel.textContent = "Demo Wallet: " + w;
-      } else {
-        els.walletLabel.textContent = state.walletLocks + " WL (" + state.walletBreakdownText + ")";
-      }
+      els.walletLabel.textContent = state.walletLocks + " WL (" + state.walletBreakdownText + ")";
     }
     if (els.logoutBtn instanceof HTMLButtonElement) els.logoutBtn.classList.toggle("hidden", !state.user);
   }
@@ -791,9 +716,7 @@ if (wrap instanceof HTMLElement) {
   }
   function renderMachineSelector() {
     if (!(els.machineSelect instanceof HTMLSelectElement) || !(els.machineList instanceof HTMLElement)) return;
-    const rows = CASINO_MODE
-      ? [STANDALONE_MACHINE]
-      : state.machines.slice().sort((a, b) => a.ty - b.ty || a.tx - b.tx);
+     const rows = state.machines.slice().sort((a, b) => a.ty - b.ty || a.tx - b.tx);
     if (!rows.length) {
       els.machineSelect.innerHTML = "<option value=\"\">No slot machines</option>";
       els.machineSelect.disabled = true;
@@ -832,21 +755,6 @@ if (wrap instanceof HTMLElement) {
 
   function renderMachineStats() {
     const machine = getSelectedMachine();
-    if (CASINO_MODE) {
-      if (els.gameTitle instanceof HTMLElement) els.gameTitle.textContent = STANDALONE_MACHINE.typeName + "";
-      if (els.gameSubtitle instanceof HTMLElement) els.gameSubtitle.textContent = "Standalone casino mode";
-      if (els.statBank instanceof HTMLElement) els.statBank.textContent = "Bank: Infinite";
-      if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: " + STANDALONE_MACHINE.maxBet + " WL";
-      if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: " + STANDALONE_MACHINE.stats.plays;
-      if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: " + STANDALONE_MACHINE.stats.totalPayout + " WL";
-      if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.disabled = false;
-      if (els.setMaxBtn instanceof HTMLButtonElement) els.setMaxBtn.disabled = false;
-      if (els.buyBonusBtn instanceof HTMLButtonElement) {
-        els.buyBonusBtn.classList.add("hidden");
-        els.buyBonusBtn.disabled = true;
-      }
-      return;
-    }
     if (!machine) {
       if (els.gameTitle instanceof HTMLElement) els.gameTitle.textContent = "No machine selected";
       if (els.gameSubtitle instanceof HTMLElement) els.gameSubtitle.textContent = "Load world and select a machine.";
@@ -923,12 +831,6 @@ if (wrap instanceof HTMLElement) {
     renderHistory();
   }
 
-  function ensureStandaloneMachineInState() {
-    state.machines = [STANDALONE_MACHINE];
-    state.selectedMachineKey = STANDALONE_MACHINE.tileKey;
-    renderAll();
-  }
-
   async function resolveUserRole(accountId, username) {
     const db = await ensureDb();
     const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
@@ -998,8 +900,7 @@ if (wrap instanceof HTMLElement) {
       renderSession();
       setStatus(els.authStatus, "Logged in as @" + username + ".", "ok");
 
-      const lastWorld = loadLastWorld();
-      if (lastWorld && els.worldInput instanceof HTMLInputElement) els.worldInput.value = lastWorld;
+      attachUserSession();
     } catch (error) {
       setStatus(els.authStatus, (error && error.message) || "Login failed.", "error");
     } finally {
@@ -1008,9 +909,8 @@ if (wrap instanceof HTMLElement) {
   }
 
   function logout() {
-    clearWorldRefs();
+    clearSessionRefs();
     state.user = null;
-    state.worldId = "";
     state.walletLocks = 0;
     state.walletBreakdownText = "0 WL";
     state.history = [];
@@ -1019,65 +919,28 @@ if (wrap instanceof HTMLElement) {
     state.ephemeral.lineWins = [];
     renderAll();
     setStatus(els.authStatus, "Logged out.");
-    setStatus(els.worldStatus, "Load a world to list slot machines.");
+    setResult("Ready. Pick machine, set bet, spin.");
   }
 
-  async function attachWorld(rawWorldId) {
-    if (!state.user) {
-      setStatus(els.worldStatus, "Login first.", "error");
-      return;
-    }
-    const worldId = normalizeWorldId(rawWorldId);
-    if (!worldId) {
-      setStatus(els.worldStatus, "Invalid world id.", "error");
-      return;
-    }
-
-    setWorldBusy(true);
-    setStatus(els.worldStatus, "Loading world " + worldId + "...");
+  async function attachUserSession() {
+    if (!state.user) return;
     try {
       const db = await ensureDb();
       const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
-      clearWorldRefs();
-      state.worldId = worldId;
-      saveLastWorld(worldId);
-
-      const rootRef = db.ref(basePath + "/worlds/" + worldId);
-      state.refs.machines = rootRef.child("gamble-machines");
+      clearSessionRefs();
       state.refs.inventory = db.ref(basePath + "/player-inventories/" + state.user.accountId);
-
-      state.handlers.machines = (snap) => {
-        const value = snap.val();
-        const rows = [];
-        if (value && typeof value === "object") {
-          Object.keys(value).forEach((tileKey) => {
-            const row = normalizeMachineRecord(tileKey, value[tileKey]);
-            if (row) rows.push(row);
-          });
-        }
-        state.machines = rows;
-        if (state.selectedMachineKey && !rows.some((r) => r.tileKey === state.selectedMachineKey)) state.selectedMachineKey = "";
-        renderAll();
-      };
 
       state.handlers.inventory = (snap) => {
         const wallet = toWallet(snap && typeof snap.val === "function" ? snap.val() : {});
         state.walletLocks = wallet.total;
         state.walletBreakdownText = walletText(wallet.byId);
         renderSession();
-        renderMachineStats();
+        renderMachineStats(); // Re-render stats to update button disabled states
       };
 
-      state.refs.machines.on("value", state.handlers.machines);
       state.refs.inventory.on("value", state.handlers.inventory);
-
-      setStatus(els.worldStatus, "Loaded world " + worldId + ".", "ok");
-      pushHistory("World loaded: " + worldId, "");
-      renderAll();
     } catch (error) {
-      setStatus(els.worldStatus, (error && error.message) || "Failed to load world.", "error");
-    } finally {
-      setWorldBusy(false);
+      // silent fail
     }
   }
 
@@ -1110,11 +973,9 @@ if (wrap instanceof HTMLElement) {
   }
 
   async function runSpin(mode) {
-    // Standalone casino mode spin path
-    if (CASINO_MODE) return runStandaloneSpin(mode);
     if (state.spinBusy) return;
-    if (!state.user || !state.worldId) {
-      setResult("Login and load a world first.");
+    if (!state.user) {
+      setResult("Login first.");
       return;
     }
     if (typeof slotsModule.spin !== "function") {
@@ -1125,10 +986,6 @@ if (wrap instanceof HTMLElement) {
     const machine = getSelectedMachine();
     if (!machine) {
       setResult("No slots machine selected.");
-      return;
-    }
-    if (machine.inUseAccountId && machine.inUseAccountId !== state.user.accountId) {
-      setResult("Machine is in use by @" + (machine.inUseName || machine.inUseAccountId) + ".");
       return;
     }
 
@@ -1279,19 +1136,6 @@ if (wrap instanceof HTMLElement) {
   function bindEvents() {
     if (els.openDashboardBtn instanceof HTMLButtonElement) els.openDashboardBtn.addEventListener("click", () => { window.location.href = "gambling.html"; });
     if (els.openGameBtn instanceof HTMLButtonElement) els.openGameBtn.addEventListener("click", () => { window.location.href = "index.html"; });
-    if (els.toggleCasinoBtn instanceof HTMLButtonElement) els.toggleCasinoBtn.addEventListener("click", () => {
-      CASINO_MODE = !CASINO_MODE;
-      if (CASINO_MODE) {
-        // Enter demo casino mode with standalone machine
-        state.machines = [STANDALONE_MACHINE];
-        state.selectedMachineKey = STANDALONE_MACHINE.tileKey;
-      } else {
-        // Exit demo casino mode
-        state.machines = [];
-        state.selectedMachineKey = "";
-      }
-      renderAll();
-    });
     if (els.logoutBtn instanceof HTMLButtonElement) els.logoutBtn.addEventListener("click", logout);
 
     if (els.authLoginBtn instanceof HTMLButtonElement) els.authLoginBtn.addEventListener("click", () => loginWithPassword(false));
@@ -1301,20 +1145,6 @@ if (wrap instanceof HTMLElement) {
         if (event.key !== "Enter") return;
         event.preventDefault();
         loginWithPassword(false);
-      });
-    }
-
-    if (els.loadWorldBtn instanceof HTMLButtonElement) {
-      els.loadWorldBtn.addEventListener("click", () => {
-        if (!(els.worldInput instanceof HTMLInputElement)) return;
-        attachWorld(els.worldInput.value || "");
-      });
-    }
-    if (els.worldInput instanceof HTMLInputElement) {
-      els.worldInput.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter") return;
-        event.preventDefault();
-        attachWorld(els.worldInput.value || "");
       });
     }
 
@@ -1384,7 +1214,7 @@ if (wrap instanceof HTMLElement) {
       });
     }
 
-    window.addEventListener("beforeunload", () => { clearWorldRefs(); });
+    window.addEventListener("beforeunload", () => { clearSessionRefs(); });
   }
 
   function init() {
@@ -1395,89 +1225,13 @@ if (wrap instanceof HTMLElement) {
     if (els.authUsername instanceof HTMLInputElement && saved.username) els.authUsername.value = String(saved.username || "").slice(0, 20);
     if (els.authPassword instanceof HTMLInputElement && saved.password) els.authPassword.value = String(saved.password || "").slice(0, 64);
 
-    if (els.worldInput instanceof HTMLInputElement) {
-      const lastWorld = loadLastWorld();
-      if (lastWorld) els.worldInput.value = lastWorld;
-    }
+    // Populate with casino games instead of loading from world
+    state.machines = [STANDALONE_MACHINE];
+    state.selectedMachineKey = STANDALONE_MACHINE.tileKey;
 
     setStatus(els.authStatus, "Login with your game account.");
-    setStatus(els.worldStatus, "Load a world to list slot machines.");
     setResult("Ready. Pick machine, set bet, spin.");
   }
 
   init();
-  // Initialize casino lobby view on startup
-  renderCasinoLobby();
-  // Wire casino lobby UI controls (no persistent state)
-  try {
-    const sCard = document.getElementById('casinoSlotsCard');
-    if (sCard) sCard.addEventListener('click', showCasinoSlotsPanel);
-    const cCard = document.getElementById('casinoCoinCard');
-    if (cCard) cCard.addEventListener('click', showCasinoCoinPanel);
-    const sBack = document.getElementById('casinoSlotsBack');
-    if (sBack) sBack.addEventListener('click', renderCasinoLobby);
-    const cBack = document.getElementById('casinoCoinBack');
-    if (cBack) cBack.addEventListener('click', renderCasinoLobby);
-    const sSpin = document.getElementById('casinoSlotsSpinBtn');
-    if (sSpin) sSpin.addEventListener('click', runCasinoSlotsSpin);
-    const cFlip = document.getElementById('casinoCoinFlipBtn');
-    if (cFlip) cFlip.addEventListener('click', runCasinoCoinFlipSpin);
-  } catch(_e) { /* ignore */ }
-  // Lightweight casino lobby wiring (no persistence; infinite house)
-  function showCasinoSlotsPanel() {
-    const lobby = document.getElementById('casinoLobby');
-    const slotsPanel = document.getElementById('casinoSlotsPanel');
-    const coinPanel = document.getElementById('casinoCoinPanel');
-    if (lobby) lobby.style.display = 'none';
-    if (slotsPanel) slotsPanel.style.display = 'block';
-    if (coinPanel) coinPanel.style.display = 'none';
-    CASINO_VIEW = 'slots';
-  }
-  function showCasinoCoinPanel() {
-    const lobby = document.getElementById('casinoLobby');
-    const slotsPanel = document.getElementById('casinoSlotsPanel');
-    const coinPanel = document.getElementById('casinoCoinPanel');
-    if (lobby) lobby.style.display = 'none';
-    if (slotsPanel) slotsPanel.style.display = 'none';
-    if (coinPanel) coinPanel.style.display = 'block';
-    CASINO_VIEW = 'coinflip';
-  }
-  function renderCasinoLobby() {
-    const lobby = document.getElementById('casinoLobby');
-    if (lobby) lobby.style.display = 'block';
-    const slotsPanel = document.getElementById('casinoSlotsPanel');
-    if (slotsPanel) slotsPanel.style.display = 'none';
-    const coinPanel = document.getElementById('casinoCoinPanel');
-    if (coinPanel) coinPanel.style.display = 'none';
-    const walletLabel = document.getElementById('casinoWalletLabel');
-    if (walletLabel) walletLabel.textContent = state.walletLocks + ' WL';
-  }
-  function runCasinoSlotsSpin() {
-    const betEl = document.getElementById('casinoSlotsBet');
-    const bet = Math.max(1, parseInt(betEl?.value || '1', 10));
-    if (state.walletLocks < bet) { const r = document.getElementById('casinoSlotsResult'); if (r) r.textContent = 'Not enough WL'; return; }
-    state.walletLocks -= bet;
-    const s1 = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
-    const s2 = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
-    const s3 = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
-    const reels = [s1, s2, s3];
-    let payout = 0;
-    if (s1 === s2 && s2 === s3) payout = bet * 8;
-    else if (s1 === s2 || s2 === s3 || s1 === s3) payout = bet * 2;
-    state.walletLocks += payout;
-    const board = document.getElementById('casinoSlotsBoard'); if (board) board.textContent = reels.join(' ');
-    const res = document.getElementById('casinoSlotsResult'); if (res) res.textContent = payout > 0 ? 'Win ' + payout + ' WL' : 'Lose';
-    const walletLabel = document.getElementById('casinoWalletLabel'); if (walletLabel) walletLabel.textContent = state.walletLocks + ' WL';
-  }
-  function runCasinoCoinFlipSpin() {
-    const bet = Math.max(1, parseInt(document.getElementById('casinoCoinBet')?.value || '1', 10));
-    if (state.walletLocks < bet) { const r = document.getElementById('casinoCoinResult'); if (r) r.textContent = 'Not enough WL'; return; }
-    state.walletLocks -= bet;
-    const heads = Math.random() < 0.5;
-    const payout = heads ? bet * 2 : 0;
-    state.walletLocks += payout;
-    const board = document.getElementById('casinoCoinBoard'); if (board) board.textContent = heads ? 'HEADS' : 'TAILS';
-    const res = document.getElementById('casinoCoinResult'); if (res) res.textContent = payout > 0 ? 'Win ' + payout + ' WL' : 'Lose';
-    const walletLabel = document.getElementById('casinoWalletLabel'); if (walletLabel) walletLabel.textContent = state.walletLocks + ' WL';
-  }
 })();
