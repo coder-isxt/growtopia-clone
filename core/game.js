@@ -2583,8 +2583,8 @@
             quickButtons.push('<button class="admin-quick-btn" data-admin-act="quickunban" data-account-id="' + escapeHtml(accountId) + '">Unban</button>');
           }
           quickButtons.push(
-            '<button class="admin-quick-btn" data-admin-act="quickcopydiscord" data-account-id="' + escapeHtml(accountId) + '" data-copy-text="' + escapeHtml(discordCopyText) + '"' + (discordCopyText ? "" : " disabled") + ">Copy Discord</button>'
-          );
+            '<button class="admin-quick-btn" data-admin-act="quickcopydiscord" data-account-id="' + escapeHtml(accountId) + '" data-copy-text="' + escapeHtml(discordCopyText) + '"' + (discordCopyText ? "" : " disabled") + ">Copy Discord</button>'"
+            );
           return `
             <div class="admin-row" data-account-id="${escapeHtml(accountId)}">
               <div class="admin-meta">
