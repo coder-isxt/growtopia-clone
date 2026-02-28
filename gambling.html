@@ -475,6 +475,7 @@
       border-radius: 7px;
       background: linear-gradient(180deg, #f7fbff, #e8f1ff);
       color: #12233d;
+      font-family: "Georgia", "Times New Roman", serif;
       padding: 4px 5px;
       display: flex;
       flex-direction: column;
@@ -517,6 +518,126 @@
       color: #d8e8ff;
       font-size: 8px;
       background: rgba(11, 24, 43, 0.72);
+    }
+
+    .spec-blackjack-table {
+      border: 1px solid rgba(111, 164, 235, 0.28);
+      border-radius: 10px;
+      padding: 8px;
+      background: radial-gradient(circle at 30% 20%, rgba(49, 120, 83, 0.35), rgba(14, 45, 36, 0.45));
+    }
+
+    .spec-bj-lane {
+      padding: 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(111, 164, 235, 0.2);
+      background: rgba(7, 17, 29, 0.5);
+      margin-bottom: 6px;
+    }
+
+    .spec-bj-lane.dealer {
+      border-color: rgba(255, 214, 107, 0.4);
+      background: rgba(49, 38, 12, 0.35);
+    }
+
+    .spec-bj-head {
+      font-size: 8px;
+      color: #d7ecff;
+      margin-bottom: 6px;
+    }
+
+    .spec-bj-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.2);
+      margin: 8px 2px;
+    }
+
+    .slotsv2-board {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(var(--slots-cols, 5), minmax(52px, 1fr));
+      gap: 6px;
+      padding: 7px;
+      border: 1px solid rgba(63, 189, 255, 0.35);
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(11, 33, 61, 0.92), rgba(7, 22, 41, 0.92));
+      margin-bottom: 8px;
+    }
+
+    .slotsv2-reel {
+      display: grid;
+      grid-template-rows: repeat(var(--slots-rows, 3), 1fr);
+      gap: 6px;
+    }
+
+    .slotsv2-cell {
+      border: 1px solid rgba(147, 205, 255, 0.35);
+      border-radius: 8px;
+      min-height: 52px;
+      padding: 4px;
+      background: rgba(5, 15, 29, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .slotsv2-glyph {
+      font-size: 9px;
+      color: #e7f6ff;
+      line-height: 1.2;
+    }
+
+    .slotsv2-token {
+      font-size: 7px;
+      color: #95aaca;
+      line-height: 1.2;
+    }
+
+    .slotsv2-cell.wild {
+      border-color: rgba(193, 132, 255, 0.75);
+      background: linear-gradient(180deg, rgba(104, 49, 172, 0.45), rgba(49, 28, 87, 0.5));
+    }
+
+    .slotsv2-cell.scatter {
+      border-color: rgba(113, 255, 205, 0.75);
+      background: linear-gradient(180deg, rgba(25, 111, 90, 0.45), rgba(10, 58, 44, 0.55));
+    }
+
+    .slotsv2-cell.bonus {
+      border-color: rgba(255, 214, 107, 0.8);
+      background: linear-gradient(180deg, rgba(121, 85, 21, 0.55), rgba(70, 45, 10, 0.62));
+    }
+
+    .slotsv2-cell.dynamite {
+      border-color: rgba(255, 140, 107, 0.75);
+      background: linear-gradient(180deg, rgba(120, 42, 22, 0.52), rgba(61, 23, 13, 0.58));
+    }
+
+    .slotsv2-cell.gem {
+      border-color: rgba(126, 200, 255, 0.75);
+      background: linear-gradient(180deg, rgba(17, 72, 116, 0.52), rgba(13, 40, 66, 0.58));
+    }
+
+    .slotsv2-lines {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .slotsv2-line-badge {
+      border: 1px solid rgba(111, 164, 235, 0.45);
+      border-radius: 999px;
+      padding: 3px 7px;
+      font-size: 7px;
+      color: #d8e8ff;
+      background: rgba(14, 34, 58, 0.78);
+    }
+
+    .slotsv2-line-badge.muted {
+      opacity: 0.75;
     }
 
     .empty {

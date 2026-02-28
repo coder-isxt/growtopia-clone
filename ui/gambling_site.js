@@ -357,6 +357,7 @@
       lastSlotsText: String(row.lastSlotsText || "").slice(0, 220),
       lastSlotsSummary: String(row.lastSlotsSummary || "").slice(0, 220),
       lastSlotsLines: String(row.lastSlotsLines || "").slice(0, 220),
+      lastSlotsLineIds: String(row.lastSlotsLineIds || "").slice(0, 120),
       lastPlayerName: String(row.lastPlayerName || "").slice(0, 24),
       lastAt: Math.max(0, Math.floor(Number(row.lastAt) || 0))
     };
@@ -733,6 +734,112 @@
     }).join("");
   }
 
+  function normalizeSlotsToken(value) {
+    return String(value || "").trim().toUpperCase();
+  }
+
+  function getSlotsSymbolLabel(token) {
+    const key = normalizeSlotsToken(token);
+    if (key === "GEM") return "GEM";
+    if (key === "PICK") return "PICK";
+    if (key === "MINER") return "MINER";
+    if (key === "GOLD") return "GOLD";
+    if (key === "DYN") return "DYN";
+    if (key === "WILD") return "WILD";
+    if (key === "SCAT") return "SCAT";
+    if (key === "BONUS") return "BONUS";
+    if (key === "SEVEN" || key === "7") return "7";
+    if (key === "BAR") return "BAR";
+    if (key === "CHERRY") return "CHERRY";
+    if (key === "LEMON") return "LEMON";
+    if (key === "BELL") return "BELL";
+    return key || "?";
+  }
+
+  function getSlotsSymbolClass(token) {
+    const key = normalizeSlotsToken(token);
+    if (key === "WILD") return "wild";
+    if (key === "SCAT") return "scatter";
+    if (key === "BONUS") return "bonus";
+    if (key === "DYN") return "dynamite";
+    if (key === "GEM") return "gem";
+    return "normal";
+  }
+
+  function parseSlotsRows(value) {
+    const raw = String(value || "");
+    const rows = raw.split("|").map((s) => String(s || "").trim()).filter(Boolean);
+    if (!rows.length) return [];
+    const out = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i].split(",").map((s) => String(s || "").trim()).filter(Boolean);
+      out.push(row.length ? row : ["?"]);
+    }
+    return out;
+  }
+
+  function parseSlotsLines(value) {
+    const raw = String(value || "");
+    if (!raw) return [];
+    return raw.split("|").map((s) => String(s || "").trim()).filter(Boolean).slice(0, 8);
+  }
+
+  function parseSlotsLineIds(value) {
+    const raw = String(value || "");
+    if (!raw) return [];
+    const out = [];
+    const parts = raw.split(",").map((s) => String(s || "").trim()).filter(Boolean);
+    for (let i = 0; i < parts.length; i++) {
+      const id = Math.max(1, Math.floor(Number(parts[i]) || 0));
+      if (id > 0 && out.indexOf(id) < 0) out.push(id);
+    }
+    return out.slice(0, 12);
+  }
+
+  function buildSlotsBoardHtml(stats) {
+    let rows = parseSlotsRows(stats && stats.lastSlotsText);
+    if (!rows.length) {
+      return "<div class=\"spec-note\">No board snapshot yet.</div>";
+    }
+    const singleCellRows = rows.length > 1 && rows.every((row) => Array.isArray(row) && row.length === 1);
+    if (singleCellRows) {
+      rows = [rows.map((row) => row[0])];
+    }
+    const rowCount = Math.max(1, rows.length);
+    let colCount = 1;
+    for (let r = 0; r < rows.length; r++) {
+      colCount = Math.max(colCount, rows[r] ? rows[r].length : 0);
+    }
+    let boardHtml = "";
+    for (let c = 0; c < colCount; c++) {
+      boardHtml += "<div class='slotsv2-reel'>";
+      for (let r = 0; r < rowCount; r++) {
+        const tok = (rows[r] && rows[r][c]) || "?";
+        const cls = getSlotsSymbolClass(tok);
+        boardHtml +=
+          "<div class='slotsv2-cell " + cls + "'>" +
+            "<span class='slotsv2-glyph'>" + escapeHtml(getSlotsSymbolLabel(tok)) + "</span>" +
+            "<span class='slotsv2-token'>" + escapeHtml(normalizeSlotsToken(tok) || "?") + "</span>" +
+          "</div>";
+      }
+      boardHtml += "</div>";
+    }
+    const lineBadges = parseSlotsLines(stats && stats.lastSlotsLines);
+    const lineIds = parseSlotsLineIds(stats && stats.lastSlotsLineIds);
+    const badges = lineBadges.length
+      ? lineBadges.map((line) => "<span class='slotsv2-line-badge'>" + escapeHtml(line) + "</span>").join("")
+      : (lineIds.length
+        ? lineIds.map((id) => "<span class='slotsv2-line-badge'>Line " + id + "</span>").join("")
+        : "<span class='slotsv2-line-badge muted'>No winning lines</span>");
+
+    return (
+      "<div class='slotsv2-board slotsv2-idle' style='--slots-cols:" + colCount + ";--slots-rows:" + rowCount + ";'>" +
+        boardHtml +
+      "</div>" +
+      "<div class='slotsv2-lines'>" + badges + "</div>"
+    );
+  }
+
   function formatTs(ts) {
     const safe = Math.max(0, Math.floor(Number(ts) || 0));
     if (!safe) return "-";
@@ -783,30 +890,36 @@
       "</div>";
 
     let modeHtml = "";
-    if (machine.type === "blackjack" && machine.blackjackRound && machine.blackjackRound.active) {
+    if (machine.type === "blackjack") {
       const round = machine.blackjackRound;
-      const handsHtml = round.hands.map((hand, index) => {
-        return (
-          "<div class=\"spec-row\">" +
-            "<div class=\"spec-row-head\">Hand " + (index + 1) + " | Bet " + hand.bet + " WL | " + escapeHtml(hand.outcome || (hand.done ? "done" : "playing")) + "</div>" +
-            "<div class=\"spec-cards\">" + renderCardStrip(hand.cards) + "</div>" +
-          "</div>"
-        );
-      }).join("");
+      const handsHtml = round && Array.isArray(round.hands)
+        ? round.hands.map((hand, index) => {
+            return (
+              "<div class=\"spec-bj-lane\">" +
+                "<div class=\"spec-bj-head\">Hand " + (index + 1) + " | Bet " + hand.bet + " WL | " + escapeHtml(hand.outcome || (hand.done ? "done" : "playing")) + "</div>" +
+                "<div class=\"spec-cards\">" + renderCardStrip(hand.cards) + "</div>" +
+              "</div>"
+            );
+          }).join("")
+        : "<div class=\"spec-note\">No active blackjack hand.</div>";
       modeHtml =
         "<div class=\"spec-mode spec-blackjack\">" +
-          "<div class=\"spec-mode-title\">Blackjack Live" + (round.playerName ? (" - @" + escapeHtml(round.playerName)) : "") + "</div>" +
-          "<div class=\"spec-row\">" +
-            "<div class=\"spec-row-head\">Dealer</div>" +
-            "<div class=\"spec-cards\">" + renderCardStrip(round.dealerCards) + "</div>" +
+          "<div class=\"spec-mode-title\">Blackjack Table" + (round && round.playerName ? (" - @" + escapeHtml(round.playerName)) : "") + "</div>" +
+          "<div class=\"spec-blackjack-table\">" +
+            "<div class=\"spec-bj-lane dealer\">" +
+              "<div class=\"spec-bj-head\">Dealer</div>" +
+              "<div class=\"spec-cards\">" + renderCardStrip(round && round.dealerCards) + "</div>" +
+            "</div>" +
+            "<div class=\"spec-bj-divider\"></div>" +
+            handsHtml +
           "</div>" +
-          handsHtml +
-          (round.summary ? ("<div class=\"spec-note\">" + escapeHtml(round.summary) + "</div>") : "") +
+          (round && round.summary ? ("<div class=\"spec-note\">" + escapeHtml(round.summary) + "</div>") : "") +
         "</div>";
     } else if (machine.type.indexOf("slots") === 0) {
       modeHtml =
         "<div class=\"spec-mode\">" +
           "<div class=\"spec-mode-title\">Slots Snapshot</div>" +
+          buildSlotsBoardHtml(stats) +
           "<div class=\"spec-grid\">" +
             "<div><span>Outcome</span><strong>" + escapeHtml(stats.lastOutcome || "-") + "</strong></div>" +
             "<div><span>Multiplier</span><strong>x" + Number(stats.lastMultiplier || 0).toFixed(2) + "</strong></div>" +
@@ -814,8 +927,6 @@
             "<div><span>Updated</span><strong>" + escapeHtml(formatTs(stats.lastAt)) + "</strong></div>" +
           "</div>" +
           (stats.lastSlotsSummary ? ("<div class=\"spec-note\">" + escapeHtml(stats.lastSlotsSummary) + "</div>") : "") +
-          (stats.lastSlotsLines ? ("<div class=\"spec-note\">Lines: " + escapeHtml(stats.lastSlotsLines) + "</div>") : "") +
-          (stats.lastSlotsText ? ("<div class=\"spec-note\">Board: " + escapeHtml(stats.lastSlotsText) + "</div>") : "") +
         "</div>";
     } else {
       modeHtml =
