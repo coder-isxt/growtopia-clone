@@ -10,6 +10,14 @@
   const authStorageModule = (window.GTModules && window.GTModules.authStorage) || {};
   const dbModule = (window.GTModules && window.GTModules.db) || {};
   const slotsModule = (window.GTModules && window.GTModules.slots) || {};
+  const SLOT_MACHINE_IDS = ["slots", "slots_v2", "slots_v3", "slots_v4", "slots_v6"];
+  const SLOT_SYMBOLS = {
+    slots: ["CHERRY", "LEMON", "BAR", "BELL", "SEVEN"],
+    slots_v2: ["GEM", "PICK", "MINER", "GOLD", "DYN", "WILD", "SCAT", "BONUS"],
+    slots_v3: ["RUBY", "EMER", "CLUB", "RING", "SKULL", "REAPR", "BLOOD", "WILD", "SCAT"],
+    slots_v4: ["LEAF", "STON", "MASK", "IDOL", "ORAC", "FRGT", "WILD", "SCAT"],
+    slots_v6: ["COIN", "ORE", "GEM", "PICK", "CART", "RELC", "WILD", "SCAT"]
+  };
 
   const MACHINE_DEFS = buildMachineDefinitions();
   const LOCK_CURRENCIES = resolveLockCurrencies();
@@ -37,8 +45,13 @@
     machineSearch: "",
     walletLocks: 0,
     walletBreakdownText: "0 WL",
-    selectedSpectateTileKey: ""
+    selectedSpectateTileKey: "",
+    selectedPlayTileKey: "",
+    playBusy: false,
+    playBoardHtml: "",
+    playResultText: ""
   };
+  let playRollIntervalId = 0;
 
   const els = {
     openGameBtn: document.getElementById("openGameBtn"),
@@ -67,34 +80,60 @@
     saveTaxBtn: document.getElementById("saveTaxBtn"),
     machineTbody: document.getElementById("machineTbody"),
     machineEmpty: document.getElementById("machineEmpty"),
-    spectateBody: document.getElementById("spectateBody")
+    spectateBody: document.getElementById("spectateBody"),
+    playConsole: document.getElementById("playConsole"),
+    playMachineSelect: document.getElementById("playMachineSelect"),
+    playBetInput: document.getElementById("playBetInput"),
+    playMaxBtn: document.getElementById("playMaxBtn"),
+    playSpinBtn: document.getElementById("playSpinBtn"),
+    playMeta: document.getElementById("playMeta"),
+    playBoard: document.getElementById("playBoard"),
+    playStatus: document.getElementById("playStatus")
   };
 
   function buildMachineDefinitions() {
     const slotsDefs = typeof slotsModule.getDefinitions === "function"
       ? slotsModule.getDefinitions()
       : {};
+    const defaultSlotConfig = {
+      slots: { maxPayoutMultiplier: 10, reels: 3, rows: 1 },
+      slots_v2: { maxPayoutMultiplier: 50, reels: 5, rows: 4 },
+      slots_v3: { maxPayoutMultiplier: 5000, reels: 5, rows: 4 },
+      slots_v4: { maxPayoutMultiplier: 5000, reels: 5, rows: 4 },
+      slots_v6: { maxPayoutMultiplier: 5000, reels: 5, rows: 3 }
+    };
     const out = {
       reme_roulette: {
         id: "reme_roulette",
         name: "Reme Roulette",
         minBet: 1,
-        maxBet: 30000
+        maxBet: 30000,
+        maxPayoutMultiplier: 2,
+        reels: 0,
+        rows: 0
       },
       blackjack: {
         id: "blackjack",
         name: "Blackjack",
         minBet: 1,
-        maxBet: 30000
+        maxBet: 30000,
+        maxPayoutMultiplier: 3,
+        reels: 0,
+        rows: 0
       }
     };
-    ["slots", "slots_v2", "slots_v3", "slots_v4", "slots_v6"].forEach((id) => {
+    SLOT_MACHINE_IDS.forEach((id) => {
       const row = slotsDefs && slotsDefs[id] ? slotsDefs[id] : {};
+      const fallback = defaultSlotConfig[id] || defaultSlotConfig.slots;
+      const layout = row && row.layout && typeof row.layout === "object" ? row.layout : {};
       out[id] = {
         id,
         name: String(row.name || id.replace(/_/g, " ")),
         minBet: Math.max(1, Math.floor(Number(row.minBet) || 1)),
-        maxBet: Math.max(1, Math.floor(Number(row.maxBet) || 30000))
+        maxBet: Math.max(1, Math.floor(Number(row.maxBet) || 30000)),
+        maxPayoutMultiplier: Math.max(1, Math.floor(Number(row.maxPayoutMultiplier) || fallback.maxPayoutMultiplier)),
+        reels: Math.max(1, Math.floor(Number(layout.reels) || fallback.reels)),
+        rows: Math.max(1, Math.floor(Number(layout.rows) || fallback.rows))
       };
     });
     return out;
@@ -463,7 +502,28 @@
     return canCollectMachine(machine);
   }
 
+  function isSlotsMachineType(typeId) {
+    return SLOT_MACHINE_IDS.indexOf(String(typeId || "").trim()) >= 0;
+  }
+
+  function getSlotsMachines() {
+    const rows = Array.isArray(state.machines) ? state.machines : [];
+    return rows.filter((row) => isSlotsMachineType(row && row.type));
+  }
+
+  function getMachinePlayableBetMax(machine, walletLocks) {
+    if (!machine) return 0;
+    const def = MACHINE_DEFS[machine.type] || MACHINE_DEFS.slots;
+    const bank = Math.max(0, Math.floor(Number(machine.earningsLocks) || 0));
+    const machineCap = Math.max(def.minBet, Math.floor(Number(machine.maxBet) || def.maxBet));
+    const byWallet = Math.max(0, Math.floor(Number(walletLocks) || 0));
+    const payoutCap = Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || 1));
+    const byBank = Math.max(0, Math.floor(bank / payoutCap));
+    return Math.max(0, Math.min(machineCap, byWallet, byBank));
+  }
+
   function detachWorldListeners() {
+    stopPlayRolling();
     if (state.refs.lock && state.handlers.lock) state.refs.lock.off("value", state.handlers.lock);
     if (state.refs.machines && state.handlers.machines) state.refs.machines.off("value", state.handlers.machines);
     if (state.refs.ownerTax && state.handlers.ownerTax) state.refs.ownerTax.off("value", state.handlers.ownerTax);
@@ -483,6 +543,10 @@
     state.walletLocks = 0;
     state.walletBreakdownText = "0 WL";
     state.selectedSpectateTileKey = "";
+    state.selectedPlayTileKey = "";
+    state.playBusy = false;
+    state.playBoardHtml = "";
+    state.playResultText = "";
   }
 
   function renderSummary() {
@@ -656,6 +720,15 @@
       spectateBtn.dataset.tileKey = machine.tileKey;
       spectateBtn.dataset.act = "spectate-machine";
       tdSpectate.appendChild(spectateBtn);
+      if (isSlotsMachineType(machine.type)) {
+        const playBtn = document.createElement("button");
+        playBtn.type = "button";
+        playBtn.textContent = state.selectedPlayTileKey === machine.tileKey ? "Playing" : "Play";
+        playBtn.dataset.tileKey = machine.tileKey;
+        playBtn.dataset.act = "play-machine";
+        playBtn.style.marginLeft = "6px";
+        tdSpectate.appendChild(playBtn);
+      }
 
       tr.appendChild(tdTile);
       tr.appendChild(tdType);
@@ -677,6 +750,7 @@
     renderSummary();
     renderMachines();
     renderSpectate();
+    renderPlayPanel();
   }
 
   function findMachineByTileKey(tileKey) {
@@ -796,25 +870,42 @@
     return out.slice(0, 12);
   }
 
-  function buildSlotsBoardHtml(stats) {
-    let rows = parseSlotsRows(stats && stats.lastSlotsText);
-    if (!rows.length) {
+  function normalizeBoardRows(rows) {
+    const safe = Array.isArray(rows) ? rows : [];
+    if (!safe.length) return [];
+    const normalized = safe
+      .map((row) => Array.isArray(row) ? row.map((cell) => String(cell || "").trim()).filter(Boolean) : [])
+      .filter((row) => row.length > 0);
+    const singleCellRows = normalized.length > 1 && normalized.every((row) => row.length === 1);
+    if (singleCellRows) {
+      return [normalized.map((row) => row[0])];
+    }
+    return normalized;
+  }
+
+  function buildSlotsBoardFromRows(rows, lines, lineIds) {
+    const safeRows = normalizeBoardRows(rows);
+    if (!safeRows.length) {
       return "<div class=\"spec-note\">No board snapshot yet.</div>";
     }
-    const singleCellRows = rows.length > 1 && rows.every((row) => Array.isArray(row) && row.length === 1);
-    if (singleCellRows) {
-      rows = [rows.map((row) => row[0])];
-    }
-    const rowCount = Math.max(1, rows.length);
+
+    const safeLines = Array.isArray(lines)
+      ? lines.map((line) => String(line || "").trim()).filter(Boolean).slice(0, 12)
+      : [];
+    const safeLineIds = Array.isArray(lineIds)
+      ? lineIds.map((id) => Math.max(1, Math.floor(Number(id) || 0))).filter((id) => id > 0).slice(0, 12)
+      : [];
+
+    const rowCount = Math.max(1, safeRows.length);
     let colCount = 1;
-    for (let r = 0; r < rows.length; r++) {
-      colCount = Math.max(colCount, rows[r] ? rows[r].length : 0);
+    for (let r = 0; r < safeRows.length; r++) {
+      colCount = Math.max(colCount, safeRows[r] ? safeRows[r].length : 0);
     }
     let boardHtml = "";
     for (let c = 0; c < colCount; c++) {
       boardHtml += "<div class='slotsv2-reel'>";
       for (let r = 0; r < rowCount; r++) {
-        const tok = (rows[r] && rows[r][c]) || "?";
+        const tok = (safeRows[r] && safeRows[r][c]) || "?";
         const cls = getSlotsSymbolClass(tok);
         boardHtml +=
           "<div class='slotsv2-cell " + cls + "'>" +
@@ -824,12 +915,11 @@
       }
       boardHtml += "</div>";
     }
-    const lineBadges = parseSlotsLines(stats && stats.lastSlotsLines);
-    const lineIds = parseSlotsLineIds(stats && stats.lastSlotsLineIds);
-    const badges = lineBadges.length
-      ? lineBadges.map((line) => "<span class='slotsv2-line-badge'>" + escapeHtml(line) + "</span>").join("")
-      : (lineIds.length
-        ? lineIds.map((id) => "<span class='slotsv2-line-badge'>Line " + id + "</span>").join("")
+
+    const badges = safeLines.length
+      ? safeLines.map((line) => "<span class='slotsv2-line-badge'>" + escapeHtml(line) + "</span>").join("")
+      : (safeLineIds.length
+        ? safeLineIds.map((id) => "<span class='slotsv2-line-badge'>Line " + id + "</span>").join("")
         : "<span class='slotsv2-line-badge muted'>No winning lines</span>");
 
     return (
@@ -838,6 +928,72 @@
       "</div>" +
       "<div class='slotsv2-lines'>" + badges + "</div>"
     );
+  }
+
+  function buildSlotsBoardHtml(stats) {
+    return buildSlotsBoardFromRows(
+      parseSlotsRows(stats && stats.lastSlotsText),
+      parseSlotsLines(stats && stats.lastSlotsLines),
+      parseSlotsLineIds(stats && stats.lastSlotsLineIds)
+    );
+  }
+
+  function buildRowsFromSpinResult(result, machineType) {
+    const reels = result && Array.isArray(result.reels) ? result.reels : [];
+    if (!reels.length) return [];
+    if (machineType === "slots") {
+      return [reels.map((v) => String(v || "").trim()).filter(Boolean)];
+    }
+    const out = [];
+    for (let i = 0; i < reels.length; i++) {
+      out.push(String(reels[i] || "").split(",").map((v) => String(v || "").trim()).filter(Boolean));
+    }
+    return out;
+  }
+
+  function buildRollingRows(machineType, spinTick) {
+    const def = MACHINE_DEFS[machineType] || MACHINE_DEFS.slots;
+    const rowsCount = Math.max(1, Math.floor(Number(def.rows) || (machineType === "slots" ? 1 : 3)));
+    const colsCount = Math.max(1, Math.floor(Number(def.reels) || (machineType === "slots" ? 3 : 5)));
+    const symbols = SLOT_SYMBOLS[machineType] || SLOT_SYMBOLS.slots;
+    const out = [];
+    for (let r = 0; r < rowsCount; r++) {
+      out[r] = [];
+      for (let c = 0; c < colsCount; c++) {
+        const idx = Math.floor(Math.abs(Math.sin((spinTick + 1) * (r + 3) * (c + 5))) * symbols.length) % symbols.length;
+        out[r][c] = symbols[idx] || "?";
+      }
+    }
+    return out;
+  }
+
+  function setPlayStatus(message, mode) {
+    if (!(els.playStatus instanceof HTMLElement)) return;
+    els.playStatus.textContent = String(message || "");
+    els.playStatus.classList.remove("error", "ok");
+    if (mode === "error") {
+      els.playStatus.classList.add("error");
+    } else if (mode === "ok") {
+      els.playStatus.classList.add("ok");
+    }
+  }
+
+  function stopPlayRolling() {
+    if (playRollIntervalId) {
+      window.clearInterval(playRollIntervalId);
+      playRollIntervalId = 0;
+    }
+  }
+
+  function startPlayRolling(machineType) {
+    stopPlayRolling();
+    let tick = 0;
+    playRollIntervalId = window.setInterval(() => {
+      tick += 1;
+      const rows = buildRollingRows(machineType, tick);
+      state.playBoardHtml = buildSlotsBoardFromRows(rows, ["Spinning..."], []);
+      renderPlayPanel();
+    }, 90);
   }
 
   function formatTs(ts) {
@@ -946,6 +1102,119 @@
     els.spectateBody.innerHTML = headerHtml + metricsHtml + modeHtml;
   }
 
+  function renderPlayPanel() {
+    if (!(els.playConsole instanceof HTMLElement)) return;
+    const show = Boolean(state.user && state.worldId);
+    els.playConsole.classList.toggle("hidden", !show);
+    if (!show) return;
+
+    const slotRows = getSlotsMachines().slice().sort((a, b) => {
+      if (a.ty !== b.ty) return a.ty - b.ty;
+      return a.tx - b.tx;
+    });
+    const hasSlots = slotRows.length > 0;
+    const safeCurrent = String(state.selectedPlayTileKey || "");
+    const fromSpectate = findMachineByTileKey(state.selectedSpectateTileKey);
+    if (!hasSlots) {
+      state.selectedPlayTileKey = "";
+      state.playBoardHtml = "";
+      if (els.playMachineSelect instanceof HTMLSelectElement) {
+        els.playMachineSelect.innerHTML = "<option value=\"\">No slots machine in world</option>";
+        els.playMachineSelect.disabled = true;
+      }
+      if (els.playBetInput instanceof HTMLInputElement) els.playBetInput.disabled = true;
+      if (els.playSpinBtn instanceof HTMLButtonElement) els.playSpinBtn.disabled = true;
+      if (els.playMaxBtn instanceof HTMLButtonElement) els.playMaxBtn.disabled = true;
+      if (els.playMeta instanceof HTMLElement) {
+        els.playMeta.innerHTML = "<span class=\"tag danger\">No playable slot machines found.</span>";
+      }
+      if (els.playBoard instanceof HTMLElement) {
+        els.playBoard.innerHTML = "<div class=\"spec-empty\">Place slot machines in-game, then reload world here.</div>";
+      }
+      setPlayStatus("No slot machine available in this world.", "error");
+      return;
+    }
+
+    if (!safeCurrent || !slotRows.some((row) => row.tileKey === safeCurrent)) {
+      state.selectedPlayTileKey = (fromSpectate && isSlotsMachineType(fromSpectate.type))
+        ? fromSpectate.tileKey
+        : slotRows[0].tileKey;
+      state.playBoardHtml = "";
+      state.playResultText = "";
+    }
+    const selected = findMachineByTileKey(state.selectedPlayTileKey) || slotRows[0];
+    if (!selected) return;
+
+    if (els.playMachineSelect instanceof HTMLSelectElement) {
+      const options = slotRows.map((row) => {
+        const mark = row.inUseAccountId ? " [IN USE]" : "";
+        return (
+          "<option value=\"" + escapeHtml(row.tileKey) + "\">" +
+            escapeHtml(row.typeName + " @ " + row.tx + "," + row.ty + mark) +
+          "</option>"
+        );
+      }).join("");
+      els.playMachineSelect.innerHTML = options;
+      els.playMachineSelect.value = selected.tileKey;
+      els.playMachineSelect.disabled = state.playBusy;
+    }
+
+    const def = MACHINE_DEFS[selected.type] || MACHINE_DEFS.slots;
+    const bank = Math.max(0, Math.floor(Number(selected.earningsLocks) || 0));
+    const byBank = Math.max(0, Math.floor(bank / Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || 1))));
+    const maxPlayable = getMachinePlayableBetMax(selected, state.walletLocks);
+    const minPlayable = def.minBet;
+    const canSpin = maxPlayable >= minPlayable && !state.playBusy && (!selected.inUseAccountId || selected.inUseAccountId === state.user.accountId);
+
+    if (els.playBetInput instanceof HTMLInputElement) {
+      const currentBet = parsePositiveAmount(els.playBetInput.value);
+      const bet = Math.max(minPlayable, Math.min(maxPlayable || minPlayable, currentBet || minPlayable));
+      els.playBetInput.min = String(minPlayable);
+      els.playBetInput.max = String(Math.max(minPlayable, maxPlayable));
+      els.playBetInput.value = String(bet);
+      els.playBetInput.disabled = !canSpin;
+    }
+    if (els.playSpinBtn instanceof HTMLButtonElement) {
+      els.playSpinBtn.disabled = !canSpin;
+      els.playSpinBtn.textContent = state.playBusy ? "Spinning..." : "Spin";
+    }
+    if (els.playMaxBtn instanceof HTMLButtonElement) {
+      els.playMaxBtn.disabled = !canSpin || maxPlayable <= 0;
+    }
+
+    if (els.playMeta instanceof HTMLElement) {
+      const machineOwner = getMachineOwnerLabel(selected);
+      const lockTag = selected.inUseAccountId && selected.inUseAccountId !== state.user.accountId
+        ? "<span class=\"tag warn\">In use by @" + escapeHtml(selected.inUseName || selected.inUseAccountId) + "</span>"
+        : "<span class=\"tag good\">Ready</span>";
+      const limitTag = maxPlayable >= minPlayable
+        ? "<span class=\"tag\">Playable Bet: " + maxPlayable + " WL</span>"
+        : "<span class=\"tag danger\">Machine needs more bank</span>";
+      els.playMeta.innerHTML =
+        "<span class=\"tag\">Owner: " + escapeHtml(machineOwner) + "</span>" +
+        "<span class=\"tag\">Bank: " + bank + " WL</span>" +
+        "<span class=\"tag\">Wallet: " + state.walletLocks + " WL</span>" +
+        "<span class=\"tag\">Bank Bet Cap: " + byBank + " WL</span>" +
+        "<span class=\"tag\">Max Bet Set: " + selected.maxBet + " WL</span>" +
+        lockTag +
+        limitTag;
+    }
+
+    if (els.playBoard instanceof HTMLElement) {
+      const fallbackBoard = buildSlotsBoardHtml(selected.stats || {});
+      els.playBoard.innerHTML = state.playBoardHtml || fallbackBoard;
+    }
+    if (!state.playBusy && !state.playResultText) {
+      if (maxPlayable < minPlayable) {
+        setPlayStatus("Machine bank too low for this slot's max payout coverage. Refill machine bank.", "error");
+      } else if (selected.inUseAccountId && selected.inUseAccountId !== state.user.accountId) {
+        setPlayStatus("Machine is currently in use by another player.", "error");
+      } else {
+        setPlayStatus("Ready. Bet and spin using your game locks.", "ok");
+      }
+    }
+  }
+
   function renderTaxControls() {
     if (!(els.taxControls instanceof HTMLElement)) return;
     const show = Boolean(state.user && state.worldId && isWorldLockOwner());
@@ -1001,6 +1270,204 @@
     state.walletLocks = nextWallet.total;
     state.walletBreakdownText = buildWalletBreakdownText(nextWallet.byId);
     return { ok: true, next: nextWallet.total, amount: Math.abs(delta) };
+  }
+
+  function buildPlayResultMessage(machine, result, wager, payout) {
+    const typeName = machine && machine.typeName ? machine.typeName : "Slots";
+    const summary = String(result && result.summary || "").trim();
+    const diff = payout - wager;
+    let lead = typeName + ": ";
+    if (diff > 0) {
+      lead += "Won +" + diff + " WL";
+    } else if (diff < 0) {
+      lead += "Lost " + Math.abs(diff) + " WL";
+    } else {
+      lead += "Break-even";
+    }
+    if (summary) {
+      lead += " | " + summary;
+    }
+    return lead.slice(0, 260);
+  }
+
+  async function spinSelectedMachine() {
+    if (state.playBusy) return;
+    if (!state.user || !state.worldId) {
+      setPlayStatus("Login and load a world first.", "error");
+      return;
+    }
+    const playerAccountId = String(state.user.accountId || "").trim();
+    const playerUsername = String(state.user.username || "").trim().slice(0, 24);
+    if (!playerAccountId) {
+      setPlayStatus("Missing account session.", "error");
+      return;
+    }
+    const machine = findMachineByTileKey(state.selectedPlayTileKey);
+    if (!machine || !isSlotsMachineType(machine.type)) {
+      setPlayStatus("Select a playable slots machine first.", "error");
+      return;
+    }
+    const def = MACHINE_DEFS[machine.type] || MACHINE_DEFS.slots;
+    if (machine.inUseAccountId && machine.inUseAccountId !== state.user.accountId) {
+      setPlayStatus("Machine is currently in use by another player.", "error");
+      return;
+    }
+    const requested = parsePositiveAmount(els.playBetInput && els.playBetInput.value);
+    const maxPlayable = getMachinePlayableBetMax(machine, state.walletLocks);
+    if (!requested || requested < def.minBet) {
+      setPlayStatus("Bet must be at least " + def.minBet + " WL.", "error");
+      return;
+    }
+    if (requested > maxPlayable) {
+      setPlayStatus("Bet exceeds current playable max (" + maxPlayable + " WL).", "error");
+      return;
+    }
+    if (typeof slotsModule.spin !== "function") {
+      setPlayStatus("Slots module unavailable.", "error");
+      return;
+    }
+
+    state.playBusy = true;
+    state.playResultText = "";
+    startPlayRolling(machine.type);
+    setPlayStatus("Spinning " + machine.typeName + " for " + requested + " WL...", "");
+    renderPlayPanel();
+
+    const walletDebit = await adjustWalletLocks(-requested);
+    if (!walletDebit.ok) {
+      stopPlayRolling();
+      state.playBusy = false;
+      state.playResultText = walletDebit.reason === "not-enough-locks" ? "Not enough locks in your inventory." : "Failed to spend locks.";
+      setPlayStatus(state.playResultText, "error");
+      renderPlayPanel();
+      return;
+    }
+
+    let applied = false;
+    let resolvedResult = null;
+    let resolvedWager = requested;
+    let resolvedPayout = 0;
+    let payoutCreditIssue = false;
+
+    try {
+      const db = await ensureDb();
+      const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
+      const machineRef = db.ref(basePath + "/worlds/" + state.worldId + "/gamble-machines/" + machine.tileKey);
+      const txn = await machineRef.transaction((currentRaw) => {
+        const current = normalizeMachineRecord(machine.tileKey, currentRaw);
+        if (!current || !isSlotsMachineType(current.type)) return currentRaw;
+        if (current.inUseAccountId && current.inUseAccountId !== playerAccountId) return currentRaw;
+
+        const liveDef = MACHINE_DEFS[current.type] || MACHINE_DEFS.slots;
+        const bankBefore = Math.max(0, Math.floor(Number(current.earningsLocks) || 0));
+        const byBank = Math.max(0, Math.floor(bankBefore / Math.max(1, Math.floor(Number(liveDef.maxPayoutMultiplier) || 1))));
+        const machineCap = Math.max(liveDef.minBet, Math.floor(Number(current.maxBet) || liveDef.maxBet));
+        const liveMax = Math.max(0, Math.min(machineCap, byBank));
+        if (requested < liveDef.minBet || requested > liveMax) return currentRaw;
+
+        const rawResult = slotsModule.spin(current.type, requested, {}) || {};
+        const wager = Math.max(liveDef.minBet, Math.floor(Number(rawResult.bet) || requested));
+        const payout = Math.max(0, Math.floor(Number(rawResult.payoutWanted) || 0));
+        if (wager !== requested) return currentRaw;
+        if ((bankBefore + wager - payout) < 0) return currentRaw;
+
+        const stats = normalizeMachineStats(currentRaw && currentRaw.stats);
+        const reelsArray = Array.isArray(rawResult.reels) ? rawResult.reels : [];
+        const lineWinsArray = Array.isArray(rawResult.lineWins)
+          ? rawResult.lineWins.map((line) => String(line || "").trim()).filter(Boolean)
+          : [];
+        const lineIdsArray = Array.isArray(rawResult.lineIds)
+          ? rawResult.lineIds.map((id) => Math.max(1, Math.floor(Number(id) || 0))).filter((id) => id > 0)
+          : [];
+
+        const nextAt = Date.now();
+        stats.plays += 1;
+        stats.totalBet += wager;
+        stats.totalPayout += payout;
+        stats.lastPlayerRoll = 0;
+        stats.lastHouseRoll = 0;
+        stats.lastPlayerReme = 0;
+        stats.lastHouseReme = 0;
+        stats.lastMultiplier = Math.max(0, Number(rawResult.multiplier) || 0);
+        stats.lastOutcome = String(rawResult.outcome || "lose").slice(0, 24);
+        stats.lastSlotsText = reelsArray.join("|").slice(0, 220);
+        stats.lastSlotsSummary = String(rawResult.summary || "").slice(0, 220);
+        stats.lastSlotsLines = lineWinsArray.join(" | ").slice(0, 220);
+        stats.lastSlotsLineIds = lineIdsArray.join(",").slice(0, 120);
+        stats.lastPlayerName = playerUsername;
+        stats.lastAt = nextAt;
+
+        applied = true;
+        resolvedResult = {
+          gameId: String(rawResult.gameId || current.type || "slots").slice(0, 24),
+          summary: stats.lastSlotsSummary,
+          outcome: stats.lastOutcome,
+          multiplier: stats.lastMultiplier,
+          lineWins: lineWinsArray.slice(0, 18),
+          lineIds: lineIdsArray.slice(0, 12),
+          reels: reelsArray.slice(0, 6)
+        };
+        resolvedWager = wager;
+        resolvedPayout = payout;
+
+        return {
+          ...currentRaw,
+          earningsLocks: Math.max(0, bankBefore + wager - payout),
+          updatedAt: nextAt,
+          stats
+        };
+      });
+
+      if (!txn || !txn.committed || !applied || !resolvedResult) {
+        await adjustWalletLocks(requested);
+        stopPlayRolling();
+        state.playBusy = false;
+        state.playResultText = "Spin was rejected (bank changed, machine busy, or limits changed).";
+        setPlayStatus(state.playResultText, "error");
+        renderPlayPanel();
+        return;
+      }
+
+      if (resolvedPayout > 0) {
+        let creditOk = false;
+        for (let i = 0; i < 3; i++) {
+          const credit = await adjustWalletLocks(resolvedPayout);
+          if (credit && credit.ok) {
+            creditOk = true;
+            break;
+          }
+        }
+        if (!creditOk) {
+          payoutCreditIssue = true;
+        }
+      }
+
+      stopPlayRolling();
+      state.playBusy = false;
+      state.selectedSpectateTileKey = machine.tileKey;
+      state.playBoardHtml = buildSlotsBoardFromRows(
+        buildRowsFromSpinResult(resolvedResult, machine.type),
+        resolvedResult.lineWins,
+        resolvedResult.lineIds
+      );
+      state.playResultText = buildPlayResultMessage(machine, resolvedResult, resolvedWager, resolvedPayout);
+      if (payoutCreditIssue) {
+        state.playResultText += " | payout credit pending retry";
+      }
+      setPlayStatus(
+        state.playResultText,
+        payoutCreditIssue ? "error" : (resolvedPayout > resolvedWager ? "ok" : "")
+      );
+      makeStatus("Website spin: " + state.playResultText, payoutCreditIssue ? "error" : (resolvedPayout > resolvedWager ? "ok" : ""));
+      renderAll();
+    } catch (error) {
+      await adjustWalletLocks(requested);
+      stopPlayRolling();
+      state.playBusy = false;
+      state.playResultText = (error && error.message) || "Failed to spin machine.";
+      setPlayStatus(state.playResultText, "error");
+      renderPlayPanel();
+    }
   }
 
   async function refillMachineBank(tileKey, amountRaw) {
@@ -1334,6 +1801,7 @@
         state.walletLocks = wallet.total;
         state.walletBreakdownText = buildWalletBreakdownText(wallet.byId);
         renderSummary();
+        renderPlayPanel();
       };
 
       state.refs.lock.on("value", state.handlers.lock);
@@ -1483,8 +1951,24 @@
 
         if (act === "spectate-machine") {
           state.selectedSpectateTileKey = tileKey;
-          renderMachines();
-          renderSpectate();
+          const machine = findMachineByTileKey(tileKey);
+          if (machine && isSlotsMachineType(machine.type)) {
+            state.selectedPlayTileKey = tileKey;
+            state.playBoardHtml = "";
+            state.playResultText = "";
+          }
+          renderAll();
+          return;
+        }
+
+        if (act === "play-machine") {
+          const machine = findMachineByTileKey(tileKey);
+          if (!machine || !isSlotsMachineType(machine.type)) return;
+          state.selectedPlayTileKey = tileKey;
+          state.selectedSpectateTileKey = tileKey;
+          state.playBoardHtml = "";
+          state.playResultText = "";
+          renderAll();
           return;
         }
 
@@ -1526,7 +2010,42 @@
       });
     }
 
+    if (els.playMachineSelect instanceof HTMLSelectElement) {
+      els.playMachineSelect.addEventListener("change", () => {
+        state.selectedPlayTileKey = String(els.playMachineSelect.value || "").trim();
+        state.selectedSpectateTileKey = state.selectedPlayTileKey;
+        state.playBoardHtml = "";
+        state.playResultText = "";
+        renderAll();
+      });
+    }
+
+    if (els.playMaxBtn instanceof HTMLButtonElement) {
+      els.playMaxBtn.addEventListener("click", () => {
+        const machine = findMachineByTileKey(state.selectedPlayTileKey);
+        if (!machine || !(els.playBetInput instanceof HTMLInputElement)) return;
+        const maxPlayable = getMachinePlayableBetMax(machine, state.walletLocks);
+        if (maxPlayable <= 0) return;
+        els.playBetInput.value = String(maxPlayable);
+      });
+    }
+
+    if (els.playSpinBtn instanceof HTMLButtonElement) {
+      els.playSpinBtn.addEventListener("click", () => {
+        spinSelectedMachine();
+      });
+    }
+
+    if (els.playBetInput instanceof HTMLInputElement) {
+      els.playBetInput.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        spinSelectedMachine();
+      });
+    }
+
     window.addEventListener("beforeunload", () => {
+      stopPlayRolling();
       detachWorldListeners();
     });
   }

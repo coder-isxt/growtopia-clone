@@ -76,7 +76,8 @@
     }
 
     button,
-    input {
+    input,
+    select {
       font-family: inherit;
       font-size: 10px;
       border-radius: 10px;
@@ -96,7 +97,8 @@
     button:active { transform: translateY(1px); }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
 
-    input {
+    input,
+    select {
       background: rgba(3, 14, 30, 0.9);
       border-color: rgba(63, 189, 255, 0.5);
     }
@@ -330,6 +332,47 @@
       margin-top: 10px;
       background: rgba(4, 13, 27, 0.55);
       min-height: 120px;
+    }
+
+    .play-console {
+      border: 1px solid rgba(111, 164, 235, 0.4);
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 10px;
+      background: rgba(4, 13, 27, 0.55);
+    }
+
+    .play-title {
+      color: #afe1ff;
+      font-size: 10px;
+      margin-bottom: 8px;
+    }
+
+    .play-controls {
+      display: grid;
+      grid-template-columns: minmax(220px, 1.3fr) minmax(110px, 140px) auto auto;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .play-controls button {
+      min-width: 92px;
+    }
+
+    .play-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .play-board {
+      min-height: 132px;
+      border: 1px solid rgba(111, 164, 235, 0.35);
+      border-radius: 10px;
+      padding: 8px;
+      background: rgba(5, 15, 29, 0.78);
+      margin-bottom: 8px;
     }
 
     .spectate-title {
@@ -655,6 +698,8 @@
       .content-head input { min-width: 0; }
       .spec-metrics { grid-template-columns: repeat(2, minmax(100px, 1fr)); }
       .spec-grid { grid-template-columns: repeat(2, minmax(90px, 1fr)); }
+      .play-controls { grid-template-columns: 1fr 1fr; }
+      .play-controls button { width: 100%; }
     }
   </style>
 </head>
@@ -739,6 +784,21 @@
         <div class="spectate" id="spectatePanel">
           <div class="spectate-title">Spectate</div>
           <div class="spectate-body" id="spectateBody">Pick a machine to spectate.</div>
+        </div>
+
+        <div class="play-console" id="playConsole">
+          <div class="play-title">Web Slots</div>
+          <div class="play-controls">
+            <select id="playMachineSelect"></select>
+            <input id="playBetInput" type="number" min="1" step="1" value="1" placeholder="Bet WL">
+            <button id="playMaxBtn" type="button">Use Max</button>
+            <button id="playSpinBtn" type="button">Spin</button>
+          </div>
+          <div class="play-meta" id="playMeta"></div>
+          <div class="play-board" id="playBoard">
+            <div class="spec-empty">Select a slots machine to start.</div>
+          </div>
+          <div class="status" id="playStatus">Load a world and pick a slots machine.</div>
         </div>
       </section>
     </main>
