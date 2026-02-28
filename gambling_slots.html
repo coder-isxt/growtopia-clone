@@ -91,13 +91,6 @@
     button:active { transform: translateY(1px); }
     button:disabled { opacity: 0.58; cursor: not-allowed; }
 
-    .layout {
-      display: grid;
-      grid-template-columns: 360px 1fr;
-      gap: 12px;
-      min-height: calc(100vh - 130px);
-    }
-
     .card {
       border: 2px solid var(--line);
       border-radius: 14px;
@@ -161,28 +154,37 @@
     .status.ok { color: var(--good); border-color: rgba(100, 242, 168, 0.5); }
     .status.error { color: var(--danger); border-color: rgba(255, 128, 128, 0.5); }
 
+    /* Lobby / Tablet View Styles */
     .machine-list {
-      max-height: 220px;
-      overflow-y: auto;
-      border: 1px solid rgba(112, 165, 236, 0.35);
-      border-radius: 10px;
-      background: rgba(5, 16, 31, 0.62);
-      padding: 6px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      padding: 10px;
     }
 
     .machine-item {
-      border: 1px solid rgba(112, 165, 236, 0.3);
-      border-radius: 9px;
-      padding: 7px;
-      margin-bottom: 6px;
-      background: rgba(14, 30, 54, 0.72);
-      font-size: 8px;
-      line-height: 1.5;
+      border: 2px solid rgba(112, 165, 236, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+      background: linear-gradient(180deg, rgba(20, 40, 70, 0.8), rgba(10, 20, 35, 0.9));
+      text-align: center;
       cursor: pointer;
+      transition: transform 0.1s, border-color 0.1s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 120px;
     }
 
-    .machine-item:last-child { margin-bottom: 0; }
-    .machine-item.active { border-color: rgba(57, 200, 255, 0.88); box-shadow: 0 0 0 1px rgba(57, 200, 255, 0.4) inset; }
+    .machine-item:hover {
+      transform: translateY(-4px);
+      border-color: var(--cyan);
+      background: linear-gradient(180deg, rgba(30, 60, 100, 0.9), rgba(15, 30, 50, 1));
+    }
+
+    .machine-item .name { font-size: 12px; color: var(--cyan); margin-bottom: 8px; }
+    .machine-item .info { font-size: 9px; color: var(--muted); }
 
     .stage-wrap {
       display: grid;
@@ -445,6 +447,11 @@
       animation: riseFade 900ms ease forwards;
     }
 
+    .center-view {
+      max-width: 420px;
+      margin: 40px auto;
+    }
+
     .hidden { display: none !important; }
 
     @keyframes reelPulse {
@@ -470,11 +477,7 @@
     }
 
     @media (max-width: 1120px) {
-      .layout { grid-template-columns: 1fr; min-height: 0; }
-      .toolbar {
-        grid-template-columns: 1fr 1fr;
-      }
-      .toolbar > *:nth-child(1) { grid-column: 1 / -1; }
+      .machine-list { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
     }
   </style>
 </head>
@@ -486,14 +489,14 @@
         <div class="sub">Dedicated web slot experience: animated reels, paylines, buy-bonus and in-game WL wallet sync.</div>
       </div>
       <div class="head-actions">
-      <button id="openDashboardBtn" type="button">Machine Dashboard</button>
         <button id="openGameBtn" type="button">Open Game</button>
         <button id="logoutBtn" type="button" class="hidden">Logout</button>
       </div>
     </header>
 
-    <main class="layout">
-      <section class="card" id="leftCard">
+    <main>
+      <!-- VIEW 1: LOGIN -->
+      <section id="viewLogin" class="card center-view">
         <h2>Authorization</h2>
         <div class="row">
           <input id="authUsername" type="text" maxlength="20" placeholder="Username">
@@ -506,18 +509,23 @@
           <button id="authCreateBtn" type="button">Create</button>
         </div>
         <div id="authStatus" class="status">Login with your game account.</div>
+      </section>
+
+      <!-- VIEW 2: LOBBY (TABLET STYLE) -->
+      <section id="viewLobby" class="card hidden">
         <div class="meta">
           <span class="pill">Session: <span id="sessionLabel">Not logged in</span></span>
-          <span class="pill">World: <span id="worldLabel">No world loaded</span></span>
           <span class="pill">Wallet: <span id="walletLabel">0 WL</span></span>
         </div>
-
-        <h2 style="margin-top:14px;">Games</h2>
+        <h2 style="margin-top:14px;">Select a Game</h2>
         <div class="machine-list" id="machineList"></div>
       </section>
 
-      <section class="card stage-wrap">
-
+      <!-- VIEW 3: GAME STAGE -->
+      <section id="viewGame" class="card stage-wrap hidden">
+        <div class="row">
+          <button id="backToLobbyBtn" type="button" style="width:auto;">&laquo; Back to Lobby</button>
+        </div>
         <div class="stage" id="stage">
           <div class="stage-head">
             <span class="tag" id="statBank">Bank: 0 WL</span>

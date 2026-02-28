@@ -120,7 +120,6 @@ window.GTModules = window.GTModules || {};
     authCreateBtn: document.getElementById("authCreateBtn"),
     authStatus: document.getElementById("authStatus"),
     sessionLabel: document.getElementById("sessionLabel"),
-    worldLabel: document.getElementById("worldLabel"),
     walletLabel: document.getElementById("walletLabel"),
     machineSelect: document.getElementById("machineSelect"),
     machineList: document.getElementById("machineList"),
@@ -138,7 +137,11 @@ window.GTModules = window.GTModules || {};
     statMaxBet: document.getElementById("statMaxBet"),
     statPlays: document.getElementById("statPlays"),
     statPayout: document.getElementById("statPayout"),
-    userBalanceDisplay: document.getElementById("userBalanceDisplay")
+    userBalanceDisplay: document.getElementById("userBalanceDisplay"),
+    viewLogin: document.getElementById("viewLogin"),
+    viewLobby: document.getElementById("viewLobby"),
+    viewGame: document.getElementById("viewGame"),
+    backToLobbyBtn: document.getElementById("backToLobbyBtn")
   };
 
   function buildMachineDefinitions() {
@@ -478,7 +481,6 @@ window.GTModules = window.GTModules || {};
     if (els.sessionLabel instanceof HTMLElement) {
       els.sessionLabel.textContent = state.user ? ("@" + state.user.username + " (" + state.user.accountId + ")") : "Not logged in";
     }
-    if (els.worldLabel instanceof HTMLElement) els.worldLabel.textContent = "Casino";
     if (els.walletLabel instanceof HTMLElement) {
       els.walletLabel.textContent = state.walletLocks + " WL (" + state.walletBreakdownText + ")";
     }
@@ -679,40 +681,23 @@ if (wrap instanceof HTMLElement) {
     window.setTimeout(() => { if (els.particles instanceof HTMLElement) els.particles.innerHTML = ""; }, 1100);
   }
 
+  // Renders the "Tablet" style grid of games in the lobby
   function renderMachineSelector() {
-    if (!(els.machineSelect instanceof HTMLSelectElement) || !(els.machineList instanceof HTMLElement)) return;
+    if (!(els.machineList instanceof HTMLElement)) return;
      const rows = state.machines.slice().sort((a, b) => a.ty - b.ty || a.tx - b.tx);
     if (!rows.length) {
-      els.machineSelect.innerHTML = "<option value=\"\">No slot machines</option>";
-      els.machineSelect.disabled = true;
-      els.machineList.innerHTML = "<div class=\"machine-item\">No slot machine found in this world.</div>";
-      state.selectedMachineKey = "";
+      els.machineList.innerHTML = "<div class=\"status\">No games available.</div>";
       return;
     }
 
-    if (!state.selectedMachineKey || !rows.some((r) => r.tileKey === state.selectedMachineKey)) {
-      state.selectedMachineKey = rows[0].tileKey;
-    }
-
-    els.machineSelect.disabled = false;
-    els.machineSelect.innerHTML = rows.map((row) => "<option value=\"" + escapeHtml(row.tileKey) + "\">" + escapeHtml(machineLabel(row)) + "</option>").join("");
-    els.machineSelect.value = state.selectedMachineKey;
-
     els.machineList.innerHTML = rows.map((row) => {
-      const active = row.tileKey === state.selectedMachineKey ? " active" : "";
-      const inUse = row.inUseAccountId
-        ? ("<span class=\"tag warn\">In use by @" + escapeHtml(row.inUseName || row.inUseAccountId) + "</span>")
-        : "<span class=\"tag good\">Idle</span>";
-      const owner = row.ownerName ? ("@" + row.ownerName) : row.ownerAccountId;
+      // const active = row.tileKey === state.selectedMachineKey ? " active" : "";
+      // const owner = row.ownerName ? ("@" + row.ownerName) : row.ownerAccountId;
       return (
-        "<div class=\"machine-item" + active + "\" data-machine-key=\"" + escapeHtml(row.tileKey) + "\">" +
-          "<div style=\"color:#d9ebff;font-size:8px;margin-bottom:4px;\">" + escapeHtml(machineLabel(row)) + "</div>" +
-          "<div style=\"display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;\">" +
-            "<span class=\"tag\">Owner: " + escapeHtml(owner || "unknown") + "</span>" +
-            "<span class=\"tag\">Bank: " + formatBankForList(row) + "</span>" +
-            inUse +
-          "</div>" +
-          "<div style=\"font-size:7px;color:#9db7da;\">Max Bet " + row.maxBet + " WL | " + row.stats.plays + " plays</div>" +
+        "<div class=\"machine-item\" data-machine-key=\"" + escapeHtml(row.tileKey) + "\">" +
+          "<div class=\"name\">" + escapeHtml(row.typeName) + "</div>" +
+          "<div class=\"info\">Max Bet: " + row.maxBet + " WL</div>" +
+          "<div class=\"info\">Plays: " + row.stats.plays + "</div>" +
         "</div>"
       );
     }).join("");
@@ -782,6 +767,16 @@ if (wrap instanceof HTMLElement) {
     renderMachineSelector();
     renderMachineStats();
     renderBoard();
+  }
+
+  function switchView(viewName) {
+    if (els.viewLogin) els.viewLogin.classList.add("hidden");
+    if (els.viewLobby) els.viewLobby.classList.add("hidden");
+    if (els.viewGame) els.viewGame.classList.add("hidden");
+
+    if (viewName === "login" && els.viewLogin) els.viewLogin.classList.remove("hidden");
+    if (viewName === "lobby" && els.viewLobby) els.viewLobby.classList.remove("hidden");
+    if (viewName === "game" && els.viewGame) els.viewGame.classList.remove("hidden");
   }
 
   async function resolveUserRole(accountId, username) {
@@ -854,6 +849,7 @@ if (wrap instanceof HTMLElement) {
       setStatus(els.authStatus, "Logged in as @" + username + ".", "ok");
 
       attachUserSession();
+      switchView("lobby");
     } catch (error) {
       setStatus(els.authStatus, (error && error.message) || "Login failed.", "error");
     } finally {
@@ -871,6 +867,7 @@ if (wrap instanceof HTMLElement) {
     state.ephemeral.lineWins = [];
     renderAll();
     setStatus(els.authStatus, "Logged out.");
+    switchView("login");
   }
 
   async function attachUserSession() {
@@ -1116,7 +1113,6 @@ if (wrap instanceof HTMLElement) {
   }
 
   function bindEvents() {
-    if (els.openDashboardBtn instanceof HTMLButtonElement) els.openDashboardBtn.addEventListener("click", () => { window.location.href = "gambling.html"; });
     if (els.openGameBtn instanceof HTMLButtonElement) els.openGameBtn.addEventListener("click", () => { window.location.href = "index.html"; });
     if (els.logoutBtn instanceof HTMLButtonElement) els.logoutBtn.addEventListener("click", logout);
 
@@ -1127,16 +1123,6 @@ if (wrap instanceof HTMLElement) {
         if (event.key !== "Enter") return;
         event.preventDefault();
         loginWithPassword(false);
-      });
-    }
-
-    if (els.machineSelect instanceof HTMLSelectElement) {
-      els.machineSelect.addEventListener("change", () => {
-        state.selectedMachineKey = String(els.machineSelect.value || "");
-        state.ephemeral.rows = null;
-        state.ephemeral.lineWins = [];
-        state.ephemeral.lineIds = [];
-        renderAll();
       });
     }
 
@@ -1153,6 +1139,7 @@ if (wrap instanceof HTMLElement) {
         state.ephemeral.lineWins = [];
         state.ephemeral.lineIds = [];
         renderAll();
+        switchView("game");
       });
     }
 
@@ -1179,6 +1166,10 @@ if (wrap instanceof HTMLElement) {
         els.betInput.value = String(clampBetToMachine(machine, els.betInput.value));
         renderMachineStats();
       });
+    }
+
+    if (els.backToLobbyBtn instanceof HTMLButtonElement) {
+      els.backToLobbyBtn.addEventListener("click", () => switchView("lobby"));
     }
 
     window.addEventListener("beforeunload", () => { clearSessionRefs(); });
@@ -1208,6 +1199,10 @@ if (wrap instanceof HTMLElement) {
     state.selectedMachineKey = state.machines[0].tileKey;
 
     setStatus(els.authStatus, "Login with your game account.");
+    
+    // If we have saved credentials, we might want to auto-login or just show login screen pre-filled.
+    // For now, we show login screen.
+    switchView("login");
   }
 
   init();
