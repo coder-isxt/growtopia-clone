@@ -1009,7 +1009,8 @@ window.GTModules = window.GTModules || {};
     const bjState = machine.stats.blackjackState;
     const activeHand = (bjState && bjState.hands && bjState.hands[bjState.activeHandIndex]) || null;
 
-    let displayBet = clampBetToMachine(machine, state.currentBetValue);
+    const bet = clampBetToMachine(machine, state.currentBetValue);
+    let displayBet = bet;
 
     if (isBlackjack && bjState && bjState.active && Array.isArray(bjState.hands)) {
       displayBet = bjState.hands.reduce((sum, h) => sum + (Number(h.bet) || 0), 0);
