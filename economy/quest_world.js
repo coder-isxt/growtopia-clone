@@ -1857,22 +1857,26 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       const worldId = getCurrentWorldId();
       const world = getWorld();
       if (!worldId) return { ok: false, reason: "no_world" };
-      const config = worldConfigById.get(worldId);
       const questNpcId = getQuestNpcId();
-      if (world && config && Number.isInteger(config.npcTx) && Number.isInteger(config.npcTy)) {
-        const tx = Math.floor(Number(config.npcTx) || 0);
-        const ty = Math.floor(Number(config.npcTy) || 0);
-        if (world[ty] && world[ty][tx] === questNpcId) {
-          world[ty][tx] = 0;
-          call("clearTileDamage", tx, ty);
-          call("syncBlock", tx, ty, 0);
+      let removedCount = 0;
+      if (Array.isArray(world)) {
+        for (let ty = 0; ty < world.length; ty++) {
+          const row = world[ty];
+          if (!Array.isArray(row)) continue;
+          for (let tx = 0; tx < row.length; tx++) {
+            if (row[tx] !== questNpcId) continue;
+            row[tx] = 0;
+            removedCount += 1;
+            call("clearTileDamage", tx, ty);
+            call("syncBlock", tx, ty, 0);
+          }
         }
       }
       setLocalWorldConfig(worldId, null);
       const path = getQuestWorldPath(worldId);
       if (path) writeAdminRemove(path).catch(() => {});
       closeModal();
-      return { ok: true, worldId };
+      return { ok: true, worldId, removedNpcTiles: removedCount };
     }
 
     function onNpcBroken(tx, ty) {

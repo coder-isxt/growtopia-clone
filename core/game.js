@@ -139,17 +139,24 @@
         const id = machine ? Math.floor(Number(machine.id) || 0) : 0;
         return id > 0 ? id : 51;
       })();
+      const isInventoryObtainableBlockId = (id) => {
+        if (!Number.isInteger(id) || id <= 0) return false;
+        if (id === QUEST_NPC_ID) return false;
+        const def = blockDefs[id];
+        if (!def) return false;
+        return def.obtainable !== false;
+      };
       const BASE_BLOCK_INVENTORY_IDS = Object.keys(baseBlockDefs || {})
         .map((id) => Math.floor(Number(id)))
-        .filter((id) => Number.isInteger(id) && id > 0 && blockDefs[id])
+        .filter((id) => isInventoryObtainableBlockId(id))
         .sort((a, b) => a - b);
       const FARMABLE_INVENTORY_IDS = (Array.isArray(farmableRegistry.ids) ? farmableRegistry.ids : [])
         .map((id) => Math.floor(Number(id)))
-        .filter((id) => Number.isInteger(id) && id > 0 && blockDefs[id])
+        .filter((id) => isInventoryObtainableBlockId(id))
         .sort((a, b) => a - b);
       const SEED_INVENTORY_IDS = Object.keys(seedRegistry.defs || {})
         .map((id) => Math.floor(Number(id)))
-        .filter((id) => Number.isInteger(id) && id > 0 && blockDefs[id])
+        .filter((id) => isInventoryObtainableBlockId(id))
         .sort((a, b) => a - b);
       const blockOnlyInventorySet = new Set();
       const BLOCK_ONLY_INVENTORY_IDS = [];
