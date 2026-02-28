@@ -2409,44 +2409,6 @@
         const actionOptionsMarkup = adminActionOptions.map((row) => {
           return '<option value="' + escapeHtml(row.id) + '">' + escapeHtml(row.label) + "</option>";
         }).join("");
-        const actionLabelById = {};
-        adminActionOptions.forEach((row) => {
-          actionLabelById[String(row.id || "")] = String(row.label || row.id || "");
-        });
-        const consoleShortcutRows = [
-          { id: "viewinv", label: "View Inv" },
-          { id: "kick", label: "Kick" },
-          { id: "tempban", label: "Temp Ban" },
-          { id: "permban", label: "Perm Ban" },
-          { id: "unban", label: "Unban" },
-          { id: "mutechat", label: "Mute Chat" },
-          { id: "unmutechat", label: "Unmute Chat" },
-          { id: "setrole", label: "Set Role" },
-          { id: "give_block", label: "Give Block" },
-          { id: "give_item", label: "Give Cosmetic" },
-          { id: "give_title", label: "Give Title" },
-          { id: "announce_user", label: "DM Notice" }
-        ].filter((row) => Object.prototype.hasOwnProperty.call(actionLabelById, row.id));
-        const consoleShortcutMarkup = consoleShortcutRows.map((row) => {
-          return '<button type="button" class="admin-console-action-shortcut" data-admin-act="consolepickaction" data-action="' + escapeHtml(row.id) + '">' + escapeHtml(row.label) + "</button>";
-        }).join("");
-        const consolePresetRows = [
-          { id: "viewinv", label: "View Inv", perm: "panel_open" },
-          { id: "give_block", label: "Give Block", perm: "give_block", amount: "50" },
-          { id: "tempban", label: "Temp Ban 12h", perm: "tempban", duration: "12h", reason: "Banned by admin" },
-          { id: "permban", label: "Perm Ban", perm: "permban", reason: "Permanently banned by admin" },
-          { id: "unban", label: "Unban", perm: "unban" },
-          { id: "mutechat", label: "Mute Chat", perm: "kick", reason: "Muted by admin" },
-          { id: "unmutechat", label: "Unmute Chat", perm: "kick" },
-          { id: "kick", label: "Kick", perm: "kick" },
-          { id: "announce_user", label: "DM Notice", perm: "announce_user" }
-        ].filter((row) => hasAdminPermission(row.perm));
-        const consolePresetMarkup = consolePresetRows.map((row) => {
-          const durationAttr = row.duration ? (' data-duration="' + escapeHtml(row.duration) + '"') : "";
-          const reasonAttr = row.reason ? (' data-reason="' + escapeHtml(row.reason) + '"') : "";
-          const amountAttr = row.amount ? (' data-amount="' + escapeHtml(row.amount) + '"') : "";
-          return '<button type="button" data-admin-act="consolepreset" data-action="' + escapeHtml(row.id) + '"' + durationAttr + reasonAttr + amountAttr + ">" + escapeHtml(row.label) + "</button>";
-        }).join("");
         const backupOptionsMarkup = getAdminBackupOptionsMarkup();
         const consoleBlockOptions = buildAdminConsoleOptionRows("give_block");
         const consoleFarmableOptions = buildAdminConsoleOptionRows("give_farmable");
@@ -2458,19 +2420,11 @@
             <div class="admin-card-header">
               <div class="admin-audit-title">Action Console</div>
             </div>
-            <div class="admin-console-presets">${consolePresetMarkup}</div>
             <div class="admin-console-help">Flow: choose player, choose action, fill required fields, then execute.</div>
-            <div class="admin-console-summary">
-              <span class="admin-console-target-summary">Target: none</span>
-              <span class="admin-console-action-summary">Action: none</span>
-            </div>
-            <div class="admin-console-requirements">Required: choose target and action.</div>
-            <div class="admin-console-action-shortcuts">${consoleShortcutMarkup}</div>
-            <div class="admin-console-player-results"></div>
             <div class="admin-console-grid">
               <div class="admin-console-field admin-console-field-wide">
                 <label>Find Player</label>
-                <input class="admin-console-player-filter" type="text" placeholder="Filter players and click a result below...">
+                <input class="admin-console-player-filter" type="text" placeholder="Filter players...">
               </div>
               <div class="admin-console-field">
                 <label>Target</label>
@@ -2841,8 +2795,6 @@
         adminAccountsEl.querySelectorAll(".admin-logs-list").forEach((el) => scrollElementToBottom(el));
         adminAccountsEl.querySelectorAll(".admin-anticheat-list").forEach((el) => scrollElementToBottom(el));
         updateAdminConsoleOptionVisibility();
-        updateAdminConsoleSelectionSummary();
-        renderAdminConsolePlayerResults();
       }
 
       function buildAdminConsoleOptionRows(action) {
@@ -2933,93 +2885,6 @@
         }
       }
 
-      function getAdminConsoleRequiredText(action) {
-        const safe = String(action || "");
-        if (safe === "tempban") return "Target + Duration + Reason.";
-        if (safe === "permban") return "Target + Reason.";
-        if (safe === "mutechat") return "Target + Reason.";
-        if (safe === "setrole") return "Target + Role.";
-        if (safe === "give_block") return "Target + Block + Amount.";
-        if (safe === "give_farmable") return "Target + Farmable + Amount.";
-        if (safe === "give_seed") return "Target + Seed + Amount.";
-        if (safe === "give_item") return "Target + Cosmetic + Amount.";
-        if (safe === "give_title" || safe === "remove_title") return "Target + Title + Amount.";
-        if (safe === "reach") return "Target + Reach value.";
-        if (safe === "announce_user") return "Target + Message.";
-        if (safe === "db_restore") return "Backup selection.";
-        if (safe === "db_backup") return "No extra fields.";
-        if (safe === "copy_discord") return "Target with Discord tag.";
-        if (safe) return "Target.";
-        return "Choose target and action.";
-      }
-
-      function updateAdminConsoleActionShortcutState() {
-        const actionEl = adminAccountsEl.querySelector(".admin-console-action");
-        const selected = actionEl instanceof HTMLSelectElement ? String(actionEl.value || "") : "";
-        adminAccountsEl.querySelectorAll(".admin-console-action-shortcut[data-action]").forEach((el) => {
-          if (!(el instanceof HTMLElement)) return;
-          const id = String(el.dataset.action || "");
-          el.classList.toggle("active", id === selected);
-        });
-      }
-
-      function renderAdminConsolePlayerResults() {
-        const holder = adminAccountsEl.querySelector(".admin-console-player-results");
-        const select = adminAccountsEl.querySelector(".admin-console-player");
-        if (!(holder instanceof HTMLElement) || !(select instanceof HTMLSelectElement)) return;
-        const queryEl = adminAccountsEl.querySelector(".admin-console-player-filter");
-        const hasQuery = queryEl instanceof HTMLInputElement && String(queryEl.value || "").trim().length > 0;
-        const selectedValue = String(select.value || "");
-        const rows = [];
-        for (let i = 0; i < select.options.length; i++) {
-          const option = select.options[i];
-          if (option.hidden) continue;
-          const label = String(option.text || "").trim();
-          const value = String(option.value || "").trim();
-          if (!value) continue;
-          rows.push({
-            value,
-            label,
-            online: label.toLowerCase().includes(", online")
-          });
-        }
-        rows.sort((a, b) => {
-          if (a.online !== b.online) return a.online ? -1 : 1;
-          return a.label.localeCompare(b.label);
-        });
-        const limited = rows.slice(0, hasQuery ? 14 : 10);
-        if (!limited.length) {
-          holder.innerHTML = "<div class='admin-console-player-empty'>No players match this filter.</div>";
-          return;
-        }
-        holder.innerHTML = limited.map((row) => {
-          const activeClass = row.value === selectedValue ? " active" : "";
-          return "<button type='button' class='admin-console-player-chip" + activeClass + "' data-admin-act='consolepickplayer' data-account-id='" + escapeHtml(row.value) + "'>" + escapeHtml(row.label) + "</button>";
-        }).join("");
-      }
-
-      function updateAdminConsoleSelectionSummary() {
-        const targetSummaryEl = adminAccountsEl.querySelector(".admin-console-target-summary");
-        const actionSummaryEl = adminAccountsEl.querySelector(".admin-console-action-summary");
-        if (!(targetSummaryEl instanceof HTMLElement) || !(actionSummaryEl instanceof HTMLElement)) return;
-        const playerSelectEl = adminAccountsEl.querySelector(".admin-console-player");
-        const actionSelectEl = adminAccountsEl.querySelector(".admin-console-action");
-        const targetLabel = playerSelectEl instanceof HTMLSelectElement
-          ? (playerSelectEl.selectedOptions[0] ? playerSelectEl.selectedOptions[0].text : "")
-          : "";
-        const actionLabel = actionSelectEl instanceof HTMLSelectElement
-          ? (actionSelectEl.selectedOptions[0] ? actionSelectEl.selectedOptions[0].text : "")
-          : "";
-        targetSummaryEl.textContent = "Target: " + (targetLabel || "none");
-        actionSummaryEl.textContent = "Action: " + (actionLabel || "none");
-        const reqEl = adminAccountsEl.querySelector(".admin-console-requirements");
-        if (reqEl instanceof HTMLElement) {
-          const actionId = actionSelectEl instanceof HTMLSelectElement ? String(actionSelectEl.value || "") : "";
-          reqEl.textContent = "Required: " + getAdminConsoleRequiredText(actionId);
-        }
-        updateAdminConsoleActionShortcutState();
-      }
-
       function updateAdminConsoleOptionVisibility() {
         const actionEl = adminAccountsEl.querySelector(".admin-console-action");
         if (!(actionEl instanceof HTMLSelectElement)) return;
@@ -3094,7 +2959,6 @@
           searchEl.placeholder = getAdminConsoleItemSearchPlaceholder(action);
         }
         refreshAdminConsoleItemOptions(action, query);
-        updateAdminConsoleSelectionSummary();
       }
 
       function handleAdminAction(event) {
@@ -3109,7 +2973,6 @@
             const playerSelectEl = adminAccountsEl.querySelector(".admin-console-player");
             if (rowAccountId && playerSelectEl instanceof HTMLSelectElement) {
               playerSelectEl.value = rowAccountId;
-              updateAdminConsoleSelectionSummary();
             }
           }
           return;
@@ -3131,49 +2994,6 @@
           const next = Math.max(1, Math.min(1000000, Math.floor(Number(target.dataset.amount) || 1)));
           amountInput.value = String(next);
           amountInput.dispatchEvent(new Event("input", { bubbles: true }));
-          return;
-        }
-        if (action === "consolepickplayer") {
-          const selectedAccountId = String(target.dataset.accountId || "").trim();
-          const playerSelectEl = adminAccountsEl.querySelector(".admin-console-player");
-          if (!selectedAccountId || !(playerSelectEl instanceof HTMLSelectElement)) return;
-          playerSelectEl.value = selectedAccountId;
-          updateAdminConsoleSelectionSummary();
-          renderAdminConsolePlayerResults();
-          return;
-        }
-        if (action === "consolepickaction") {
-          const pickedAction = String(target.dataset.action || "").trim();
-          const actionSelectEl = adminAccountsEl.querySelector(".admin-console-action");
-          if (!pickedAction || !(actionSelectEl instanceof HTMLSelectElement)) return;
-          const hasOption = Array.from(actionSelectEl.options).some((row) => String(row.value || "") === pickedAction);
-          if (!hasOption) return;
-          actionSelectEl.value = pickedAction;
-          updateAdminConsoleOptionVisibility();
-          return;
-        }
-        if (action === "consolepreset") {
-          const actionSelectEl = adminAccountsEl.querySelector(".admin-console-action");
-          if (!(actionSelectEl instanceof HTMLSelectElement)) return;
-          const nextAction = String(target.dataset.action || "").trim();
-          if (!nextAction) return;
-          const hasOption = Array.from(actionSelectEl.options).some((row) => String(row.value || "") === nextAction);
-          if (!hasOption) return;
-          actionSelectEl.value = nextAction;
-          const durationEl = adminAccountsEl.querySelector(".admin-console-duration");
-          if (durationEl instanceof HTMLInputElement && target.dataset.duration) {
-            durationEl.value = String(target.dataset.duration || "").trim() || durationEl.value;
-          }
-          const reasonEl = adminAccountsEl.querySelector(".admin-console-reason");
-          if (reasonEl instanceof HTMLInputElement && target.dataset.reason) {
-            reasonEl.value = String(target.dataset.reason || "").trim() || reasonEl.value;
-          }
-          const amountInput = adminAccountsEl.querySelector(".admin-console-amount");
-          if (amountInput instanceof HTMLInputElement && target.dataset.amount) {
-            const nextAmount = Math.max(1, Math.min(1000000, Math.floor(Number(target.dataset.amount) || 1)));
-            amountInput.value = String(nextAmount);
-          }
-          updateAdminConsoleOptionVisibility();
           return;
         }
         if (action === "togglecommands") {
@@ -3456,7 +3276,6 @@
         const playerSelectEl = adminAccountsEl.querySelector(".admin-console-player");
         if (playerSelectEl instanceof HTMLSelectElement) {
           playerSelectEl.value = accountId;
-          updateAdminConsoleSelectionSummary();
         }
         if (action === "viewinv") {
           openAdminInventoryModal(accountId);
@@ -3618,8 +3437,6 @@
           return;
         }
         if (target instanceof HTMLSelectElement && target.classList.contains("admin-console-player")) {
-          updateAdminConsoleSelectionSummary();
-          renderAdminConsolePlayerResults();
           return;
         }
         if (target instanceof HTMLInputElement && target.classList.contains("admin-console-player-filter")) {
@@ -3638,8 +3455,6 @@
           if (firstVisible && (select.selectedOptions.length === 0 || select.selectedOptions[0].hidden)) {
             select.value = firstVisible;
           }
-          updateAdminConsoleSelectionSummary();
-          renderAdminConsolePlayerResults();
           return;
         }
         if (target instanceof HTMLInputElement && target.classList.contains("admin-console-item-search")) {

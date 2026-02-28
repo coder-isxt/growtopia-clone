@@ -5082,43 +5082,7 @@ body.admin-dashboard-open .admin-inventory-modal {
   }
 }
 
-/* Admin quick-actions + console UX */
-#adminPanel .admin-console-presets {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: 8px;
-  padding: 10px 12px 0;
-}
-
-#adminPanel .admin-console-presets button {
-  min-height: 34px;
-  border-radius: 9px;
-  border: 1px solid rgba(124, 189, 245, 0.5);
-  background: linear-gradient(180deg, rgba(34, 57, 81, 0.94), rgba(24, 41, 60, 0.96));
-  color: #eaf7ff;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  padding: 5px 8px;
-}
-
-#adminPanel .admin-console-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 12px 0;
-}
-
-#adminPanel .admin-console-summary span {
-  border: 1px solid rgba(123, 183, 236, 0.4);
-  background: rgba(11, 23, 37, 0.9);
-  color: #d9ecff;
-  border-radius: 999px;
-  padding: 5px 10px;
-  font-size: 12px;
-  line-height: 1.2;
-}
-
+/* Admin quick-actions + simplified action console */
 #adminPanel .admin-row .admin-actions-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(110px, 1fr));
@@ -5162,78 +5126,6 @@ body.admin-dashboard-open .admin-inventory-modal {
   }
 }
 
-/* Action console navigation boost */
-#adminPanel .admin-console-requirements {
-  margin: 8px 12px 0;
-  padding: 8px 10px;
-  border-radius: 9px;
-  border: 1px dashed rgba(137, 201, 255, 0.52);
-  background: rgba(9, 21, 34, 0.74);
-  color: #d5ebff;
-  font-size: 12px;
-  line-height: 1.2;
-}
-
-#adminPanel .admin-console-action-shortcuts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: 7px;
-  padding: 9px 12px 0;
-}
-
-#adminPanel .admin-console-action-shortcut {
-  min-height: 34px;
-  border-radius: 8px;
-  border: 1px solid rgba(122, 188, 243, 0.48);
-  background: linear-gradient(180deg, rgba(28, 51, 75, 0.95), rgba(19, 36, 55, 0.95));
-  color: #e9f6ff;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 5px 8px;
-}
-
-#adminPanel .admin-console-action-shortcut.active {
-  border-color: rgba(122, 233, 255, 0.9);
-  box-shadow: inset 0 0 0 1px rgba(99, 221, 255, 0.45);
-  background: linear-gradient(180deg, rgba(32, 97, 127, 0.95), rgba(24, 72, 99, 0.95));
-}
-
-#adminPanel .admin-console-player-results {
-  margin: 8px 12px 2px;
-  padding: 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(122, 179, 233, 0.34);
-  background: rgba(10, 21, 33, 0.62);
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 6px;
-  max-height: 140px;
-  overflow-y: auto;
-}
-
-#adminPanel .admin-console-player-chip {
-  min-height: 32px;
-  border-radius: 8px;
-  border: 1px solid rgba(116, 179, 238, 0.45);
-  background: linear-gradient(180deg, rgba(30, 50, 72, 0.95), rgba(20, 35, 52, 0.95));
-  color: #deefff;
-  font-size: 12px;
-  text-align: left;
-  padding: 5px 9px;
-}
-
-#adminPanel .admin-console-player-chip.active {
-  border-color: rgba(108, 232, 255, 0.92);
-  box-shadow: inset 0 0 0 1px rgba(99, 224, 255, 0.42);
-  background: linear-gradient(180deg, rgba(30, 97, 123, 0.95), rgba(21, 72, 96, 0.95));
-}
-
-#adminPanel .admin-console-player-empty {
-  color: #c9def1;
-  font-size: 12px;
-  padding: 4px 5px;
-}
-
 #adminPanel .admin-console-run-wrap {
   justify-content: stretch;
 }
@@ -5247,7 +5139,7 @@ body.admin-dashboard-open .admin-inventory-modal {
 #adminPanel .admin-console.admin-card {
   display: flex !important;
   flex-direction: column !important;
-  gap: 10px !important;
+  gap: 12px !important;
   grid-template-rows: none !important;
   min-height: 0 !important;
   max-height: none !important;
@@ -5265,38 +5157,4 @@ body.admin-dashboard-open .admin-inventory-modal {
 #adminPanel .admin-console.admin-card > * {
   position: relative;
   z-index: 0;
-}
-
-#adminPanel .admin-console-presets {
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  padding: 0 0 0;
-}
-
-#adminPanel .admin-console-presets button,
-#adminPanel .admin-console-action-shortcut {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-#adminPanel .admin-console-player-chip {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-#adminPanel .admin-console-help,
-#adminPanel .admin-console-summary,
-#adminPanel .admin-console-requirements,
-#adminPanel .admin-console-action-shortcuts,
-#adminPanel .admin-console-player-results {
-  margin-top: 0 !important;
 }
