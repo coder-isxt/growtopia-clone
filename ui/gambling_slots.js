@@ -269,6 +269,7 @@ window.GTModules = window.GTModules || {};
     let totalMult = 0;
 
     for (let r = 0; r < rows; r++) {
+      let rowSymbols = [];
       for (let c = 0; c < reelsCount; c++) {
         let sym = pool[Math.floor(Math.random() * pool.length)];
 
@@ -276,21 +277,20 @@ window.GTModules = window.GTModules || {};
         if ((c === 0 || c === 2 || c === 4) && Math.random() < (buyBonus ? 0.12 : 0.04)) {
           sym = Math.random() < 0.25 ? "RED_6" : "BLU_6";
         }
-        reels.push(sym);
-      }
-    }
+        rowSymbols.push(sym);
 
-    reels.forEach((s) => {
-      if (s === "BLU_6") {
-        let m = [5, 10, 15, 20, 25, 50, 100][Math.floor(Math.random() * 7)];
-        totalMult += m;
-        lines.push("Blue 6: " + m + "x");
-      } else if (s === "RED_6") {
-        let m = [10, 15, 20, 25, 50, 100, 250, 500][Math.floor(Math.random() * 8)];
-        totalMult += m;
-        lines.push("Red 6: " + m + "x");
+        if (sym === "BLU_6") {
+          let m = [5, 10, 15, 20, 25, 50, 100][Math.floor(Math.random() * 7)];
+          totalMult += m;
+          lines.push("Blue 6: " + m + "x");
+        } else if (sym === "RED_6") {
+          let m = [10, 15, 20, 25, 50, 100, 250, 500][Math.floor(Math.random() * 8)];
+          totalMult += m;
+          lines.push("Red 6: " + m + "x");
+        }
       }
-    });
+      reels.push(rowSymbols.join(","));
+    }
 
     let baseWin = 0;
     // Simulate some standard line wins randomly for the visual effect
