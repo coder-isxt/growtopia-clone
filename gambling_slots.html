@@ -515,6 +515,11 @@
       background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 10px;
       font-size: 10px; color: #fff; margin-bottom: 4px;
     }
+    @keyframes cardPop {
+      0% { transform: translateY(-15px) scale(0.9); opacity: 0; }
+      100% { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .bj-card.pop-in { animation: cardPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
   </style>
 </head>
 <body>

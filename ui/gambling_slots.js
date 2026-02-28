@@ -214,6 +214,8 @@ window.GTModules = window.GTModules || {};
     return hand.length === 2 && calculateHand(hand) === 21;
   }
 
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
   // Standalone/casino spin logic
   function simulateStandaloneSpin(machine, bet) {
     const pool = SYMBOL_POOL[machine.type] || SYMBOL_POOL.slots;
@@ -582,7 +584,7 @@ window.GTModules = window.GTModules || {};
     return mask;
   }
 
-  function renderBlackjackBoard(machine) {
+  function renderBlackjackBoard(machine, animCtx) {
     if (!(els.slotBoard instanceof HTMLElement)) return;
     const state = machine.stats.blackjackState;
     if (!state) {
@@ -590,9 +592,10 @@ window.GTModules = window.GTModules || {};
       return;
     }
 
-    const renderCard = (card, hidden) => {
-      if (hidden) return `<div class="bj-card hidden-card"></div>`;
-      return `<div class="bj-card ${card.color}">
+    const renderCard = (card, hidden, animate) => {
+      const animClass = animate ? " pop-in" : "";
+      if (hidden) return `<div class="bj-card hidden-card${animClass}"></div>`;
+      return `<div class="bj-card ${card.color}${animClass}">
         <span class="rank">${card.rank}</span>
         <span class="suit">${card.suit}</span>
         <span class="rank bot">${card.rank}</span>
@@ -602,18 +605,26 @@ window.GTModules = window.GTModules || {};
     const dealerScore = state.active ? "?" : calculateHand(state.dealerHand);
     const playerScore = calculateHand(state.playerHand);
 
+    const isDeal = animCtx === 'deal';
+    const isHit = animCtx === 'hit';
+    const isDealer = animCtx === 'dealer';
+
     const html = `
       <div class="bj-table">
         <div class="bj-hand-area">
           <div class="bj-score">Dealer: ${dealerScore}</div>
           <div class="bj-hand">
-            ${state.dealerHand.map((c, i) => renderCard(c, state.active && i === 1)).join('')}
+            ${state.dealerHand.map((c, i) => {
+              return renderCard(c, state.active && i === 1, isDeal || (isDealer && i === state.dealerHand.length - 1));
+            }).join('')}
           </div>
         </div>
         <div class="bj-msg">${state.message || ""}</div>
         <div class="bj-hand-area">
           <div class="bj-hand">
-            ${state.playerHand.map(c => renderCard(c)).join('')}
+            ${state.playerHand.map((c, i) => {
+              return renderCard(c, false, isDeal || (isHit && i === state.playerHand.length - 1));
+            }).join('')}
           </div>
           <div class="bj-score">Player: ${playerScore}</div>
         </div>
@@ -621,7 +632,7 @@ window.GTModules = window.GTModules || {};
     els.slotBoard.innerHTML = html;
   }
 
-  function renderBoard() {
+  function renderBoard(animCtx) {
     if (!(els.slotBoard instanceof HTMLElement) || !(els.slotOverlay instanceof SVGElement) || !(els.lineList instanceof HTMLElement)) return;
     const machine = getSelectedMachine();
     
@@ -629,7 +640,7 @@ window.GTModules = window.GTModules || {};
     els.slotOverlay.innerHTML = "";
     
     if (machine.type === 'blackjack') {
-      renderBlackjackBoard(machine);
+      renderBlackjackBoard(machine, animCtx);
       els.lineList.innerHTML = ""; // No paylines for BJ
       return;
     }
@@ -869,11 +880,11 @@ if (wrap instanceof HTMLElement) {
     }
   }
 
-  function renderAll() {
+  function renderAll(animCtx) {
     renderSession();
     renderMachineSelector();
     renderMachineStats();
-    renderBoard();
+    renderBoard(animCtx);
   }
 
   function switchView(viewName) {
@@ -1053,19 +1064,27 @@ if (wrap instanceof HTMLElement) {
           await adjustWallet(win);
         }
       }
+      renderAll('deal');
     } else if (action === 'hit') {
       if (!bj.active) return;
       bj.playerHand.push(bj.deck.pop());
+      renderAll('hit');
       if (calculateHand(bj.playerHand) > 21) {
+        await sleep(600);
         bj.active = false;
         bj.message = "Bust! You lost.";
+        renderAll();
       }
     } else if (action === 'stand') {
       if (!bj.active) return;
       bj.active = false;
+      renderAll(); // Reveal hidden card
+
       // Dealer play
       while (calculateHand(bj.dealerHand) < 17) {
+        await sleep(800);
         bj.dealerHand.push(bj.deck.pop());
+        renderAll('dealer');
       }
       
       const pScore = calculateHand(bj.playerHand);
@@ -1081,6 +1100,7 @@ if (wrap instanceof HTMLElement) {
       } else {
         bj.message = "Dealer Wins.";
       }
+      renderAll();
     } else if (action === 'double') {
       if (!bj.active || bj.playerHand.length !== 2) return;
       if (state.walletLocks < bj.bet) return; // Need enough for 2nd bet
@@ -1090,15 +1110,21 @@ if (wrap instanceof HTMLElement) {
       
       bj.bet *= 2;
       bj.playerHand.push(bj.deck.pop());
+      renderAll('hit');
       
       if (calculateHand(bj.playerHand) > 21) {
+        await sleep(600);
         bj.active = false;
         bj.message = "Bust! You lost.";
       } else {
         // Auto stand after double
+        await sleep(600);
         bj.active = false;
+        renderAll(); // Reveal hidden
         while (calculateHand(bj.dealerHand) < 17) {
+          await sleep(800);
           bj.dealerHand.push(bj.deck.pop());
+          renderAll('dealer');
         }
         const pScore = calculateHand(bj.playerHand);
         const dScore = calculateHand(bj.dealerHand);
@@ -1113,8 +1139,8 @@ if (wrap instanceof HTMLElement) {
           bj.message = "Dealer Wins.";
         }
       }
+      renderAll();
     }
-    renderAll();
   }
 
   async function runSpin(mode) {
