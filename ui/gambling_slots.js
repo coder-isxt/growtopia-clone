@@ -6,6 +6,17 @@ window.GTModules = window.GTModules || {};
   const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
   const LAST_WORLD_KEY = "gt_slots_site_world_v1";
   const SLOT_MACHINE_IDS = ["slots", "slots_v2", "slots_v3", "slots_v4", "slots_v6"];
+
+  // UI-only feature: show different slot game names than the in-game machines
+  // This makes the web gamble UI feel distinct from the actual game slots.
+  const INFINITE_BANK = true; // toggle to make all banks infinite in the UI
+  const UI_GAME_ALIASES = {
+    slots: "Nebula Run",
+    slots_v2: "Crystal Forge",
+    slots_v3: "Spectral Vault",
+    slots_v4: "Emerald Oasis",
+    slots_v6: "Quantum Core"
+  };
   const PAYLINES_5 = [
     [1, 1, 1, 1, 1],
     [0, 0, 0, 0, 0],
@@ -133,6 +144,10 @@ window.GTModules = window.GTModules || {};
         rows: Math.max(1, Math.floor(Number(layout.rows) || base.rows))
       };
     });
+    // Apply UI-only aliases for display in the web UI
+    Object.keys(UI_GAME_ALIASES).forEach((id) => {
+      if (out[id]) out[id].name = UI_GAME_ALIASES[id];
+    });
     return out;
   }
 
@@ -212,6 +227,13 @@ window.GTModules = window.GTModules || {};
       if (c > 0) parts.push(c + " " + row.short);
     }
     return parts.length ? parts.join(" | ") : "0 WL";
+  }
+
+  // UI helper: format bank value for display in lists when banks are considered infinite
+  function formatBankForList(row) {
+    if (INFINITE_BANK) return "Infinite";
+    const v = (row && row.earningsLocks) ?? 0;
+    return v + " WL";
   }
 
   function setStatus(el, message, mode) {
@@ -411,6 +433,8 @@ window.GTModules = window.GTModules || {};
 
   function getMaxBetByBank(machine) {
     if (!machine) return 0;
+    // Infinite bank mode for the web UI: no cap based on owner funds
+    if (INFINITE_BANK) return Number.POSITIVE_INFINITY;
     const maxPayout = Math.max(1, Math.floor(Number(machine.maxPayoutMultiplier) || 1));
     return Math.max(0, Math.floor(toCount(machine.earningsLocks) / maxPayout));
   }
@@ -693,7 +717,7 @@ if (wrap instanceof HTMLElement) {
           "<div style=\"color:#d9ebff;font-size:8px;margin-bottom:4px;\">" + escapeHtml(machineLabel(row)) + "</div>" +
           "<div style=\"display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;\">" +
             "<span class=\"tag\">Owner: " + escapeHtml(owner || "unknown") + "</span>" +
-            "<span class=\"tag\">Bank: " + row.earningsLocks + " WL</span>" +
+            "<span class=\"tag\">Bank: " + formatBankForList(row) + "</span>" +
             inUse +
           "</div>" +
           "<div style=\"font-size:7px;color:#9db7da;\">Max Bet " + row.maxBet + " WL | " + row.stats.plays + " plays</div>" +
@@ -730,7 +754,10 @@ if (wrap instanceof HTMLElement) {
         : "";
       els.gameSubtitle.textContent = "Owner " + owner + " | Bank cap bet " + maxByBank + " WL | Payout cap x" + machine.maxPayoutMultiplier + useText;
     }
-    if (els.statBank instanceof HTMLElement) els.statBank.textContent = "Bank: " + machine.earningsLocks + " WL";
+    if (els.statBank instanceof HTMLElement) {
+      const bankText = INFINITE_BANK ? "Infinite" : (machine.earningsLocks + " WL");
+      els.statBank.textContent = "Bank: " + bankText;
+    }
     if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: " + machine.maxBet + " WL";
     if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: " + machine.stats.plays;
     if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: " + machine.stats.totalPayout + " WL";
