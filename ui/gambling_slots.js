@@ -7,6 +7,36 @@ window.GTModules = window.GTModules || {};
   const LAST_WORLD_KEY = "gt_slots_site_world_v1";
   const SLOT_MACHINE_IDS = ["slots", "slots_v2", "slots_v3", "slots_v4", "slots_v6"];
 
+  // Demo casino mode: independent slot experience not tied to user-hosted machines
+  let CASINO_MODE = false;
+  const STANDALONE_MACHINE = {
+    tileKey: "casino_demo",
+    type: "slots",
+    typeName: "Demo Slots",
+    tx: 0,
+    ty: 0,
+    minBet: 1,
+    maxBet: 10000,
+    maxPayoutMultiplier: 100,
+    reels: 3,
+    rows: 1,
+    earningsLocks: 99999999,
+    ownerName: "Demo",
+    ownerAccountId: "demo",
+    inUseAccountId: null,
+    inUseName: "",
+    stats: {
+      plays: 0,
+      totalBet: 0,
+      totalPayout: 0,
+      lastOutcome: "lose",
+      lastMultiplier: 0,
+      lastSlotsText: "",
+      lastSlotsLineIds: "",
+      lastSlotsLines: ""
+    }
+  };
+
   // UI-only feature: show different slot game names than the in-game machines
   // This makes the web gamble UI feel distinct from the actual game slots.
   const INFINITE_BANK = true; // toggle to make all banks infinite in the UI
@@ -149,6 +179,63 @@ window.GTModules = window.GTModules || {};
       if (out[id]) out[id].name = UI_GAME_ALIASES[id];
     });
     return out;
+  }
+
+  // Casino wallet helpers
+  function getCasinoWallet() {
+    const raw = localStorage.getItem("casino_wallet");
+    let v = parseInt(raw, 10);
+    if (!Number.isFinite(v)) v = 100000; // default demo credits
+    return v;
+  }
+  function setCasinoWallet(n) {
+    localStorage.setItem("casino_wallet", String(n));
+  }
+
+  // Standalone/casino spin logic
+  function simulateStandaloneSpin(machine, bet) {
+    const pool = SYMBOL_POOL[machine.type] || SYMBOL_POOL.slots;
+    const reels = [
+      pool[Math.floor(Math.random() * pool.length)],
+      pool[Math.floor(Math.random() * pool.length)],
+      pool[Math.floor(Math.random() * pool.length)]
+    ];
+    let payout = 0;
+    let lines = [];
+    if (reels[0] === reels[1] && reels[1] === reels[2]) {
+      payout = bet * 10;
+      lines = [1];
+    } else if (reels[0] === reels[1] || reels[1] === reels[2] || reels[0] === reels[2]) {
+      payout = bet * 2;
+      lines = [1];
+    }
+    const result = {
+      reels,
+      lineWins: lines,
+      lineIds: lines,
+      outcome: payout > 0 ? "win" : "lose",
+      payoutWanted: payout,
+      summary: payout > 0 ? "Demo spin" : ""
+    };
+    return result;
+  }
+
+  async function runStandaloneSpin(mode) {
+    const machine = STANDALONE_MACHINE;
+    const bet = clampBetToMachine(machine, els.betInput && els.betInput.value);
+    const betFinal = Math.max(1, bet || 1);
+    const res = simulateStandaloneSpin(machine, betFinal);
+    const payout = res.payoutWanted || 0;
+    const w = getCasinoWallet();
+    setCasinoWallet(w + payout);
+    state.ephemeral.rows = rowsFromResult(res.reels, machine.type);
+    state.ephemeral.lineWins = res.lineWins;
+    state.ephemeral.lineIds = res.lineIds;
+    renderBoard();
+    const msg = payout > 0 ? `Demo Spin Won ${payout} WL` : `Demo Spin Lost ${betFinal} WL`;
+    setResult(msg, payout > 0 ? "win" : "");
+    pushHistory(msg, payout > 0 ? "win" : "");
+    renderAll();
   }
 
   function resolveLockCurrencies() {
@@ -336,7 +423,7 @@ window.GTModules = window.GTModules || {};
     return null;
   }
 
-  function getSelectedMachine() { return getMachineByKey(state.selectedMachineKey); }
+  function getSelectedMachine() { if (CASINO_MODE) return STANDALONE_MACHINE; return getMachineByKey(state.selectedMachineKey); }
   function machineLabel(machine) { return machine ? (machine.typeName + " @ " + machine.tx + "," + machine.ty) : "Unknown"; }
 
   function clearWorldRefs() {
@@ -473,7 +560,14 @@ window.GTModules = window.GTModules || {};
       els.sessionLabel.textContent = state.user ? ("@" + state.user.username + " (" + state.user.accountId + ")") : "Not logged in";
     }
     if (els.worldLabel instanceof HTMLElement) els.worldLabel.textContent = state.worldId || "No world loaded";
-    if (els.walletLabel instanceof HTMLElement) els.walletLabel.textContent = state.walletLocks + " WL (" + state.walletBreakdownText + ")";
+    if (els.walletLabel instanceof HTMLElement) {
+      if (CASINO_MODE) {
+        const w = (typeof getCasinoWallet === 'function') ? getCasinoWallet() : 0;
+        els.walletLabel.textContent = "Demo Wallet: " + w;
+      } else {
+        els.walletLabel.textContent = state.walletLocks + " WL (" + state.walletBreakdownText + ")";
+      }
+    }
     if (els.logoutBtn instanceof HTMLButtonElement) els.logoutBtn.classList.toggle("hidden", !state.user);
   }
 
@@ -689,7 +783,9 @@ if (wrap instanceof HTMLElement) {
   }
   function renderMachineSelector() {
     if (!(els.machineSelect instanceof HTMLSelectElement) || !(els.machineList instanceof HTMLElement)) return;
-    const rows = state.machines.slice().sort((a, b) => a.ty - b.ty || a.tx - b.tx);
+    const rows = CASINO_MODE
+      ? [STANDALONE_MACHINE]
+      : state.machines.slice().sort((a, b) => a.ty - b.ty || a.tx - b.tx);
     if (!rows.length) {
       els.machineSelect.innerHTML = "<option value=\"\">No slot machines</option>";
       els.machineSelect.disabled = true;
@@ -728,6 +824,21 @@ if (wrap instanceof HTMLElement) {
 
   function renderMachineStats() {
     const machine = getSelectedMachine();
+    if (CASINO_MODE) {
+      if (els.gameTitle instanceof HTMLElement) els.gameTitle.textContent = STANDALONE_MACHINE.typeName + "";
+      if (els.gameSubtitle instanceof HTMLElement) els.gameSubtitle.textContent = "Standalone casino mode";
+      if (els.statBank instanceof HTMLElement) els.statBank.textContent = "Bank: Infinite";
+      if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: " + STANDALONE_MACHINE.maxBet + " WL";
+      if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: " + STANDALONE_MACHINE.stats.plays;
+      if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: " + STANDALONE_MACHINE.stats.totalPayout + " WL";
+      if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.disabled = false;
+      if (els.setMaxBtn instanceof HTMLButtonElement) els.setMaxBtn.disabled = false;
+      if (els.buyBonusBtn instanceof HTMLButtonElement) {
+        els.buyBonusBtn.classList.add("hidden");
+        els.buyBonusBtn.disabled = true;
+      }
+      return;
+    }
     if (!machine) {
       if (els.gameTitle instanceof HTMLElement) els.gameTitle.textContent = "No machine selected";
       if (els.gameSubtitle instanceof HTMLElement) els.gameSubtitle.textContent = "Load world and select a machine.";
@@ -802,6 +913,12 @@ if (wrap instanceof HTMLElement) {
     renderMachineStats();
     renderBoard();
     renderHistory();
+  }
+
+  function ensureStandaloneMachineInState() {
+    state.machines = [STANDALONE_MACHINE];
+    state.selectedMachineKey = STANDALONE_MACHINE.tileKey;
+    renderAll();
   }
 
   async function resolveUserRole(accountId, username) {
@@ -985,6 +1102,8 @@ if (wrap instanceof HTMLElement) {
   }
 
   async function runSpin(mode) {
+    // Standalone casino mode spin path
+    if (CASINO_MODE) return runStandaloneSpin(mode);
     if (state.spinBusy) return;
     if (!state.user || !state.worldId) {
       setResult("Login and load a world first.");
@@ -1152,6 +1271,19 @@ if (wrap instanceof HTMLElement) {
   function bindEvents() {
     if (els.openDashboardBtn instanceof HTMLButtonElement) els.openDashboardBtn.addEventListener("click", () => { window.location.href = "gambling.html"; });
     if (els.openGameBtn instanceof HTMLButtonElement) els.openGameBtn.addEventListener("click", () => { window.location.href = "index.html"; });
+    if (els.toggleCasinoBtn instanceof HTMLButtonElement) els.toggleCasinoBtn.addEventListener("click", () => {
+      CASINO_MODE = !CASINO_MODE;
+      if (CASINO_MODE) {
+        // Enter demo casino mode with standalone machine
+        state.machines = [STANDALONE_MACHINE];
+        state.selectedMachineKey = STANDALONE_MACHINE.tileKey;
+      } else {
+        // Exit demo casino mode
+        state.machines = [];
+        state.selectedMachineKey = "";
+      }
+      renderAll();
+    });
     if (els.logoutBtn instanceof HTMLButtonElement) els.logoutBtn.addEventListener("click", logout);
 
     if (els.authLoginBtn instanceof HTMLButtonElement) els.authLoginBtn.addEventListener("click", () => loginWithPassword(false));
