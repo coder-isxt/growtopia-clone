@@ -978,8 +978,15 @@ function drawBackground() {
         const hitStrength = Math.max(0, Math.min(1, Number(pose && pose.hitStrength) || 0));
         const hitMode = String(pose && pose.hitMode || "");
         const hitDirectionY = Number(pose && pose.hitDirectionY) || 0;
+        const attackWithLeftArm = hitMode === "sword" ? (facing === 1) : (facing === -1);
+        const attackWithRightArm = !attackWithLeftArm;
         let leftArmY = py + 13 + Math.round(-armSwing * 0.6);
         let rightArmY = py + 13 + Math.round(armSwing * 0.6);
+        if (hitStrength > 0) {
+          // Keep the non-attacking hand stable during attack frames.
+          if (!attackWithLeftArm) leftArmY = py + 13;
+          if (!attackWithRightArm) rightArmY = py + 13;
+        }
         const leftLegY = py + 23 + Math.round(-legSwing * 0.75);
         const rightLegY = py + 23 + Math.round(legSwing * 0.75);
         const faceTilt = facing === 1 ? 1 : -1;
@@ -1000,11 +1007,8 @@ function drawBackground() {
         let rightArmX = px + PLAYER_W - 5;
         if (hitStrength > 0) {
           const forward = Math.round((hitMode === "fist" ? 4 : 2) * hitStrength) * (facing === 1 ? 1 : -1);
-          if (facing === 1) {
-            rightArmX += forward;
-          } else {
-            leftArmX += forward;
-          }
+          if (attackWithLeftArm) leftArmX += forward;
+          if (attackWithRightArm) rightArmX += forward;
         }
 
         const drawArmRect = (x, y, isAttackArm) => {
@@ -1029,8 +1033,6 @@ function drawBackground() {
           }
         };
 
-        const attackWithLeftArm = hitMode === "sword" ? (facing === 1) : (facing === -1);
-        const attackWithRightArm = !attackWithLeftArm;
         drawArmRect(leftArmX, leftArmY, attackWithLeftArm);
         drawArmRect(rightArmX, rightArmY, attackWithRightArm);
 
