@@ -644,17 +644,13 @@ window.GTModules = window.GTModules || {};
   }
 
   function getSpinMaxBet(machine) {
-    if (!machine) return 0;
-    const bankMax = getMaxBetByBank(machine);
-    return Math.max(0, Math.min(machine.maxBet, bankMax));
+    return Number.MAX_SAFE_INTEGER;
   }
 
-  function clampBetToMachine(machine, betRaw) {
+  function clampBetToMachine(machine, wager) {
     if (!machine) return 1;
-    const def = MACHINE_DEFS[machine.type] || MACHINE_DEFS.slots;
-    const maxBet = Math.max(def.minBet, getSpinMaxBet(machine));
-    const raw = Math.floor(Number(betRaw) || 0);
-    return Math.max(def.minBet, Math.min(maxBet, raw || def.minBet));
+    const safe = Math.floor(Number(wager) || 1);
+    return Math.max(machine.minBet, safe);
   }
 
   function setAuthBusy(isBusy) {
@@ -1022,7 +1018,7 @@ window.GTModules = window.GTModules || {};
 
     const maxStake = Math.max(machine.minBet, getSpinMaxBet(machine));
     const busyByOther = Boolean(machine.inUseAccountId && machine.inUseAccountId !== (state.user && state.user.accountId));
-    const canBet = !state.spinBusy && !busyByOther && maxStake >= machine.minBet && state.walletLocks >= displayBet;
+    const canBet = !state.spinBusy && !busyByOther && state.walletLocks >= displayBet;
 
     // Blackjack specific buttons
     if (els.bjHitBtn) els.bjHitBtn.classList.toggle("hidden", !isBlackjack);
@@ -1390,13 +1386,11 @@ window.GTModules = window.GTModules || {};
       return;
     }
 
+    //import { stopSpinFx } from './slotsFx.js'; // Fallback mockup depending on implementation
+
     const buyBonus = mode === "buybonus" && machine.type === "slots_v2";
     const buyX = buyBonus ? 10 : 1;
     const bet = clampBetToMachine(machine, state.currentBetValue);
-    const maxByBank = getSpinMaxBet(machine);
-    if (bet > maxByBank) {
-      return;
-    }
 
     const wager = bet * buyX;
     if (state.walletLocks < wager) {
