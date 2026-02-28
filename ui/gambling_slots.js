@@ -424,8 +424,6 @@ window.GTModules = window.GTModules || {};
     if (state.refs.inventory && state.handlers.inventory) state.refs.inventory.off("value", state.handlers.inventory);
     state.refs.inventory = null;
     state.handlers.inventory = null;
-    state.machines = [];
-    state.selectedMachineKey = "";
     stopSpinFx();
   }
 
@@ -975,6 +973,7 @@ if (wrap instanceof HTMLElement) {
     state.ephemeral.lineIds = [];
     state.ephemeral.lineWins = [];
     renderAll();
+    state.selectedMachineKey = "";
     setStatus(els.authStatus, "Logged out.");
     switchView("login");
   }
