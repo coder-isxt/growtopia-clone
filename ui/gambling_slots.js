@@ -1159,10 +1159,6 @@ if (wrap instanceof HTMLElement) {
     if (!state.user) {
       return;
     }
-    if (typeof slotsModule.spin !== "function") {
-      return;
-    }
-
     const machine = getSelectedMachine();
     if (!machine) {
       return;
@@ -1203,10 +1199,18 @@ if (wrap instanceof HTMLElement) {
     // Standalone / Casino Mode Handling
     if (machine.tileKey.startsWith("demo_")) {
       if (buyBonus) {
-        await sleep(1500); // Fake bonus delay
+        await sleep(2000); // Longer delay for bonus buy anticipation
+      } else {
+        await sleep(800); // Normal spin delay to let animation play
       }
 
-      const rawResult = slotsModule.spin(machine.type, bet, buyBonus ? { mode: "buybonus" } : {}) || {};
+      let rawResult = {};
+      if (typeof slotsModule.spin === "function") {
+        rawResult = slotsModule.spin(machine.type, bet, buyBonus ? { mode: "buybonus" } : {}) || {};
+      } else {
+        rawResult = simulateStandaloneSpin(machine, bet);
+      }
+
       const resultWager = Math.max(1, Math.floor(Number(rawResult.bet) || wager));
       const wanted = Math.max(0, Math.floor(Number(rawResult.payoutWanted) || 0));
 
@@ -1219,11 +1223,6 @@ if (wrap instanceof HTMLElement) {
         if (!lines.length && rawResult.summary) {
           lines.push(String(rawResult.summary));
         }
-      }
-      
-      // Force a win if buying bonus in demo mode for satisfaction
-      if (buyBonus && wanted === 0) {
-         // In a real app we wouldn't force it, but for "animated bonus" feel we might want to ensure something happens
       }
 
       applied = true;
@@ -1257,7 +1256,7 @@ if (wrap instanceof HTMLElement) {
       state.ephemeral.lineWins = resolved.lineWins;
       state.ephemeral.lineIds = resolved.lineIds;
       renderBoard();
-      if (resolved.outcome === "win" || resolved.outcome === "jackpot" || buyBonus) {
+      if (resolved.outcome === "win" || resolved.outcome === "jackpot" || buyBonus || payout > 0) {
         if (els.boardWrap instanceof HTMLElement) {
           els.boardWrap.classList.add("winfx");
           window.setTimeout(() => { if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx"); }, 420);
@@ -1355,6 +1354,7 @@ if (wrap instanceof HTMLElement) {
       state.ephemeral.lineWins = resolved.lineWins;
       state.ephemeral.lineIds = resolved.lineIds;
       renderBoard();
+      
       if (resolved.outcome === "win" || resolved.outcome === "jackpot") {
         if (els.boardWrap instanceof HTMLElement) {
           els.boardWrap.classList.add("winfx");
