@@ -127,6 +127,7 @@ window.GTModules = window.GTModules || {};
     bjHitBtn: document.getElementById("bjHitBtn"),
     bjStandBtn: document.getElementById("bjStandBtn"),
     bjDoubleBtn: document.getElementById("bjDoubleBtn"),
+    bjSplitBtn: document.getElementById("bjSplitBtn"),
     buyBonusBtn: document.getElementById("buyBonusBtn"),
     lastWinLabel: document.getElementById("lastWinLabel"),
     stage: document.getElementById("stage"),
@@ -604,8 +605,10 @@ window.GTModules = window.GTModules || {};
       return;
     }
 
-    const renderCard = (card, hidden, animate) => {
+    const renderCard = (card, hidden, animate, isSplit) => {
       const animClass = animate ? " pop-in" : "";
+      // If split, maybe show cards slightly smaller or just normal? 
+      // CSS handles layout, so we keep card rendering standard.
       if (hidden) return `<div class="bj-card hidden-card${animClass}"></div>`;
       return `<div class="bj-card ${card.color}${animClass}">
         <span class="rank">${card.rank}</span>
@@ -615,7 +618,6 @@ window.GTModules = window.GTModules || {};
     };
 
     const dealerScore = state.active ? "?" : calculateHand(state.dealerHand);
-    const playerScore = calculateHand(state.playerHand);
 
     const isDeal = animCtx === 'deal';
     const isHit = animCtx === 'hit';
@@ -633,12 +635,23 @@ window.GTModules = window.GTModules || {};
         </div>
         <div class="bj-msg">${state.message || ""}</div>
         <div class="bj-hand-area">
-          <div class="bj-hand">
-            ${state.playerHand.map((c, i) => {
-              return renderCard(c, false, isDeal || (isHit && i === state.playerHand.length - 1));
+          <div class="bj-player-hands">
+            ${state.hands.map((hand, hIdx) => {
+              const isActive = state.active && hIdx === state.activeHandIndex;
+              const score = calculateHand(hand.cards);
+              const handClass = isActive ? "bj-hand active-hand" : "bj-hand";
+              return `
+                <div class="bj-hand-container">
+                  <div class="${handClass}">
+                    ${hand.cards.map((c, i) => {
+                      return renderCard(c, false, isDeal || (isActive && isHit && i === hand.cards.length - 1));
+                    }).join('')}
+                  </div>
+                  <div class="bj-score">${score}</div>
+                  ${hand.bet > state.bet ? '<div class="tag warn" style="font-size:8px;margin-top:4px;">Doubled</div>' : ''}
+                </div>`;
             }).join('')}
           </div>
-          <div class="bj-score">Player: ${playerScore}</div>
         </div>
       </div>`;
     els.slotBoard.innerHTML = html;
@@ -844,6 +857,7 @@ if (wrap instanceof HTMLElement) {
     // Toggle controls based on game type
     const isBlackjack = machine.type === 'blackjack';
     const bjState = machine.stats.blackjackState;
+    const activeHand = (bjState && bjState.hands && bjState.hands[bjState.activeHandIndex]) || null;
 
     const bet = clampBetToMachine(machine, els.betInput && els.betInput.value);
     if (els.betInput instanceof HTMLInputElement) {
@@ -851,7 +865,10 @@ if (wrap instanceof HTMLElement) {
       const max = Math.max(min, getSpinMaxBet(machine));
       els.betInput.min = String(min);
       els.betInput.max = String(max);
-      els.betInput.value = String(bet);
+      // Only update value if not busy to avoid jumping while typing
+      if (!state.spinBusy && (!bjState || !bjState.active)) {
+        els.betInput.value = String(bet);
+      }
       els.betInput.disabled = state.spinBusy || (isBlackjack && bjState && bjState.active);
     }
     const maxStake = Math.max(machine.minBet, getSpinMaxBet(machine));
@@ -864,12 +881,16 @@ if (wrap instanceof HTMLElement) {
     if (els.bjHitBtn) els.bjHitBtn.classList.toggle("hidden", !isBlackjack);
     if (els.bjStandBtn) els.bjStandBtn.classList.toggle("hidden", !isBlackjack);
     if (els.bjDoubleBtn) els.bjDoubleBtn.classList.toggle("hidden", !isBlackjack);
+    if (els.bjSplitBtn) els.bjSplitBtn.classList.toggle("hidden", !isBlackjack);
     
     if (isBlackjack) {
       const active = bjState && bjState.active;
+      const canSplit = active && activeHand && activeHand.cards.length === 2 && activeHand.cards[0].value === activeHand.cards[1].value && state.walletLocks >= bjState.bet;
+      
       if (els.bjHitBtn) els.bjHitBtn.disabled = !active;
       if (els.bjStandBtn) els.bjStandBtn.disabled = !active;
       if (els.bjDoubleBtn) els.bjDoubleBtn.disabled = !active || state.walletLocks < bjState.bet;
+      if (els.bjSplitBtn) els.bjSplitBtn.disabled = !canSplit;
       if (els.spinBtn) {
         els.spinBtn.textContent = active ? "Game Active" : "Deal";
         els.spinBtn.disabled = active || !canBet;
@@ -1045,7 +1066,7 @@ if (wrap instanceof HTMLElement) {
 
     // Initialize state if missing
     if (!machine.stats.blackjackState) {
-      machine.stats.blackjackState = { active: false, playerHand: [], dealerHand: [], deck: [], bet: 0, message: "Place bet and Deal" };
+      machine.stats.blackjackState = { active: false, hands: [], dealerHand: [], deck: [], bet: 0, message: "Place bet and Deal", activeHandIndex: 0 };
     }
     const bj = machine.stats.blackjackState;
 
@@ -1061,13 +1082,14 @@ if (wrap instanceof HTMLElement) {
 
       bj.bet = bet;
       bj.deck = getDeck();
-      bj.playerHand = [bj.deck.pop(), bj.deck.pop()];
+      bj.hands = [{ cards: [bj.deck.pop(), bj.deck.pop()], bet: bet, done: false }];
       bj.dealerHand = [bj.deck.pop(), bj.deck.pop()];
       bj.active = true;
+      bj.activeHandIndex = 0;
       bj.message = "Hit or Stand?";
 
       // Check natural blackjack
-      if (isBlackjack(bj.playerHand)) {
+      if (isBlackjack(bj.hands[0].cards)) {
         bj.active = false;
         if (isBlackjack(bj.dealerHand)) {
           bj.message = "Push! Both have Blackjack.";
@@ -1464,6 +1486,7 @@ if (wrap instanceof HTMLElement) {
     if (els.bjHitBtn) els.bjHitBtn.addEventListener("click", () => runBlackjackAction("hit"));
     if (els.bjStandBtn) els.bjStandBtn.addEventListener("click", () => runBlackjackAction("stand"));
     if (els.bjDoubleBtn) els.bjDoubleBtn.addEventListener("click", () => runBlackjackAction("double"));
+    if (els.bjSplitBtn) els.bjSplitBtn.addEventListener("click", () => runBlackjackAction("split"));
 
     if (els.betInput instanceof HTMLInputElement) {
       els.betInput.addEventListener("keydown", (event) => {

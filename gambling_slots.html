@@ -489,13 +489,14 @@
       height: 100%;
       min-height: 360px;
       width: 100%;
-      padding: 20px;
+      padding: 30px;
       background: radial-gradient(circle at center, rgba(20, 60, 40, 0.4), rgba(0, 20, 0, 0.6));
       border-radius: 12px;
       box-shadow: inset 0 0 40px rgba(0,0,0,0.5);
     }
-    .bj-hand-area { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-    .bj-hand { display: flex; gap: 8px; justify-content: center; }
+    .bj-hand-area { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+    .bj-hand { display: flex; gap: 12px; justify-content: center; transition: transform 0.2s; }
+    .bj-hand.active-hand { transform: scale(1.05); filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.5)); }
     .bj-card {
       width: 90px; height: 126px;
       background: #e0e0e0;
@@ -517,6 +518,8 @@
       background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 10px;
       font-size: 10px; color: #fff; margin-bottom: 4px;
     }
+    .bj-player-hands { display: flex; gap: 30px; justify-content: center; flex-wrap: wrap; width: 100%; }
+    .bj-hand-container { display: flex; flex-direction: column; align-items: center; }
     @keyframes cardPop {
       0% { transform: translateY(-15px) scale(0.9); opacity: 0; }
       100% { transform: translateY(0) scale(1); opacity: 1; }
@@ -592,6 +595,7 @@
              <button id="bjHitBtn" type="button" class="hidden">Hit</button>
              <button id="bjStandBtn" type="button" class="hidden">Stand</button>
              <button id="bjDoubleBtn" type="button" class="hidden">Double</button>
+             <button id="bjSplitBtn" type="button" class="hidden">Split</button>
              <button id="buyBonusBtn" type="button" class="hidden">Bonus</button>
              <span id="lastWinLabel" class="tag good hidden">Won: 0 WL</span>
           </div>
