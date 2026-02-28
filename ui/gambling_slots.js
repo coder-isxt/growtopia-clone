@@ -429,227 +429,87 @@ window.GTModules = window.GTModules || {};
       ...Array(8).fill("BAG"), ...Array(5).fill("HAT"), ...Array(3).fill("WINT"), ...Array(2).fill("WILD")
     ];
     function pick() { return pool[Math.floor(Math.random() * pool.length)]; }
-
-    function pickSym() { return pool[Math.floor(Math.random() * pool.length)]; }
-
-    function generateGrid(rainChance) {
-      const grid = [];
-      for (let r = 0; r < ROWS; r++) {
-        grid[r] = [];
-        for (let c = 0; c < COLS; c++) {
-          let sym = pickSym();
-          if (Math.random() < rainChance) sym = "RAIN";
-          grid[r][c] = sym;
-        }
-      }
-      return grid;
-    }
-
-    function getClusterPay(sym, count) {
-      const table = LB_CLUSTER_PAY[sym];
-      if (!table) return 0;
-      const keys = Object.keys(table).map(Number).sort((a, b) => a - b);
-      let best = 0;
-      for (let i = 0; i < keys.length; i++) {
-        if (count >= keys[i]) best = table[keys[i]];
-      }
-      return best;
-    }
-
-    function findClusters(grid) {
-      const visited = new Set();
-      const clusters = [];
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const sym = grid[r][c];
-          if (sym === "RAIN" || sym === "WILD" || visited.has(r + "_" + c)) continue;
-          if (!LB_CLUSTER_PAY[sym]) continue;
-          const stack = [[r, c]];
-          const cells = [];
-          while (stack.length) {
-            const [rr, cc] = stack.pop();
-            const key = rr + "_" + cc;
-            if (visited.has(key)) continue;
-            const s = grid[rr][cc];
-            if (s !== sym && s !== "WILD") continue;
-            visited.add(key);
-            cells.push({ r: rr, c: cc });
-            if (rr > 0) stack.push([rr - 1, cc]);
-            if (rr < ROWS - 1) stack.push([rr + 1, cc]);
-            if (cc > 0) stack.push([rr, cc - 1]);
-            if (cc < COLS - 1) stack.push([rr, cc + 1]);
-          }
-          if (cells.length >= 5) {
-            clusters.push({ sym, cells });
-          }
-        }
-      }
-      return clusters;
-    }
-
-    function countRain(grid) {
-      let count = 0;
+    function makeGrid(rc) { const g = []; for (let r = 0; r < ROWS; r++) { g[r] = []; for (let c = 0; c < COLS; c++) { let s = pick(); if (Math.random() < rc) s = "RAIN"; g[r][c] = s; } } return g; }
+    function cpay(sym, n) { const t = LB_CLUSTER_PAY[sym]; if (!t) return 0; let b = 0; for (const k in t) { if (n >= Number(k)) b = t[k]; } return b; }
+    function clusters(g) {
+      const vis = new Set(), out = [];
       for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-        if (grid[r][c] === "RAIN") count++;
+        const sym = g[r][c]; if (sym === "RAIN" || sym === "WILD" || vis.has(r + "_" + c) || !LB_CLUSTER_PAY[sym]) continue;
+        const stk = [[r, c]], cells = [];
+        while (stk.length) { const [rr, cc] = stk.pop(); const k = rr + "_" + cc; if (vis.has(k)) continue; const s = g[rr][cc]; if (s !== sym && s !== "WILD") continue; vis.add(k); cells.push({ r: rr, c: cc }); if (rr > 0) stk.push([rr - 1, cc]); if (rr < ROWS - 1) stk.push([rr + 1, cc]); if (cc > 0) stk.push([rr, cc - 1]); if (cc < COLS - 1) stk.push([rr, cc + 1]); }
+        if (cells.length >= 5) out.push({ sym, cells });
       }
-      return count;
+      return out;
     }
+    function cntRain(g) { let n = 0; for (let r = 0; r < ROWS; r++)for (let c = 0; c < COLS; c++)if (g[r][c] === "RAIN") n++; return n; }
+    function toReels(g) { const o = []; for (let r = 0; r < ROWS; r++)o.push(g[r].join(",")); return o; }
 
-    // ============ BASE SPIN (no locks, normal cluster pay) ============
-    const baseGrid = generateGrid(buyBonus ? 0.06 : 0.018);
-    const baseClusters = findClusters(baseGrid);
-    let basePayout = 0;
+    // ────── BASE SPIN ──────
+    const baseGrid = makeGrid(buyBonus ? 0.06 : 0.018);
+    const baseC = clusters(baseGrid);
+    let basePay = 0;
     const lines = [];
+    for (const cl of baseC) { const m = cpay(cl.sym, cl.cells.length); if (m > 0) { basePay += bet * m; lines.push(cl.cells.length + "x " + (SYMBOL_LABELS[cl.sym] || cl.sym) + " (" + m + "x)"); } }
+    const triggerBonus = cntRain(baseGrid) >= 3 || buyBonus;
+    const reels = toReels(baseGrid);
 
-    for (let i = 0; i < baseClusters.length; i++) {
-      const cl = baseClusters[i];
-      const mult = getClusterPay(cl.sym, cl.cells.length);
-      if (mult > 0) {
-        basePayout += bet * mult;
-        lines.push(cl.cells.length + "x " + (SYMBOL_LABELS[cl.sym] || cl.sym) + " (" + mult + "x)");
-      }
-    }
-
-    const baseRainCount = countRain(baseGrid);
-    const triggerBonus = baseRainCount >= 3 || buyBonus;
-
-    const reels = [];
-    for (let r = 0; r < ROWS; r++) {
-      reels.push(baseGrid[r].join(","));
-    }
-
-    // ============ BONUS: 10 FREE SPINS ============
-    let bonusPayout = 0;
-    let freeSpinsPlayed = 0;
+    // ────── FREE SPINS BONUS ──────
+    let bonusPay = 0;
+    const bonusFrames = [];
     const FREE_SPINS = 10;
-
-    // "marked" tracks cells where winning clusters landed across all free spins
     const marked = new Set();
 
     if (triggerBonus) {
       lines.push("🌈 BONUS! " + FREE_SPINS + " Free Spins!");
+      for (let s = 0; s < FREE_SPINS; s++) {
+        const fsGrid = makeGrid(0.08);
+        const fsC = clusters(fsGrid);
+        let sPay = 0;
+        const sLines = [];
 
-      for (let spin = 0; spin < FREE_SPINS; spin++) {
-        freeSpinsPlayed++;
-        const fsGrid = generateGrid(0.08); // Higher rainbow chance in bonus
-        const fsClusters = findClusters(fsGrid);
+        // Cluster wins → mark cells
+        for (const cl of fsC) { const m = cpay(cl.sym, cl.cells.length); if (m > 0) { sPay += bet * m; sLines.push(cl.cells.length + "x " + (SYMBOL_LABELS[cl.sym] || cl.sym)); for (const cell of cl.cells) marked.add(cell.r + "_" + cell.c); } }
 
-        // 1) Evaluate cluster wins & mark their cells
-        let spinClusterWin = 0;
-        for (let i = 0; i < fsClusters.length; i++) {
-          const cl = fsClusters[i];
-          const mult = getClusterPay(cl.sym, cl.cells.length);
-          if (mult > 0) {
-            spinClusterWin += bet * mult;
-            // Mark all cells in the winning cluster
-            for (let j = 0; j < cl.cells.length; j++) {
-              marked.add(cl.cells[j].r + "_" + cl.cells[j].c);
-            }
+        // Rainbow fill
+        const rain = cntRain(fsGrid);
+        let fills = null;
+        if (rain > 0 && marked.size > 0) {
+          const mArr = Array.from(marked), fb = {};
+          for (const key of mArr) {
+            const roll = Math.random(), [fr, fc] = key.split("_").map(Number);
+            if (roll < 0.60) { const vs = [1, 1, 2, 2, 3, 5, 8, 10, 15, 25]; fb[key] = { type: "COIN", value: vs[Math.floor(Math.random() * vs.length)] }; }
+            else if (roll < 0.88) { const ms = [2, 2, 3, 3, 4, 5, 10]; fb[key] = { type: "CLOVR", value: ms[Math.floor(Math.random() * ms.length)] }; }
+            else { fb[key] = { type: "POT", value: 0 }; }
           }
-        }
-        bonusPayout += spinClusterWin;
-
-        if (spinClusterWin > 0) {
-          lines.push("FS" + freeSpinsPlayed + " Cluster " + (spinClusterWin / bet).toFixed(1) + "x (" + marked.size + " marked)");
-        }
-
-        // 2) Check for Rainbow on this spin
-        const fsRainCount = countRain(fsGrid);
-        if (fsRainCount > 0 && marked.size > 0) {
-          // Rainbow fills ALL marked cells with coins, clovers, or pots
-          const fillBoard = {};
-          const markedArr = Array.from(marked);
-
-          // Fill each marked cell
-          for (let m = 0; m < markedArr.length; m++) {
-            const roll = Math.random();
-            if (roll < 0.60) {
-              // COIN: value 1-10x bet
-              const vals = [1, 1, 2, 2, 3, 5, 8, 10, 15, 25];
-              fillBoard[markedArr[m]] = { type: "COIN", value: vals[Math.floor(Math.random() * vals.length)] };
-            } else if (roll < 0.88) {
-              // CLOVER: multiplier for adjacent coins
-              const mults = [2, 2, 3, 3, 4, 5, 10];
-              fillBoard[markedArr[m]] = { type: "CLOVR", value: mults[Math.floor(Math.random() * mults.length)] };
-            } else {
-              // POT: collects all coins and respins them
-              fillBoard[markedArr[m]] = { type: "POT", value: 0 };
-            }
-          }
-
-          // Apply Clover multipliers to adjacent coins
-          const keys = Object.keys(fillBoard);
-          for (let k = 0; k < keys.length; k++) {
-            const cell = fillBoard[keys[k]];
-            if (cell.type !== "CLOVR") continue;
-            const [cr, cc] = keys[k].split("_").map(Number);
-            const adj = [[cr - 1, cc], [cr + 1, cc], [cr, cc - 1], [cr, cc + 1]];
-            for (let a = 0; a < adj.length; a++) {
-              const adjKey = adj[a][0] + "_" + adj[a][1];
-              if (fillBoard[adjKey] && fillBoard[adjKey].type === "COIN") {
-                fillBoard[adjKey].value *= cell.value;
-              }
-            }
-          }
-
-          // Check for pots: collect all coin values and respin
-          let hasPot = false;
-          for (let k = 0; k < keys.length; k++) {
-            if (fillBoard[keys[k]].type === "POT") { hasPot = true; break; }
-          }
-
-          let totalCoinValue = 0;
-          for (let k = 0; k < keys.length; k++) {
-            if (fillBoard[keys[k]].type === "COIN") {
-              totalCoinValue += fillBoard[keys[k]].value;
-            }
-          }
-
-          if (hasPot && totalCoinValue > 0) {
-            // Pot collects all coins, then respins (gives new random values to all coin cells)
-            let respinValue = 0;
-            for (let k = 0; k < keys.length; k++) {
-              if (fillBoard[keys[k]].type === "COIN") {
-                const reVals = [1, 2, 3, 5, 8, 10, 15, 25];
-                const newVal = reVals[Math.floor(Math.random() * reVals.length)];
-                respinValue += newVal;
-              }
-            }
-            totalCoinValue += respinValue;
-            lines.push("FS" + freeSpinsPlayed + " 🌈 Rain! " + markedArr.length + " fills | 💰 POT collects + respin! (" + totalCoinValue + "x)");
-          } else {
-            lines.push("FS" + freeSpinsPlayed + " 🌈 Rain! " + markedArr.length + " fills (" + totalCoinValue + "x)");
-          }
-
-          bonusPayout += bet * totalCoinValue;
-
-          // Clear marked after rainbow fill
+          // Clovers multiply adjacent coins
+          for (const k of Object.keys(fb)) { if (fb[k].type !== "CLOVR") continue; const [cr, cc] = k.split("_").map(Number); for (const [ar, ac] of [[cr - 1, cc], [cr + 1, cc], [cr, cc - 1], [cr, cc + 1]]) { const ak = ar + "_" + ac; if (fb[ak] && fb[ak].type === "COIN") fb[ak].value *= fb[k].value; } }
+          // Sum coins
+          let coinVal = 0; for (const k of Object.keys(fb)) { if (fb[k].type === "COIN") coinVal += fb[k].value; }
+          // Pot respin
+          let hasPot = false, respinV = 0; for (const k of Object.keys(fb)) { if (fb[k].type === "POT") { hasPot = true; break; } }
+          if (hasPot && coinVal > 0) { for (const k of Object.keys(fb)) { if (fb[k].type === "COIN") { const rv = [1, 2, 3, 5, 8, 10, 15, 25]; respinV += rv[Math.floor(Math.random() * rv.length)]; } }; coinVal += respinV; }
+          bonusPay += bet * coinVal;
+          const fillCells = mArr.map(k => { const [r, c] = k.split("_").map(Number); return { r, c, ...fb[k] }; });
+          fills = { cells: fillCells, totalMult: coinVal, hasPot, respinMult: respinV };
+          sLines.push("🌈 " + mArr.length + " fills" + (hasPot ? " + POT respin" : "") + " (" + coinVal + "x)");
           marked.clear();
-        } else if (fsRainCount > 0 && marked.size === 0) {
-          lines.push("FS" + freeSpinsPlayed + " 🌈 (no marked area to fill)");
-        }
+        } else if (rain > 0) { sLines.push("🌈 (no marked area)"); }
+
+        bonusPay += sPay;
+        const txt = "FS" + (s + 1) + ": " + (sLines.length ? sLines.join(" | ") : "no win");
+        lines.push(txt);
+        bonusFrames.push({ grid: fsGrid, reels: toReels(fsGrid), markedCells: Array.from(marked), fills, lineText: txt, spinPay: sPay + (fills ? bet * fills.totalMult : 0) });
       }
     }
 
-    const totalPayout = Math.floor(basePayout + bonusPayout);
-    const isJackpot = totalPayout >= bet * 50;
-
-    let summary = "";
-    if (triggerBonus) {
-      summary = "Bonus " + FREE_SPINS + " FS | Total " + (totalPayout / Math.max(1, bet)).toFixed(1) + "x";
-    } else if (basePayout > 0) {
-      summary = "Cluster " + (basePayout / bet).toFixed(1) + "x";
-    }
+    const totalPay = Math.floor(basePay + bonusPay);
+    let summary = triggerBonus ? ("Bonus " + FREE_SPINS + " FS | Total " + (totalPay / Math.max(1, bet)).toFixed(1) + "x") : (basePay > 0 ? ("Cluster " + (basePay / bet).toFixed(1) + "x") : "");
 
     return {
-      gameId: "le_bandit",
-      reels: reels,
-      payoutWanted: totalPayout,
-      outcome: totalPayout > 0 ? (isJackpot ? "jackpot" : "win") : "lose",
-      lineWins: lines,
-      lineIds: [],
-      bet: buyBonus ? bet * 10 : bet,
-      summary: summary
+      gameId: "le_bandit", reels, payoutWanted: totalPay,
+      outcome: totalPay > 0 ? (totalPay >= bet * 50 ? "jackpot" : "win") : "lose",
+      lineWins: lines, lineIds: [], bet: buyBonus ? bet * 10 : bet, summary,
+      bonusFrames
     };
   }
 
@@ -1129,6 +989,10 @@ window.GTModules = window.GTModules || {};
 
     const safeMachineType = machine ? machine.type : "slots";
     const hitMask = buildHitMask(model.lineIds, colCount, rowCount, safeMachineType);
+    const markedCells = Array.isArray(state.ephemeral.markedCells) ? state.ephemeral.markedCells : [];
+    const markedMask = {};
+    for (const m of markedCells) markedMask[m] = true;
+
     let boardHtml = "";
     for (let c = 0; c < colCount; c++) {
       boardHtml += "<div class=\"reel\" style=\"--rows:" + rowCount + ";\">";
@@ -1136,7 +1000,8 @@ window.GTModules = window.GTModules || {};
         const tok = normalizeToken(rows[r] && rows[r][c] ? rows[r][c] : "?");
         const cls = symbolClass(tok);
         const hit = hitMask[r + "_" + c] ? " hit" : "";
-        boardHtml += "<div class=\"cell " + cls + hit + "\" data-col=\"" + c + "\" data-row=\"" + r + "\"><span class=\"icon\">" + escapeHtml(symbolIcon(tok)) + "</span><span class=\"txt\">" + escapeHtml(symbolLabel(tok)) + "</span></div>";
+        const markedCls = markedMask[r + "_" + c] ? " marked" : "";
+        boardHtml += "<div class=\"cell " + cls + hit + markedCls + "\" data-col=\"" + c + "\" data-row=\"" + r + "\"><span class=\"icon\">" + escapeHtml(symbolIcon(tok)) + "</span><span class=\"txt\">" + escapeHtml(symbolLabel(tok)) + "</span></div>";
       }
       boardHtml += "</div>";
     }
@@ -1844,7 +1709,45 @@ window.GTModules = window.GTModules || {};
       state.ephemeral.rows = resolved.rows;
       state.ephemeral.lineWins = resolved.lineWins;
       state.ephemeral.lineIds = resolved.lineIds;
+      state.ephemeral.markedCells = [];
       renderBoard();
+
+      // --- Le Bandit Bonus Playback Loop ---
+      if (machine.type === "le_bandit" && rawResult.bonusFrames && rawResult.bonusFrames.length > 0) {
+        await sleep(1500);
+        let bonusTotal = 0;
+        for (let i = 0; i < rawResult.bonusFrames.length; i++) {
+          const frame = rawResult.bonusFrames[i];
+          bonusTotal += frame.spinPay;
+
+          // 1. Show the spin (reels)
+          state.ephemeral.rows = rowsFromResult(frame.reels, machine.type);
+          state.ephemeral.lineWins = [frame.lineText];
+          state.ephemeral.markedCells = frame.markedCells;
+          renderBoard();
+          await sleep(1200);
+
+          // 2. If it was a Rainbow Fill, show the fill animation (flash effect etc)
+          if (frame.fills) {
+            if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("winfx");
+            await sleep(1000);
+            if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
+
+            // Re-render with potentially cleared marked area if the logic says so
+            // (In simulateLeBandit, marked is cleared after fills)
+            state.ephemeral.markedCells = frame.markedCells;
+            renderBoard();
+          }
+
+          if (els.lastWinLabel && bonusTotal > 0) {
+            els.lastWinLabel.textContent = "Bonus: " + Math.floor(bonusTotal) + " WL";
+            els.lastWinLabel.classList.add("good");
+            els.lastWinLabel.classList.remove("hidden");
+          }
+          await sleep(800);
+        }
+      }
+
       if (els.lastWinLabel) {
         if (payout > 0) {
           els.lastWinLabel.textContent = "Won: " + payout + " WL";
@@ -1929,7 +1832,8 @@ window.GTModules = window.GTModules || {};
             outcome: stats.lastOutcome,
             multiplier: stats.lastMultiplier,
             summary: stats.lastSlotsSummary,
-            wager: resultWager
+            wager: resultWager,
+            bonusFrames: rawResult.bonusFrames // Pass bonus frames out of transaction
           };
 
           return {
@@ -1960,7 +1864,39 @@ window.GTModules = window.GTModules || {};
         state.ephemeral.rows = resolved.rows;
         state.ephemeral.lineWins = resolved.lineWins;
         state.ephemeral.lineIds = resolved.lineIds;
+        state.ephemeral.markedCells = [];
         renderBoard();
+
+        // --- Le Bandit Bonus Playback Loop (Hosted Machine) ---
+        if (machine.type === "le_bandit" && resolved.bonusFrames && resolved.bonusFrames.length > 0) {
+          await sleep(1500);
+          let bonusTotal = 0;
+          for (let i = 0; i < resolved.bonusFrames.length; i++) {
+            const frame = resolved.bonusFrames[i];
+            bonusTotal += frame.spinPay;
+
+            state.ephemeral.rows = rowsFromResult(frame.reels, machine.type);
+            state.ephemeral.lineWins = [frame.lineText];
+            state.ephemeral.markedCells = frame.markedCells;
+            renderBoard();
+            await sleep(1200);
+
+            if (frame.fills) {
+              if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("winfx");
+              await sleep(1000);
+              if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
+              state.ephemeral.markedCells = frame.markedCells;
+              renderBoard();
+            }
+
+            if (els.lastWinLabel && bonusTotal > 0) {
+              els.lastWinLabel.textContent = "Bonus: " + Math.floor(bonusTotal) + " WL";
+              els.lastWinLabel.classList.add("good");
+              els.lastWinLabel.classList.remove("hidden");
+            }
+            await sleep(800);
+          }
+        }
         if (els.lastWinLabel) {
           if (payout > 0) {
             els.lastWinLabel.textContent = "Won: " + payout + " WL";
