@@ -1062,6 +1062,28 @@ if (wrap instanceof HTMLElement) {
       machine.stats.lastSlotsText = reels.join("|");
       machine.stats.lastSlotsLines = lines.join("|");
       machine.stats.lastSlotsLineIds = lineIds.join(",");
+
+      if (payout > 0) {
+        await adjustWallet(payout);
+      }
+
+      stopSpinFx();
+      state.ephemeral.rows = resolved.rows;
+      state.ephemeral.lineWins = resolved.lineWins;
+      state.ephemeral.lineIds = resolved.lineIds;
+      renderBoard();
+      const msg = spinMessage(machine, resolved, resolved.wager, payout, buyBonus);
+      setResult(msg.text, msg.tone);
+      pushHistory(msg.text, msg.tone);
+      if (msg.tone === "win" || msg.tone === "jackpot") {
+        if (els.boardWrap instanceof HTMLElement) {
+          els.boardWrap.classList.add("winfx");
+          window.setTimeout(() => { if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx"); }, 420);
+        }
+        spawnParticles(msg.tone);
+      }
+      renderAll();
+      return;
     } else {
     // Player-hosted machine handling (DB Transaction)
     try {
