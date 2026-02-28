@@ -44,7 +44,7 @@ window.GTModules = window.GTModules || {};
   const INFINITE_BANK = true; // toggle to make all banks infinite in the UI
   const UI_GAME_ALIASES = {
     blackjack: "Blackjack Table",
-    slots_v2: "Royal Fortune"
+    slots_v2: "Six Six Six"
   };
   const PAYLINES_5 = [
     [1, 1, 1, 1, 1],
@@ -65,7 +65,8 @@ window.GTModules = window.GTModules || {};
     GEM: "Gem", PICK: "Pickaxe", MINER: "Miner", GOLD: "Gold", DYN: "Dynamite", WILD: "Wild", SCAT: "Scatter", BONUS: "Bonus",
     RUBY: "Ruby", EMER: "Emerald", CLUB: "Club", RING: "Ring", SKULL: "Skull", REAPR: "Reaper", BLOOD: "Blood",
     LEAF: "Leaf", STON: "Stone", MASK: "Mask", IDOL: "Idol", ORAC: "Oracle", FRGT: "Forgotten",
-    COIN: "Coin", ORE: "Ore", CART: "Cart", RELC: "Relic", "?": "Unknown"
+    COIN: "Coin", ORE: "Ore", CART: "Cart", RELC: "Relic", "?": "Unknown",
+    BONE: "Bone", PENT: "Pentagram", BLU_6: "Blue 6", RED_6: "Red 6"
   };
 
   const SYMBOL_ICONS = {
@@ -73,13 +74,14 @@ window.GTModules = window.GTModules || {};
     GEM: "\u{1F48E}", PICK: "\u26CF", MINER: "\u{1F477}", GOLD: "\u{1FA99}", DYN: "\u{1F4A3}", WILD: "\u2728", SCAT: "\u{1F31F}", BONUS: "\u{1F381}",
     RUBY: "\u2666", EMER: "\u{1F49A}", CLUB: "\u2663", RING: "\u{1F48D}", SKULL: "\u{1F480}", REAPR: "\u2620", BLOOD: "\u{1FA78}",
     LEAF: "\u{1F343}", STON: "\u{1FAA8}", MASK: "\u{1F3AD}", IDOL: "\u{1F5FF}", ORAC: "\u{1F52E}", FRGT: "\u{1F56F}",
-    COIN: "\u{1FA99}", ORE: "\u26D3", CART: "\u{1F6D2}", RELC: "\u{1F4FF}", "?": "\u2754"
+    COIN: "\u{1FA99}", ORE: "\u26D3", CART: "\u{1F6D2}", RELC: "\u{1F4FF}", "?": "\u2754",
+    BONE: "\u{1F9B4}", PENT: "\u2721", BLU_6: "\u{1F535}6", RED_6: "\u{1F534}6"
   };
 
-  const SYMBOL_CLASSES = { WILD: "wild", SCAT: "scatter", BONUS: "bonus", DYN: "bonus" };
+  const SYMBOL_CLASSES = { WILD: "wild", SCAT: "scatter", BONUS: "bonus", DYN: "bonus", BLU_6: "sixblu", RED_6: "sixred" };
   const SYMBOL_POOL = {
     slots: ["CHERRY", "LEMON", "BAR", "BELL", "SEVEN"],
-    slots_v2: ["GEM", "PICK", "MINER", "GOLD", "DYN", "WILD", "SCAT", "BONUS"],
+    slots_v2: ["SKULL", "BONE", "REAPR", "BLOOD", "PENT", "WILD"],
     slots_v3: ["RUBY", "EMER", "CLUB", "RING", "SKULL", "REAPR", "BLOOD", "WILD", "SCAT"],
     slots_v4: ["LEAF", "STON", "MASK", "IDOL", "ORAC", "FRGT", "WILD", "SCAT"],
     slots_v6: ["COIN", "ORE", "GEM", "PICK", "CART", "RELC", "WILD", "SCAT"]
@@ -257,59 +259,57 @@ window.GTModules = window.GTModules || {};
     return result;
   }
 
-  function simulateSixSixSix(machine, bet, state = {}) {
+  function simulateSixSixSix(machine, bet, buyBonus) {
+    const pool = ["SKULL", "BONE", "REAPR", "BLOOD", "PENT", "WILD"];
+    const reelsCount = 5;
+    const rows = 4;
 
-    const pool = ["SKULL", "BLOOD", "REAPR", "WILD", "SCAT"];
-    const reelsCount = machine.reels;
-    const rows = machine.rows;
-
-    if (!state.grid) {
-      state.grid = Array.from({ length: rows }, () =>
-        Array.from({ length: reelsCount }, () =>
-          pool[Math.floor(Math.random() * pool.length)]
-        )
-      );
-    }
-
-    // --- Sticky wild mechanic ---
-    let newWild = false;
+    let reels = [];
+    let lines = [];
+    let totalMult = 0;
 
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < reelsCount; c++) {
-        if (state.grid[r][c] === "WILD") continue;
+        let sym = pool[Math.floor(Math.random() * pool.length)];
 
-        if (Math.random() < 0.18) {
-          state.grid[r][c] = "WILD";
-          newWild = true;
+        // "6" symbols only appear on reels 1, 3, 5 (cols 0, 2, 4)
+        if ((c === 0 || c === 2 || c === 4) && Math.random() < (buyBonus ? 0.12 : 0.04)) {
+          sym = Math.random() < 0.25 ? "RED_6" : "BLU_6";
         }
+        reels.push(sym);
       }
     }
 
-    // --- payout calculation ---
-    let payout = 0;
+    reels.forEach((s) => {
+      if (s === "BLU_6") {
+        let m = [5, 10, 15, 20, 25, 50, 100][Math.floor(Math.random() * 7)];
+        totalMult += m;
+        lines.push("Blue 6: " + m + "x");
+      } else if (s === "RED_6") {
+        let m = [10, 15, 20, 25, 50, 100, 250, 500][Math.floor(Math.random() * 8)];
+        totalMult += m;
+        lines.push("Red 6: " + m + "x");
+      }
+    });
 
-    let wildCount = 0;
-    state.grid.forEach(row =>
-      row.forEach(s => { if (s === "WILD") wildCount++; })
-    );
-
-    payout += wildCount * bet * 0.5;
-
-    // --- respin logic ---
-    if (newWild) {
-      state.respins = (state.respins || 0) + 1;
-      state.next = true;
-    } else {
-      state.next = false;
+    let baseWin = 0;
+    // Simulate some standard line wins randomly for the visual effect
+    if (Math.random() < 0.3) {
+      baseWin += bet * (Math.floor(Math.random() * 5) + 1);
     }
+    if (baseWin > 0 && totalMult === 0) lines.push("Line Win");
+
+    let payout = baseWin + (bet * totalMult);
 
     return {
-      reels: state.grid.flat(),
+      gameId: "slots_v2",
+      reels: reels,
       payoutWanted: payout,
-      outcome: payout > 0 ? "win" : "lose",
-      lineWins: [`${wildCount} wilds`],
-      lineIds: [1],
-      state
+      outcome: payout > 0 ? (totalMult >= 50 ? "jackpot" : "win") : "lose",
+      lineWins: lines,
+      lineIds: lines.length > 0 ? [1] : [],
+      bet: buyBonus ? bet * 10 : bet,
+      summary: totalMult > 0 ? "Wicked Wheel!" : ""
     };
   }
 
@@ -1339,7 +1339,9 @@ window.GTModules = window.GTModules || {};
       }
 
       let rawResult = {};
-      if (typeof slotsModule.spin === "function") {
+      if (machine.type === "slots_v2") {
+        rawResult = simulateSixSixSix(machine, bet, buyBonus);
+      } else if (typeof slotsModule.spin === "function") {
         rawResult = slotsModule.spin(machine.type, bet, buyBonus ? { mode: "buybonus" } : {}) || {};
       } else {
         rawResult = simulateStandaloneSpin(machine, bet);
@@ -1427,7 +1429,12 @@ window.GTModules = window.GTModules || {};
           const liveMax = getSpinMaxBet(current);
           if (bet > liveMax) return currentRaw;
 
-          const rawResult = slotsModule.spin(current.type, bet, buyBonus ? { mode: "buybonus" } : {}) || {};
+          let rawResult = {};
+          if (current.type === "slots_v2") {
+            rawResult = simulateSixSixSix(current, bet, buyBonus);
+          } else {
+            rawResult = slotsModule.spin(current.type, bet, buyBonus ? { mode: "buybonus" } : {}) || {};
+          }
           const resultWager = Math.max(1, Math.floor(Number(rawResult.bet) || wager));
           const wanted = Math.max(0, Math.floor(Number(rawResult.payoutWanted) || 0));
           if (resultWager !== wager) return currentRaw;

@@ -9,18 +9,18 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
   <style>
     :root {
-      --bg: #040915;
-      --panel: #0b1d37;
-      --panel-2: #12284a;
-      --line: rgba(100, 168, 255, 0.34);
-      --text: #edf5ff;
-      --muted: #9fb6d8;
+      --bg: #0d0202;
+      --panel: #2b0505;
+      --panel-2: #4a0d0d;
+      --line: rgba(255, 100, 100, 0.34);
+      --text: #ffeded;
+      --muted: #d89f9f;
       --good: #64f2a8;
       --warn: #ffd271;
       --danger: #ff8080;
-      --cyan: #39c8ff;
+      --cyan: #ff5050;
       --gold: #ffce6a;
-      --hot: #ff965f;
+      --hot: #ff5f5f;
       --violet: #8f6dff;
     }
 
@@ -32,9 +32,9 @@
       margin: 0;
       color: var(--text);
       background:
-        radial-gradient(circle at 8% 12%, rgba(57, 200, 255, 0.16), transparent 40%),
-        radial-gradient(circle at 92% 14%, rgba(255, 206, 106, 0.12), transparent 46%),
-        linear-gradient(180deg, #040915 0%, #07152d 44%, #081832 100%);
+        radial-gradient(circle at 8% 12%, rgba(255, 57, 57, 0.16), transparent 40%),
+        radial-gradient(circle at 92% 14%, rgba(255, 106, 106, 0.12), transparent 46%),
+        linear-gradient(180deg, #0d0202 0%, #1f0404 44%, #320707 100%);
       font-family: "Press Start 2P", monospace;
       min-height: 100vh;
       cursor: default;
@@ -55,7 +55,7 @@
       align-items: center;
       border: 2px solid var(--line);
       border-radius: 14px;
-      background: linear-gradient(180deg, rgba(18, 38, 72, 0.94), rgba(11, 24, 45, 0.94));
+      background: linear-gradient(180deg, rgba(62, 11, 11, 0.94), rgba(40, 7, 7, 0.94));
       padding: 14px;
       box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
     }
@@ -119,14 +119,14 @@
     .card {
       border: 2px solid var(--line);
       border-radius: 14px;
-      background: linear-gradient(180deg, rgba(17, 37, 68, 0.94), rgba(10, 24, 45, 0.94));
+      background: linear-gradient(180deg, rgba(58, 12, 12, 0.94), rgba(45, 8, 8, 0.94));
       padding: 12px;
       box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
     }
 
     .card h2 {
       margin: 0 0 12px 0;
-      color: #b7dbff;
+      color: #ffb7b7;
       font-size: 11px;
     }
 
@@ -153,12 +153,12 @@
     .pill {
       width: fit-content;
       max-width: 100%;
-      border: 1px solid rgba(112, 165, 236, 0.45);
+      border: 1px solid rgba(236, 112, 112, 0.45);
       border-radius: 999px;
       padding: 6px 10px;
       font-size: 8px;
-      color: #d8e8ff;
-      background: rgba(6, 17, 34, 0.75);
+      color: #ffd8d8;
+      background: rgba(34, 6, 6, 0.75);
       display: inline-flex;
       gap: 7px;
       align-items: center;
@@ -295,11 +295,11 @@
     }
 
     .stage {
-      border: 2px solid rgba(112, 165, 236, 0.52);
+      border: 2px solid rgba(236, 112, 112, 0.52);
       border-radius: 14px;
       background:
-        radial-gradient(circle at 20% 0%, rgba(57, 200, 255, 0.09), transparent 42%),
-        linear-gradient(180deg, rgba(13, 28, 50, 0.95), rgba(8, 18, 35, 0.95));
+        radial-gradient(circle at 20% 0%, rgba(255, 57, 57, 0.09), transparent 42%),
+        linear-gradient(180deg, rgba(50, 13, 13, 0.95), rgba(35, 8, 8, 0.95));
       padding: 10px;
       position: relative;
       overflow: hidden;
@@ -360,9 +360,9 @@
     }
 
     .board-wrap {
-      border: 1px solid rgba(112, 165, 236, 0.45);
+      border: 1px solid rgba(236, 112, 112, 0.45);
       border-radius: 12px;
-      background: linear-gradient(180deg, rgba(10, 24, 44, 0.95), rgba(6, 16, 30, 0.95));
+      background: linear-gradient(180deg, rgba(44, 10, 10, 0.95), rgba(30, 6, 6, 0.95));
       padding: 10px;
       position: relative;
       min-height: 280px;
@@ -434,6 +434,30 @@
     .cell.bonus {
       border-color: rgba(255, 206, 106, 0.82);
       box-shadow: 0 0 12px rgba(255, 206, 106, 0.25);
+    }
+
+    .cell.sixblu {
+      border-color: rgba(57, 100, 255, 0.86);
+      box-shadow: 0 0 18px rgba(57, 100, 255, 0.4);
+      animation: sixPulse 1s infinite alternate ease-in-out;
+    }
+
+    .cell.sixred {
+      border-color: rgba(255, 57, 57, 0.9);
+      box-shadow: 0 0 20px rgba(255, 57, 57, 0.5);
+      animation: sixPulse 0.8s infinite alternate ease-in-out;
+    }
+
+    @keyframes sixPulse {
+      0% {
+        transform: scale(1);
+        filter: brightness(1);
+      }
+
+      100% {
+        transform: scale(1.08);
+        filter: brightness(1.25);
+      }
     }
 
     .cell.hit {
