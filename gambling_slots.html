@@ -259,11 +259,11 @@
 
     .chip {
       padding: 6px 8px;
-      border: 1px solid rgba(112, 165, 236, 0.45);
+      border: 1px solid rgba(236, 112, 112, 0.45);
       border-radius: 999px;
       font-size: 8px;
-      color: #d8e8ff;
-      background: rgba(18, 41, 73, 0.78);
+      color: #ffd8d8;
+      background: rgba(44, 10, 10, 0.78);
       cursor: pointer;
     }
 
@@ -954,17 +954,31 @@
           </div>
 
           <div class="game-controls"
-            style="margin-top: 10px; display: flex; gap: 10px; align-items: center; justify-content: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px;">
-            <span style="font-size: 10px; color: #cae7ff;">Bet:</span>
-            <input id="betInput" type="number" min="1" step="1" value="1" placeholder="Bet WL" style="width: 140px;">
-            <button id="spinBtn" type="button" style="min-width: 80px; font-weight: bold;">SPIN</button>
-            <button id="setMaxBtn" type="button">Max</button>
-            <button id="bjHitBtn" type="button" class="hidden">Hit</button>
-            <button id="bjStandBtn" type="button" class="hidden">Stand</button>
-            <button id="bjDoubleBtn" type="button" class="hidden">Double</button>
-            <button id="bjSplitBtn" type="button" class="hidden">Split</button>
-            <button id="buyBonusBtn" type="button" class="hidden">Bonus</button>
-            <span id="lastWinLabel" class="tag good hidden">Won: 0 WL</span>
+            style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px;">
+            <div class="chips" id="betChips" style="justify-content: center;">
+              <span class="chip bet-btn" data-bet="1">1 WL</span>
+              <span class="chip bet-btn" data-bet="5">5 WL</span>
+              <span class="chip bet-btn" data-bet="10">10 WL</span>
+              <span class="chip bet-btn" data-bet="50">50 WL</span>
+              <span class="chip bet-btn" data-bet="100">100 WL</span>
+              <span class="chip bet-btn" data-bet="500">500 WL</span>
+              <span class="chip bet-btn" data-bet="1000">1K WL</span>
+              <span class="chip bet-btn" data-bet="5000">5K WL</span>
+              <span class="chip bet-btn" data-bet="10000">10K WL</span>
+            </div>
+
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <span style="font-size: 10px; color: #ffcccc;">Bet:</span>
+              <input id="betInput" type="number" min="1" step="1" value="1" placeholder="Bet WL" style="width: 140px;">
+              <button id="spinBtn" type="button" style="min-width: 80px; font-weight: bold;">SPIN</button>
+              <button id="setMaxBtn" type="button">Max</button>
+              <button id="bjHitBtn" type="button" class="hidden">Hit</button>
+              <button id="bjStandBtn" type="button" class="hidden">Stand</button>
+              <button id="bjDoubleBtn" type="button" class="hidden">Double</button>
+              <button id="bjSplitBtn" type="button" class="hidden">Split</button>
+              <button id="buyBonusBtn" type="button" class="hidden">Bonus</button>
+              <span id="lastWinLabel" class="tag good hidden">Won: 0 WL</span>
+            </div>
           </div>
 
           <div class="line-list" id="lineList"></div>

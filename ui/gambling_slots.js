@@ -1709,8 +1709,27 @@ window.GTModules = window.GTModules || {};
         const machine = getSelectedMachine();
         if (!machine || !(els.betInput instanceof HTMLInputElement)) return;
         els.betInput.value = String(Math.max(machine.minBet, getSpinMaxBet(machine)));
+        renderMachineStats();
       });
     }
+
+    const betBtns = document.querySelectorAll(".bet-btn");
+    betBtns.forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const machine = getSelectedMachine();
+        if (!machine || !(els.betInput instanceof HTMLInputElement)) return;
+
+        let target = e.target;
+        // fallback in case of nested spans
+        if (!target.dataset.bet && target.parentElement.dataset.bet) target = target.parentElement;
+
+        const val = parseInt(target.dataset.bet, 10);
+        if (!isNaN(val)) {
+          els.betInput.value = String(clampBetToMachine(machine, val));
+          renderMachineStats();
+        }
+      });
+    });
 
     if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.addEventListener("click", () => runSpin("spin"));
     if (els.buyBonusBtn instanceof HTMLButtonElement) els.buyBonusBtn.addEventListener("click", () => runSpin("buybonus"));
