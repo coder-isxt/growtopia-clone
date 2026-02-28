@@ -20,7 +20,17 @@ window.GTModules = window.GTModules || {};
       maxPayoutMultiplier: 50,
       rtp: 0.96,
       volatility: "medium-high",
-      layout: { reels: 5, rows: 4 } //NEEDS 4 ROWS
+      layout: { reels: 5, rows: 4 }
+    },
+    le_bandit: {
+      id: "le_bandit",
+      name: "Le Bandit",
+      minBet: 1,
+      maxBet: 30000,
+      maxPayoutMultiplier: 10000,
+      rtp: 0.955,
+      volatility: "high",
+      layout: { reels: 6, rows: 5 }
     },
     slots_v3: {
       id: "slots_v3",
@@ -1338,7 +1348,8 @@ window.GTModules = window.GTModules || {};
     if (id === "slots_v3") return spinV3(bet, options);
     if (id === "slots_v4") return spinV4(bet, options);
     if (id === "slots_v6") return spinV6(bet, options);
-    return spinV1(bet);
+    if (id === "le_bandit") return { gameId: "le_bandit", payoutWanted: 0, multiplier: 0, outcome: "lose", bet }; // Stub for server side fallback
+    return spinV1(bet, options);
   }
 
   const api = {
