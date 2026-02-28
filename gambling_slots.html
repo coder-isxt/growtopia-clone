@@ -908,6 +908,7 @@
         </div>
       </div>
       <div class="head-actions">
+        <button id="openVaultBtn" type="button" class="hidden">Vault</button>
         <button id="openGameBtn" type="button">Open Game</button>
         <button id="logoutBtn" type="button" class="hidden">Logout</button>
       </div>
@@ -995,6 +996,28 @@
         </div>
       </section>
     </main>
+
+    <!-- VAULT MODAL -->
+    <section id="vaultModal" class="card center-view hidden"
+      style="position: absolute; top: 20%; left: 0; right: 0; z-index: 100; box-shadow: 0 0 50px rgba(0,0,0,0.8);">
+      <h2 style="color: #64f2a8;">Web Vault</h2>
+      <div class="status" style="margin-bottom: 12px;">
+        Transfer WL between your in-game lock inventory and your gambling Web Vault.
+      </div>
+      <div class="row">
+        <input id="vaultAmount" type="number" min="1" placeholder="Amount of WL">
+      </div>
+      <div class="row">
+        <button id="vaultDepositBtn" type="button" style="color: #64f2a8; font-weight: bold;">Deposit (Game &rarr;
+          Vault)</button>
+        <button id="vaultWithdrawBtn" type="button" style="color: var(--danger); font-weight: bold;">Withdraw (Vault
+          &rarr; Game)</button>
+      </div>
+      <div class="row" style="justify-content: flex-end; margin-top: 10px;">
+        <button id="closeVaultBtn" type="button" style="width: auto;">Close</button>
+      </div>
+      <div id="vaultStatus" class="status" style="margin-top: 10px;">Ready.</div>
+    </section>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>

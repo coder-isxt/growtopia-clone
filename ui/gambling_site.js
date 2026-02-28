@@ -44,6 +44,7 @@
     },
     machineSearch: "",
     walletLocks: 0,
+    webVaultLocks: 0,
     walletBreakdownText: "0 WL",
     selectedSpectateTileKey: "",
     selectedPlayTileKey: "",
@@ -54,6 +55,13 @@
   let playRollIntervalId = 0;
 
   const els = {
+    openVaultBtn: document.getElementById("openVaultBtn"),
+    vaultModal: document.getElementById("vaultModal"),
+    vaultAmount: document.getElementById("vaultAmount"),
+    vaultDepositBtn: document.getElementById("vaultDepositBtn"),
+    vaultWithdrawBtn: document.getElementById("vaultWithdrawBtn"),
+    closeVaultBtn: document.getElementById("closeVaultBtn"),
+    vaultStatus: document.getElementById("vaultStatus"),
     openSlotsSiteBtn: document.getElementById("openSlotsSiteBtn"),
     openGameBtn: document.getElementById("openGameBtn"),
     logoutBtn: document.getElementById("logoutBtn"),
@@ -198,10 +206,11 @@
       byId[row.id] = count;
       total += count * row.value;
     }
-    return { byId, total };
+    const vault = toLockCount(inv.web_vault_balance);
+    return { byId, total, vault };
   }
 
-  function decomposeLockValue(totalValue) {
+  function decomposeLockValue(totalValue, vaultValue) {
     let remaining = toLockCount(totalValue);
     const out = {};
     for (let i = 0; i < LOCK_CURRENCIES.length; i++) {
@@ -210,6 +219,7 @@
       out[row.id] = Math.max(0, count);
       remaining -= count * row.value;
     }
+    out.web_vault_balance = Math.max(0, Math.floor(Number(vaultValue) || 0));
     return out;
   }
 
@@ -262,14 +272,16 @@
   }
 
   function updateSessionUi() {
-    const user = state.user;
     if (els.sessionLabel instanceof HTMLElement) {
-      els.sessionLabel.textContent = user ? ("@" + user.username + " (" + user.accountId + ")") : "Not logged in";
+      els.sessionLabel.textContent = state.user
+        ? "@" + escapeHtml(state.user.username) + " (" + escapeHtml(state.user.role || "none") + ")"
+        : "Not logged in";
     }
     if (els.scopeLabel instanceof HTMLElement) {
       els.scopeLabel.textContent = state.worldId ? state.worldId : "No world selected";
     }
     if (els.lockAccessLabel instanceof HTMLElement) {
+      const user = state.user;
       const lock = state.worldLock;
       if (!user || !lock || !lock.ownerAccountId) {
         els.lockAccessLabel.textContent = "No world lock context";
@@ -282,10 +294,13 @@
       }
     }
     if (els.logoutBtn instanceof HTMLButtonElement) {
-      els.logoutBtn.classList.toggle("hidden", !user);
+      els.logoutBtn.classList.toggle("hidden", !state.user);
+    }
+    if (els.openVaultBtn instanceof HTMLButtonElement) {
+      els.openVaultBtn.classList.toggle("hidden", !state.user);
     }
     if (els.dashboardCard instanceof HTMLElement) {
-      els.dashboardCard.classList.toggle("hidden", !user);
+      els.dashboardCard.classList.toggle("hidden", !state.user);
     }
   }
 
@@ -521,7 +536,7 @@
     const def = MACHINE_DEFS[machine.type] || MACHINE_DEFS.slots;
     const bank = Math.max(0, Math.floor(Number(machine.earningsLocks) || 0));
     const machineCap = Math.max(def.minBet, Math.floor(Number(machine.maxBet) || def.maxBet));
-    const byWallet = Math.max(0, Math.floor(Number(walletLocks) || 0));
+    const byWallet = Math.max(0, Math.floor(Number(walletLocks) || 0)); // this will receive webVaultLocks
     const payoutCap = Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || 1));
     const byBank = Math.max(0, Math.floor(bank / payoutCap));
     return Math.max(0, Math.min(machineCap, byWallet, byBank));
@@ -565,7 +580,7 @@
     if (els.sumBank instanceof HTMLElement) els.sumBank.textContent = String(totalBank) + " WL";
     if (els.sumMine instanceof HTMLElement) els.sumMine.textContent = String(mine);
     if (els.sumWallet instanceof HTMLElement) {
-      els.sumWallet.textContent = String(state.walletLocks) + " WL (" + state.walletBreakdownText + ")";
+      els.sumWallet.textContent = "Vault: " + String(state.webVaultLocks) + " WL | Game: " + String(state.walletLocks) + " WL (" + state.walletBreakdownText + ")";
     }
     if (els.sumTax instanceof HTMLElement) els.sumTax.textContent = String(tax.percent) + "% / " + String(tax.earningsLocks) + " WL";
   }
@@ -1247,14 +1262,10 @@
 
     const txn = await state.refs.inventoryLocks.transaction((currentRaw) => {
       const currentObj = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
-      const wallet = getLockWalletFromInventory(currentObj);
-      const nextTotal = wallet.total + delta;
-      if (nextTotal < 0) return;
-      const nextById = decomposeLockValue(nextTotal);
-      for (let i = 0; i < LOCK_CURRENCIES.length; i++) {
-        const row = LOCK_CURRENCIES[i];
-        currentObj[row.id] = toLockCount(nextById[row.id]);
-      }
+      const vault = toLockCount(currentObj.web_vault_balance);
+      const nextVault = vault + delta;
+      if (nextVault < 0) return;
+      currentObj.web_vault_balance = nextVault;
       return currentObj;
     });
 
@@ -1264,8 +1275,73 @@
     const snap = txn && txn.snapshot ? txn.snapshot : null;
     const nextWallet = getLockWalletFromInventory(snap && typeof snap.val === "function" ? snap.val() : {});
     state.walletLocks = nextWallet.total;
+    state.webVaultLocks = nextWallet.vault;
     state.walletBreakdownText = buildWalletBreakdownText(nextWallet.byId);
-    return { ok: true, next: nextWallet.total, amount: Math.abs(delta) };
+    return { ok: true, next: nextWallet.vault, amount: Math.abs(delta) };
+  }
+
+  async function depositToVaultLocks(amountDelta) {
+    const user = state.user;
+    if (!user || !state.worldId) return { ok: false, reason: "not-ready", amount: 0 };
+    if (!state.refs.inventoryLocks) return { ok: false, reason: "missing-wallet-ref", amount: 0 };
+    const delta = Math.floor(Number(amountDelta) || 0);
+    if (!Number.isInteger(delta) || delta <= 0) return { ok: false, reason: "invalid-delta", amount: 0 };
+
+    const txn = await state.refs.inventoryLocks.transaction((currentRaw) => {
+      const currentObj = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+      const wallet = getLockWalletFromInventory(currentObj);
+      if (wallet.total < delta) return;
+      const nextTotal = wallet.total - delta;
+      const nextById = decomposeLockValue(nextTotal, wallet.vault + delta);
+      for (let i = 0; i < LOCK_CURRENCIES.length; i++) {
+        const row = LOCK_CURRENCIES[i];
+        currentObj[row.id] = toLockCount(nextById[row.id]);
+      }
+      currentObj.web_vault_balance = nextById.web_vault_balance;
+      return currentObj;
+    });
+
+    if (!txn || !txn.committed) {
+      return { ok: false, reason: "wallet-update-rejected", amount: 0 };
+    }
+    const snap = txn && txn.snapshot ? txn.snapshot : null;
+    const nextWallet = getLockWalletFromInventory(snap && typeof snap.val === "function" ? snap.val() : {});
+    state.walletLocks = nextWallet.total;
+    state.webVaultLocks = nextWallet.vault;
+    state.walletBreakdownText = buildWalletBreakdownText(nextWallet.byId);
+    return { ok: true, next: nextWallet.vault, amount: Math.abs(delta) };
+  }
+
+  async function withdrawFromVaultLocks(amountDelta) {
+    const user = state.user;
+    if (!user || !state.worldId) return { ok: false, reason: "not-ready", amount: 0 };
+    if (!state.refs.inventoryLocks) return { ok: false, reason: "missing-wallet-ref", amount: 0 };
+    const delta = Math.floor(Number(amountDelta) || 0);
+    if (!Number.isInteger(delta) || delta <= 0) return { ok: false, reason: "invalid-delta", amount: 0 };
+
+    const txn = await state.refs.inventoryLocks.transaction((currentRaw) => {
+      const currentObj = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+      const wallet = getLockWalletFromInventory(currentObj);
+      if (wallet.vault < delta) return;
+      const nextTotal = wallet.total + delta;
+      const nextById = decomposeLockValue(nextTotal, wallet.vault - delta);
+      for (let i = 0; i < LOCK_CURRENCIES.length; i++) {
+        const row = LOCK_CURRENCIES[i];
+        currentObj[row.id] = toLockCount(nextById[row.id]);
+      }
+      currentObj.web_vault_balance = nextById.web_vault_balance;
+      return currentObj;
+    });
+
+    if (!txn || !txn.committed) {
+      return { ok: false, reason: "wallet-update-rejected", amount: 0 };
+    }
+    const snap = txn && txn.snapshot ? txn.snapshot : null;
+    const nextWallet = getLockWalletFromInventory(snap && typeof snap.val === "function" ? snap.val() : {});
+    state.walletLocks = nextWallet.total;
+    state.webVaultLocks = nextWallet.vault;
+    state.walletBreakdownText = buildWalletBreakdownText(nextWallet.byId);
+    return { ok: true, next: nextWallet.vault, amount: Math.abs(delta) };
   }
 
   function buildPlayResultMessage(machine, result, wager, payout) {
@@ -1795,6 +1871,7 @@
       state.handlers.inventoryLocks = (snapshot) => {
         const wallet = getLockWalletFromInventory(snapshot && snapshot.val ? snapshot.val() : {});
         state.walletLocks = wallet.total;
+        state.webVaultLocks = wallet.vault;
         state.walletBreakdownText = buildWalletBreakdownText(wallet.byId);
         renderSummary();
         renderPlayPanel();

@@ -102,6 +102,7 @@ window.GTModules = window.GTModules || {};
     machines: [],
     selectedMachineKey: "",
     walletLocks: 0,
+    webVaultLocks: 0,
     walletBreakdownText: "0 WL",
     refs: { inventory: null },
     handlers: { inventory: null },
@@ -112,6 +113,13 @@ window.GTModules = window.GTModules || {};
   };
 
   const els = {
+    openVaultBtn: document.getElementById("openVaultBtn"),
+    vaultModal: document.getElementById("vaultModal"),
+    vaultAmount: document.getElementById("vaultAmount"),
+    vaultDepositBtn: document.getElementById("vaultDepositBtn"),
+    vaultWithdrawBtn: document.getElementById("vaultWithdrawBtn"),
+    closeVaultBtn: document.getElementById("closeVaultBtn"),
+    vaultStatus: document.getElementById("vaultStatus"),
     openDashboardBtn: document.getElementById("openDashboardBtn"),
     openGameBtn: document.getElementById("openGameBtn"),
     logoutBtn: document.getElementById("logoutBtn"),
@@ -435,10 +443,11 @@ window.GTModules = window.GTModules || {};
       byId[row.id] = c;
       total += c * row.value;
     }
-    return { byId, total };
+    const vault = toCount(inv.web_vault_balance);
+    return { byId, total, vault };
   }
 
-  function fromWallet(totalValue) {
+  function fromWallet(totalValue, vaultValue) {
     let left = toCount(totalValue);
     const out = {};
     for (let i = 0; i < LOCK_CURRENCIES.length; i++) {
@@ -447,6 +456,7 @@ window.GTModules = window.GTModules || {};
       out[row.id] = Math.max(0, c);
       left -= c * row.value;
     }
+    out.web_vault_balance = Math.max(0, Math.floor(Number(vaultValue) || 0));
     return out;
   }
 
@@ -620,19 +630,65 @@ window.GTModules = window.GTModules || {};
     if (!state.refs.inventory || !state.user || d === 0) return { ok: false, reason: "not-ready" };
     const txn = await state.refs.inventory.transaction((raw) => {
       const currentObj = raw && typeof raw === "object" ? { ...raw } : {};
-      const wallet = toWallet(currentObj);
-      const nextTotal = wallet.total + d;
-      if (nextTotal < 0) return;
-      const decomp = fromWallet(nextTotal);
-      for (let i = 0; i < LOCK_CURRENCIES.length; i++) currentObj[LOCK_CURRENCIES[i].id] = toCount(decomp[LOCK_CURRENCIES[i].id]);
+      const vault = toCount(currentObj.web_vault_balance);
+      const nextVault = vault + d;
+      if (nextVault < 0) return; // Halt transaction safely if insufficient funds.
+      currentObj.web_vault_balance = nextVault;
       return currentObj;
     });
     if (!txn || !txn.committed) return { ok: false, reason: d < 0 ? "not-enough" : "rejected" };
+
+    // Refresh local state representation on success
     const wallet = toWallet(txn.snapshot && typeof txn.snapshot.val === "function" ? txn.snapshot.val() : {});
     state.walletLocks = wallet.total;
+    state.webVaultLocks = wallet.vault;
     state.walletBreakdownText = walletText(wallet.byId);
     renderSession();
-    return { ok: true, total: wallet.total };
+    return { ok: true, total: wallet.vault };
+  }
+
+  async function depositToVault(amount) {
+    const d = Math.floor(Number(amount) || 0);
+    if (!state.refs.inventory || !state.user || d <= 0) return { ok: false, reason: "invalid-amount" };
+    const txn = await state.refs.inventory.transaction((raw) => {
+      const currentObj = raw && typeof raw === "object" ? { ...raw } : {};
+      const wallet = toWallet(currentObj);
+      if (wallet.total < d) return; // Not enough physical locks to deposit
+      const nextTotal = wallet.total - d;
+      const decomp = fromWallet(nextTotal, wallet.vault + d);
+      for (let i = 0; i < LOCK_CURRENCIES.length; i++) currentObj[LOCK_CURRENCIES[i].id] = toCount(decomp[LOCK_CURRENCIES[i].id]);
+      currentObj.web_vault_balance = decomp.web_vault_balance;
+      return currentObj;
+    });
+    if (!txn || !txn.committed) return { ok: false, reason: "rejected" };
+    const wallet = toWallet(txn.snapshot && typeof txn.snapshot.val === "function" ? txn.snapshot.val() : {});
+    state.walletLocks = wallet.total;
+    state.webVaultLocks = wallet.vault;
+    state.walletBreakdownText = walletText(wallet.byId);
+    renderSession();
+    return { ok: true, vault: wallet.vault };
+  }
+
+  async function withdrawFromVault(amount) {
+    const d = Math.floor(Number(amount) || 0);
+    if (!state.refs.inventory || !state.user || d <= 0) return { ok: false, reason: "invalid-amount" };
+    const txn = await state.refs.inventory.transaction((raw) => {
+      const currentObj = raw && typeof raw === "object" ? { ...raw } : {};
+      const wallet = toWallet(currentObj);
+      if (wallet.vault < d) return; // Not enough vault locks to withdraw
+      const nextTotal = wallet.total + d;
+      const decomp = fromWallet(nextTotal, wallet.vault - d);
+      for (let i = 0; i < LOCK_CURRENCIES.length; i++) currentObj[LOCK_CURRENCIES[i].id] = toCount(decomp[LOCK_CURRENCIES[i].id]);
+      currentObj.web_vault_balance = decomp.web_vault_balance;
+      return currentObj;
+    });
+    if (!txn || !txn.committed) return { ok: false, reason: "rejected" };
+    const wallet = toWallet(txn.snapshot && typeof txn.snapshot.val === "function" ? txn.snapshot.val() : {});
+    state.walletLocks = wallet.total;
+    state.webVaultLocks = wallet.vault;
+    state.walletBreakdownText = walletText(wallet.byId);
+    renderSession();
+    return { ok: true, vault: wallet.vault };
   }
 
   function getMaxBetByBank(machine) {
@@ -666,12 +722,13 @@ window.GTModules = window.GTModules || {};
       els.sessionLabel.textContent = state.user ? ("@" + state.user.username + " (" + state.user.accountId + ")") : "Not logged in";
     }
     if (els.walletLabel instanceof HTMLElement) {
-      els.walletLabel.textContent = state.walletLocks + " WL (" + state.walletBreakdownText + ")";
+      els.walletLabel.textContent = "Vault: " + state.webVaultLocks + " WL | Game: " + state.walletLocks + " WL (" + state.walletBreakdownText + ")";
     }
     if (els.userBalanceDisplay instanceof HTMLElement) {
-      els.userBalanceDisplay.textContent = "Balance: " + state.walletLocks + " WL";
+      els.userBalanceDisplay.textContent = "Balance: " + state.webVaultLocks + " WL";
     }
     if (els.logoutBtn instanceof HTMLButtonElement) els.logoutBtn.classList.toggle("hidden", !state.user);
+    if (els.openVaultBtn instanceof HTMLButtonElement) els.openVaultBtn.classList.toggle("hidden", !state.user);
   }
 
   function buildRowsForRender(machine) {
@@ -1018,7 +1075,7 @@ window.GTModules = window.GTModules || {};
 
     const maxStake = Math.max(machine.minBet, getSpinMaxBet(machine));
     const busyByOther = Boolean(machine.inUseAccountId && machine.inUseAccountId !== (state.user && state.user.accountId));
-    const canBet = !state.spinBusy && !busyByOther && state.walletLocks >= displayBet;
+    const canBet = !state.spinBusy && !busyByOther && state.webVaultLocks >= displayBet;
 
     // Blackjack specific buttons
     if (els.bjHitBtn) els.bjHitBtn.classList.toggle("hidden", !isBlackjack);
@@ -1028,11 +1085,11 @@ window.GTModules = window.GTModules || {};
 
     if (isBlackjack) {
       const active = bjState && bjState.active;
-      const canSplit = active && activeHand && activeHand.cards.length === 2 && activeHand.cards[0].value === activeHand.cards[1].value && state.walletLocks >= bjState.bet;
+      const canSplit = active && activeHand && activeHand.cards.length === 2 && activeHand.cards[0].value === activeHand.cards[1].value && state.webVaultLocks >= bjState.bet;
 
       if (els.bjHitBtn) els.bjHitBtn.disabled = !active;
       if (els.bjStandBtn) els.bjStandBtn.disabled = !active;
-      if (els.bjDoubleBtn) els.bjDoubleBtn.disabled = !active || state.walletLocks < bjState.bet;
+      if (els.bjDoubleBtn) els.bjDoubleBtn.disabled = !active || state.webVaultLocks < bjState.bet;
       if (els.bjSplitBtn) els.bjSplitBtn.disabled = !canSplit;
       if (els.spinBtn) {
         els.spinBtn.textContent = active ? "Game Active" : "Deal";
@@ -1051,7 +1108,7 @@ window.GTModules = window.GTModules || {};
       if (buyEnabled) {
         const cost = bet * 10;
         els.buyBonusBtn.textContent = "Buy Bonus " + cost + " WL";
-        els.buyBonusBtn.disabled = !canBet || state.walletLocks < cost;
+        els.buyBonusBtn.disabled = !canBet || state.webVaultLocks < cost;
       }
     }
   }
@@ -1216,7 +1273,7 @@ window.GTModules = window.GTModules || {};
       if (els.lastWinLabel) els.lastWinLabel.classList.add("hidden");
       if (bj.active) return;
       const bet = clampBetToMachine(machine, state.currentBetValue);
-      if (state.walletLocks < bet) return;
+      if (state.webVaultLocks < bet) return;
 
       // Deduct bet
       const debit = await adjustWallet(-bet);
@@ -1277,7 +1334,7 @@ window.GTModules = window.GTModules || {};
       if (!bj.active) return;
       const hand = bj.hands[bj.activeHandIndex];
       if (hand.cards.length !== 2) return;
-      if (state.walletLocks < bj.bet) return; // Need enough for 2nd bet
+      if (state.webVaultLocks < bj.bet) return; // Need enough for 2nd bet
 
       const debit = await adjustWallet(-bj.bet);
       if (!debit.ok) return;
@@ -1299,7 +1356,7 @@ window.GTModules = window.GTModules || {};
       if (!bj.active) return;
       const hand = bj.hands[bj.activeHandIndex];
       if (hand.cards.length !== 2 || hand.cards[0].value !== hand.cards[1].value) return;
-      if (state.walletLocks < bj.bet) return;
+      if (state.webVaultLocks < bj.bet) return;
 
       const debit = await adjustWallet(-bj.bet);
       if (!debit.ok) return;
@@ -1391,7 +1448,7 @@ window.GTModules = window.GTModules || {};
     const bet = clampBetToMachine(machine, state.currentBetValue);
 
     const wager = bet * buyX;
-    if (state.walletLocks < wager) {
+    if (state.webVaultLocks < wager) {
       return;
     }
 
@@ -1728,7 +1785,65 @@ window.GTModules = window.GTModules || {};
     if (els.bjDoubleBtn) els.bjDoubleBtn.addEventListener("click", () => runBlackjackAction("double"));
     if (els.bjSplitBtn) els.bjSplitBtn.addEventListener("click", () => runBlackjackAction("split"));
 
-
+    // Vault Events
+    if (els.openVaultBtn) {
+      els.openVaultBtn.addEventListener("click", () => {
+        if (!state.user) return;
+        if (els.vaultStatus) els.vaultStatus.textContent = "Ready.";
+        els.vaultModal.classList.remove("hidden");
+      });
+    }
+    if (els.closeVaultBtn) {
+      els.closeVaultBtn.addEventListener("click", () => els.vaultModal.classList.add("hidden"));
+    }
+    if (els.vaultDepositBtn) {
+      els.vaultDepositBtn.addEventListener("click", async () => {
+        if (!els.vaultAmount) return;
+        const val = Math.floor(Number(els.vaultAmount.value));
+        if (val <= 0 || isNaN(val)) {
+          if (els.vaultStatus) els.vaultStatus.textContent = "Invalid amount.";
+          return;
+        }
+        els.vaultDepositBtn.disabled = true;
+        els.vaultWithdrawBtn.disabled = true;
+        if (els.vaultStatus) els.vaultStatus.textContent = "Depositing...";
+        const tx = await depositToVault(val);
+        els.vaultDepositBtn.disabled = false;
+        els.vaultWithdrawBtn.disabled = false;
+        if (els.vaultStatus) {
+          if (tx.ok) {
+            els.vaultStatus.textContent = `Success! Deposited ${val} WL.`;
+            els.vaultAmount.value = "";
+          } else {
+            els.vaultStatus.textContent = "Failed to deposit: " + tx.reason;
+          }
+        }
+      });
+    }
+    if (els.vaultWithdrawBtn) {
+      els.vaultWithdrawBtn.addEventListener("click", async () => {
+        if (!els.vaultAmount) return;
+        const val = Math.floor(Number(els.vaultAmount.value));
+        if (val <= 0 || isNaN(val)) {
+          if (els.vaultStatus) els.vaultStatus.textContent = "Invalid amount.";
+          return;
+        }
+        els.vaultDepositBtn.disabled = true;
+        els.vaultWithdrawBtn.disabled = true;
+        if (els.vaultStatus) els.vaultStatus.textContent = "Withdrawing...";
+        const tx = await withdrawFromVault(val);
+        els.vaultDepositBtn.disabled = false;
+        els.vaultWithdrawBtn.disabled = false;
+        if (els.vaultStatus) {
+          if (tx.ok) {
+            els.vaultStatus.textContent = `Success! Withdrew ${val} WL.`;
+            els.vaultAmount.value = "";
+          } else {
+            els.vaultStatus.textContent = "Failed to withdraw: " + tx.reason;
+          }
+        }
+      });
+    }
 
     if (els.backToLobbyBtn instanceof HTMLButtonElement) {
       els.backToLobbyBtn.addEventListener("click", () => switchView("lobby"));

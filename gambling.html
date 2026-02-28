@@ -1,5 +1,6 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
@@ -22,7 +23,9 @@
       --gold: #ffcd5f;
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       margin: 0;
@@ -93,9 +96,18 @@
       transition: transform 90ms ease, filter 120ms ease;
     }
 
-    button:hover { filter: brightness(1.08); }
-    button:active { transform: translateY(1px); }
-    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    button:hover {
+      filter: brightness(1.08);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
 
     input,
     select {
@@ -149,8 +161,15 @@
       word-break: break-word;
     }
 
-    .status.error { color: var(--danger); border-color: rgba(255, 124, 124, 0.45); }
-    .status.ok { color: var(--good); border-color: rgba(95, 241, 173, 0.45); }
+    .status.error {
+      color: var(--danger);
+      border-color: rgba(255, 124, 124, 0.45);
+    }
+
+    .status.ok {
+      color: var(--good);
+      border-color: rgba(95, 241, 173, 0.45);
+    }
 
     .meta {
       display: grid;
@@ -182,9 +201,20 @@
       background: rgba(23, 47, 80, 0.85);
     }
 
-    .tag.good { border-color: rgba(95, 241, 173, 0.55); color: var(--good); }
-    .tag.warn { border-color: rgba(255, 214, 107, 0.6); color: var(--warn); }
-    .tag.danger { border-color: rgba(255, 124, 124, 0.65); color: var(--danger); }
+    .tag.good {
+      border-color: rgba(95, 241, 173, 0.55);
+      color: var(--good);
+    }
+
+    .tag.warn {
+      border-color: rgba(255, 214, 107, 0.6);
+      color: var(--warn);
+    }
+
+    .tag.danger {
+      border-color: rgba(255, 124, 124, 0.65);
+      color: var(--danger);
+    }
 
     .content-head {
       display: grid;
@@ -194,7 +224,9 @@
       margin-bottom: 10px;
     }
 
-    .content-head input { min-width: 250px; }
+    .content-head input {
+      min-width: 250px;
+    }
 
     .summary {
       display: grid;
@@ -255,10 +287,17 @@
       background: rgba(9, 25, 47, 0.98);
     }
 
-    tr:last-child td { border-bottom: none; }
+    tr:last-child td {
+      border-bottom: none;
+    }
 
-    .machine-owner { color: #d8e8ff; }
-    .machine-owner.me { color: var(--good); }
+    .machine-owner {
+      color: #d8e8ff;
+    }
+
+    .machine-owner.me {
+      color: var(--good);
+    }
 
     .machine-bet {
       display: flex;
@@ -689,20 +728,47 @@
       font-size: 9px;
     }
 
-    .hidden { display: none !important; }
+    .hidden {
+      display: none !important;
+    }
 
     @media (max-width: 1040px) {
-      .grid { grid-template-columns: 1fr; min-height: 0; }
-      .summary { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
-      .content-head { grid-template-columns: 1fr; }
-      .content-head input { min-width: 0; }
-      .spec-metrics { grid-template-columns: repeat(2, minmax(100px, 1fr)); }
-      .spec-grid { grid-template-columns: repeat(2, minmax(90px, 1fr)); }
-      .play-controls { grid-template-columns: 1fr 1fr; }
-      .play-controls button { width: 100%; }
+      .grid {
+        grid-template-columns: 1fr;
+        min-height: 0;
+      }
+
+      .summary {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+      }
+
+      .content-head {
+        grid-template-columns: 1fr;
+      }
+
+      .content-head input {
+        min-width: 0;
+      }
+
+      .spec-metrics {
+        grid-template-columns: repeat(2, minmax(100px, 1fr));
+      }
+
+      .spec-grid {
+        grid-template-columns: repeat(2, minmax(90px, 1fr));
+      }
+
+      .play-controls {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .play-controls button {
+        width: 100%;
+      }
     }
   </style>
 </head>
+
 <body>
   <div class="page">
     <header class="head">
@@ -711,6 +777,7 @@
         <div class="sub">Web dashboard for world gambling machines. Use Slots Site for animated web-play slots.</div>
       </div>
       <div class="head-actions">
+        <button id="openVaultBtn" type="button" class="hidden">Vault</button>
         <button id="openSlotsSiteBtn" type="button">Slots Site</button>
         <button id="openGameBtn" type="button">Open Game</button>
         <button id="logoutBtn" type="button" class="hidden">Logout</button>
@@ -788,6 +855,28 @@
         </div>
       </section>
     </main>
+
+    <!-- VAULT MODAL -->
+    <section id="vaultModal" class="card center-view hidden"
+      style="position: absolute; top: 20%; left: 0; right: 0; z-index: 100; box-shadow: 0 0 50px rgba(0,0,0,0.8); max-width: 420px; margin: 0 auto;">
+      <h2 style="color: #64f2a8;">Web Vault</h2>
+      <div class="status" style="margin-bottom: 12px;">
+        Transfer WL between your in-game lock inventory and your gambling Web Vault.
+      </div>
+      <div class="row">
+        <input id="vaultAmount" type="number" min="1" placeholder="Amount of WL">
+      </div>
+      <div class="row">
+        <button id="vaultDepositBtn" type="button" style="color: #64f2a8; font-weight: bold;">Deposit (Game &rarr;
+          Vault)</button>
+        <button id="vaultWithdrawBtn" type="button" style="color: var(--danger); font-weight: bold;">Withdraw (Vault
+          &rarr; Game)</button>
+      </div>
+      <div class="row" style="justify-content: flex-end; margin-top: 10px;">
+        <button id="closeVaultBtn" type="button" style="width: auto;">Close</button>
+      </div>
+      <div id="vaultStatus" class="status" style="margin-top: 10px;">Ready.</div>
+    </section>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
@@ -803,4 +892,5 @@
   <script src="economy/slots.js"></script>
   <script src="ui/gambling_site.js"></script>
 </body>
+
 </html>
