@@ -128,6 +128,7 @@ window.GTModules = window.GTModules || {};
     bjStandBtn: document.getElementById("bjStandBtn"),
     bjDoubleBtn: document.getElementById("bjDoubleBtn"),
     buyBonusBtn: document.getElementById("buyBonusBtn"),
+    lastWinLabel: document.getElementById("lastWinLabel"),
     stage: document.getElementById("stage"),
     boardWrap: document.getElementById("boardWrap"),
     slotBoard: document.getElementById("slotBoard"),
@@ -741,6 +742,7 @@ if (wrap instanceof HTMLElement) {
   }
 
   function startSpinFx(machine, isBonus) {
+    if (els.lastWinLabel) els.lastWinLabel.classList.add("hidden");
     stopSpinFx();
     state.spinBusy = true;
     if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
@@ -1048,6 +1050,7 @@ if (wrap instanceof HTMLElement) {
     const bj = machine.stats.blackjackState;
 
     if (action === 'deal') {
+      if (els.lastWinLabel) els.lastWinLabel.classList.add("hidden");
       if (bj.active) return;
       const bet = clampBetToMachine(machine, els.betInput && els.betInput.value);
       if (state.walletLocks < bet) return;
@@ -1069,10 +1072,12 @@ if (wrap instanceof HTMLElement) {
         if (isBlackjack(bj.dealerHand)) {
           bj.message = "Push! Both have Blackjack.";
           await adjustWallet(bet); // Return bet
+          if (els.lastWinLabel) { els.lastWinLabel.textContent = "Push"; els.lastWinLabel.classList.remove("hidden"); }
         } else {
           const win = Math.floor(bet * 2.5);
           bj.message = `Blackjack! Won ${win} WL`;
           await adjustWallet(win);
+          if (els.lastWinLabel) { els.lastWinLabel.textContent = "Won: " + win + " WL"; els.lastWinLabel.classList.remove("hidden"); }
         }
       }
       renderAll('deal');
@@ -1105,9 +1110,11 @@ if (wrap instanceof HTMLElement) {
         const win = bj.bet * 2;
         bj.message = `You Win! Won ${win} WL`;
         await adjustWallet(win);
+        if (els.lastWinLabel) { els.lastWinLabel.textContent = "Won: " + win + " WL"; els.lastWinLabel.classList.remove("hidden"); }
       } else if (dScore === pScore) {
         bj.message = "Push. Bet returned.";
         await adjustWallet(bj.bet);
+        if (els.lastWinLabel) { els.lastWinLabel.textContent = "Push"; els.lastWinLabel.classList.remove("hidden"); }
       } else {
         bj.message = "Dealer Wins.";
       }
@@ -1143,9 +1150,11 @@ if (wrap instanceof HTMLElement) {
           const win = bj.bet * 2;
           bj.message = `You Win! Won ${win} WL`;
           await adjustWallet(win);
+          if (els.lastWinLabel) { els.lastWinLabel.textContent = "Won: " + win + " WL"; els.lastWinLabel.classList.remove("hidden"); }
         } else if (dScore === pScore) {
           bj.message = "Push. Bet returned.";
           await adjustWallet(bj.bet);
+          if (els.lastWinLabel) { els.lastWinLabel.textContent = "Push"; els.lastWinLabel.classList.remove("hidden"); }
         } else {
           bj.message = "Dealer Wins.";
         }
@@ -1256,6 +1265,14 @@ if (wrap instanceof HTMLElement) {
       state.ephemeral.lineWins = resolved.lineWins;
       state.ephemeral.lineIds = resolved.lineIds;
       renderBoard();
+      if (els.lastWinLabel) {
+        if (payout > 0) {
+          els.lastWinLabel.textContent = "Won: " + payout + " WL";
+          els.lastWinLabel.classList.remove("hidden");
+        } else {
+          els.lastWinLabel.classList.add("hidden");
+        }
+      }
       if (resolved.outcome === "win" || resolved.outcome === "jackpot" || buyBonus || payout > 0) {
         if (els.boardWrap instanceof HTMLElement) {
           els.boardWrap.classList.add("winfx");
@@ -1354,6 +1371,14 @@ if (wrap instanceof HTMLElement) {
       state.ephemeral.lineWins = resolved.lineWins;
       state.ephemeral.lineIds = resolved.lineIds;
       renderBoard();
+      if (els.lastWinLabel) {
+        if (payout > 0) {
+          els.lastWinLabel.textContent = "Won: " + payout + " WL";
+          els.lastWinLabel.classList.remove("hidden");
+        } else {
+          els.lastWinLabel.classList.add("hidden");
+        }
+      }
       
       if (resolved.outcome === "win" || resolved.outcome === "jackpot") {
         if (els.boardWrap instanceof HTMLElement) {
