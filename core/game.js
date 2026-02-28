@@ -1804,6 +1804,9 @@
       }
 
       function setAdminOpen(open) {
+        if (typeof document !== "undefined" && document.body) {
+          document.body.classList.toggle("admin-dashboard-open", false);
+        }
         if (!canUseAdminPanel) {
           isAdminOpen = false;
           adminPanelEl.classList.add("hidden");
@@ -1812,6 +1815,9 @@
         }
         isAdminOpen = Boolean(open);
         adminPanelEl.classList.toggle("hidden", !isAdminOpen);
+        if (typeof document !== "undefined" && document.body) {
+          document.body.classList.toggle("admin-dashboard-open", isAdminOpen);
+        }
         if (isAdminOpen) {
           refreshAuditActionFilterOptions();
           if (hasAdminPermission("db_restore")) {
