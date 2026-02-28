@@ -1484,6 +1484,7 @@ window.GTModules = window.GTModules || {};
     clearSessionRefs();
     state.user = null;
     state.walletLocks = 0;
+    state.webVaultLocks = 0;
     state.walletBreakdownText = "0 WL";
     state.ephemeral.rows = null;
     state.ephemeral.lineIds = [];
@@ -1505,6 +1506,7 @@ window.GTModules = window.GTModules || {};
       state.handlers.inventory = (snap) => {
         const wallet = toWallet(snap && typeof snap.val === "function" ? snap.val() : {});
         state.walletLocks = wallet.total;
+        state.webVaultLocks = wallet.vault;
         state.walletBreakdownText = walletText(wallet.byId);
         renderSession();
         renderMachineStats(); // Re-render stats to update button disabled states
