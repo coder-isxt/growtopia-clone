@@ -351,6 +351,13 @@
         linear-gradient(180deg, rgba(10, 22, 42, 0.96), rgba(8, 15, 28, 0.97));
     }
 
+    .stage.theme-mines {
+      border-color: rgba(112, 255, 182, 0.8);
+      background:
+        radial-gradient(circle at 28% 10%, rgba(80, 220, 150, 0.12), transparent 52%),
+        linear-gradient(180deg, rgba(9, 30, 24, 0.96), rgba(6, 18, 14, 0.97));
+    }
+
     .cell.wanted {
       border-color: rgba(218, 165, 32, 0.88);
       box-shadow: 0 0 14px rgba(218, 165, 32, 0.35);
@@ -439,6 +446,13 @@
       gap: 6px;
     }
 
+    .board.mines-board {
+      width: min(100%, 640px);
+      grid-template-columns: repeat(var(--mines-cols, 5), minmax(72px, 1fr));
+      grid-template-rows: repeat(var(--mines-rows, 5), minmax(72px, 1fr));
+      gap: 8px;
+    }
+
     .tower-cell {
       border: 1px solid rgba(112, 165, 236, 0.4);
       border-radius: 10px;
@@ -496,6 +510,65 @@
       border-color: rgba(205, 106, 106, 0.55);
       color: #d7a4a4;
       background: linear-gradient(180deg, rgba(45, 16, 16, 0.78), rgba(34, 12, 12, 0.78));
+    }
+
+    .mines-cell {
+      border: 1px solid rgba(112, 165, 236, 0.38);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(10, 24, 40, 0.88), rgba(8, 16, 28, 0.9));
+      min-height: 72px;
+      display: grid;
+      place-items: center;
+      color: #cce5ff;
+      font-size: 10px;
+      letter-spacing: 0.4px;
+      user-select: none;
+      transition: transform 120ms ease, filter 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    .mines-cell.active {
+      cursor: pointer;
+      border-color: rgba(255, 206, 106, 0.78);
+      color: #ffe9a7;
+      background: linear-gradient(180deg, rgba(58, 44, 18, 0.72), rgba(41, 30, 12, 0.76));
+      box-shadow: 0 0 10px rgba(255, 206, 106, 0.2);
+    }
+
+    .mines-cell.active:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.07);
+    }
+
+    .mines-cell.safe {
+      border-color: rgba(100, 242, 168, 0.85);
+      color: #9ef3cd;
+      background: linear-gradient(180deg, rgba(14, 64, 50, 0.85), rgba(10, 40, 31, 0.88));
+      box-shadow: 0 0 12px rgba(100, 242, 168, 0.24);
+    }
+
+    .mines-cell.mine {
+      border-color: rgba(255, 120, 120, 0.82);
+      color: #ffc8c8;
+      background: linear-gradient(180deg, rgba(78, 18, 18, 0.88), rgba(54, 12, 12, 0.9));
+      box-shadow: 0 0 12px rgba(255, 120, 120, 0.24);
+    }
+
+    .mines-cell.revealed-safe {
+      border-color: rgba(112, 196, 150, 0.52);
+      color: #abdbc3;
+      background: linear-gradient(180deg, rgba(10, 36, 28, 0.8), rgba(8, 24, 19, 0.82));
+    }
+
+    .mines-cell.revealed-mine {
+      border-color: rgba(205, 106, 106, 0.5);
+      color: #d3a0a0;
+      background: linear-gradient(180deg, rgba(40, 14, 14, 0.82), rgba(30, 10, 10, 0.84));
+    }
+
+    .mines-cell.hidden {
+      color: #8fa6bf;
+      border-color: rgba(100, 130, 160, 0.32);
+      background: linear-gradient(180deg, rgba(9, 18, 30, 0.86), rgba(6, 13, 22, 0.9));
     }
 
     .reel {
@@ -1107,8 +1180,24 @@
                 </select>
               </span>
 
+              <span id="minesCountWrap" class="hidden" style="display:flex; gap:6px; align-items:center;">
+                <span style="font-size:8px; color:#cfe4ff;">Mines</span>
+                <select id="minesCountSelect" style="min-width:90px; padding:8px 10px;">
+                  <option value="1">1</option>
+                  <option value="3">3</option>
+                  <option value="5" selected>5</option>
+                  <option value="7">7</option>
+                  <option value="10">10</option>
+                  <option value="12">12</option>
+                  <option value="15">15</option>
+                  <option value="20">20</option>
+                  <option value="24">24</option>
+                </select>
+              </span>
+
               <button id="spinBtn" type="button" style="min-width: 80px; font-weight: bold;">SPIN</button>
               <button id="towerCashoutBtn" type="button" class="hidden">Cash Out</button>
+              <button id="minesCashoutBtn" type="button" class="hidden">Cash Out</button>
               <button id="bjHitBtn" type="button" class="hidden">Hit</button>
               <button id="bjStandBtn" type="button" class="hidden">Stand</button>
               <button id="bjDoubleBtn" type="button" class="hidden">Double</button>

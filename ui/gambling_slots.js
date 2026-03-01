@@ -4,7 +4,7 @@ window.GTModules = window.GTModules || {};
   "use strict";
 
   const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
-  const GAME_IDS = ["blackjack", "slots_v2", "le_bandit", "tower"];
+  const GAME_IDS = ["blackjack", "slots_v2", "le_bandit", "tower", "mines"];
 
   // This page is now a standalone casino site.
   // World-based machine browsing is on gambling.html
@@ -46,7 +46,8 @@ window.GTModules = window.GTModules || {};
     blackjack: "Blackjack",
     slots_v2: "Six Six Six",
     le_bandit: "Le Bandit",
-    tower: "Tower"
+    tower: "Tower",
+    mines: "Mines"
   };
   const TOWER_CONFIG = {
     floors: 8,
@@ -57,6 +58,15 @@ window.GTModules = window.GTModules || {};
       hard: { id: "hard", label: "Hard", traps: 3, stepMult: 2.38 },
       extreme: { id: "extreme", label: "Extreme", traps: 4, stepMult: 4.75 }
     }
+  };
+  const MINES_CONFIG = {
+    rows: 5,
+    cols: 5,
+    totalTiles: 25,
+    minMines: 1,
+    maxMines: 24,
+    defaultMines: 5,
+    houseEdge: 0.04
   };
   const PAYLINES_5 = [
     [1, 1, 1, 1, 1],
@@ -150,6 +160,10 @@ window.GTModules = window.GTModules || {};
     tower: {
       roundsByMachine: {},
       difficultyByMachine: {}
+    },
+    mines: {
+      roundsByMachine: {},
+      minesByMachine: {}
     }
   };
 
@@ -176,8 +190,11 @@ window.GTModules = window.GTModules || {};
     currentBetDisplay: document.getElementById("currentBetDisplay"),
     towerDifficultyWrap: document.getElementById("towerDifficultyWrap"),
     towerDifficultySelect: document.getElementById("towerDifficultySelect"),
+    minesCountWrap: document.getElementById("minesCountWrap"),
+    minesCountSelect: document.getElementById("minesCountSelect"),
     spinBtn: document.getElementById("spinBtn"),
     towerCashoutBtn: document.getElementById("towerCashoutBtn"),
+    minesCashoutBtn: document.getElementById("minesCashoutBtn"),
     bjHitBtn: document.getElementById("bjHitBtn"),
     bjStandBtn: document.getElementById("bjStandBtn"),
     bjDoubleBtn: document.getElementById("bjDoubleBtn"),
@@ -211,7 +228,8 @@ window.GTModules = window.GTModules || {};
       slots_v4: { name: "Ancient Jungle", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 4 },
       slots_v6: { name: "Deep Core", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 3 },
       le_bandit: { name: "Le Bandit", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10000, reels: 6, rows: 5 },
-      tower: { name: "Tower", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 25000, reels: 5, rows: 8 }
+      tower: { name: "Tower", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 25000, reels: 5, rows: 8 },
+      mines: { name: "Mines", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 25000, reels: 5, rows: 5 }
     };
     const out = {};
     GAME_IDS.forEach((id) => {
@@ -510,6 +528,219 @@ window.GTModules = window.GTModules || {};
 
     if (round.currentFloor >= round.floors) {
       await cashOutTowerRun(machine, "top");
+      return;
+    }
+
+    renderAll();
+  }
+
+  function normalizeMinesCount(value) {
+    const raw = Math.floor(Number(value) || MINES_CONFIG.defaultMines);
+    return Math.max(MINES_CONFIG.minMines, Math.min(MINES_CONFIG.maxMines, raw));
+  }
+
+  function getMinesCountForMachine(machine) {
+    if (!machine || !machine.tileKey) return MINES_CONFIG.defaultMines;
+    const byMachine = state.mines && state.mines.minesByMachine ? state.mines.minesByMachine : {};
+    return normalizeMinesCount(byMachine[machine.tileKey]);
+  }
+
+  function setMinesCountForMachine(machine, minesCount) {
+    if (!machine || !machine.tileKey || !state.mines || !state.mines.minesByMachine) return;
+    state.mines.minesByMachine[machine.tileKey] = normalizeMinesCount(minesCount);
+  }
+
+  function getMinesRoundForMachine(machine) {
+    if (!machine || !machine.tileKey) return null;
+    const byMachine = state.mines && state.mines.roundsByMachine ? state.mines.roundsByMachine : {};
+    return byMachine[machine.tileKey] || null;
+  }
+
+  function setMinesRoundForMachine(machine, round) {
+    if (!machine || !machine.tileKey || !state.mines || !state.mines.roundsByMachine) return;
+    if (round) state.mines.roundsByMachine[machine.tileKey] = round;
+    else delete state.mines.roundsByMachine[machine.tileKey];
+  }
+
+  function createMinesRound(machine, bet, minesCount) {
+    const totalTiles = MINES_CONFIG.totalTiles;
+    const safeTotal = totalTiles - minesCount;
+    const mineIndices = randomUniqueIndices(totalTiles, minesCount);
+    const mineMap = {};
+    for (let i = 0; i < mineIndices.length; i++) mineMap[mineIndices[i]] = true;
+    return {
+      machineKey: machine.tileKey,
+      startedAt: Date.now(),
+      bet: Math.max(1, Math.floor(Number(bet) || 1)),
+      minesCount,
+      totalTiles,
+      rows: MINES_CONFIG.rows,
+      cols: MINES_CONFIG.cols,
+      safeTotal,
+      mineIndices,
+      mineMap,
+      revealedSafeIndices: [],
+      revealedSafeMap: {},
+      pickedMineIndex: -1,
+      active: true,
+      ended: false,
+      revealAll: false,
+      result: "running",
+      payout: 0
+    };
+  }
+
+  function minesSafeClicks(round) {
+    if (!round || !Array.isArray(round.revealedSafeIndices)) return 0;
+    return Math.max(0, round.revealedSafeIndices.length);
+  }
+
+  function minesMultiplierForClicks(round, safeClicks) {
+    if (!round) return 1;
+    const clicks = Math.max(0, Math.min(Math.floor(Number(safeClicks) || 0), round.safeTotal));
+    if (clicks <= 0) return 1;
+    const edgeFactor = Math.max(0.8, Math.min(1, 1 - (Number(MINES_CONFIG.houseEdge) || 0.04)));
+    let mult = 1;
+    for (let i = 0; i < clicks; i++) {
+      const remainingSafe = round.safeTotal - i;
+      const remainingTotal = round.totalTiles - i;
+      if (remainingSafe <= 0 || remainingTotal <= 0) break;
+      mult *= (remainingTotal / remainingSafe) * edgeFactor;
+    }
+    return Math.max(1, Number(mult.toFixed(6)));
+  }
+
+  function minesCurrentMultiplier(round) {
+    return minesMultiplierForClicks(round, minesSafeClicks(round));
+  }
+
+  function minesNextMultiplier(round) {
+    return minesMultiplierForClicks(round, minesSafeClicks(round) + 1);
+  }
+
+  function minesCashoutPayout(round) {
+    if (!round) return 0;
+    return Math.max(0, Math.floor(round.bet * minesCurrentMultiplier(round)));
+  }
+
+  function updateMinesMachineStatsOnStart(machine, round) {
+    if (!machine || !machine.stats || !round) return;
+    machine.stats.plays = toCount(machine.stats.plays) + 1;
+    machine.stats.totalBet = toCount(machine.stats.totalBet) + round.bet;
+    machine.stats.lastOutcome = "running";
+    machine.stats.lastMultiplier = 1;
+    machine.stats.lastSlotsSummary = "Mines run started (" + round.minesCount + " mines)";
+    machine.stats.lastSlotsText = "";
+    machine.stats.lastSlotsLines = "";
+    machine.stats.lastSlotsLineIds = "";
+  }
+
+  function updateMinesMachineStatsOnResolve(machine, round, outcome, payout) {
+    if (!machine || !machine.stats || !round) return;
+    const safeOutcome = String(outcome || "lose").slice(0, 24);
+    const safePayout = Math.max(0, Math.floor(Number(payout) || 0));
+    const safeClicks = minesSafeClicks(round);
+    const mult = minesCurrentMultiplier(round);
+    machine.stats.lastOutcome = safeOutcome;
+    machine.stats.lastMultiplier = Number(mult.toFixed(6));
+    machine.stats.lastSlotsSummary = "Mines " + safeOutcome + " | " + safeClicks + " safe | " + formatMultiplier(mult);
+    if (safePayout > 0) machine.stats.totalPayout = toCount(machine.stats.totalPayout) + safePayout;
+  }
+
+  async function startMinesRun(machine) {
+    if (!machine || machine.type !== "mines" || state.spinBusy) return;
+    const existing = getMinesRoundForMachine(machine);
+    if (existing && existing.active) return;
+
+    const bet = clampBetToMachine(machine, state.currentBetValue);
+    if (state.webVaultLocks < bet) return;
+    const debit = await adjustWallet(-bet);
+    if (!debit.ok) return;
+
+    const minesCount = getMinesCountForMachine(machine);
+    const round = createMinesRound(machine, bet, minesCount);
+    setMinesRoundForMachine(machine, round);
+    updateMinesMachineStatsOnStart(machine, round);
+    if (els.lastWinLabel instanceof HTMLElement) {
+      els.lastWinLabel.textContent = "Mines Started";
+      els.lastWinLabel.classList.remove("hidden");
+      els.lastWinLabel.classList.remove("good");
+    }
+    renderAll();
+  }
+
+  async function cashOutMinesRun(machine, reason) {
+    if (!machine || machine.type !== "mines") return;
+    const round = getMinesRoundForMachine(machine);
+    if (!round || !round.active) return;
+    const safeClicks = minesSafeClicks(round);
+    if (safeClicks <= 0) return;
+    const payout = minesCashoutPayout(round);
+    if (payout > 0) {
+      const credit = await adjustWallet(payout);
+      if (!credit || !credit.ok) {
+        if (els.lastWinLabel instanceof HTMLElement) {
+          els.lastWinLabel.textContent = "Cashout Failed";
+          els.lastWinLabel.classList.remove("hidden");
+          els.lastWinLabel.classList.remove("good");
+        }
+        renderAll();
+        return;
+      }
+    }
+    const outcome = reason === "clear" ? "clear" : "cashout";
+    round.active = false;
+    round.ended = true;
+    round.result = outcome;
+    round.payout = payout;
+    round.revealAll = true;
+    updateMinesMachineStatsOnResolve(machine, round, outcome, payout);
+    if (els.lastWinLabel instanceof HTMLElement) {
+      els.lastWinLabel.textContent = "Won: " + payout + " WL";
+      els.lastWinLabel.classList.remove("hidden");
+      els.lastWinLabel.classList.add("good");
+    }
+    spawnParticles(payout >= round.bet * 25 ? "jackpot" : "win");
+    renderAll();
+  }
+
+  async function handleMinesPick(machine, tileIndex) {
+    if (!machine || machine.type !== "mines") return;
+    const round = getMinesRoundForMachine(machine);
+    if (!round || !round.active) return;
+    const idx = Math.floor(Number(tileIndex));
+    if (idx < 0 || idx >= round.totalTiles) return;
+    if (round.revealedSafeMap[idx]) return;
+    if (round.pickedMineIndex === idx) return;
+
+    if (round.mineMap[idx]) {
+      round.active = false;
+      round.ended = true;
+      round.result = "lose";
+      round.payout = 0;
+      round.revealAll = true;
+      round.pickedMineIndex = idx;
+      updateMinesMachineStatsOnResolve(machine, round, "lose", 0);
+      if (els.lastWinLabel instanceof HTMLElement) {
+        els.lastWinLabel.textContent = "Mine Hit";
+        els.lastWinLabel.classList.remove("hidden");
+        els.lastWinLabel.classList.remove("good");
+      }
+      renderAll();
+      return;
+    }
+
+    round.revealedSafeMap[idx] = true;
+    round.revealedSafeIndices.push(idx);
+    const mult = minesCurrentMultiplier(round);
+    if (els.lastWinLabel instanceof HTMLElement) {
+      els.lastWinLabel.textContent = "Mines: " + formatMultiplier(mult);
+      els.lastWinLabel.classList.remove("hidden");
+      els.lastWinLabel.classList.add("good");
+    }
+
+    if (minesSafeClicks(round) >= round.safeTotal) {
+      await cashOutMinesRun(machine, "clear");
       return;
     }
 
@@ -1013,6 +1244,17 @@ window.GTModules = window.GTModules || {};
     if (mode === "error") el.classList.add("error");
   }
 
+  function populateMinesCountSelect() {
+    if (!(els.minesCountSelect instanceof HTMLSelectElement)) return;
+    const current = normalizeMinesCount(els.minesCountSelect.value || MINES_CONFIG.defaultMines);
+    let html = "";
+    for (let i = MINES_CONFIG.minMines; i <= MINES_CONFIG.maxMines; i++) {
+      html += "<option value=\"" + i + "\">" + i + "</option>";
+    }
+    els.minesCountSelect.innerHTML = html;
+    els.minesCountSelect.value = String(current);
+  }
+
   function escapeHtml(value) {
     return String(value || "")
       .replace(/&/g, "&amp;")
@@ -1467,6 +1709,89 @@ window.GTModules = window.GTModules || {};
     els.lineList.innerHTML = rows.slice(0, 24).join("");
   }
 
+  function renderMinesBoard(machine) {
+    if (!(els.slotBoard instanceof HTMLElement) || !(els.lineList instanceof HTMLElement)) return;
+    const round = getMinesRoundForMachine(machine);
+    const rows = MINES_CONFIG.rows;
+    const cols = MINES_CONFIG.cols;
+    const totalTiles = MINES_CONFIG.totalTiles;
+    const minesCount = round ? round.minesCount : getMinesCountForMachine(machine);
+
+    els.slotBoard.classList.add("mines-board");
+    els.slotBoard.style.setProperty("--mines-cols", String(cols));
+    els.slotBoard.style.setProperty("--mines-rows", String(rows));
+
+    let html = "";
+    for (let idx = 0; idx < totalTiles; idx++) {
+      let cls = "mines-cell hidden";
+      let text = "?";
+
+      if (!round) {
+        cls = "mines-cell active";
+        text = "PICK";
+      } else {
+        const isMine = Boolean(round.mineMap[idx]);
+        const isSafePicked = Boolean(round.revealedSafeMap[idx]);
+        if (round.active) {
+          if (isSafePicked) {
+            cls = "mines-cell safe";
+            text = "SAFE";
+          } else {
+            cls = "mines-cell active";
+            text = "PICK";
+          }
+        } else if (round.ended) {
+          if (isSafePicked) {
+            cls = "mines-cell safe";
+            text = "SAFE";
+          } else if (round.revealAll && isMine) {
+            cls = idx === round.pickedMineIndex ? "mines-cell mine" : "mines-cell revealed-mine";
+            text = "MINE";
+          } else if (round.revealAll) {
+            cls = "mines-cell revealed-safe";
+            text = "SAFE";
+          }
+        }
+      }
+
+      html += "<div class=\"" + cls + "\" data-index=\"" + idx + "\">" + text + "</div>";
+    }
+    els.slotBoard.innerHTML = html;
+
+    const badges = [];
+    badges.push("<span class=\"line-badge\">Mines: " + minesCount + "</span>");
+    badges.push("<span class=\"line-badge\">Edge: " + Math.round((Number(MINES_CONFIG.houseEdge) || 0) * 10000) / 100 + "%</span>");
+
+    if (!round) {
+      badges.push("<span class=\"line-badge muted\">Pick mine count, press Start Run, then open safe tiles.</span>");
+      badges.push("<span class=\"line-badge muted\">Cash out anytime after at least one safe pick.</span>");
+      els.lineList.innerHTML = badges.join("");
+      return;
+    }
+
+    const safeClicks = minesSafeClicks(round);
+    const currentMult = minesCurrentMultiplier(round);
+    const nextMult = minesNextMultiplier(round);
+    const remainingTiles = Math.max(0, round.totalTiles - safeClicks);
+    const remainingSafe = Math.max(0, round.safeTotal - safeClicks);
+    const nextChance = remainingTiles > 0 ? (remainingSafe / remainingTiles) : 0;
+
+    badges.push("<span class=\"line-badge\">Safe: " + safeClicks + "/" + round.safeTotal + "</span>");
+    badges.push("<span class=\"line-badge\">Current: " + formatMultiplier(currentMult) + "</span>");
+
+    if (round.active) {
+      badges.push("<span class=\"line-badge hot\">Next: " + formatMultiplier(nextMult) + "</span>");
+      badges.push("<span class=\"line-badge\">Next Safe Chance: " + Math.max(0, Math.min(100, Math.round(nextChance * 10000) / 100)) + "%</span>");
+      if (safeClicks > 0) badges.push("<span class=\"line-badge hot\">Cashout: " + minesCashoutPayout(round) + " WL</span>");
+    } else if (round.result === "lose") {
+      badges.push("<span class=\"line-badge hot\">Mine hit. Lost " + round.bet + " WL</span>");
+    } else {
+      badges.push("<span class=\"line-badge hot\">Paid: " + Math.max(0, Math.floor(Number(round.payout) || 0)) + " WL</span>");
+    }
+
+    els.lineList.innerHTML = badges.slice(0, 24).join("");
+  }
+
   function renderBoard(animCtx) {
     if (!(els.slotBoard instanceof HTMLElement) || !(els.slotOverlay instanceof SVGElement) || !(els.lineList instanceof HTMLElement)) return;
     const machine = getSelectedMachine();
@@ -1477,16 +1802,24 @@ window.GTModules = window.GTModules || {};
     if (machine.type === 'blackjack') {
       if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add('blackjack-mode');
       els.slotBoard.classList.remove("tower-board");
+      els.slotBoard.classList.remove("mines-board");
       renderBlackjackBoard(machine, animCtx);
       els.lineList.innerHTML = ""; // No paylines for BJ
       return;
     } else if (machine.type === "tower") {
       if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove('blackjack-mode');
+      els.slotBoard.classList.remove("mines-board");
       renderTowerBoard(machine);
+      return;
+    } else if (machine.type === "mines") {
+      if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove('blackjack-mode');
+      els.slotBoard.classList.remove("tower-board");
+      renderMinesBoard(machine);
       return;
     } else {
       if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove('blackjack-mode');
       els.slotBoard.classList.remove("tower-board");
+      els.slotBoard.classList.remove("mines-board");
     }
 
     const model = buildRowsForRender(machine);
@@ -1666,7 +1999,7 @@ window.GTModules = window.GTModules || {};
       if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: 0 WL";
       if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: 0";
       if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: 0 WL";
-      if (els.stage instanceof HTMLElement) els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit", "theme-tower");
+      if (els.stage instanceof HTMLElement) els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit", "theme-tower", "theme-mines");
       if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.disabled = true;
       if (els.buyBonusBtn instanceof HTMLButtonElement) {
         els.buyBonusBtn.classList.add("hidden");
@@ -1676,6 +2009,11 @@ window.GTModules = window.GTModules || {};
       if (els.towerCashoutBtn instanceof HTMLButtonElement) {
         els.towerCashoutBtn.classList.add("hidden");
         els.towerCashoutBtn.disabled = true;
+      }
+      if (els.minesCountWrap instanceof HTMLElement) els.minesCountWrap.classList.add("hidden");
+      if (els.minesCashoutBtn instanceof HTMLButtonElement) {
+        els.minesCashoutBtn.classList.add("hidden");
+        els.minesCashoutBtn.disabled = true;
       }
       return;
     }
@@ -1690,10 +2028,11 @@ window.GTModules = window.GTModules || {};
 
     if (els.stage instanceof HTMLElement) {
       const currentType = machine.type;
-      els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit", "theme-tower");
+      els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit", "theme-tower", "theme-mines");
       if (typeof currentType === "string") {
         if (currentType === "le_bandit") els.stage.classList.add("theme-le_bandit");
         else if (currentType === "tower") els.stage.classList.add("theme-tower");
+        else if (currentType === "mines") els.stage.classList.add("theme-mines");
         else if (currentType.startsWith("slots")) els.stage.classList.add("theme-" + currentType);
       }
     }
@@ -1701,9 +2040,11 @@ window.GTModules = window.GTModules || {};
     // Toggle controls based on game type
     const isBlackjack = machine.type === 'blackjack';
     const isTower = machine.type === "tower";
+    const isMines = machine.type === "mines";
     const bjState = machine.stats.blackjackState;
     const activeHand = (bjState && bjState.hands && bjState.hands[bjState.activeHandIndex]) || null;
     const towerRound = isTower ? getTowerRoundForMachine(machine) : null;
+    const minesRound = isMines ? getMinesRoundForMachine(machine) : null;
 
     const bet = clampBetToMachine(machine, state.currentBetValue);
     let displayBet = bet;
@@ -1727,6 +2068,8 @@ window.GTModules = window.GTModules || {};
     if (els.bjSplitBtn) els.bjSplitBtn.classList.toggle("hidden", !isBlackjack);
     if (els.towerDifficultyWrap instanceof HTMLElement) els.towerDifficultyWrap.classList.toggle("hidden", !isTower);
     if (els.towerCashoutBtn instanceof HTMLButtonElement) els.towerCashoutBtn.classList.toggle("hidden", !isTower);
+    if (els.minesCountWrap instanceof HTMLElement) els.minesCountWrap.classList.toggle("hidden", !isMines);
+    if (els.minesCashoutBtn instanceof HTMLButtonElement) els.minesCashoutBtn.classList.toggle("hidden", !isMines);
 
     if (isTower && els.towerDifficultySelect instanceof HTMLSelectElement) {
       const selectedDifficulty = getTowerDifficultyForMachine(machine);
@@ -1738,6 +2081,16 @@ window.GTModules = window.GTModules || {};
       const currentMult = towerRound ? towerCurrentMultiplier(towerRound) : 1;
       els.towerCashoutBtn.textContent = "Cash Out " + (towerRound ? formatTowerPayout(towerRound, currentMult) : 0) + " WL";
       els.towerCashoutBtn.disabled = !canCashout;
+    }
+    if (isMines && els.minesCountSelect instanceof HTMLSelectElement) {
+      const selectedMines = String(getMinesCountForMachine(machine));
+      if (els.minesCountSelect.value !== selectedMines) els.minesCountSelect.value = selectedMines;
+      els.minesCountSelect.disabled = Boolean(minesRound && minesRound.active);
+    }
+    if (isMines && els.minesCashoutBtn instanceof HTMLButtonElement) {
+      const canCashout = Boolean(minesRound && minesRound.active && minesSafeClicks(minesRound) > 0);
+      els.minesCashoutBtn.textContent = "Cash Out " + (minesRound ? minesCashoutPayout(minesRound) : 0) + " WL";
+      els.minesCashoutBtn.disabled = !canCashout;
     }
 
     if (isBlackjack) {
@@ -1757,6 +2110,12 @@ window.GTModules = window.GTModules || {};
       if (els.spinBtn) {
         els.spinBtn.textContent = activeTower ? "Run Active" : "Start Run";
         els.spinBtn.disabled = activeTower || !canBet;
+      }
+    } else if (isMines) {
+      const activeMines = Boolean(minesRound && minesRound.active);
+      if (els.spinBtn) {
+        els.spinBtn.textContent = activeMines ? "Run Active" : "Start Run";
+        els.spinBtn.disabled = activeMines || !canBet;
       }
     } else {
       if (els.spinBtn) {
@@ -1884,6 +2243,8 @@ window.GTModules = window.GTModules || {};
     state.ephemeral.lineWins = [];
     state.tower.roundsByMachine = {};
     state.tower.difficultyByMachine = {};
+    state.mines.roundsByMachine = {};
+    state.mines.minesByMachine = {};
     renderAll();
     state.selectedMachineKey = "";
     setStatus(els.authStatus, "Logged out.");
@@ -2113,6 +2474,10 @@ window.GTModules = window.GTModules || {};
     }
     if (machine.type === "tower") {
       await startTowerRun(machine);
+      return;
+    }
+    if (machine.type === "mines") {
+      await startMinesRun(machine);
       return;
     }
 
@@ -2588,18 +2953,41 @@ window.GTModules = window.GTModules || {};
         await cashOutTowerRun(machine, "cashout");
       });
     }
+    if (els.minesCountSelect instanceof HTMLSelectElement) {
+      els.minesCountSelect.addEventListener("change", () => {
+        const machine = getSelectedMachine();
+        if (!machine || machine.type !== "mines") return;
+        setMinesCountForMachine(machine, els.minesCountSelect.value);
+        renderAll();
+      });
+    }
+    if (els.minesCashoutBtn instanceof HTMLButtonElement) {
+      els.minesCashoutBtn.addEventListener("click", async () => {
+        const machine = getSelectedMachine();
+        if (!machine || machine.type !== "mines") return;
+        await cashOutMinesRun(machine, "cashout");
+      });
+    }
     if (els.slotBoard instanceof HTMLElement) {
       els.slotBoard.addEventListener("click", async (event) => {
         const machine = getSelectedMachine();
-        if (!machine || machine.type !== "tower") return;
+        if (!machine || (machine.type !== "tower" && machine.type !== "mines")) return;
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        const cell = target.closest(".tower-cell");
+        if (machine.type === "tower") {
+          const cell = target.closest(".tower-cell");
+          if (!(cell instanceof HTMLElement)) return;
+          const floor = Math.floor(Number(cell.dataset.floor));
+          const col = Math.floor(Number(cell.dataset.col));
+          if (!Number.isFinite(floor) || !Number.isFinite(col)) return;
+          await handleTowerPick(machine, floor, col);
+          return;
+        }
+        const cell = target.closest(".mines-cell");
         if (!(cell instanceof HTMLElement)) return;
-        const floor = Math.floor(Number(cell.dataset.floor));
-        const col = Math.floor(Number(cell.dataset.col));
-        if (!Number.isFinite(floor) || !Number.isFinite(col)) return;
-        await handleTowerPick(machine, floor, col);
+        const tileIndex = Math.floor(Number(cell.dataset.index));
+        if (!Number.isFinite(tileIndex)) return;
+        await handleMinesPick(machine, tileIndex);
       });
     }
 
@@ -2676,6 +3064,7 @@ window.GTModules = window.GTModules || {};
   }
 
   function init() {
+    populateMinesCountSelect();
     bindEvents();
 
     const saved = loadSavedCredentials();
