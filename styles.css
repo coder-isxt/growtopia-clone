@@ -3680,6 +3680,85 @@ body{
   font-family: "Press Start 2P", system-ui, sans-serif;
 }
 
+.gt-quick-actions{
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 62;
+  display: grid;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.gt-quick-item{
+  position: relative;
+}
+
+.gt-quick-btn{
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 209, 102, 0.92);
+  border-bottom-color: rgba(92, 56, 20, 0.95);
+  border-right-color: rgba(92, 56, 20, 0.95);
+  background: linear-gradient(180deg, rgba(103, 218, 255, 0.9), rgba(68, 166, 232, 0.86));
+  color: #f8ffff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+  box-shadow: var(--gt-inner), var(--gt-shadow);
+  cursor: pointer;
+}
+
+.gt-quick-btn i{
+  font-size: 18px;
+  line-height: 1;
+}
+
+.gt-quick-btn.active{
+  border-color: rgba(255, 244, 184, 0.98);
+  background: linear-gradient(180deg, rgba(145, 234, 255, 0.94), rgba(77, 185, 245, 0.9));
+}
+
+.gt-quick-popup{
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 0;
+  min-width: 176px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 209, 102, 0.88);
+  border-bottom-color: rgba(92, 56, 20, 0.95);
+  border-right-color: rgba(92, 56, 20, 0.95);
+  background: linear-gradient(180deg, rgba(18, 12, 6, 0.95), rgba(44, 27, 12, 0.9));
+  box-shadow: var(--gt-shadow);
+}
+
+.gt-quick-popup button{
+  width: 100%;
+  justify-content: center;
+  border: 2px solid rgba(255, 209, 102, 0.85);
+  border-bottom-color: rgba(92, 56, 20, 0.95);
+  border-right-color: rgba(92, 56, 20, 0.95);
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.32), rgba(255, 153, 51, 0.18));
+  color: var(--gt-cream);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-family: "Press Start 2P", system-ui, sans-serif;
+  font-size: 10px;
+  text-shadow: 0 2px 0 rgba(0,0,0,0.55);
+  box-shadow: var(--gt-inner), var(--gt-shadow);
+  cursor: pointer;
+}
+
+.gt-quick-popup button:active{
+  transform: translateY(2px);
+  box-shadow: var(--gt-inner), 0 3px 0 rgba(0,0,0,0.30);
+}
+
 /* Menu screen (World Menu) */
 .menu-card{
   background: linear-gradient(180deg, rgba(18, 12, 6, 0.86), rgba(44, 27, 12, 0.78)) !important;

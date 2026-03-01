@@ -39,11 +39,11 @@
         </div>
 
         <div class="gt-actions">
-          <button id="friendsToggleBtn" type="button">Friends</button>
-          <button id="titlesToggleBtn" type="button">Titles</button>
-          <button id="questsToggleBtn" type="button">Quests</button>
-          <button id="achievementsToggleBtn" type="button">Achievements</button>
-          <button id="shopToggleBtn" type="button">Shop</button>
+          <button id="friendsToggleBtn" type="button" class="hidden">Friends</button>
+          <button id="titlesToggleBtn" type="button" class="hidden">Titles</button>
+          <button id="questsToggleBtn" type="button" class="hidden">Quests</button>
+          <button id="achievementsToggleBtn" type="button" class="hidden">Achievements</button>
+          <button id="shopToggleBtn" type="button" class="hidden">Shop</button>
           <button id="adminToggleBtn" type="button" class="hidden">Admin</button>
           <button id="respawnBtn" type="button" class="hidden">Respawn</button>
           <button id="exitWorldBtn" type="button" class="hidden">Exit World</button>
@@ -72,11 +72,39 @@
           <span class="gt-gem-label">GEMS</span>
           <span id="gemsCount" class="gt-gem-count">0 gems</span>
         </div>
+        <div id="gtQuickActions" class="gt-quick-actions hidden">
+          <div class="gt-quick-item">
+            <button id="gtMainMenuBtn" type="button" class="gt-quick-btn" aria-label="Open menu">
+              <i class="fa-solid fa-bars" aria-hidden="true"></i>
+            </button>
+            <div id="gtMainMenuPopup" class="gt-quick-popup hidden">
+              <button id="gtMenuQuitBtn" type="button">Quit</button>
+              <button id="gtMenuAchievementsBtn" type="button">Achievements</button>
+              <button id="gtMenuTitlesBtn" type="button">Titles</button>
+              <button id="gtMenuResumeBtn" type="button">Resume</button>
+            </div>
+          </div>
+          <div class="gt-quick-item">
+            <button id="gtShopQuickBtn" type="button" class="gt-quick-btn" aria-label="Open shop">
+              <i class="fa-solid fa-shop" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="gt-quick-item">
+            <button id="gtSocialMenuBtn" type="button" class="gt-quick-btn" aria-label="Open social menu">
+              <i class="fa-solid fa-face-smile" aria-hidden="true"></i>
+            </button>
+            <div id="gtSocialMenuPopup" class="gt-quick-popup hidden">
+              <button id="gtSocialFriendsBtn" type="button">Friends</button>
+              <button id="gtSocialQuestsBtn" type="button">Quests</button>
+              <button id="gtSocialResumeBtn" type="button">Resume</button>
+            </div>
+          </div>
+        </div>
 
         <div></div>
 
         <div class="gt-panel gt-chat-hud">
-          <button id="chatToggleBtn" type="button" class="hidden">CHAT</button>
+          <button id="chatToggleBtn" type="button" class="hidden">SHOP</button>
         </div>
       </div>
     </div>

@@ -64,6 +64,20 @@
 
       stateModule.initDefaultDomRefs();
       const ctx = canvas.getContext("2d");
+      const gtQuickActionsEl = document.getElementById("gtQuickActions");
+      const gtMainMenuBtnEl = document.getElementById("gtMainMenuBtn");
+      const gtMainMenuPopupEl = document.getElementById("gtMainMenuPopup");
+      const gtMenuQuitBtnEl = document.getElementById("gtMenuQuitBtn");
+      const gtMenuAchievementsBtnEl = document.getElementById("gtMenuAchievementsBtn");
+      const gtMenuTitlesBtnEl = document.getElementById("gtMenuTitlesBtn");
+      const gtMenuResumeBtnEl = document.getElementById("gtMenuResumeBtn");
+      const gtShopQuickBtnEl = document.getElementById("gtShopQuickBtn");
+      const gtSocialMenuBtnEl = document.getElementById("gtSocialMenuBtn");
+      const gtSocialMenuPopupEl = document.getElementById("gtSocialMenuPopup");
+      const gtSocialFriendsBtnEl = document.getElementById("gtSocialFriendsBtn");
+      const gtSocialQuestsBtnEl = document.getElementById("gtSocialQuestsBtn");
+      const gtSocialResumeBtnEl = document.getElementById("gtSocialResumeBtn");
+      let gtQuickMenuMode = "";
 
       function ensureGambleModalDom() {
         if (document.getElementById("gambleModal")) return;
@@ -6332,6 +6346,7 @@
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
         respawnBtn.classList.toggle("hidden", !inWorld);
         exitWorldBtn.classList.toggle("hidden", !inWorld);
+        syncQuickMenuHudVisibility();
         if (inWorld) {
           if (isMobileUi) {
             mobilePlayModeEnabled = true;
@@ -6379,6 +6394,41 @@
             resizeCanvas();
           });
         });
+      }
+
+      function openShopMenuFromUi() {
+        const ctrl = getShopController();
+        if (!ctrl || typeof ctrl.openModal !== "function") return;
+        ctrl.openModal();
+      }
+
+      function openFriendsMenuFromUi() {
+        const ctrl = getFriendsController();
+        if (!ctrl || typeof ctrl.openFriends !== "function") return;
+        ctrl.openFriends();
+      }
+
+      function setQuickMenuMode(nextMode) {
+        const allowed = inWorld ? String(nextMode || "").trim().toLowerCase() : "";
+        const mode = (allowed === "main" || allowed === "social") ? allowed : "";
+        gtQuickMenuMode = mode;
+        if (gtMainMenuPopupEl) gtMainMenuPopupEl.classList.toggle("hidden", mode !== "main");
+        if (gtSocialMenuPopupEl) gtSocialMenuPopupEl.classList.toggle("hidden", mode !== "social");
+        if (gtMainMenuBtnEl) gtMainMenuBtnEl.classList.toggle("active", mode === "main");
+        if (gtSocialMenuBtnEl) gtSocialMenuBtnEl.classList.toggle("active", mode === "social");
+      }
+
+      function toggleQuickMenuMode(mode) {
+        const next = gtQuickMenuMode === mode ? "" : mode;
+        setQuickMenuMode(next);
+      }
+
+      function syncQuickMenuHudVisibility() {
+        if (!gtQuickActionsEl) return;
+        gtQuickActionsEl.classList.toggle("hidden", !inWorld);
+        if (!inWorld) {
+          setQuickMenuMode("");
+        }
       }
 
       function formatChatTimestamp(timestamp) {
@@ -11878,17 +11928,81 @@
         eventsModule.on(enterWorldBtn, "click", enterWorldFromInput);
         eventsModule.on(chatToggleBtn, "click", () => {
           if (!inWorld) return;
-          if (isMobileUi) {
-            setChatOpen(!isChatOpen);
-          } else {
-            setChatOpen(true);
-          }
+          openShopMenuFromUi();
         });
+        if (gtMainMenuBtnEl) {
+          eventsModule.on(gtMainMenuBtnEl, "click", () => {
+            if (!inWorld) return;
+            toggleQuickMenuMode("main");
+          });
+        }
+        if (gtSocialMenuBtnEl) {
+          eventsModule.on(gtSocialMenuBtnEl, "click", () => {
+            if (!inWorld) return;
+            toggleQuickMenuMode("social");
+          });
+        }
+        if (gtShopQuickBtnEl) {
+          eventsModule.on(gtShopQuickBtnEl, "click", () => {
+            if (!inWorld) return;
+            setQuickMenuMode("");
+            openShopMenuFromUi();
+          });
+        }
+        if (gtMenuQuitBtnEl) {
+          eventsModule.on(gtMenuQuitBtnEl, "click", () => {
+            if (!inWorld) return;
+            setQuickMenuMode("");
+            leaveCurrentWorld();
+          });
+        }
+        if (gtMenuAchievementsBtnEl) {
+          eventsModule.on(gtMenuAchievementsBtnEl, "click", () => {
+            if (!inWorld) return;
+            setQuickMenuMode("");
+            openAchievementsMenu();
+          });
+        }
+        if (gtMenuTitlesBtnEl) {
+          eventsModule.on(gtMenuTitlesBtnEl, "click", () => {
+            if (!inWorld) return;
+            setQuickMenuMode("");
+            openTitlesMenu();
+          });
+        }
+        if (gtMenuResumeBtnEl) {
+          eventsModule.on(gtMenuResumeBtnEl, "click", () => {
+            setQuickMenuMode("");
+          });
+        }
+        if (gtSocialFriendsBtnEl) {
+          eventsModule.on(gtSocialFriendsBtnEl, "click", () => {
+            if (!inWorld) return;
+            setQuickMenuMode("");
+            openFriendsMenuFromUi();
+          });
+        }
+        if (gtSocialQuestsBtnEl) {
+          eventsModule.on(gtSocialQuestsBtnEl, "click", () => {
+            if (!inWorld) return;
+            setQuickMenuMode("");
+            openQuestsMenu();
+          });
+        }
+        if (gtSocialResumeBtnEl) {
+          eventsModule.on(gtSocialResumeBtnEl, "click", () => {
+            setQuickMenuMode("");
+          });
+        }
+        eventsModule.on(window, "pointerdown", (event) => {
+          if (!gtQuickMenuMode || !gtQuickActionsEl) return;
+          const target = event.target;
+          if (target instanceof Node && gtQuickActionsEl.contains(target)) return;
+          setQuickMenuMode("");
+        }, { capture: true });
         if (shopToggleBtn) {
           eventsModule.on(shopToggleBtn, "click", () => {
-            const ctrl = getShopController();
-            if (!ctrl || typeof ctrl.openModal !== "function") return;
-            ctrl.openModal();
+            openShopMenuFromUi();
           });
         }
         if (achievementsToggleBtn) {
@@ -13846,6 +13960,11 @@
             activeEl.isContentEditable
           )
         );
+        if (e.key === "Escape" && gtQuickMenuMode) {
+          e.preventDefault();
+          setQuickMenuMode("");
+          return;
+        }
         if (e.key === "Escape" && vendingModalEl && !vendingModalEl.classList.contains("hidden")) {
           e.preventDefault();
           closeVendingModal();
