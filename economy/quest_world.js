@@ -211,9 +211,41 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         .slice(0, 64);
     }
 
+    function normalizeCosmeticId(value) {
+      return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "")
+        .slice(0, 64);
+    }
+
     function getInventoryObject() {
       const inv = get("getInventory", null);
       return inv && typeof inv === "object" ? inv : null;
+    }
+
+    function getCosmeticInventoryObject() {
+      const inv = get("getCosmeticInventory", null);
+      return inv && typeof inv === "object" ? inv : null;
+    }
+
+    function getCosmeticItems() {
+      const rows = get("getCosmeticItems", null);
+      return Array.isArray(rows) ? rows : [];
+    }
+
+    function getCosmeticNameById(cosmeticId) {
+      const safeId = normalizeCosmeticId(cosmeticId);
+      if (!safeId) return "Cosmetic";
+      const rows = getCosmeticItems();
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row) continue;
+        if (normalizeCosmeticId(row.id) !== safeId) continue;
+        const name = String(row.name || "").trim();
+        return name || safeId;
+      }
+      return safeId;
     }
 
     function getInventoryBlockCount(blockId) {
@@ -221,6 +253,13 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       const id = Math.floor(Number(blockId) || 0);
       if (!inv || !id) return 0;
       return Math.max(0, Math.floor(Number(inv[id]) || 0));
+    }
+
+    function getInventoryCosmeticCount(cosmeticId) {
+      const inv = getCosmeticInventoryObject();
+      const safeId = normalizeCosmeticId(cosmeticId);
+      if (!inv || !safeId) return 0;
+      return Math.max(0, Math.floor(Number(inv[safeId]) || 0));
     }
 
     function consumeInventoryBlock(blockId, amount) {
@@ -231,6 +270,19 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       const have = getInventoryBlockCount(id);
       if (have < need) return false;
       inv[id] = Math.max(0, have - need);
+      call("saveInventory", false);
+      call("refreshToolbar", true);
+      return true;
+    }
+
+    function consumeInventoryCosmetic(cosmeticId, amount) {
+      const inv = getCosmeticInventoryObject();
+      const safeId = normalizeCosmeticId(cosmeticId);
+      const need = Math.max(1, Math.floor(Number(amount) || 0));
+      if (!inv || !safeId || !need) return false;
+      const have = getInventoryCosmeticCount(safeId);
+      if (have < need) return false;
+      inv[safeId] = Math.max(0, have - need);
       call("saveInventory", false);
       call("refreshToolbar", true);
       return true;
@@ -262,6 +314,53 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
             type: "bring_block",
             blockId: 3,
             amount: 80
+          },
+          reward: {
+            cosmeticId: "sun_shirt",
+            cosmeticAmount: 1
+          }
+        },
+        {
+          id: "hero_path_03_brick",
+          title: "Bring me 120 brick blocks",
+          description: "Final step. Deliver 120 bricks and claim your title.",
+          rewardText: "Reward: title {username} of Legend",
+          objective: {
+            type: "bring_block",
+            blockId: 6,
+            amount: 120
+          },
+          reward: {
+            titleId: "legendary",
+            titleAmount: 1
+          }
+        }
+      ];
+      const legendWingsQuests = [
+        {
+          id: "legend_wing_01",
+          title: "Bring me 5 Weather Machine",
+          description: "Gather Weather Machine and bring 5 blocks to me.",
+          rewardText: "Reward: 1x Mystery Block",
+          objective: {
+            type: "bring_block",
+            blockId: 21,
+            amount: 5
+          },
+          reward: {
+            blockKey: "mystery_block",
+            blockAmount: 1
+          }
+        },
+        {
+          id: "legend_wing_02",
+          title: "Bring me 120 Mannequins",
+          description: "We need the mannequins",
+          rewardText: "Reward: 1x Sun Shirt",
+          objective: {
+            type: "bring_block",
+            blockId: 54,
+            amount: 120
           },
           reward: {
             cosmeticId: "sun_shirt",
@@ -400,6 +499,8 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       let type = "";
       if (rawType === "bring_block" || rawType === "bringblock" || rawType === "fetch_block") {
         type = "bring_block";
+      } else if (rawType === "bring_cosmetic" || rawType === "bringcosmetic" || rawType === "fetch_cosmetic" || rawType === "bring_item" || rawType === "bringitem" || rawType === "fetch_item") {
+        type = "bring_cosmetic";
       } else if (rawType === "break_block" || rawType === "breakblock" || rawType === "mine_block") {
         type = "break_block";
       } else if (rawType === "place_block" || rawType === "placeblock" || rawType === "build_block") {
@@ -414,17 +515,23 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       if (!type) return null;
       let blockId = 0;
       let blockKey = "";
+      let cosmeticId = "";
       if (type === "bring_block" || type === "break_block" || type === "place_block") {
         blockKey = normalizeBlockKey(row.blockKey || row.block || row.item || "");
         blockId = Math.floor(Number(row.blockId) || 0);
         if (!blockId && blockKey) blockId = parseBlockRef(blockKey);
       }
+      if (type === "bring_cosmetic") {
+        cosmeticId = normalizeCosmeticId(row.cosmeticId || row.itemId || row.cosmetic || row.item || row.id || "");
+      }
       const amount = Math.max(1, Math.floor(Number(row.amount || row.count) || 1));
       if (type === "bring_block" && !blockId) return null;
+      if (type === "bring_cosmetic" && !cosmeticId) return null;
       return {
         type,
         blockId,
         blockKey,
+        cosmeticId,
         amount
       };
     }
@@ -1025,6 +1132,11 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         const blockId = Math.floor(Number(objective.blockId) || 0);
         return "Bring " + amount + "x " + getBlockNameById(blockId);
       }
+      if (objective.type === "bring_cosmetic") {
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        const cosmeticId = normalizeCosmeticId(objective.cosmeticId || "");
+        return "Bring " + amount + "x " + getCosmeticNameById(cosmeticId);
+      }
       if (objective.type === "break_block") {
         const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
         const blockId = Math.floor(Number(objective.blockId) || 0);
@@ -1064,6 +1176,10 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         const blockId = Math.floor(Number(objective.blockId) || 0);
         return getInventoryBlockCount(blockId);
       }
+      if (objective.type === "bring_cosmetic") {
+        const cosmeticId = normalizeCosmeticId(objective.cosmeticId || "");
+        return getInventoryCosmeticCount(cosmeticId);
+      }
       if (objective.type === "break_block" || objective.type === "place_block") {
         const qid = normalizeQuestId(quest && quest.id, "");
         if (!qid) return 0;
@@ -1085,6 +1201,12 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         const blockId = Math.floor(Number(objective.blockId) || 0);
         const have = getQuestObjectiveProgressCount(quest);
         return "Progress: " + have + "/" + amount + " " + getBlockNameById(blockId);
+      }
+      if (objective.type === "bring_cosmetic") {
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        const cosmeticId = normalizeCosmeticId(objective.cosmeticId || "");
+        const have = getQuestObjectiveProgressCount(quest);
+        return "Progress: " + have + "/" + amount + " " + getCosmeticNameById(cosmeticId);
       }
       if (objective.type === "break_block" || objective.type === "place_block") {
         const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
@@ -1274,6 +1396,28 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         return {
           ok: true,
           consumeMessage: "Turned in " + amount + "x " + blockName + "."
+        };
+      }
+      if (objective.type === "bring_cosmetic") {
+        const cosmeticId = normalizeCosmeticId(objective.cosmeticId || "");
+        const amount = Math.max(1, Math.floor(Number(objective.amount) || 1));
+        const have = getInventoryCosmeticCount(cosmeticId);
+        const cosmeticName = getCosmeticNameById(cosmeticId);
+        if (have < amount) {
+          return {
+            ok: false,
+            message: "Bring " + amount + "x " + cosmeticName + " first (" + have + "/" + amount + ")."
+          };
+        }
+        if (!consumeInventoryCosmetic(cosmeticId, amount)) {
+          return {
+            ok: false,
+            message: "Failed to consume required cosmetic items for this quest."
+          };
+        }
+        return {
+          ok: true,
+          consumeMessage: "Turned in " + amount + "x " + cosmeticName + "."
         };
       }
       if (
@@ -1506,6 +1650,56 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
         objective: {
           type: "bring_block",
           blockId,
+          amount: safeAmount
+        }
+      }, nextQuests.length);
+      nextQuests.push(row);
+      const updatedPath = upsertPath(safePathId, {
+        ...path,
+        quests: nextQuests
+      });
+      if (!updatedPath) return { ok: false, reason: "save_failed" };
+      if (modalCtx) renderModal();
+      return {
+        ok: true,
+        pathId: safePathId,
+        quest: row
+      };
+    }
+
+    function addFetchCosmeticQuestToPath(pathId, cosmeticRef, amount, title, description, rewardText) {
+      const rawPathId = String(pathId || "").trim().toLowerCase();
+      let safePathId = normalizePathId(rawPathId);
+      if (!safePathId || safePathId === "current") {
+        safePathId = getCurrentQuestPathId() || DEFAULT_PATH_ID;
+      }
+      if (!safePathId) return { ok: false, reason: "invalid_path" };
+      const cosmeticId = normalizeCosmeticId(cosmeticRef);
+      if (!cosmeticId) return { ok: false, reason: "invalid_cosmetic" };
+      const safeAmount = Math.max(1, Math.floor(Number(amount) || 0));
+      if (!safeAmount) return { ok: false, reason: "invalid_amount" };
+      const knownCosmetics = getCosmeticItems();
+      if (knownCosmetics.length) {
+        const exists = knownCosmetics.some((row) => row && normalizeCosmeticId(row.id) === cosmeticId);
+        if (!exists) return { ok: false, reason: "invalid_cosmetic" };
+      }
+
+      const path = ensurePath(safePathId);
+      if (!path) return { ok: false, reason: "invalid_path" };
+      const nextQuests = Array.isArray(path.quests) ? path.quests.slice() : [];
+      const cosmeticName = getCosmeticNameById(cosmeticId);
+      const safeTitle = String(title || "").trim() || ("Bring me " + safeAmount + " " + cosmeticName);
+      const safeDescription = String(description || "").trim() || ("Bring " + safeAmount + "x " + cosmeticName + " to this quest NPC.");
+      const safeRewardText = String(rewardText || "").trim() || "Reward placeholder";
+      const questIdSeed = "bring_cosmetic_" + cosmeticId + "_" + safeAmount + "_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+      const row = normalizeQuestRow({
+        id: questIdSeed,
+        title: safeTitle,
+        description: safeDescription,
+        rewardText: safeRewardText,
+        objective: {
+          type: "bring_cosmetic",
+          cosmeticId,
           amount: safeAmount
         }
       }, nextQuests.length);
@@ -1930,6 +2124,7 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
       disableWorld,
       setWorldQuestPath,
       addFetchQuestToPath,
+      addFetchCosmeticQuestToPath,
       addBreakQuestToPath,
       addPlaceQuestToPath,
       listQuestPaths,

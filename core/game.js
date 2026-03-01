@@ -491,6 +491,8 @@
           getQuestNpcId: () => QUEST_NPC_ID,
           getBlockDefs: () => blockDefs,
           getInventory: () => inventory,
+          getCosmeticInventory: () => cosmeticInventory,
+          getCosmeticItems: () => COSMETIC_ITEMS,
           parseBlockRef,
           getPlayerName: () => playerName,
           getPlayerProfileId: () => playerProfileId,
@@ -4638,6 +4640,11 @@
             const ctrl = getQuestWorldController();
             if (!ctrl || typeof ctrl.addFetchQuestToPath !== "function") return { ok: false, reason: "missing_controller" };
             return ctrl.addFetchQuestToPath(pathId, blockRef, amount, title, description, rewardText);
+          },
+          addQuestWorldFetchCosmeticQuest: (pathId, cosmeticId, amount, title, description, rewardText) => {
+            const ctrl = getQuestWorldController();
+            if (!ctrl || typeof ctrl.addFetchCosmeticQuestToPath !== "function") return { ok: false, reason: "missing_controller" };
+            return ctrl.addFetchCosmeticQuestToPath(pathId, cosmeticId, amount, title, description, rewardText);
           },
           parseDurationToMs,
           applyAdminRoleChange,

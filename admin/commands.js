@@ -146,7 +146,7 @@ window.GTModules.commands = {
       if (c.hasAdminPermission("reach")) available.push("/reach");
       if (c.hasAdminPermission("bring")) available.push("/bring", "/summon");
       if (c.hasAdminPermission("setrole") || c.hasAdminPermission("setrole_limited")) available.push("/setrole", "/role");
-      if (c.normalizeAdminRole && c.normalizeAdminRole(c.currentAdminRole) === "owner") available.push("/questworld", "/questworldoff", "/questpath", "/questaddfetch");
+      if (c.normalizeAdminRole && c.normalizeAdminRole(c.currentAdminRole) === "owner") available.push("/questworld", "/questworldoff", "/questpath", "/questaddfetch", "/questaddfetchcosmetic");
       c.postLocalSystemChat("Role: " + c.currentAdminRole + " | Commands: " + (available.join(", ") || "none"));
       return true;
     }
@@ -306,6 +306,45 @@ window.GTModules.commands = {
       c.postLocalSystemChat("Added fetch quest to path " + result.pathId + ": " + questTitle + ".");
       c.logAdminAudit("Admin(chat) added fetch quest in path " + result.pathId + " (" + questTitle + ").");
       c.pushAdminAuditEntry("questpath_add_fetch", "", "path=" + result.pathId + " block=" + blockRef + " amount=" + Math.floor(amount));
+      return true;
+    }
+    if (command === "/questaddfetchcosmetic" || command === "/addfetchcosmeticquest") {
+      if (!c.inWorld) {
+        c.postLocalSystemChat("Enter a world first.");
+        return true;
+      }
+      const role = c.normalizeAdminRole ? c.normalizeAdminRole(c.currentAdminRole) : String(c.currentAdminRole || "").toLowerCase();
+      if (role !== "owner") {
+        c.postLocalSystemChat("Only owner role can use this command.");
+        return true;
+      }
+      if (typeof c.addQuestWorldFetchCosmeticQuest !== "function") {
+        c.postLocalSystemChat("Quest world controller is unavailable.");
+        return true;
+      }
+      const pathId = String(parts[1] || "current").trim();
+      const cosmeticId = String(parts[2] || "").trim();
+      const amount = Number(parts[3]);
+      const title = parts.slice(4).join(" ").trim();
+      if (!cosmeticId || !Number.isFinite(amount) || amount <= 0) {
+        c.postLocalSystemChat("Usage: /questaddfetchcosmetic <path_id|current> <cosmetic_id> <amount> <title>");
+        return true;
+      }
+      const result = c.addQuestWorldFetchCosmeticQuest(pathId, cosmeticId, amount, title, "", "Reward placeholder");
+      if (!result || !result.ok) {
+        if (result && result.reason === "invalid_cosmetic") {
+          c.postLocalSystemChat("Unknown cosmetic id: " + cosmeticId + ".");
+        } else if (result && result.reason === "invalid_path") {
+          c.postLocalSystemChat("Invalid quest path id.");
+        } else {
+          c.postLocalSystemChat("Failed to add cosmetic fetch quest.");
+        }
+        return true;
+      }
+      const questTitle = result.quest && result.quest.title ? result.quest.title : ("Bring " + Math.floor(amount) + " " + cosmeticId);
+      c.postLocalSystemChat("Added cosmetic fetch quest to path " + result.pathId + ": " + questTitle + ".");
+      c.logAdminAudit("Admin(chat) added cosmetic fetch quest in path " + result.pathId + " (" + questTitle + ").");
+      c.pushAdminAuditEntry("questpath_add_fetch_cosmetic", "", "path=" + result.pathId + " cosmetic=" + cosmeticId + " amount=" + Math.floor(amount));
       return true;
     }
     if (!c.canUseAdminPanel) {
