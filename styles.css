@@ -5158,3 +5158,74 @@ body.admin-dashboard-open .admin-inventory-modal {
   position: relative;
   z-index: 0;
 }
+
+/* Chat: in-canvas top overlay with vertical drag */
+#leftPanelResizeHandle {
+  display: none !important;
+}
+
+@media (pointer: fine) {
+  .menu-screen,
+  .canvas-wrap {
+    margin-left: var(--desktop-shell-pad) !important;
+    width: max(320px, calc(
+      100vw
+      - (var(--desktop-shell-pad) * 2)
+      - var(--right-panel-w)
+      - var(--desktop-side-gap)
+    )) !important;
+    max-width: max(320px, calc(
+      100vw
+      - (var(--desktop-shell-pad) * 2)
+      - var(--right-panel-w)
+      - var(--desktop-side-gap)
+    )) !important;
+  }
+}
+
+#canvasWrap #chatPanel {
+  position: absolute !important;
+  left: 10px !important;
+  right: auto !important;
+  top: 10px !important;
+  bottom: auto !important;
+  width: min(560px, calc(100% - 20px)) !important;
+  height: clamp(180px, 36%, 260px) !important;
+  z-index: 58 !important;
+  display: grid !important;
+  grid-template-rows: auto 1fr auto !important;
+  overflow: hidden !important;
+}
+
+#canvasWrap #chatPanel .chat-messages {
+  min-height: 0;
+}
+
+#chatDragHandle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 9px;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  cursor: ns-resize;
+  user-select: none;
+  touch-action: none;
+  border-bottom: 1px solid rgba(255, 209, 102, 0.32);
+  color: var(--gt-cream);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+  background: linear-gradient(180deg, rgba(20, 12, 6, 0.85), rgba(39, 24, 12, 0.72));
+}
+
+#canvasWrap #chatPanel.chat-panel-dragging,
+#canvasWrap #chatPanel.chat-panel-dragging #chatDragHandle {
+  cursor: ns-resize;
+}
+
+@media (max-width: 860px) and (pointer: coarse) {
+  #canvasWrap #chatPanel {
+    left: 6px !important;
+    width: calc(100% - 12px) !important;
+    height: min(44%, 280px) !important;
+  }
+}

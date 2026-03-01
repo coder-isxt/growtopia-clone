@@ -1216,6 +1216,16 @@
       let mobileTouchActionMode = "primary";
       let isMobileInventoryOpen = false;
       let mobilePlayModeEnabled = true;
+      const CHAT_PANEL_POS_KEY = "gt_chat_panel_top_v1";
+      const CHAT_PANEL_TOP_DEFAULT = 10;
+      const CHAT_PANEL_TOP_MIN = 8;
+      const CHAT_PANEL_BOTTOM_GAP = 12;
+      let chatPanelTopPx = CHAT_PANEL_TOP_DEFAULT;
+      let chatDragActive = false;
+      let chatDragPointerId = -1;
+      let chatDragStartY = 0;
+      let chatDragStartTopPx = CHAT_PANEL_TOP_DEFAULT;
+      let chatDragHandleEl = null;
       const touchControls = {
         left: false,
         right: false,
@@ -6427,6 +6437,135 @@
         chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
       }
 
+      function ensureChatPanelParent() {
+        if (!chatPanelEl || !canvasWrapEl) return;
+        if (chatPanelEl.parentElement !== canvasWrapEl) {
+          canvasWrapEl.appendChild(chatPanelEl);
+        }
+      }
+
+      function ensureChatDragHandle() {
+        if (!chatPanelEl) return null;
+        if (chatDragHandleEl && chatDragHandleEl.isConnected) return chatDragHandleEl;
+        let handle = document.getElementById("chatDragHandle");
+        if (!handle) {
+          handle = document.createElement("div");
+          handle.id = "chatDragHandle";
+          handle.className = "chat-drag-handle";
+          handle.textContent = "CHAT";
+          chatPanelEl.insertBefore(handle, chatPanelEl.firstChild || null);
+        } else if (handle.parentElement !== chatPanelEl) {
+          chatPanelEl.insertBefore(handle, chatPanelEl.firstChild || null);
+        }
+        chatDragHandleEl = handle;
+        return chatDragHandleEl;
+      }
+
+      function loadChatPanelTopPref() {
+        let storedTop = CHAT_PANEL_TOP_DEFAULT;
+        try {
+          const raw = Number(localStorage.getItem(CHAT_PANEL_POS_KEY));
+          if (Number.isFinite(raw)) {
+            storedTop = raw;
+          }
+        } catch (error) {
+          // ignore localStorage failures
+        }
+        chatPanelTopPx = storedTop;
+      }
+
+      function getChatPanelTopBounds() {
+        const wrapHeight = Math.max(120, Math.floor(
+          (canvasWrapEl && canvasWrapEl.clientHeight) || (canvas && canvas.height) || 0
+        ));
+        const panelHeight = Math.max(120, Math.floor((chatPanelEl && chatPanelEl.offsetHeight) || 190));
+        const minTop = CHAT_PANEL_TOP_MIN;
+        const maxTop = Math.max(minTop, wrapHeight - panelHeight - CHAT_PANEL_BOTTOM_GAP);
+        return { minTop, maxTop };
+      }
+
+      function applyChatPanelTop(nextTopPx, persist) {
+        if (!chatPanelEl) return;
+        const bounds = getChatPanelTopBounds();
+        const topPx = Math.max(
+          bounds.minTop,
+          Math.min(bounds.maxTop, Math.round(Number(nextTopPx) || CHAT_PANEL_TOP_DEFAULT))
+        );
+        chatPanelTopPx = topPx;
+        chatPanelEl.style.top = topPx + "px";
+        if (persist) {
+          try {
+            localStorage.setItem(CHAT_PANEL_POS_KEY, String(topPx));
+          } catch (error) {
+            // ignore localStorage failures
+          }
+        }
+      }
+
+      function setChatDragActive(nextValue) {
+        chatDragActive = Boolean(nextValue);
+        if (chatPanelEl) {
+          chatPanelEl.classList.toggle("chat-panel-dragging", chatDragActive);
+        }
+      }
+
+      function onChatDragMove(event) {
+        if (!chatDragActive) return;
+        const clientY = Number(event && event.clientY);
+        if (!Number.isFinite(clientY)) return;
+        if (event && typeof event.preventDefault === "function") {
+          event.preventDefault();
+        }
+        const nextTop = chatDragStartTopPx + (clientY - chatDragStartY);
+        applyChatPanelTop(nextTop, false);
+      }
+
+      function onChatDragEnd() {
+        if (!chatDragActive) return;
+        if (chatDragHandleEl && chatDragPointerId >= 0 && typeof chatDragHandleEl.releasePointerCapture === "function") {
+          try {
+            chatDragHandleEl.releasePointerCapture(chatDragPointerId);
+          } catch (error) {
+            // ignore release errors
+          }
+        }
+        chatDragPointerId = -1;
+        setChatDragActive(false);
+        applyChatPanelTop(chatPanelTopPx, true);
+      }
+
+      function bindChatPanelDrag() {
+        ensureChatPanelParent();
+        const handle = ensureChatDragHandle();
+        if (!handle) return;
+        handle.style.touchAction = "none";
+        eventsModule.on(handle, "pointerdown", (event) => {
+          if (!inWorld || !chatPanelEl) return;
+          const clientY = Number(event && event.clientY);
+          if (!Number.isFinite(clientY)) return;
+          if (event && typeof event.preventDefault === "function") {
+            event.preventDefault();
+          }
+          if (event && typeof event.stopPropagation === "function") {
+            event.stopPropagation();
+          }
+          chatDragPointerId = Number.isFinite(event.pointerId) ? event.pointerId : -1;
+          if (chatDragPointerId >= 0 && typeof handle.setPointerCapture === "function") {
+            try {
+              handle.setPointerCapture(chatDragPointerId);
+            } catch (error) {
+              // ignore capture errors
+            }
+          }
+          chatDragStartY = clientY;
+          chatDragStartTopPx = chatPanelTopPx;
+          setChatDragActive(true);
+        });
+        eventsModule.on(window, "pointermove", onChatDragMove, { passive: false });
+        eventsModule.on(window, "pointerup", onChatDragEnd);
+        eventsModule.on(window, "pointercancel", onChatDragEnd);
+      }
+
       function syncMobileOverlayVisibility() {
         const hasPassiveInventoryModalOpen = (() => {
           if (!isMobileUi || !inWorld) return false;
@@ -6441,8 +6580,13 @@
           return false;
         })();
         document.body.classList.toggle("mobile-passive-dnd", Boolean(hasPassiveInventoryModalOpen));
-        const showChatPanel = !gameShellEl.classList.contains("hidden") && (!isMobileUi || isChatOpen);
+        const showChatPanel = inWorld && !gameShellEl.classList.contains("hidden") && (!isMobileUi || isChatOpen);
         chatPanelEl.classList.toggle("hidden", !showChatPanel);
+        if (showChatPanel) {
+          ensureChatPanelParent();
+          ensureChatDragHandle();
+          applyChatPanelTop(chatPanelTopPx, false);
+        }
         const showToolbar = inWorld && (!isMobileUi || isMobileInventoryOpen || hasPassiveInventoryModalOpen);
         toolbarEl.classList.toggle("hidden", !showToolbar);
         mobileControlsEl.classList.toggle("hidden", !(inWorld && isMobileUi));
@@ -11571,6 +11715,7 @@
       }
 
       function bindWorldControls() {
+        bindChatPanelDrag();
         eventsModule.on(enterWorldBtn, "click", enterWorldFromInput);
         eventsModule.on(chatToggleBtn, "click", () => {
           if (!inWorld) return;
@@ -13509,11 +13654,16 @@
         updateMobileControlsUi();
         setLayoutResizeHandlesVisible();
         applyDesktopPanelLayout(desktopLeftPanelWidth, desktopRightPanelWidth, false);
+        ensureChatPanelParent();
+        if (inWorld) {
+          applyChatPanelTop(chatPanelTopPx, false);
+        }
         syncDesktopVerticalBounds();
         applyToolbarPosition();
       }
 
       eventsModule.on(window, "resize", resizeCanvas);
+      loadChatPanelTopPref();
       resizeCanvas();
       initDesktopLayoutResize();
 
