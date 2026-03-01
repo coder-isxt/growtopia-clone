@@ -159,6 +159,7 @@ window.GTModules = window.GTModules || {};
 
   const MACHINE_DEFS = buildMachineDefinitions();
   const LOCK_CURRENCIES = resolveLockCurrencies();
+  const DISPLAY_LOCK_ORDER = ["WL", "OL", "EL", "RL"];
 
   const state = {
     db: null,
@@ -174,6 +175,7 @@ window.GTModules = window.GTModules || {};
     spinBusy: false,
     spinTimer: 0,
     currentBetValue: 1,
+    lockDisplayIndex: 0,
     ephemeral: { rows: null, lineIds: [], lineWins: [], markedCells: [], cellMeta: {}, effectCells: {}, upgradeFlashes: {} },
     bonusFlow: {
       phase: "BASE_IDLE",
@@ -1397,11 +1399,73 @@ window.GTModules = window.GTModules || {};
     return parts.length ? parts.join(" | ") : "0 WL";
   }
 
+  function resolveDisplayLockRow(shortCode) {
+    const code = String(shortCode || "").trim().toUpperCase();
+    for (let i = 0; i < LOCK_CURRENCIES.length; i++) {
+      if (String(LOCK_CURRENCIES[i].short || "").toUpperCase() === code) return LOCK_CURRENCIES[i];
+    }
+    if (code === "RL") return { id: 43, key: "ruby_lock", value: 1000000, short: "RL" };
+    if (code === "EL") return { id: 42, key: "emerald_lock", value: 10000, short: "EL" };
+    if (code === "OL") return { id: 24, key: "obsidian_lock", value: 100, short: "OL" };
+    return { id: 9, key: "world_lock", value: 1, short: "WL" };
+  }
+
+  function getDisplayLockCycle() {
+    const out = [];
+    for (let i = 0; i < DISPLAY_LOCK_ORDER.length; i++) {
+      out.push(resolveDisplayLockRow(DISPLAY_LOCK_ORDER[i]));
+    }
+    return out;
+  }
+
+  function getActiveDisplayLockRow() {
+    const cycle = getDisplayLockCycle();
+    if (!cycle.length) return resolveDisplayLockRow("WL");
+    const idx = Math.max(0, Math.floor(Number(state.lockDisplayIndex) || 0)) % cycle.length;
+    return cycle[idx];
+  }
+
+  function formatDisplayLockNumber(value) {
+    const n = Number(value) || 0;
+    if (Number.isInteger(n)) return n.toLocaleString("en-US");
+    const abs = Math.abs(n);
+    const maxFractionDigits = abs >= 100 ? 2 : (abs >= 10 ? 3 : 4);
+    return n.toLocaleString("en-US", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: maxFractionDigits
+    });
+  }
+
+  function formatLocksByDisplayUnit(value) {
+    const safe = Math.max(0, Number(value) || 0);
+    const unit = getActiveDisplayLockRow();
+    const unitValue = Math.max(1, Number(unit.value) || 1);
+    const converted = safe / unitValue;
+    return formatDisplayLockNumber(converted) + " " + unit.short;
+  }
+
+  function cycleLockDisplayUnit() {
+    const cycle = getDisplayLockCycle();
+    const len = Math.max(1, cycle.length);
+    state.lockDisplayIndex = (Math.max(0, Math.floor(Number(state.lockDisplayIndex) || 0)) + 1) % len;
+    renderAll();
+  }
+
+  function renderBetChipLabels() {
+    const betBtns = document.querySelectorAll(".bet-btn");
+    betBtns.forEach((btn) => {
+      if (!(btn instanceof HTMLElement)) return;
+      const raw = Math.max(0, Math.floor(Number(btn.dataset.bet) || 0));
+      if (raw <= 0) return;
+      btn.textContent = formatLocksByDisplayUnit(raw);
+    });
+  }
+
   // UI helper: format bank value for display in lists when banks are considered infinite
   function formatBankForList(row) {
     if (INFINITE_BANK) return "Infinite";
     const v = (row && row.earningsLocks) ?? 0;
-    return v + " WL";
+    return formatLocksByDisplayUnit(v);
   }
 
   function setStatus(el, message, mode) {
@@ -1686,10 +1750,16 @@ window.GTModules = window.GTModules || {};
       els.sessionLabel.textContent = state.user ? ("@" + state.user.username + " (" + state.user.accountId + ")") : "Not logged in";
     }
     if (els.walletLabel instanceof HTMLElement) {
-      els.walletLabel.textContent = "Vault: " + state.webVaultLocks + " WL | Game: " + state.walletLocks + " WL (" + state.walletBreakdownText + ")";
+      const unit = getActiveDisplayLockRow();
+      els.walletLabel.textContent = "Vault: " + formatLocksByDisplayUnit(state.webVaultLocks) + " | Game: " + formatLocksByDisplayUnit(state.walletLocks);
+      els.walletLabel.title = "Click to cycle lock display (WL/OL/EL/RL). Current: " + unit.short;
+      els.walletLabel.style.cursor = "pointer";
     }
     if (els.userBalanceDisplay instanceof HTMLElement) {
-      els.userBalanceDisplay.textContent = "Balance: " + state.webVaultLocks + " WL";
+      const unit = getActiveDisplayLockRow();
+      els.userBalanceDisplay.textContent = "Balance: " + formatLocksByDisplayUnit(state.webVaultLocks);
+      els.userBalanceDisplay.title = "Click to cycle lock display (WL/OL/EL/RL). Current: " + unit.short;
+      els.userBalanceDisplay.style.cursor = "pointer";
     }
     if (els.logoutBtn instanceof HTMLButtonElement) els.logoutBtn.classList.toggle("hidden", !state.user);
     if (els.openVaultBtn instanceof HTMLButtonElement) els.openVaultBtn.classList.toggle("hidden", !state.user);
@@ -2388,7 +2458,7 @@ window.GTModules = window.GTModules || {};
       return (
         "<div class=\"machine-item\" data-machine-key=\"" + escapeHtml(row.tileKey) + "\">" +
         "<div class=\"name\">" + escapeHtml(row.typeName) + "</div>" +
-        "<div class=\"info\">Max Bet: " + row.maxBet + " WL</div>" +
+        "<div class=\"info\">Max Bet: " + formatLocksByDisplayUnit(row.maxBet) + "</div>" +
         "<div class=\"info\">Plays: " + row.stats.plays + "</div>" +
         "</div>"
       );
@@ -2399,10 +2469,10 @@ window.GTModules = window.GTModules || {};
     const machine = getSelectedMachine();
     if (!machine) {
       showBonusHud(false);
-      if (els.statBank instanceof HTMLElement) els.statBank.textContent = "Bank: 0 WL";
-      if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: 0 WL";
+      if (els.statBank instanceof HTMLElement) els.statBank.textContent = "Bank: " + formatLocksByDisplayUnit(0);
+      if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: " + formatLocksByDisplayUnit(0);
       if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: 0";
-      if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: 0 WL";
+      if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: " + formatLocksByDisplayUnit(0);
       if (els.stage instanceof HTMLElement) els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit", "theme-tower", "theme-mines", "theme-snoop_dogg_dollars");
       if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.disabled = true;
       if (els.buyBonusBtn instanceof HTMLButtonElement) {
@@ -2436,12 +2506,12 @@ window.GTModules = window.GTModules || {};
     }
 
     if (els.statBank instanceof HTMLElement) {
-      const bankText = INFINITE_BANK ? "Infinite" : (machine.earningsLocks + " WL");
+      const bankText = INFINITE_BANK ? "Infinite" : formatLocksByDisplayUnit(machine.earningsLocks);
       els.statBank.textContent = "Bank: " + bankText;
     }
-    if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: " + machine.maxBet + "";
+    if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: " + formatLocksByDisplayUnit(machine.maxBet);
     if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: " + machine.stats.plays;
-    if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: " + machine.stats.totalPayout + " WL";
+    if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: " + formatLocksByDisplayUnit(machine.stats.totalPayout);
 
     if (els.stage instanceof HTMLElement) {
       const currentType = machine.type;
@@ -2473,7 +2543,7 @@ window.GTModules = window.GTModules || {};
     }
 
     if (els.currentBetDisplay instanceof HTMLElement) {
-      els.currentBetDisplay.textContent = displayBet + " WL";
+      els.currentBetDisplay.textContent = formatLocksByDisplayUnit(displayBet);
     }
 
     const maxStake = Math.max(machine.minBet, getSpinMaxBet(machine));
@@ -2501,7 +2571,7 @@ window.GTModules = window.GTModules || {};
     if (isTower && els.towerCashoutBtn instanceof HTMLButtonElement) {
       const canCashout = Boolean(towerRound && towerRound.active && towerClearedFloors(towerRound) > 0);
       const currentMult = towerRound ? towerCurrentMultiplier(towerRound) : 1;
-      els.towerCashoutBtn.textContent = "Cash Out " + (towerRound ? formatTowerPayout(towerRound, currentMult) : 0) + " WL";
+      els.towerCashoutBtn.textContent = "Cash Out " + formatLocksByDisplayUnit(towerRound ? formatTowerPayout(towerRound, currentMult) : 0);
       els.towerCashoutBtn.disabled = !canCashout;
     }
     if (isMines && els.minesCountSelect instanceof HTMLSelectElement) {
@@ -2511,7 +2581,7 @@ window.GTModules = window.GTModules || {};
     }
     if (isMines && els.minesCashoutBtn instanceof HTMLButtonElement) {
       const canCashout = Boolean(minesRound && minesRound.active && minesSafeClicks(minesRound) > 0);
-      els.minesCashoutBtn.textContent = "Cash Out " + (minesRound ? minesCashoutPayout(minesRound) : 0) + " WL";
+      els.minesCashoutBtn.textContent = "Cash Out " + formatLocksByDisplayUnit(minesRound ? minesCashoutPayout(minesRound) : 0);
       els.minesCashoutBtn.disabled = !canCashout;
     }
     if (isSnoop && els.snoopBuySelect instanceof HTMLSelectElement) {
@@ -2521,14 +2591,14 @@ window.GTModules = window.GTModules || {};
     }
     if (isSnoop && els.snoopHypeBtn instanceof HTMLButtonElement) {
       const hypeCost = bet * Math.max(1, Math.floor(Number(SNOOP_UI.hypeCostX) || 20));
-      els.snoopHypeBtn.textContent = "Hype Spin " + hypeCost + " WL";
+      els.snoopHypeBtn.textContent = "Hype Spin " + formatLocksByDisplayUnit(hypeCost);
       els.snoopHypeBtn.disabled = !canBet || state.webVaultLocks < hypeCost;
     }
     if (isSnoop && els.snoopBuyBtn instanceof HTMLButtonElement && els.snoopBuySelect instanceof HTMLSelectElement) {
       const scatters = Math.max(3, Math.min(6, Math.floor(Number(els.snoopBuySelect.value) || 3)));
       const buyX = Math.max(1, Math.floor(Number(SNOOP_UI.buyCostByScatter[scatters]) || 1));
       const buyCost = bet * buyX;
-      els.snoopBuyBtn.textContent = "Buy " + scatters + "SC " + buyCost + " WL";
+      els.snoopBuyBtn.textContent = "Buy " + scatters + "SC " + formatLocksByDisplayUnit(buyCost);
       els.snoopBuyBtn.disabled = !canBet || state.webVaultLocks < buyCost;
     }
 
@@ -2573,12 +2643,14 @@ window.GTModules = window.GTModules || {};
       els.buyBonusBtn.classList.toggle("hidden", !buyEnabled);
       if (buyEnabled) {
         const cost = bet * 10;
-        els.buyBonusBtn.textContent = "Buy Bonus " + cost + " WL";
+        els.buyBonusBtn.textContent = "Buy Bonus " + formatLocksByDisplayUnit(cost);
         els.buyBonusBtn.disabled = !canBet || state.webVaultLocks < cost;
       } else {
         els.buyBonusBtn.disabled = true;
       }
     }
+
+    renderBetChipLabels();
   }
 
   function renderAll(animCtx) {
@@ -3351,6 +3423,18 @@ window.GTModules = window.GTModules || {};
         if (event.key !== "Enter") return;
         event.preventDefault();
         loginWithPassword(false);
+      });
+    }
+    if (els.walletLabel instanceof HTMLElement) {
+      els.walletLabel.addEventListener("click", (event) => {
+        event.preventDefault();
+        cycleLockDisplayUnit();
+      });
+    }
+    if (els.userBalanceDisplay instanceof HTMLElement) {
+      els.userBalanceDisplay.addEventListener("click", (event) => {
+        event.preventDefault();
+        cycleLockDisplayUnit();
       });
     }
 
