@@ -573,39 +573,49 @@ canvas {
   left: 0;
   right: 0;
   top: 0;
-  height: 60px;
-  /* Collapsed height - shows small strip of chat */
-  background: rgba(20, 20, 20, 0.85);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  height: 32px;
+  /* Collapsed height - standard GT strip */
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(2px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  /* Minimal border */
   border-top: none;
-  border-radius: 0 0 16px 16px;
+  border-radius: 0 0 8px 8px;
   display: flex;
   flex-direction: column;
   overflow: visible;
-  /* To allow handle to hang below */
-  z-index: 100;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-  transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 200;
+  /* Ensure it stays on top of other HUD elements */
+  transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease;
   user-select: none;
+  pointer-events: none;
+  /* Let clicks pass through to game when collapsed... */
 }
 
 .chat-panel.dragging {
   transition: none;
 }
 
+.chat-panel.open,
+.chat-panel.dragging {
+  pointer-events: auto;
+  /* ...except when we are open or dragging */
+  background: rgba(20, 20, 20, 0.9);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
 .chat-panel.open {
-  height: 320px;
+  height: 300px;
 }
 
 .chat-drag-handle {
   position: absolute;
-  bottom: -20px;
+  bottom: -16px;
   left: 50%;
   transform: translateX(-50%);
-  width: 64px;
-  height: 20px;
-  background: rgba(60, 60, 60, 0.9);
+  width: 50px;
+  height: 16px;
+  background: rgba(40, 40, 40, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-top: none;
   border-radius: 0 0 8px 8px;
@@ -613,7 +623,10 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+  /* Always catch clicks */
+  z-index: 201;
 }
 
 .chat-drag-handle:active {
@@ -630,15 +643,32 @@ canvas {
   border-radius: 1px;
 }
 
+.chat-panel.dragging .chat-input-row {
+  display: none !important;
+}
+
 .chat-messages {
-  padding: 10px;
+  flex: 1;
+  padding: 8px;
   overflow-y: auto;
   font-size: 13px;
   line-height: 1.35;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  pointer-events: auto;
+  scrollbar-width: none;
   gap: 4px;
+}
+
+.chat-messages::-webkit-scrollbar {
+  display: none;
+}
+
+.chat-panel:not(.open):not(.dragging) .chat-messages {
+  height: 32px;
+  overflow: hidden;
+  padding: 4px 8px;
 }
 
 .chat-row {

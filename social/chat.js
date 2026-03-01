@@ -15,11 +15,13 @@ window.GTModules.chat = {
     let dragging = false;
     let startY = 0;
     let startH = 0;
-    const COLLAPSED_H = 60;
-    const EXPANDED_H = 320;
-    const THRESHOLD = (EXPANDED_H + COLLAPSED_H) / 2;
+    const COLLAPSED_H = 32;
+    const EXPANDED_H = 300;
+    const THRESHOLD = 100;
 
     const onStart = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       dragging = true;
       startY = clientY;
@@ -30,6 +32,8 @@ window.GTModules.chat = {
 
     const onMove = (e) => {
       if (!dragging) return;
+      e.preventDefault();
+      e.stopPropagation();
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       const delta = clientY - startY;
       let newH = startH + delta;
@@ -41,8 +45,12 @@ window.GTModules.chat = {
       panel.style.height = newH + "px";
     };
 
-    const onEnd = () => {
+    const onEnd = (e) => {
       if (!dragging) return;
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
       dragging = false;
       panel.classList.remove("dragging");
       document.body.style.cursor = "";
