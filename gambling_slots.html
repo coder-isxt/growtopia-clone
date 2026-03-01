@@ -187,6 +187,44 @@
     }
 
     /* Lobby / Tablet View Styles */
+    .machine-cats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 10px 0 4px 0;
+    }
+
+    .machine-cat-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(236, 112, 112, 0.45);
+      background: rgba(44, 10, 10, 0.78);
+      color: #ffd8d8;
+      font-size: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .machine-cat-btn .count {
+      min-width: 18px;
+      text-align: center;
+      border-radius: 999px;
+      padding: 2px 5px;
+      background: rgba(5, 16, 31, 0.85);
+      border: 1px solid rgba(112, 165, 236, 0.45);
+      color: #cfe4ff;
+    }
+
+    .machine-cat-btn.active {
+      border-color: rgba(255, 206, 106, 0.82);
+      color: #ffe9a7;
+      background: rgba(70, 40, 10, 0.9);
+      box-shadow: 0 0 10px rgba(255, 206, 106, 0.24);
+    }
+
     .machine-list {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -224,6 +262,34 @@
     .machine-item .info {
       font-size: 9px;
       color: var(--muted);
+    }
+
+    .machine-item .machine-cat {
+      font-size: 8px;
+      margin-bottom: 8px;
+      border-radius: 999px;
+      padding: 4px 8px;
+      border: 1px solid rgba(112, 165, 236, 0.42);
+      background: rgba(5, 16, 31, 0.8);
+      color: #cfe4ff;
+    }
+
+    .machine-item .machine-cat.slots {
+      border-color: rgba(255, 206, 106, 0.6);
+      color: #ffe9a7;
+      background: rgba(70, 40, 10, 0.8);
+    }
+
+    .machine-item .machine-cat.table {
+      border-color: rgba(112, 165, 236, 0.6);
+      color: #cfe4ff;
+      background: rgba(18, 36, 60, 0.8);
+    }
+
+    .machine-item .machine-cat.risk {
+      border-color: rgba(100, 242, 168, 0.6);
+      color: #b8ffdb;
+      background: rgba(10, 42, 25, 0.8);
     }
 
     .stage-wrap {
@@ -1370,6 +1436,7 @@
           <span class="pill">Wallet: <span id="walletLabel">0 WL</span></span>
         </div>
         <h2 style="margin-top:14px;">Select a Game</h2>
+        <div class="machine-cats" id="machineCategoryTabs"></div>
         <div class="machine-list" id="machineList"></div>
       </section>
 

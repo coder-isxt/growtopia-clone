@@ -160,6 +160,12 @@ window.GTModules = window.GTModules || {};
   const MACHINE_DEFS = buildMachineDefinitions();
   const LOCK_CURRENCIES = resolveLockCurrencies();
   const DISPLAY_LOCK_ORDER = ["WL", "OL", "EL", "RL"];
+  const MACHINE_CATEGORY_DEFS = [
+    { id: "all", label: "All Games" },
+    { id: "slots", label: "Slots" },
+    { id: "table", label: "Table" },
+    { id: "risk", label: "Risk" }
+  ];
 
   const state = {
     db: null,
@@ -176,6 +182,7 @@ window.GTModules = window.GTModules || {};
     spinTimer: 0,
     currentBetValue: 1,
     lockDisplayIndex: 0,
+    machineCategory: "all",
     ephemeral: { rows: null, lineIds: [], lineWins: [], markedCells: [], cellMeta: {}, effectCells: {}, upgradeFlashes: {} },
     bonusFlow: {
       phase: "BASE_IDLE",
@@ -216,6 +223,7 @@ window.GTModules = window.GTModules || {};
     sessionLabel: document.getElementById("sessionLabel"),
     walletLabel: document.getElementById("walletLabel"),
     machineSelect: document.getElementById("machineSelect"),
+    machineCategoryTabs: document.getElementById("machineCategoryTabs"),
     machineList: document.getElementById("machineList"),
     currentBetDisplay: document.getElementById("currentBetDisplay"),
     towerDifficultyWrap: document.getElementById("towerDifficultyWrap"),
@@ -2443,20 +2451,82 @@ window.GTModules = window.GTModules || {};
     window.setTimeout(() => { if (els.particles instanceof HTMLElement) els.particles.innerHTML = ""; }, 1100);
   }
 
+  function getMachineCategoryId(machineType) {
+    const type = String(machineType || "").trim().toLowerCase();
+    if (type === "blackjack") return "table";
+    if (type === "tower" || type === "mines") return "risk";
+    return "slots";
+  }
+
+  function getMachineCategoryLabel(categoryId) {
+    const id = String(categoryId || "").trim().toLowerCase();
+    for (let i = 0; i < MACHINE_CATEGORY_DEFS.length; i++) {
+      if (MACHINE_CATEGORY_DEFS[i].id === id) return MACHINE_CATEGORY_DEFS[i].label;
+    }
+    return "Slots";
+  }
+
+  function ensureValidMachineCategory(countByCategory) {
+    const by = countByCategory && typeof countByCategory === "object" ? countByCategory : {};
+    const selected = String(state.machineCategory || "all");
+    const known = MACHINE_CATEGORY_DEFS.some((row) => row.id === selected);
+    if (!known) {
+      state.machineCategory = "all";
+      return;
+    }
+    if (selected !== "all" && Math.max(0, Math.floor(Number(by[selected]) || 0)) <= 0) {
+      state.machineCategory = "all";
+    }
+  }
+
   // Renders the "Tablet" style grid of games in the lobby
   function renderMachineSelector() {
     if (!(els.machineList instanceof HTMLElement)) return;
     const rows = state.machines.slice().sort((a, b) => a.ty - b.ty || a.tx - b.tx);
     if (!rows.length) {
+      if (els.machineCategoryTabs instanceof HTMLElement) els.machineCategoryTabs.innerHTML = "";
       els.machineList.innerHTML = "<div class=\"status\">No games available.</div>";
       return;
     }
 
-    els.machineList.innerHTML = rows.map((row) => {
-      // const active = row.tileKey === state.selectedMachineKey ? " active" : "";
-      // const owner = row.ownerName ? ("@" + row.ownerName) : row.ownerAccountId;
+    const countByCategory = { all: rows.length, slots: 0, table: 0, risk: 0 };
+    for (let i = 0; i < rows.length; i++) {
+      const cat = getMachineCategoryId(rows[i].type);
+      countByCategory[cat] = Math.max(0, Math.floor(Number(countByCategory[cat]) || 0)) + 1;
+    }
+    ensureValidMachineCategory(countByCategory);
+
+    if (els.machineCategoryTabs instanceof HTMLElement) {
+      els.machineCategoryTabs.innerHTML = MACHINE_CATEGORY_DEFS
+        .filter((row) => row.id === "all" || Math.max(0, Math.floor(Number(countByCategory[row.id]) || 0)) > 0)
+        .map((row) => {
+          const active = row.id === state.machineCategory ? " active" : "";
+          const count = Math.max(0, Math.floor(Number(countByCategory[row.id]) || 0));
+          return (
+            "<button type=\"button\" class=\"machine-cat-btn" + active + "\" data-category=\"" + row.id + "\">" +
+            "<span>" + escapeHtml(row.label) + "</span>" +
+            "<span class=\"count\">" + count + "</span>" +
+            "</button>"
+          );
+        }).join("");
+    }
+
+    const selected = String(state.machineCategory || "all");
+    const visible = selected === "all"
+      ? rows
+      : rows.filter((row) => getMachineCategoryId(row.type) === selected);
+
+    if (!visible.length) {
+      els.machineList.innerHTML = "<div class=\"status\">No games in this category.</div>";
+      return;
+    }
+
+    els.machineList.innerHTML = visible.map((row) => {
+      const catId = getMachineCategoryId(row.type);
+      const catLabel = getMachineCategoryLabel(catId);
       return (
         "<div class=\"machine-item\" data-machine-key=\"" + escapeHtml(row.tileKey) + "\">" +
+        "<div class=\"machine-cat " + escapeHtml(catId) + "\">" + escapeHtml(catLabel) + "</div>" +
         "<div class=\"name\">" + escapeHtml(row.typeName) + "</div>" +
         "<div class=\"info\">Max Bet: " + formatLocksByDisplayUnit(row.maxBet) + "</div>" +
         "<div class=\"info\">Plays: " + row.stats.plays + "</div>" +
@@ -3435,6 +3505,18 @@ window.GTModules = window.GTModules || {};
       els.userBalanceDisplay.addEventListener("click", (event) => {
         event.preventDefault();
         cycleLockDisplayUnit();
+      });
+    }
+    if (els.machineCategoryTabs instanceof HTMLElement) {
+      els.machineCategoryTabs.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const btn = target.closest(".machine-cat-btn");
+        if (!(btn instanceof HTMLElement)) return;
+        const next = String(btn.dataset.category || "all");
+        if (!next || state.machineCategory === next) return;
+        state.machineCategory = next;
+        renderMachineSelector();
       });
     }
 
