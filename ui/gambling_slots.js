@@ -1669,12 +1669,10 @@ window.GTModules = window.GTModules || {};
 
     const rows = [];
     rows.push("<span class=\"line-badge\">Tower " + escapeHtml(difficulty.label) + "</span>");
-    rows.push("<span class=\"line-badge\">Traps/Floor: " + difficulty.traps + "/" + cols + "</span>");
-    rows.push("<span class=\"line-badge\">Step: " + formatMultiplier(difficulty.stepMult) + "</span>");
+    rows.push("<span class=\"line-badge\">Traps: " + difficulty.traps + "/" + cols + "</span>");
 
     if (!round) {
-      rows.push("<span class=\"line-badge muted\">Press Start Run, then pick one tile per floor.</span>");
-      rows.push("<span class=\"line-badge muted\">Cash out any time after at least one safe pick.</span>");
+      rows.push("<span class=\"line-badge muted\">Start run, pick one tile per floor, cash out anytime.</span>");
       els.lineList.innerHTML = rows.join("");
       return;
     }
@@ -1682,11 +1680,11 @@ window.GTModules = window.GTModules || {};
     const cleared = towerClearedFloors(round);
     const currentMult = towerCurrentMultiplier(round);
     const nextMult = towerNextMultiplier(round);
-    rows.push("<span class=\"line-badge\">Cleared: " + cleared + "/" + round.floors + "</span>");
-    rows.push("<span class=\"line-badge\">Current: " + formatMultiplier(currentMult) + "</span>");
+    rows.push("<span class=\"line-badge\">Progress: " + cleared + "/" + round.floors + "</span>");
+    rows.push("<span class=\"line-badge\">Now: " + formatMultiplier(currentMult) + "</span>");
 
     if (round.active) {
-      rows.push("<span class=\"line-badge hot\">Next: " + formatMultiplier(nextMult) + "</span>");
+      rows.push("<span class=\"line-badge\">Next: " + formatMultiplier(nextMult) + "</span>");
       if (cleared > 0) rows.push("<span class=\"line-badge hot\">Cashout: " + formatTowerPayout(round, currentMult) + " WL</span>");
     } else if (round.result === "lose") {
       rows.push("<span class=\"line-badge hot\">Trap hit. Lost " + round.bet + " WL</span>");
@@ -1694,19 +1692,7 @@ window.GTModules = window.GTModules || {};
       rows.push("<span class=\"line-badge hot\">Paid: " + Math.max(0, Math.floor(Number(round.payout) || 0)) + " WL</span>");
     }
 
-    for (let floor = 0; floor < round.floors; floor++) {
-      const pick = round.picksByFloor[floor];
-      if (pick === undefined) continue;
-      const safeCols = Array.isArray(round.safeColsByFloor[floor]) ? round.safeColsByFloor[floor] : [];
-      const safe = safeCols.indexOf(pick) >= 0;
-      const tagClass = safe ? "line-badge" : "line-badge hot";
-      const label = safe
-        ? ("F" + (floor + 1) + " safe " + formatMultiplier(round.multipliers[floor] || 1))
-        : ("F" + (floor + 1) + " trap");
-      rows.push("<span class=\"" + tagClass + "\">" + escapeHtml(label) + "</span>");
-    }
-
-    els.lineList.innerHTML = rows.slice(0, 24).join("");
+    els.lineList.innerHTML = rows.slice(0, 8).join("");
   }
 
   function renderMinesBoard(machine) {
