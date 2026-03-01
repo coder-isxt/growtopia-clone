@@ -208,6 +208,9 @@ window.GTModules = window.GTModules || {};
     openVaultBtn: document.getElementById("openVaultBtn"),
     vaultModal: document.getElementById("vaultModal"),
     vaultAmount: document.getElementById("vaultAmount"),
+    vaultGameBalance: document.getElementById("vaultGameBalance"),
+    vaultWebBalance: document.getElementById("vaultWebBalance"),
+    vaultUnitHint: document.getElementById("vaultUnitHint"),
     vaultDepositBtn: document.getElementById("vaultDepositBtn"),
     vaultWithdrawBtn: document.getElementById("vaultWithdrawBtn"),
     closeVaultBtn: document.getElementById("closeVaultBtn"),
@@ -1469,6 +1472,41 @@ window.GTModules = window.GTModules || {};
     });
   }
 
+  function renderWalletDisplay() {
+    if (!(els.walletLabel instanceof HTMLElement)) return;
+    const unit = getActiveDisplayLockRow();
+    const vaultValue = formatLocksByDisplayUnit(state.webVaultLocks);
+    const gameValue = formatLocksByDisplayUnit(state.walletLocks);
+    els.walletLabel.innerHTML =
+      "<span class=\"wallet-top\">" +
+      "<span>Tap to cycle display unit</span>" +
+      "<span class=\"wallet-unit\">" + unit.short + "</span>" +
+      "</span>" +
+      "<span class=\"wallet-main\">" +
+      "<span class=\"wallet-entry\"><span class=\"label\">Vault:</span><span class=\"value\">" + vaultValue + "</span></span>" +
+      "<span class=\"wallet-sep\">|</span>" +
+      "<span class=\"wallet-entry\"><span class=\"label\">Game:</span><span class=\"value\">" + gameValue + "</span></span>" +
+      "</span>";
+    els.walletLabel.title = "Click to cycle lock display (WL/OL/EL/RL). Current: " + unit.short;
+    els.walletLabel.style.cursor = "pointer";
+  }
+
+  function renderVaultPanel() {
+    const unit = getActiveDisplayLockRow();
+    if (els.vaultGameBalance instanceof HTMLElement) {
+      els.vaultGameBalance.textContent = formatLocksByDisplayUnit(state.walletLocks);
+    }
+    if (els.vaultWebBalance instanceof HTMLElement) {
+      els.vaultWebBalance.textContent = formatLocksByDisplayUnit(state.webVaultLocks);
+    }
+    if (els.vaultUnitHint instanceof HTMLElement) {
+      els.vaultUnitHint.textContent = "Display unit: " + unit.short + " (transfers are stored as WL).";
+    }
+    if (els.vaultAmount instanceof HTMLInputElement) {
+      els.vaultAmount.placeholder = "Amount (" + unit.short + " display)";
+    }
+  }
+
   // UI helper: format bank value for display in lists when banks are considered infinite
   function formatBankForList(row) {
     if (INFINITE_BANK) return "Infinite";
@@ -1757,20 +1795,16 @@ window.GTModules = window.GTModules || {};
     if (els.sessionLabel instanceof HTMLElement) {
       els.sessionLabel.textContent = state.user ? ("@" + state.user.username + " (" + state.user.accountId + ")") : "Not logged in";
     }
-    if (els.walletLabel instanceof HTMLElement) {
-      const unit = getActiveDisplayLockRow();
-      els.walletLabel.textContent = "Vault: " + formatLocksByDisplayUnit(state.webVaultLocks) + " | Game: " + formatLocksByDisplayUnit(state.walletLocks);
-      els.walletLabel.title = "Click to cycle lock display (WL/OL/EL/RL). Current: " + unit.short;
-      els.walletLabel.style.cursor = "pointer";
-    }
+    renderWalletDisplay();
     if (els.userBalanceDisplay instanceof HTMLElement) {
       const unit = getActiveDisplayLockRow();
-      els.userBalanceDisplay.textContent = "Balance: " + formatLocksByDisplayUnit(state.webVaultLocks);
+      els.userBalanceDisplay.innerHTML = "Balance: <strong>" + formatLocksByDisplayUnit(state.webVaultLocks) + "</strong>";
       els.userBalanceDisplay.title = "Click to cycle lock display (WL/OL/EL/RL). Current: " + unit.short;
       els.userBalanceDisplay.style.cursor = "pointer";
     }
     if (els.logoutBtn instanceof HTMLButtonElement) els.logoutBtn.classList.toggle("hidden", !state.user);
     if (els.openVaultBtn instanceof HTMLButtonElement) els.openVaultBtn.classList.toggle("hidden", !state.user);
+    renderVaultPanel();
   }
 
   function buildRowsForRender(machine) {
@@ -3648,64 +3682,80 @@ window.GTModules = window.GTModules || {};
     if (els.bjSplitBtn) els.bjSplitBtn.addEventListener("click", () => runBlackjackAction("split"));
 
     // Vault Events
-    if (els.openVaultBtn) {
+    function setVaultButtonsBusy(busy) {
+      const flag = Boolean(busy);
+      if (els.vaultDepositBtn instanceof HTMLButtonElement) els.vaultDepositBtn.disabled = flag;
+      if (els.vaultWithdrawBtn instanceof HTMLButtonElement) els.vaultWithdrawBtn.disabled = flag;
+    }
+
+    async function runVaultTransfer(direction) {
+      if (!(els.vaultAmount instanceof HTMLInputElement)) return;
+      const val = Math.floor(Number(els.vaultAmount.value));
+      if (val <= 0 || isNaN(val)) {
+        if (els.vaultStatus instanceof HTMLElement) els.vaultStatus.textContent = "Invalid amount.";
+        return;
+      }
+      const isDeposit = direction === "deposit";
+      if (els.vaultStatus instanceof HTMLElement) {
+        els.vaultStatus.textContent = isDeposit ? "Depositing..." : "Withdrawing...";
+      }
+      setVaultButtonsBusy(true);
+      const tx = isDeposit ? await depositToVault(val) : await withdrawFromVault(val);
+      setVaultButtonsBusy(false);
+
+      if (els.vaultStatus instanceof HTMLElement) {
+        if (tx && tx.ok) {
+          els.vaultStatus.textContent = isDeposit
+            ? ("Success! Deposited " + val + " WL.")
+            : ("Success! Withdrew " + val + " WL.");
+          els.vaultAmount.value = "";
+        } else {
+          const reason = tx && tx.reason ? String(tx.reason) : "rejected";
+          els.vaultStatus.textContent = "Failed to " + (isDeposit ? "deposit" : "withdraw") + ": " + reason;
+        }
+      }
+      renderVaultPanel();
+      renderSession();
+      renderMachineStats();
+    }
+
+    if (els.openVaultBtn instanceof HTMLButtonElement) {
       els.openVaultBtn.addEventListener("click", () => {
-        if (!state.user) return;
-        if (els.vaultStatus) els.vaultStatus.textContent = "Ready.";
+        if (!state.user || !(els.vaultModal instanceof HTMLElement)) return;
+        renderVaultPanel();
+        if (els.vaultStatus instanceof HTMLElement) els.vaultStatus.textContent = "Ready.";
         els.vaultModal.classList.remove("hidden");
       });
     }
-    if (els.closeVaultBtn) {
-      els.closeVaultBtn.addEventListener("click", () => els.vaultModal.classList.add("hidden"));
-    }
-    if (els.vaultDepositBtn) {
-      els.vaultDepositBtn.addEventListener("click", async () => {
-        if (!els.vaultAmount) return;
-        const val = Math.floor(Number(els.vaultAmount.value));
-        if (val <= 0 || isNaN(val)) {
-          if (els.vaultStatus) els.vaultStatus.textContent = "Invalid amount.";
-          return;
-        }
-        els.vaultDepositBtn.disabled = true;
-        els.vaultWithdrawBtn.disabled = true;
-        if (els.vaultStatus) els.vaultStatus.textContent = "Depositing...";
-        const tx = await depositToVault(val);
-        els.vaultDepositBtn.disabled = false;
-        els.vaultWithdrawBtn.disabled = false;
-        if (els.vaultStatus) {
-          if (tx.ok) {
-            els.vaultStatus.textContent = `Success! Deposited ${val} WL.`;
-            els.vaultAmount.value = "";
-          } else {
-            els.vaultStatus.textContent = "Failed to deposit: " + tx.reason;
-          }
-        }
+    if (els.closeVaultBtn instanceof HTMLButtonElement) {
+      els.closeVaultBtn.addEventListener("click", () => {
+        if (els.vaultModal instanceof HTMLElement) els.vaultModal.classList.add("hidden");
       });
     }
-    if (els.vaultWithdrawBtn) {
-      els.vaultWithdrawBtn.addEventListener("click", async () => {
-        if (!els.vaultAmount) return;
-        const val = Math.floor(Number(els.vaultAmount.value));
-        if (val <= 0 || isNaN(val)) {
-          if (els.vaultStatus) els.vaultStatus.textContent = "Invalid amount.";
-          return;
-        }
-        els.vaultDepositBtn.disabled = true;
-        els.vaultWithdrawBtn.disabled = true;
-        if (els.vaultStatus) els.vaultStatus.textContent = "Withdrawing...";
-        const tx = await withdrawFromVault(val);
-        els.vaultDepositBtn.disabled = false;
-        els.vaultWithdrawBtn.disabled = false;
-        if (els.vaultStatus) {
-          if (tx.ok) {
-            els.vaultStatus.textContent = `Success! Withdrew ${val} WL.`;
-            els.vaultAmount.value = "";
-          } else {
-            els.vaultStatus.textContent = "Failed to withdraw: " + tx.reason;
-          }
-        }
+    if (els.vaultDepositBtn instanceof HTMLButtonElement) {
+      els.vaultDepositBtn.addEventListener("click", async () => runVaultTransfer("deposit"));
+    }
+    if (els.vaultWithdrawBtn instanceof HTMLButtonElement) {
+      els.vaultWithdrawBtn.addEventListener("click", async () => runVaultTransfer("withdraw"));
+    }
+    if (els.vaultAmount instanceof HTMLInputElement) {
+      els.vaultAmount.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        runVaultTransfer("deposit");
       });
     }
+    const quickVaultBtns = document.querySelectorAll("[data-vault-amount]");
+    quickVaultBtns.forEach((btn) => {
+      if (!(btn instanceof HTMLElement)) return;
+      btn.addEventListener("click", () => {
+        if (!(els.vaultAmount instanceof HTMLInputElement)) return;
+        const val = Math.max(1, Math.floor(Number(btn.dataset.vaultAmount) || 0));
+        if (!val) return;
+        els.vaultAmount.value = String(val);
+        els.vaultAmount.focus();
+      });
+    });
 
     if (els.backToLobbyBtn instanceof HTMLButtonElement) {
       els.backToLobbyBtn.addEventListener("click", () => switchView("lobby"));
