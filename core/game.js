@@ -69,6 +69,7 @@
       const gtMainMenuPopupEl = document.getElementById("gtMainMenuPopup");
       const gtMenuQuitBtnEl = document.getElementById("gtMenuQuitBtn");
       const gtMenuRespawnBtnEl = document.getElementById("gtMenuRespawnBtn");
+      const gtMenuAdminBtnEl = document.getElementById("gtMenuAdminBtn");
       const gtMenuAchievementsBtnEl = document.getElementById("gtMenuAchievementsBtn");
       const gtMenuTitlesBtnEl = document.getElementById("gtMenuTitlesBtn");
       const gtMenuResumeBtnEl = document.getElementById("gtMenuResumeBtn");
@@ -1635,6 +1636,7 @@
         canUseAdminPanel = hasAdminPermission("panel_open");
         canViewAccountLogs = canUserViewLogs(playerName);
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
+        syncQuickAdminButtonVisibility();
         if (adminForceReloadBtn) {
           const canForceReload = hasAdminPermission("force_reload");
           adminForceReloadBtn.classList.toggle("hidden", !canForceReload);
@@ -6345,6 +6347,7 @@
         applyToolbarPosition();
         chatToggleBtn.classList.toggle("hidden", !inWorld);
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
+        syncQuickAdminButtonVisibility();
         //respawnBtn.classList.toggle("hidden", !inWorld);
         exitWorldBtn.classList.toggle("hidden", !inWorld);
         syncQuickMenuHudVisibility();
@@ -6424,9 +6427,16 @@
         setQuickMenuMode(next);
       }
 
+      function syncQuickAdminButtonVisibility() {
+        if (!gtMenuAdminBtnEl) return;
+        const visible = inWorld && canUseAdminPanel;
+        gtMenuAdminBtnEl.classList.toggle("hidden", !visible);
+      }
+
       function syncQuickMenuHudVisibility() {
         if (!gtQuickActionsEl) return;
         gtQuickActionsEl.classList.toggle("hidden", !inWorld);
+        syncQuickAdminButtonVisibility();
         if (!inWorld) {
           setQuickMenuMode("");
         }
@@ -11962,6 +11972,13 @@
             if (!inWorld) return;
             setQuickMenuMode("");
             respawnPlayerAtDoor();
+          });
+        }
+        if (gtMenuAdminBtnEl) {
+          eventsModule.on(gtMenuAdminBtnEl, "click", () => {
+            if (!inWorld || !canUseAdminPanel) return;
+            setQuickMenuMode("");
+            setAdminOpen(true);
           });
         }
         if (gtMenuAchievementsBtnEl) {
