@@ -3213,7 +3213,7 @@ window.GTModules = window.GTModules || {};
           const resultWager = Math.max(1, Math.floor(Number(rawResult.bet) || wager));
           const wanted = Math.max(0, Math.floor(Number(rawResult.payoutWanted) || 0));
           if (resultWager !== wager) return currentRaw;
-          if ((current.earningsLocks + resultWager - wanted) < 0) return currentRaw;
+          if (!INFINITE_BANK && (current.earningsLocks + resultWager - wanted) < 0) return currentRaw;
 
           const lines = Array.isArray(rawResult.lineWins) ? rawResult.lineWins.map((s) => String(s || "").trim()).filter(Boolean) : [];
           const lineIds = Array.isArray(rawResult.lineIds) ? rawResult.lineIds.map((n) => Math.max(1, Math.floor(Number(n) || 0))).filter((n) => n > 0) : [];
@@ -3254,9 +3254,13 @@ window.GTModules = window.GTModules || {};
             bonusFrames: extractBonusFrames(current.type, rawResult)
           };
 
+          const nextEarningsLocks = INFINITE_BANK
+            ? toCount(current.earningsLocks)
+            : Math.max(0, current.earningsLocks + resultWager - wanted);
+
           return {
             ...currentRaw,
-            earningsLocks: Math.max(0, current.earningsLocks + resultWager - wanted),
+            earningsLocks: nextEarningsLocks,
             updatedAt: nextAt,
             stats
           };

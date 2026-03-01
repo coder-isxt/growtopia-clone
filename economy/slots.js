@@ -290,10 +290,12 @@ window.GTModules = window.GTModules || {};
     buyBonusCosts: { 3: 80, 4: 140, 5: 220, 6: 320 },
     hypeCostX: 20,
     multiplierCellValue: 10,
-    weedAddsMultiplierCells: 2,
+    weedAddsMultiplierCells: 1,
     wildUpgradeStep: 10,
-    wildUpgradeMax: 100,
+    wildUpgradeMax: 60,
     wildMarkedStart: 10,
+    payoutMultiplierScale: 0.28,
+    maxAppliedPayoutMultiplier: 18,
     featureDeadSpinChance: 0.32,
     featureNoClusterAttempts: 16,
     houseEdge: 0.04,
@@ -1977,11 +1979,15 @@ window.GTModules = window.GTModules || {};
     }
     const base = Math.max(0, Number(safeCluster.pay) || 0) * Math.max(1, Number(state.bet) || 1);
     const edgeFactor = Math.max(0.8, Math.min(1, 1 - (Number(SNOOP_CFG.houseEdge) || 0.04)));
-    const applied = Math.max(highestCellMult, highestWildMult);
+    const displayApplied = Math.max(highestCellMult, highestWildMult);
+    const scale = Math.max(0.05, Math.min(1, Number(SNOOP_CFG.payoutMultiplierScale) || 0.28));
+    const maxApplied = Math.max(1, Number(SNOOP_CFG.maxAppliedPayoutMultiplier) || 18);
+    const applied = Math.max(1, Math.min(maxApplied, 1 + ((displayApplied - 1) * scale)));
     const payout = Math.max(0, Math.floor(base * applied * edgeFactor));
     return {
       payout,
-      appliedMultiplier: applied,
+      appliedMultiplier: displayApplied,
+      payoutMultiplier: Number(applied.toFixed(2)),
       highestCellMult,
       highestWildMult
     };
