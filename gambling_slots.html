@@ -358,6 +358,13 @@
         linear-gradient(180deg, rgba(9, 30, 24, 0.96), rgba(6, 18, 14, 0.97));
     }
 
+    .stage.theme-snoop_dogg_dollars {
+      border-color: rgba(120, 255, 120, 0.82);
+      background:
+        radial-gradient(circle at 24% 8%, rgba(120, 255, 180, 0.12), transparent 52%),
+        linear-gradient(180deg, rgba(12, 34, 18, 0.96), rgba(8, 22, 12, 0.97));
+    }
+
     .cell.wanted {
       border-color: rgba(218, 165, 32, 0.88);
       box-shadow: 0 0 14px rgba(218, 165, 32, 0.35);
@@ -616,6 +623,15 @@
     .cell.bonus {
       border-color: rgba(255, 206, 106, 0.82);
       box-shadow: 0 0 12px rgba(255, 206, 106, 0.25);
+    }
+
+    .cell.boosted {
+      border-color: rgba(79, 223, 255, 0.86);
+      box-shadow: 0 0 14px rgba(79, 223, 255, 0.28);
+    }
+
+    .cell.boosted .txt {
+      color: #e0faff;
     }
 
     .cell.sixblu {
@@ -1195,9 +1211,21 @@
                 </select>
               </span>
 
+              <span id="snoopBuyWrap" class="hidden" style="display:flex; gap:6px; align-items:center;">
+                <span style="font-size:8px; color:#cfe4ff;">Buy FS</span>
+                <select id="snoopBuySelect" style="min-width:120px; padding:8px 10px;">
+                  <option value="3">3 scatters</option>
+                  <option value="4">4 scatters</option>
+                  <option value="5">5 scatters</option>
+                  <option value="6">6 scatters</option>
+                </select>
+              </span>
+
               <button id="spinBtn" type="button" style="min-width: 80px; font-weight: bold;">SPIN</button>
               <button id="towerCashoutBtn" type="button" class="hidden">Cash Out</button>
               <button id="minesCashoutBtn" type="button" class="hidden">Cash Out</button>
+              <button id="snoopHypeBtn" type="button" class="hidden">Hype Spin</button>
+              <button id="snoopBuyBtn" type="button" class="hidden">Buy Bonus</button>
               <button id="bjHitBtn" type="button" class="hidden">Hit</button>
               <button id="bjStandBtn" type="button" class="hidden">Stand</button>
               <button id="bjDoubleBtn" type="button" class="hidden">Double</button>

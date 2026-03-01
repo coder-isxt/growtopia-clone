@@ -4,7 +4,7 @@ window.GTModules = window.GTModules || {};
   "use strict";
 
   const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
-  const GAME_IDS = ["blackjack", "slots_v2", "le_bandit", "tower", "mines"];
+  const GAME_IDS = ["blackjack", "slots_v2", "le_bandit", "tower", "mines", "snoop_dogg_dollars"];
 
   // This page is now a standalone casino site.
   // World-based machine browsing is on gambling.html
@@ -47,7 +47,12 @@ window.GTModules = window.GTModules || {};
     slots_v2: "Six Six Six",
     le_bandit: "Le Bandit",
     tower: "Tower",
-    mines: "Mines"
+    mines: "Mines",
+    snoop_dogg_dollars: "Snoop Dogg Dollars"
+  };
+  const SNOOP_UI = {
+    hypeCostX: 20,
+    buyCostByScatter: { 3: 80, 4: 140, 5: 220, 6: 320 }
   };
   const TOWER_CONFIG = {
     floors: 8,
@@ -91,7 +96,8 @@ window.GTModules = window.GTModules || {};
     BONE: "Bone", PENT: "Pentagram", BLU_6: "Blue 6", RED_6: "Red 6",
     TRAP: "Trap", CHEESE: "Cheese", BEER: "Beer", BAG: "Bag", HAT: "Hat", WINT: "Wanted", RAIN: "Rain",
     CLOVR: "Clover", POT: "Pot of Gold", LOCK: "Locked",
-    MULT: "Multiplier", BOMB: "Bomb", JACK: "Jackpot", COL: "Collect", BLANK: "Tease"
+    MULT: "Multiplier", BOMB: "Bomb", JACK: "Jackpot", COL: "Collect", BLANK: "Tease",
+    DIME: "Dime Bag", LITE: "Lighter", MIC: "Mic", BILL: "Dollar", CHN: "Chain", LOWR: "Lowrider", DOGG: "Dogg", CROW: "Crown", WEED: "Weed"
   };
 
   const SYMBOL_ICONS = {
@@ -103,7 +109,8 @@ window.GTModules = window.GTModules || {};
     BONE: "\u{1F9B4}", PENT: "\u2721", BLU_6: "\u{1F535}6", RED_6: "\u{1F534}6",
     TRAP: "\u{1F4A9}", CHEESE: "\u{1F9C0}", BEER: "\u{1F37A}", BAG: "\u{1F4B0}", HAT: "\u{1F3A9}", WINT: "\u{1F46E}", RAIN: "\u{1F308}",
     CLOVR: "\u2618", POT: "\u{1F4B0}", LOCK: "\u{1F512}",
-    MULT: "\u2716", BOMB: "\u{1F4A3}", JACK: "\u{1F451}", COL: "\u{1F9F2}", BLANK: "\u2736"
+    MULT: "\u2716", BOMB: "\u{1F4A3}", JACK: "\u{1F451}", COL: "\u{1F9F2}", BLANK: "\u2736",
+    DIME: "\u{1F4BC}", LITE: "\u{1F526}", MIC: "\u{1F3A4}", BILL: "\u{1F4B5}", CHN: "\u26D3", LOWR: "\u{1F697}", DOGG: "\u{1F436}", CROW: "\u{1F451}", WEED: "\u{1F33F}"
   };
 
   const SYMBOL_CLASSES = {
@@ -122,7 +129,8 @@ window.GTModules = window.GTModules || {};
     BOMB: "bonus",
     JACK: "bonus",
     COL: "scatter",
-    BLANK: "locked"
+    BLANK: "locked",
+    WEED: "bonus"
   };
   const SYMBOL_POOL = {
     blackjack: ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"],
@@ -131,7 +139,8 @@ window.GTModules = window.GTModules || {};
     le_bandit: ["TRAP", "CHEESE", "BEER", "BAG", "HAT", "WINT", "WILD", "RAIN", "COIN"],
     slots_v3: ["RUBY", "EMER", "CLUB", "RING", "SKULL", "REAPR", "BLOOD", "WILD", "SCAT"],
     slots_v4: ["LEAF", "STON", "MASK", "IDOL", "ORAC", "FRGT", "WILD", "SCAT"],
-    slots_v6: ["COIN", "ORE", "GEM", "PICK", "CART", "RELC", "WILD", "SCAT"]
+    slots_v6: ["COIN", "ORE", "GEM", "PICK", "CART", "RELC", "WILD", "SCAT"],
+    snoop_dogg_dollars: ["DIME", "LITE", "LEAF", "MIC", "BILL", "CHN", "LOWR", "DOGG", "CROW", "SCAT", "WILD", "WEED", "SKULL"]
   };
 
   const authModule = (window.GTModules && window.GTModules.auth) || {};
@@ -192,9 +201,13 @@ window.GTModules = window.GTModules || {};
     towerDifficultySelect: document.getElementById("towerDifficultySelect"),
     minesCountWrap: document.getElementById("minesCountWrap"),
     minesCountSelect: document.getElementById("minesCountSelect"),
+    snoopBuyWrap: document.getElementById("snoopBuyWrap"),
+    snoopBuySelect: document.getElementById("snoopBuySelect"),
     spinBtn: document.getElementById("spinBtn"),
     towerCashoutBtn: document.getElementById("towerCashoutBtn"),
     minesCashoutBtn: document.getElementById("minesCashoutBtn"),
+    snoopHypeBtn: document.getElementById("snoopHypeBtn"),
+    snoopBuyBtn: document.getElementById("snoopBuyBtn"),
     bjHitBtn: document.getElementById("bjHitBtn"),
     bjStandBtn: document.getElementById("bjStandBtn"),
     bjDoubleBtn: document.getElementById("bjDoubleBtn"),
@@ -229,7 +242,8 @@ window.GTModules = window.GTModules || {};
       slots_v6: { name: "Deep Core", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 3 },
       le_bandit: { name: "Le Bandit", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10000, reels: 6, rows: 5 },
       tower: { name: "Tower", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 25000, reels: 5, rows: 8 },
-      mines: { name: "Mines", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 25000, reels: 5, rows: 5 }
+      mines: { name: "Mines", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 25000, reels: 5, rows: 5 },
+      snoop_dogg_dollars: { name: "Snoop Dogg Dollars", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10000, reels: 6, rows: 8 }
     };
     const out = {};
     GAME_IDS.forEach((id) => {
@@ -1265,9 +1279,36 @@ window.GTModules = window.GTModules || {};
   }
 
   function normalizeToken(value) { return String(value || "").trim().toUpperCase() || "?"; }
-  function symbolIcon(token) { return SYMBOL_ICONS[normalizeToken(token)] || SYMBOL_ICONS["?"]; }
-  function symbolLabel(token) { return SYMBOL_LABELS[normalizeToken(token)] || normalizeToken(token); }
-  function symbolClass(token) { return SYMBOL_CLASSES[normalizeToken(token)] || ""; }
+  function parseDisplayToken(token) {
+    const raw = normalizeToken(token);
+    const idx = raw.indexOf("@");
+    if (idx <= 0) return { raw, base: raw, overlay: "" };
+    return {
+      raw,
+      base: normalizeToken(raw.slice(0, idx)),
+      overlay: normalizeToken(raw.slice(idx + 1))
+    };
+  }
+  function symbolIcon(token) {
+    const parsed = parseDisplayToken(token);
+    return SYMBOL_ICONS[parsed.base] || SYMBOL_ICONS["?"];
+  }
+  function symbolLabel(token) {
+    const parsed = parseDisplayToken(token);
+    const baseLabel = SYMBOL_LABELS[parsed.base] || parsed.base;
+    if (!parsed.overlay) return baseLabel;
+    const match = /^([WM])(\d+)$/.exec(parsed.overlay);
+    if (!match) return baseLabel + " " + parsed.overlay;
+    const mult = Math.max(1, Math.floor(Number(match[2]) || 1));
+    if (match[1] === "W") return baseLabel + " x" + mult;
+    return baseLabel + " x" + mult;
+  }
+  function symbolClass(token) {
+    const parsed = parseDisplayToken(token);
+    const baseClass = SYMBOL_CLASSES[parsed.base] || "";
+    if (!parsed.overlay) return baseClass;
+    return baseClass ? (baseClass + " boosted") : "boosted";
+  }
 
   function parseRows(raw) {
     const text = String(raw || "");
@@ -1985,7 +2026,7 @@ window.GTModules = window.GTModules || {};
       if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: 0 WL";
       if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: 0";
       if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: 0 WL";
-      if (els.stage instanceof HTMLElement) els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit", "theme-tower", "theme-mines");
+      if (els.stage instanceof HTMLElement) els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit", "theme-tower", "theme-mines", "theme-snoop_dogg_dollars");
       if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.disabled = true;
       if (els.buyBonusBtn instanceof HTMLButtonElement) {
         els.buyBonusBtn.classList.add("hidden");
@@ -2001,6 +2042,15 @@ window.GTModules = window.GTModules || {};
         els.minesCashoutBtn.classList.add("hidden");
         els.minesCashoutBtn.disabled = true;
       }
+      if (els.snoopBuyWrap instanceof HTMLElement) els.snoopBuyWrap.classList.add("hidden");
+      if (els.snoopHypeBtn instanceof HTMLButtonElement) {
+        els.snoopHypeBtn.classList.add("hidden");
+        els.snoopHypeBtn.disabled = true;
+      }
+      if (els.snoopBuyBtn instanceof HTMLButtonElement) {
+        els.snoopBuyBtn.classList.add("hidden");
+        els.snoopBuyBtn.disabled = true;
+      }
       return;
     }
 
@@ -2014,11 +2064,12 @@ window.GTModules = window.GTModules || {};
 
     if (els.stage instanceof HTMLElement) {
       const currentType = machine.type;
-      els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit", "theme-tower", "theme-mines");
+      els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit", "theme-tower", "theme-mines", "theme-snoop_dogg_dollars");
       if (typeof currentType === "string") {
         if (currentType === "le_bandit") els.stage.classList.add("theme-le_bandit");
         else if (currentType === "tower") els.stage.classList.add("theme-tower");
         else if (currentType === "mines") els.stage.classList.add("theme-mines");
+        else if (currentType === "snoop_dogg_dollars") els.stage.classList.add("theme-snoop_dogg_dollars");
         else if (currentType.startsWith("slots")) els.stage.classList.add("theme-" + currentType);
       }
     }
@@ -2027,6 +2078,7 @@ window.GTModules = window.GTModules || {};
     const isBlackjack = machine.type === 'blackjack';
     const isTower = machine.type === "tower";
     const isMines = machine.type === "mines";
+    const isSnoop = machine.type === "snoop_dogg_dollars";
     const bjState = machine.stats.blackjackState;
     const activeHand = (bjState && bjState.hands && bjState.hands[bjState.activeHandIndex]) || null;
     const towerRound = isTower ? getTowerRoundForMachine(machine) : null;
@@ -2056,6 +2108,9 @@ window.GTModules = window.GTModules || {};
     if (els.towerCashoutBtn instanceof HTMLButtonElement) els.towerCashoutBtn.classList.toggle("hidden", !isTower);
     if (els.minesCountWrap instanceof HTMLElement) els.minesCountWrap.classList.toggle("hidden", !isMines);
     if (els.minesCashoutBtn instanceof HTMLButtonElement) els.minesCashoutBtn.classList.toggle("hidden", !isMines);
+    if (els.snoopBuyWrap instanceof HTMLElement) els.snoopBuyWrap.classList.toggle("hidden", !isSnoop);
+    if (els.snoopHypeBtn instanceof HTMLButtonElement) els.snoopHypeBtn.classList.toggle("hidden", !isSnoop);
+    if (els.snoopBuyBtn instanceof HTMLButtonElement) els.snoopBuyBtn.classList.toggle("hidden", !isSnoop);
 
     if (isTower && els.towerDifficultySelect instanceof HTMLSelectElement) {
       const selectedDifficulty = getTowerDifficultyForMachine(machine);
@@ -2077,6 +2132,23 @@ window.GTModules = window.GTModules || {};
       const canCashout = Boolean(minesRound && minesRound.active && minesSafeClicks(minesRound) > 0);
       els.minesCashoutBtn.textContent = "Cash Out " + (minesRound ? minesCashoutPayout(minesRound) : 0) + " WL";
       els.minesCashoutBtn.disabled = !canCashout;
+    }
+    if (isSnoop && els.snoopBuySelect instanceof HTMLSelectElement) {
+      const val = Math.max(3, Math.min(6, Math.floor(Number(els.snoopBuySelect.value) || 3)));
+      if (els.snoopBuySelect.value !== String(val)) els.snoopBuySelect.value = String(val);
+      els.snoopBuySelect.disabled = false;
+    }
+    if (isSnoop && els.snoopHypeBtn instanceof HTMLButtonElement) {
+      const hypeCost = bet * Math.max(1, Math.floor(Number(SNOOP_UI.hypeCostX) || 20));
+      els.snoopHypeBtn.textContent = "Hype Spin " + hypeCost + " WL";
+      els.snoopHypeBtn.disabled = !canBet || state.webVaultLocks < hypeCost;
+    }
+    if (isSnoop && els.snoopBuyBtn instanceof HTMLButtonElement && els.snoopBuySelect instanceof HTMLSelectElement) {
+      const scatters = Math.max(3, Math.min(6, Math.floor(Number(els.snoopBuySelect.value) || 3)));
+      const buyX = Math.max(1, Math.floor(Number(SNOOP_UI.buyCostByScatter[scatters]) || 1));
+      const buyCost = bet * buyX;
+      els.snoopBuyBtn.textContent = "Buy " + scatters + "SC " + buyCost + " WL";
+      els.snoopBuyBtn.disabled = !canBet || state.webVaultLocks < buyCost;
     }
 
     if (isBlackjack) {
@@ -2102,6 +2174,11 @@ window.GTModules = window.GTModules || {};
       if (els.spinBtn) {
         els.spinBtn.textContent = activeMines ? "Run Active" : "Start Run";
         els.spinBtn.disabled = activeMines || !canBet;
+      }
+    } else if (isSnoop) {
+      if (els.spinBtn) {
+        els.spinBtn.textContent = "Spin";
+        els.spinBtn.disabled = !canBet;
       }
     } else {
       if (els.spinBtn) {
@@ -2467,16 +2544,34 @@ window.GTModules = window.GTModules || {};
       return;
     }
 
-    const buyBonus = mode === "buybonus" && (machine.type === "slots_v2" || machine.type === "le_bandit");
-    const buyX = buyBonus ? 10 : 1;
+    const modeText = String(mode || "spin").trim().toLowerCase();
+    const buyBonus = modeText === "buybonus" && (machine.type === "slots_v2" || machine.type === "le_bandit");
+    const snoopBuyMatch = machine.type === "snoop_dogg_dollars" ? /^snoop_buy_([3-6])$/.exec(modeText) : null;
+    const isSnoopHype = machine.type === "snoop_dogg_dollars" && modeText === "hype";
+    const isSnoopBuy = Boolean(snoopBuyMatch);
+    let wagerX = 1;
+    let spinOptions = {};
+    if (buyBonus) {
+      wagerX = 10;
+      spinOptions = { mode: "buybonus" };
+    } else if (isSnoopHype) {
+      wagerX = Math.max(1, Math.floor(Number(SNOOP_UI.hypeCostX) || 20));
+      spinOptions = { mode: "hype" };
+    } else if (isSnoopBuy) {
+      const scatters = Math.max(3, Math.min(6, Math.floor(Number(snoopBuyMatch[1]) || 3)));
+      wagerX = Math.max(1, Math.floor(Number(SNOOP_UI.buyCostByScatter[scatters]) || 1));
+      spinOptions = { mode: "buybonus_" + scatters };
+    }
+    const isPremiumSpin = buyBonus || isSnoopHype || isSnoopBuy;
+    const showBonusSpinText = buyBonus || isSnoopBuy;
     const bet = clampBetToMachine(machine, state.currentBetValue);
 
-    const wager = bet * buyX;
+    const wager = bet * wagerX;
     if (state.webVaultLocks < wager) {
       return;
     }
 
-    startSpinFx(machine, buyBonus);
+    startSpinFx(machine, showBonusSpinText);
 
     const debit = await adjustWallet(-wager);
     if (!debit.ok) {
@@ -2496,14 +2591,14 @@ window.GTModules = window.GTModules || {};
       let rawResult = {};
       if (machine.type === "slots_v2") {
         if (typeof slotsModule.spin === "function") {
-          rawResult = slotsModule.spin("slots_v2", bet, buyBonus ? { mode: "buybonus" } : {}) || {};
+          rawResult = slotsModule.spin("slots_v2", bet, spinOptions) || {};
         } else {
           rawResult = simulateSixSixSix(machine, bet, buyBonus);
         }
       } else if (machine.type === "le_bandit") {
         rawResult = simulateLeBandit(machine, bet, buyBonus);
       } else if (typeof slotsModule.spin === "function") {
-        rawResult = slotsModule.spin(machine.type, bet, buyBonus ? { mode: "buybonus" } : {}) || {};
+        rawResult = slotsModule.spin(machine.type, bet, spinOptions) || {};
       } else {
         rawResult = simulateStandaloneSpin(machine, bet);
       }
@@ -2588,7 +2683,7 @@ window.GTModules = window.GTModules || {};
           }
         }
       } else {
-        if (buyBonus) await sleep(2000);
+        if (isPremiumSpin) await sleep(2000);
         else await sleep(800);
       }
 
@@ -2677,7 +2772,7 @@ window.GTModules = window.GTModules || {};
           els.lastWinLabel.classList.remove("good");
         }
       }
-      if (resolved.outcome === "win" || resolved.outcome === "jackpot" || buyBonus || payout > 0) {
+      if (resolved.outcome === "win" || resolved.outcome === "jackpot" || isPremiumSpin || payout > 0) {
         if (els.boardWrap instanceof HTMLElement) {
           els.boardWrap.classList.add("winfx");
           window.setTimeout(() => { if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx"); }, 800);
@@ -2706,14 +2801,14 @@ window.GTModules = window.GTModules || {};
           let rawResult = {};
           if (current.type === "slots_v2") {
             if (typeof slotsModule.spin === "function") {
-              rawResult = slotsModule.spin("slots_v2", bet, buyBonus ? { mode: "buybonus" } : {}) || {};
+              rawResult = slotsModule.spin("slots_v2", bet, spinOptions) || {};
             } else {
               rawResult = simulateSixSixSix(current, bet, buyBonus);
             }
           } else if (current.type === "le_bandit") {
             rawResult = simulateLeBandit(current, bet, buyBonus);
           } else {
-            rawResult = slotsModule.spin(current.type, bet, buyBonus ? { mode: "buybonus" } : {}) || {};
+            rawResult = slotsModule.spin(current.type, bet, spinOptions) || {};
           }
           const resultWager = Math.max(1, Math.floor(Number(rawResult.bet) || wager));
           const wanted = Math.max(0, Math.floor(Number(rawResult.payoutWanted) || 0));
@@ -2850,12 +2945,12 @@ window.GTModules = window.GTModules || {};
           }
         }
 
-        if (resolved.outcome === "win" || resolved.outcome === "jackpot") {
+        if (resolved.outcome === "win" || resolved.outcome === "jackpot" || isPremiumSpin || payout > 0) {
           if (els.boardWrap instanceof HTMLElement) {
             els.boardWrap.classList.add("winfx");
             window.setTimeout(() => { if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx"); }, 420);
           }
-          spawnParticles(resolved.outcome);
+          spawnParticles(payout >= bet * 50 ? "jackpot" : "win");
         }
         renderAll();
       } catch (error) {
@@ -2924,6 +3019,15 @@ window.GTModules = window.GTModules || {};
 
     if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.addEventListener("click", () => runSpin("spin"));
     if (els.buyBonusBtn instanceof HTMLButtonElement) els.buyBonusBtn.addEventListener("click", () => runSpin("buybonus"));
+    if (els.snoopHypeBtn instanceof HTMLButtonElement) els.snoopHypeBtn.addEventListener("click", () => runSpin("hype"));
+    if (els.snoopBuyBtn instanceof HTMLButtonElement) {
+      els.snoopBuyBtn.addEventListener("click", () => {
+        const scatters = els.snoopBuySelect instanceof HTMLSelectElement
+          ? Math.max(3, Math.min(6, Math.floor(Number(els.snoopBuySelect.value) || 3)))
+          : 3;
+        runSpin("snoop_buy_" + scatters);
+      });
+    }
     if (els.towerDifficultySelect instanceof HTMLSelectElement) {
       els.towerDifficultySelect.addEventListener("change", () => {
         const machine = getSelectedMachine();

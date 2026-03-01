@@ -32,6 +32,16 @@ window.GTModules = window.GTModules || {};
       volatility: "high",
       layout: { reels: 6, rows: 5 }
     },
+    snoop_dogg_dollars: {
+      id: "snoop_dogg_dollars",
+      name: "Snoop Dogg Dollars",
+      minBet: 1,
+      maxBet: 30000,
+      maxPayoutMultiplier: 10000,
+      rtp: 0.96,
+      volatility: "very-high",
+      layout: { reels: 6, rows: 8 }
+    },
     slots_v3: {
       id: "slots_v3",
       name: "Slots v3",
@@ -260,6 +270,57 @@ window.GTModules = window.GTModules || {};
     extraWildChance: 0.32,
     maxFeatureSpins: 60
   };
+
+  const SNOOP_CFG = {
+    rows: Math.max(1, Math.floor(Number(GAME_DEFS.snoop_dogg_dollars.layout.rows) || 8)),
+    reels: Math.max(1, Math.floor(Number(GAME_DEFS.snoop_dogg_dollars.layout.reels) || 6)),
+    rtp: Number(GAME_DEFS.snoop_dogg_dollars.rtp) || 0.96,
+    clusterMin: 5,
+    maxCascade: 14,
+    digUpChance: 0.34,
+    digIconWeights: {
+      none: 56,
+      scatter: 20,
+      wild: 14,
+      weed: 7,
+      skull: 3
+    },
+    freeSpinsByScatters: { 3: 10, 4: 12, 5: 15, 6: 20 },
+    buyBonusCosts: { 3: 80, 4: 140, 5: 220, 6: 320 },
+    hypeCostX: 20,
+    multiplierCellValue: 10,
+    weedAddsMultiplierCells: 2,
+    wildUpgradeMult: 10,
+    houseEdge: 0.04,
+    maxRoundWinX: 10000,
+    maxFeatureSpins: 220,
+    lowPayingSymbols: ["dimebag", "lighter", "leaf", "mic"],
+    symbols: [
+      { id: "dimebag", icon: "DIME", weight: 22, payouts: { 5: 0.22, 9: 0.5, 13: 1.0, 17: 1.9 } },
+      { id: "lighter", icon: "LITE", weight: 20, payouts: { 5: 0.24, 9: 0.55, 13: 1.1, 17: 2.1 } },
+      { id: "leaf", icon: "LEAF", weight: 18, payouts: { 5: 0.28, 9: 0.62, 13: 1.25, 17: 2.4 } },
+      { id: "mic", icon: "MIC", weight: 16, payouts: { 5: 0.34, 9: 0.75, 13: 1.5, 17: 2.9 } },
+      { id: "dollar", icon: "BILL", weight: 13, payouts: { 5: 0.45, 9: 1.0, 13: 2.1, 17: 4.1 } },
+      { id: "chain", icon: "CHN", weight: 11, payouts: { 5: 0.6, 9: 1.4, 13: 2.9, 17: 5.6 } },
+      { id: "lowrider", icon: "LOWR", weight: 8, payouts: { 5: 0.85, 9: 2.0, 13: 4.2, 17: 8.2 } },
+      { id: "dogg", icon: "DOGG", weight: 6, payouts: { 5: 1.2, 9: 2.9, 13: 6.3, 17: 12.5 } },
+      { id: "crown", icon: "CROW", weight: 4, payouts: { 5: 1.8, 9: 4.2, 13: 9.0, 17: 18.5 } }
+    ],
+    dropExtras: [
+      { id: "scatter", icon: "SCAT", weight: 2 },
+      { id: "wild", icon: "WILD", weight: 2 }
+    ]
+  };
+  const SNOOP_DROP_SYMBOLS = SNOOP_CFG.symbols
+    .map((row) => ({ id: row.id, icon: row.icon, weight: row.weight }))
+    .concat(SNOOP_CFG.dropExtras.slice());
+  const SNOOP_KEY_LIST = (() => {
+    const out = [];
+    for (let r = 0; r < SNOOP_CFG.rows; r++) {
+      for (let c = 0; c < SNOOP_CFG.reels; c++) out.push(r + "_" + c);
+    }
+    return out;
+  })();
 
   function cloneDef(row) {
     const def = row || GAME_DEFS.slots;
@@ -1346,9 +1407,703 @@ window.GTModules = window.GTModules || {};
     };
   }
 
+  function snoopKey(r, c) {
+    return String(r) + "_" + String(c);
+  }
+
+  function snoopShuffle(list) {
+    const arr = Array.isArray(list) ? list.slice() : [];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = arr[i];
+      arr[i] = arr[j];
+      arr[j] = t;
+    }
+    return arr;
+  }
+
+  function snoopRegularCell(row) {
+    return {
+      id: String(row && row.id || "none"),
+      icon: String(row && row.icon || "?"),
+      kind: "regular"
+    };
+  }
+
+  function snoopScatterCell() {
+    return { id: "scatter", icon: "SCAT", kind: "scatter" };
+  }
+
+  function snoopStickyWildCell(mult) {
+    return {
+      id: "wild",
+      icon: "WILD",
+      kind: "sticky_wild",
+      sticky: true,
+      wildMult: Math.max(1, Math.floor(Number(mult) || 1))
+    };
+  }
+
+  function snoopCreateGrid() {
+    const grid = [];
+    for (let r = 0; r < SNOOP_CFG.rows; r++) {
+      grid[r] = [];
+      for (let c = 0; c < SNOOP_CFG.reels; c++) grid[r][c] = null;
+    }
+    return grid;
+  }
+
+  function snoopPickClusterPayout(symbolId, size) {
+    const safeSize = Math.max(0, Math.floor(Number(size) || 0));
+    const row = SNOOP_CFG.symbols.find((s) => String(s && s.id || "") === String(symbolId || ""));
+    const pays = row && row.payouts ? row.payouts : {};
+    if (safeSize >= 17) return Math.max(0, Number(pays[17]) || 0);
+    if (safeSize >= 13) return Math.max(0, Number(pays[13]) || 0);
+    if (safeSize >= 9) return Math.max(0, Number(pays[9]) || 0);
+    if (safeSize >= 5) return Math.max(0, Number(pays[5]) || 0);
+    return 0;
+  }
+
+  function snoopCreateRoundState(bet) {
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    return {
+      bet: safeBet,
+      winCap: safeBet * Math.max(1, Math.floor(Number(SNOOP_CFG.maxRoundWinX) || 10000)),
+      marked: {},
+      stickyWilds: {},
+      cellMultipliers: {},
+      scatterCollected: 0,
+      collectScatters: true
+    };
+  }
+
+  function snoopSpawnCell(state, r, c) {
+    const key = snoopKey(r, c);
+    const lockedWild = Math.max(0, Math.floor(Number(state.stickyWilds[key]) || 0));
+    if (lockedWild > 0) return snoopStickyWildCell(lockedWild);
+    const pick = pickWeighted(SNOOP_DROP_SYMBOLS);
+    const id = String(pick && pick.id || "");
+    if (id === "wild") {
+      const base = state.marked[key] ? Math.max(1, Math.floor(Number(SNOOP_CFG.multiplierCellValue) || 10)) : 1;
+      state.stickyWilds[key] = Math.max(base, Math.floor(Number(state.stickyWilds[key]) || 0));
+      return snoopStickyWildCell(state.stickyWilds[key]);
+    }
+    if (id === "scatter") {
+      if (state.collectScatters) state.scatterCollected += 1;
+      return snoopScatterCell();
+    }
+    return snoopRegularCell(pick);
+  }
+
+  function snoopRefillGrid(grid, state) {
+    const out = Array.isArray(grid) ? grid : snoopCreateGrid();
+    for (let c = 0; c < SNOOP_CFG.reels; c++) {
+      const anchors = {};
+      for (let r = 0; r < SNOOP_CFG.rows; r++) {
+        const key = snoopKey(r, c);
+        const wild = Math.max(0, Math.floor(Number(state.stickyWilds[key]) || 0));
+        if (wild > 0) anchors[r] = snoopStickyWildCell(wild);
+      }
+      const movers = [];
+      for (let r = SNOOP_CFG.rows - 1; r >= 0; r--) {
+        if (anchors[r]) continue;
+        const cell = out[r] && out[r][c] ? out[r][c] : null;
+        if (cell) movers.push(cell);
+      }
+      for (let r = SNOOP_CFG.rows - 1; r >= 0; r--) {
+        if (anchors[r]) {
+          out[r][c] = anchors[r];
+          continue;
+        }
+        if (movers.length > 0) out[r][c] = movers.shift();
+        else out[r][c] = snoopSpawnCell(state, r, c);
+      }
+    }
+    return out;
+  }
+
+  function snoopBuildFreshGrid(state) {
+    const grid = snoopCreateGrid();
+    return snoopRefillGrid(grid, state);
+  }
+
+  function snoopGridToTextRows(grid, state) {
+    const safe = Array.isArray(grid) ? grid : [];
+    const ctx = state && typeof state === "object" ? state : { stickyWilds: {}, cellMultipliers: {} };
+    const out = [];
+    for (let r = 0; r < safe.length; r++) {
+      const row = Array.isArray(safe[r]) ? safe[r] : [];
+      const tokens = [];
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c] && typeof row[c] === "object" ? row[c] : null;
+        if (!cell) {
+          tokens.push("?");
+          continue;
+        }
+        const key = snoopKey(r, c);
+        const base = String(cell.icon || "?");
+        const wildMult = String(cell.id || "") === "wild"
+          ? Math.max(1, Math.floor(Number(cell.wildMult || ctx.stickyWilds[key]) || 1))
+          : 1;
+        const cellMult = Math.max(1, Math.floor(Number(ctx.cellMultipliers[key]) || 1));
+        if (String(cell.id || "") === "wild" && wildMult > 1) {
+          tokens.push(base + "@W" + wildMult);
+        } else if (cellMult > 1) {
+          tokens.push(base + "@M" + cellMult);
+        } else {
+          tokens.push(base);
+        }
+      }
+      out.push(tokens.join(","));
+    }
+    return out;
+  }
+
+  function snoopFindClusterCandidates(grid, symbolId) {
+    const visited = {};
+    const out = [];
+    const target = String(symbolId || "");
+    function inBounds(r, c) {
+      return r >= 0 && c >= 0 && r < SNOOP_CFG.rows && c < SNOOP_CFG.reels;
+    }
+    function allowed(cell) {
+      if (!cell || typeof cell !== "object") return false;
+      const id = String(cell.id || "");
+      return id === target || id === "wild";
+    }
+    for (let r = 0; r < SNOOP_CFG.rows; r++) {
+      for (let c = 0; c < SNOOP_CFG.reels; c++) {
+        const k = snoopKey(r, c);
+        if (visited[k]) continue;
+        const cell = grid[r] && grid[r][c] ? grid[r][c] : null;
+        if (!allowed(cell)) continue;
+        const queue = [{ r, c }];
+        const cells = [];
+        let natural = 0;
+        visited[k] = true;
+        while (queue.length) {
+          const cur = queue.shift();
+          const ck = snoopKey(cur.r, cur.c);
+          const cc = grid[cur.r] && grid[cur.r][cur.c] ? grid[cur.r][cur.c] : null;
+          if (!allowed(cc)) continue;
+          cells.push({ r: cur.r, c: cur.c, key: ck, cell: cc });
+          if (String(cc.id || "") === target) natural += 1;
+          const next = [
+            { r: cur.r - 1, c: cur.c },
+            { r: cur.r + 1, c: cur.c },
+            { r: cur.r, c: cur.c - 1 },
+            { r: cur.r, c: cur.c + 1 }
+          ];
+          for (let i = 0; i < next.length; i++) {
+            const n = next[i];
+            if (!inBounds(n.r, n.c)) continue;
+            const nk = snoopKey(n.r, n.c);
+            if (visited[nk]) continue;
+            const nc = grid[n.r] && grid[n.r][n.c] ? grid[n.r][n.c] : null;
+            if (!allowed(nc)) continue;
+            visited[nk] = true;
+            queue.push(n);
+          }
+        }
+        if (cells.length >= SNOOP_CFG.clusterMin && natural > 0) {
+          const pay = snoopPickClusterPayout(target, cells.length);
+          if (pay > 0) out.push({ symbolId: target, cells, size: cells.length, pay });
+        }
+      }
+    }
+    return out;
+  }
+
+  function snoopFindWinningClusters(grid) {
+    const all = [];
+    for (let i = 0; i < SNOOP_CFG.symbols.length; i++) {
+      const row = SNOOP_CFG.symbols[i];
+      const id = String(row && row.id || "");
+      if (!id) continue;
+      const found = snoopFindClusterCandidates(grid, id);
+      for (let f = 0; f < found.length; f++) all.push(found[f]);
+    }
+    all.sort((a, b) => {
+      const aVal = (Number(a.pay) || 0) * (Number(a.size) || 0);
+      const bVal = (Number(b.pay) || 0) * (Number(b.size) || 0);
+      if (bVal !== aVal) return bVal - aVal;
+      return (Number(b.size) || 0) - (Number(a.size) || 0);
+    });
+    const used = {};
+    const selected = [];
+    for (let i = 0; i < all.length; i++) {
+      const row = all[i];
+      let conflict = false;
+      for (let c = 0; c < row.cells.length; c++) {
+        if (used[row.cells[c].key]) {
+          conflict = true;
+          break;
+        }
+      }
+      if (conflict) continue;
+      for (let c = 0; c < row.cells.length; c++) used[row.cells[c].key] = true;
+      selected.push(row);
+    }
+    return selected;
+  }
+
+  function snoopAddMarked(state, key) {
+    if (!state.marked[key]) state.marked[key] = true;
+  }
+
+  function snoopBoostWilds(state, grid, steps) {
+    const safeSteps = Math.max(0, Math.floor(Number(steps) || 0));
+    if (safeSteps <= 0) return 0;
+    const factor = Math.pow(Math.max(2, Math.floor(Number(SNOOP_CFG.wildUpgradeMult) || 10)), safeSteps);
+    const keys = Object.keys(state.stickyWilds || {});
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const next = Math.max(1, Math.floor((Number(state.stickyWilds[k]) || 1) * factor));
+      state.stickyWilds[k] = Math.min(1000000000, next);
+      const parts = k.split("_");
+      const r = Math.floor(Number(parts[0]));
+      const c = Math.floor(Number(parts[1]));
+      if (r >= 0 && c >= 0 && r < SNOOP_CFG.rows && c < SNOOP_CFG.reels) {
+        grid[r][c] = snoopStickyWildCell(state.stickyWilds[k]);
+      }
+    }
+    return keys.length;
+  }
+
+  function snoopAddMultiplierCells(state, addCount) {
+    const want = Math.max(0, Math.floor(Number(addCount) || 0));
+    if (want <= 0) return 0;
+    const shuffled = snoopShuffle(SNOOP_KEY_LIST);
+    const cellMult = Math.max(1, Math.floor(Number(SNOOP_CFG.multiplierCellValue) || 10));
+    let added = 0;
+    for (let i = 0; i < shuffled.length && added < want; i++) {
+      const key = shuffled[i];
+      const current = Math.max(1, Math.floor(Number(state.cellMultipliers[key]) || 1));
+      if (current >= cellMult) continue;
+      state.cellMultipliers[key] = Math.max(current, cellMult);
+      added += 1;
+    }
+    return added;
+  }
+
+  function snoopPickDigIcon() {
+    if (Math.random() > Math.max(0, Math.min(1, Number(SNOOP_CFG.digUpChance) || 0.34))) return "none";
+    const bag = [
+      { id: "none", weight: SNOOP_CFG.digIconWeights.none },
+      { id: "scatter", weight: SNOOP_CFG.digIconWeights.scatter },
+      { id: "wild", weight: SNOOP_CFG.digIconWeights.wild },
+      { id: "weed", weight: SNOOP_CFG.digIconWeights.weed },
+      { id: "skull", weight: SNOOP_CFG.digIconWeights.skull }
+    ];
+    const pick = pickWeighted(bag);
+    return String(pick && pick.id || "none");
+  }
+
+  function snoopApplySkull(grid, state) {
+    const low = {};
+    for (let i = 0; i < SNOOP_CFG.lowPayingSymbols.length; i++) low[String(SNOOP_CFG.lowPayingSymbols[i])] = true;
+    const removed = [];
+    for (let r = 0; r < SNOOP_CFG.rows; r++) {
+      for (let c = 0; c < SNOOP_CFG.reels; c++) {
+        const cell = grid[r] && grid[r][c] ? grid[r][c] : null;
+        if (!cell || String(cell.id || "") === "wild") continue;
+        if (!low[String(cell.id || "")]) continue;
+        const k = snoopKey(r, c);
+        grid[r][c] = null;
+        snoopAddMarked(state, k);
+        removed.push({ r, c, key: k });
+      }
+    }
+    return removed;
+  }
+
+  function snoopApplyDigUps(state, grid, clearedCells, guaranteeWildCount) {
+    const safeCells = Array.isArray(clearedCells) ? clearedCells.slice() : [];
+    const reveals = [];
+    for (let i = 0; i < safeCells.length; i++) {
+      const cell = safeCells[i];
+      reveals.push({
+        r: Math.floor(Number(cell.r)),
+        c: Math.floor(Number(cell.c)),
+        key: String(cell.key || snoopKey(cell.r, cell.c)),
+        icon: snoopPickDigIcon()
+      });
+    }
+    const forceWild = Math.max(0, Math.floor(Number(guaranteeWildCount) || 0));
+    let wildNow = 0;
+    for (let i = 0; i < reveals.length; i++) if (reveals[i].icon === "wild") wildNow += 1;
+    if (forceWild > wildNow) {
+      const candidates = [];
+      for (let i = 0; i < reveals.length; i++) {
+        if (reveals[i].icon !== "wild") candidates.push(i);
+      }
+      let needed = forceWild - wildNow;
+      while (candidates.length && needed > 0) {
+        const pick = Math.floor(Math.random() * candidates.length);
+        const idx = candidates[pick];
+        reveals[idx].icon = "wild";
+        candidates.splice(pick, 1);
+        needed -= 1;
+      }
+    }
+    let scatters = 0;
+    let weeds = 0;
+    let skulls = 0;
+    let wilds = 0;
+    for (let i = 0; i < reveals.length; i++) {
+      const row = reveals[i];
+      const key = row.key;
+      if (row.icon === "scatter") {
+        grid[row.r][row.c] = snoopScatterCell();
+        if (state.collectScatters) state.scatterCollected += 1;
+        scatters += 1;
+      } else if (row.icon === "wild") {
+        const base = state.marked[key] ? Math.max(1, Math.floor(Number(SNOOP_CFG.multiplierCellValue) || 10)) : 1;
+        const next = Math.max(base, Math.floor(Number(state.stickyWilds[key]) || 0));
+        state.stickyWilds[key] = next;
+        grid[row.r][row.c] = snoopStickyWildCell(next);
+        wilds += 1;
+      } else if (row.icon === "weed") {
+        weeds += 1;
+      } else if (row.icon === "skull") {
+        skulls += 1;
+      }
+    }
+    let addedMultiplierCells = 0;
+    let boostedWilds = 0;
+    if (weeds > 0) {
+      addedMultiplierCells = snoopAddMultiplierCells(state, weeds * Math.max(1, Math.floor(Number(SNOOP_CFG.weedAddsMultiplierCells) || 2)));
+      boostedWilds = snoopBoostWilds(state, grid, weeds);
+    }
+    let skullRemoved = [];
+    if (skulls > 0) {
+      skullRemoved = snoopApplySkull(grid, state);
+    }
+    return {
+      scatters,
+      weeds,
+      skulls,
+      wilds,
+      addedMultiplierCells,
+      boostedWilds,
+      skullRemoved
+    };
+  }
+
+  function snoopTransformScattersForFeature(state, grid, triggerCount) {
+    const need = Math.max(0, Math.floor(Number(triggerCount) || 0));
+    if (need <= 0) return { transformedWilds: 0, transformedMultipliers: 0 };
+    const scatterCells = [];
+    for (let r = 0; r < SNOOP_CFG.rows; r++) {
+      for (let c = 0; c < SNOOP_CFG.reels; c++) {
+        const cell = grid[r] && grid[r][c] ? grid[r][c] : null;
+        if (cell && String(cell.id || "") === "scatter") {
+          scatterCells.push({ r, c, key: snoopKey(r, c) });
+        }
+      }
+    }
+    const picks = scatterCells.slice(0, need);
+    if (picks.length < need) {
+      const taken = {};
+      for (let i = 0; i < picks.length; i++) taken[picks[i].key] = true;
+      const shuffled = snoopShuffle(SNOOP_KEY_LIST);
+      for (let i = 0; i < shuffled.length && picks.length < need; i++) {
+        if (taken[shuffled[i]]) continue;
+        const parts = shuffled[i].split("_");
+        picks.push({ r: Math.floor(Number(parts[0])), c: Math.floor(Number(parts[1])), key: shuffled[i] });
+        taken[shuffled[i]] = true;
+      }
+    }
+    let transformedWilds = 0;
+    let transformedMultipliers = 0;
+    for (let i = 0; i < picks.length; i++) {
+      const row = picks[i];
+      if (Math.random() < 0.5) {
+        const base = state.marked[row.key] ? Math.max(1, Math.floor(Number(SNOOP_CFG.multiplierCellValue) || 10)) : 1;
+        state.stickyWilds[row.key] = Math.max(base, Math.floor(Number(state.stickyWilds[row.key]) || 0));
+        grid[row.r][row.c] = snoopStickyWildCell(state.stickyWilds[row.key]);
+        transformedWilds += 1;
+      } else {
+        state.cellMultipliers[row.key] = Math.max(
+          Math.floor(Number(state.cellMultipliers[row.key]) || 1),
+          Math.max(1, Math.floor(Number(SNOOP_CFG.multiplierCellValue) || 10))
+        );
+        grid[row.r][row.c] = null;
+        transformedMultipliers += 1;
+      }
+    }
+    grid = snoopRefillGrid(grid, state);
+    return { transformedWilds, transformedMultipliers, grid };
+  }
+
+  function snoopComputeClusterWin(state, cluster) {
+    const safeCluster = cluster || {};
+    const cells = Array.isArray(safeCluster.cells) ? safeCluster.cells : [];
+    let highestCellMult = 1;
+    let highestWildMult = 1;
+    for (let i = 0; i < cells.length; i++) {
+      const row = cells[i];
+      const key = String(row && row.key || "");
+      if (!key) continue;
+      highestCellMult = Math.max(highestCellMult, Math.max(1, Math.floor(Number(state.cellMultipliers[key]) || 1)));
+      const cell = row.cell || {};
+      if (String(cell.id || "") === "wild") {
+        const w = Math.max(1, Math.floor(Number(cell.wildMult || state.stickyWilds[key]) || 1));
+        highestWildMult = Math.max(highestWildMult, w);
+      }
+    }
+    const base = Math.max(0, Number(safeCluster.pay) || 0) * Math.max(1, Number(state.bet) || 1);
+    const edgeFactor = Math.max(0.8, Math.min(1, 1 - (Number(SNOOP_CFG.houseEdge) || 0.04)));
+    const applied = Math.max(highestCellMult, highestWildMult);
+    const payout = Math.max(0, Math.floor(base * applied * edgeFactor));
+    return {
+      payout,
+      appliedMultiplier: applied,
+      highestCellMult,
+      highestWildMult
+    };
+  }
+
+  function snoopRunCascades(state, startGrid, options) {
+    let grid = Array.isArray(startGrid) ? startGrid : snoopBuildFreshGrid(state);
+    const opts = options && typeof options === "object" ? options : {};
+    let guaranteedWild = Math.max(0, Math.floor(Number(opts.guaranteedWild) || 0));
+    const lineWins = [];
+    let totalPayout = 0;
+    let cascades = 0;
+    while (cascades < Math.max(1, Math.floor(Number(SNOOP_CFG.maxCascade) || 12))) {
+      const winners = snoopFindWinningClusters(grid);
+      if (!winners.length) break;
+      cascades += 1;
+      const cleared = [];
+      const clearedMap = {};
+      for (let w = 0; w < winners.length; w++) {
+        const row = winners[w];
+        const win = snoopComputeClusterWin(state, row);
+        totalPayout += Math.max(0, win.payout);
+        lineWins.push(
+          "C" + cascades + " " +
+          String(row.symbolId || "").toUpperCase() +
+          " x" + row.size +
+          " -> " + Math.floor(win.payout / Math.max(1, state.bet)) + "x"
+        );
+        for (let i = 0; i < row.cells.length; i++) {
+          const cellRef = row.cells[i];
+          const key = String(cellRef && cellRef.key || "");
+          const cell = cellRef && cellRef.cell ? cellRef.cell : null;
+          if (!cell || !key) continue;
+          if (String(cell.id || "") === "wild") {
+            const prev = Math.max(1, Math.floor(Number(state.stickyWilds[key] || cell.wildMult) || 1));
+            const next = Math.min(1000000000, prev * Math.max(2, Math.floor(Number(SNOOP_CFG.wildUpgradeMult) || 10)));
+            state.stickyWilds[key] = next;
+            grid[cellRef.r][cellRef.c] = snoopStickyWildCell(next);
+            continue;
+          }
+          grid[cellRef.r][cellRef.c] = null;
+          snoopAddMarked(state, key);
+          if (!clearedMap[key]) {
+            clearedMap[key] = true;
+            cleared.push({ r: cellRef.r, c: cellRef.c, key });
+          }
+        }
+      }
+      if (!cleared.length) break;
+      const dig = snoopApplyDigUps(state, grid, cleared, guaranteedWild);
+      guaranteedWild = 0;
+      if (dig.wilds > 0) lineWins.push("DIG: +" + dig.wilds + " Sticky Wild");
+      if (dig.scatters > 0) lineWins.push("DIG: +" + dig.scatters + " Scatter");
+      if (dig.weeds > 0) {
+        lineWins.push("DIG: WEED x" + dig.weeds + " (+" + dig.addedMultiplierCells + " x10 cells)");
+      }
+      if (dig.skulls > 0) {
+        lineWins.push("DIG: SKULL x" + dig.skulls + " (cleanse)");
+      }
+      if (Array.isArray(dig.skullRemoved) && dig.skullRemoved.length) {
+        lineWins.push("SKULL removed " + dig.skullRemoved.length + " low symbols");
+      }
+      grid = snoopRefillGrid(grid, state);
+      if (totalPayout >= state.winCap) {
+        totalPayout = state.winCap;
+        break;
+      }
+    }
+    return {
+      payout: Math.max(0, Math.min(state.winCap, totalPayout)),
+      cascades,
+      lineWins: lineWins.slice(0, 48),
+      finalGrid: grid
+    };
+  }
+
+  function snoopFsAward(scatterCount) {
+    const safe = Math.max(0, Math.floor(Number(scatterCount) || 0));
+    const clamped = Math.max(3, Math.min(6, safe));
+    return Math.max(0, Math.floor(Number(SNOOP_CFG.freeSpinsByScatters[clamped]) || 0));
+  }
+
+  function runSnoopFeatureSpins(state, startGrid, awardedSpins) {
+    const totalSpins = Math.max(0, Math.floor(Number(awardedSpins) || 0));
+    let played = 0;
+    let payout = 0;
+    let grid = Array.isArray(startGrid) ? startGrid : snoopBuildFreshGrid(state);
+    const timeline = [];
+    const originalCollect = state.collectScatters;
+    state.collectScatters = false;
+    while (played < totalSpins && played < Math.max(1, Math.floor(Number(SNOOP_CFG.maxFeatureSpins) || 220))) {
+      played += 1;
+      grid = snoopBuildFreshGrid(state);
+      const run = snoopRunCascades(state, grid, {});
+      payout += Math.max(0, Math.floor(Number(run.payout) || 0));
+      grid = run.finalGrid;
+      if (run.payout > 0) {
+        timeline.push("FS" + played + ": " + Math.floor(run.payout / Math.max(1, state.bet)) + "x");
+      } else {
+        timeline.push("FS" + played + ": miss");
+      }
+      if (payout >= state.winCap) {
+        payout = state.winCap;
+        break;
+      }
+    }
+    state.collectScatters = originalCollect;
+    return {
+      spinsPlayed: played,
+      payout: Math.max(0, Math.min(state.winCap, payout)),
+      timeline: timeline.slice(0, 32),
+      finalGrid: grid
+    };
+  }
+
+  function parseSnoopBuyTrigger(modeText) {
+    const raw = String(modeText || "").trim().toLowerCase();
+    const direct = /^buybonus[_-]?([3-6])$/.exec(raw);
+    if (direct) return Math.max(3, Math.min(6, Math.floor(Number(direct[1]) || 3)));
+    const short = /^buy[_-]?([3-6])$/.exec(raw);
+    if (short) return Math.max(3, Math.min(6, Math.floor(Number(short[1]) || 3)));
+    const prefixed = /^snoop[_-]?buy[_-]?([3-6])$/.exec(raw);
+    if (prefixed) return Math.max(3, Math.min(6, Math.floor(Number(prefixed[1]) || 3)));
+    return 0;
+  }
+
+  function spinSnoopDollars(bet, options) {
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    const opts = options && typeof options === "object" ? options : {};
+    const mode = String(opts.mode || "spin").trim().toLowerCase();
+    const buyTrigger = parseSnoopBuyTrigger(mode);
+    const isHype = mode === "hype";
+
+    let wagerMult = 1;
+    if (isHype) {
+      wagerMult = Math.max(1, Math.floor(Number(SNOOP_CFG.hypeCostX) || 20));
+    } else if (buyTrigger >= 3) {
+      wagerMult = Math.max(1, Math.floor(Number(SNOOP_CFG.buyBonusCosts[buyTrigger]) || 1));
+    }
+    const wager = Math.max(1, Math.floor(safeBet * wagerMult));
+    const state = snoopCreateRoundState(safeBet);
+    const lineWins = [];
+
+    let basePayout = 0;
+    let bonusTriggered = false;
+    let freeSpinsAwarded = 0;
+    let freeSpinsPlayed = 0;
+    let freeSpinPayout = 0;
+    let grid = snoopBuildFreshGrid(state);
+
+    if (buyTrigger >= 3) {
+      bonusTriggered = true;
+      freeSpinsAwarded = snoopFsAward(buyTrigger);
+      lineWins.push("BUY BONUS " + buyTrigger + " SCAT (" + wagerMult + "x bet)");
+      const transform = snoopTransformScattersForFeature(state, grid, buyTrigger);
+      grid = transform.grid;
+      lineWins.push("Transform: " + transform.transformedWilds + " Sticky Wild | " + transform.transformedMultipliers + " x10 Cells");
+    } else {
+      const baseRun = snoopRunCascades(state, grid, { guaranteedWild: isHype ? 1 : 0 });
+      basePayout = Math.max(0, Math.floor(Number(baseRun.payout) || 0));
+      grid = baseRun.finalGrid;
+      for (let i = 0; i < baseRun.lineWins.length && lineWins.length < 42; i++) lineWins.push(baseRun.lineWins[i]);
+      if (isHype) lineWins.unshift("Hype Spin: Guaranteed 1 Sticky Wild");
+      if (state.scatterCollected >= 3) {
+        bonusTriggered = true;
+        const scat = Math.max(3, Math.min(6, Math.floor(Number(state.scatterCollected) || 3)));
+        freeSpinsAwarded = snoopFsAward(scat);
+        const transform = snoopTransformScattersForFeature(state, grid, scat);
+        grid = transform.grid;
+        lineWins.push("SCATTER x" + scat + " -> " + freeSpinsAwarded + " FS");
+        lineWins.push("Transform: " + transform.transformedWilds + " Sticky Wild | " + transform.transformedMultipliers + " x10 Cells");
+      }
+    }
+
+    if (freeSpinsAwarded > 0) {
+      const fs = runSnoopFeatureSpins(state, grid, freeSpinsAwarded);
+      freeSpinsPlayed = Math.max(0, Math.floor(Number(fs.spinsPlayed) || 0));
+      freeSpinPayout = Math.max(0, Math.floor(Number(fs.payout) || 0));
+      grid = fs.finalGrid;
+      if (fs.timeline.length) lineWins.push("FS: " + fs.timeline.slice(0, 8).join(" / "));
+    }
+
+    const uncapped = Math.max(0, basePayout + freeSpinPayout);
+    const cap = Math.max(1, Math.floor(Number(state.winCap) || (safeBet * 10000)));
+    const payoutWanted = Math.max(0, Math.min(cap, uncapped));
+    const multiplier = safeBet > 0 ? Number((payoutWanted / safeBet).toFixed(2)) : 0;
+    const outcome = multiplier >= 300 ? "jackpot" : (multiplier > 0 ? "win" : "lose");
+    const summary = lineWins.length
+      ? lineWins.slice(0, 3).join(" | ")
+      : "No clusters";
+
+    return {
+      gameId: "snoop_dogg_dollars",
+      bet: wager,
+      baseBet: safeBet,
+      buyX: wagerMult,
+      reels: snoopGridToTextRows(grid, state),
+      multiplier,
+      payoutWanted,
+      outcome,
+      summary: String(summary || "No clusters").slice(0, 220),
+      paylines: 0,
+      lineIds: [],
+      lineWins: lineWins.slice(0, 24),
+      scatterCount: Math.max(0, Math.floor(Number(state.scatterCollected) || 0)),
+      bonusTriggered: Boolean(bonusTriggered),
+      freeSpinsAwarded,
+      freeSpinsPlayed,
+      freeSpinPayout,
+      rtpTarget: Number(SNOOP_CFG.rtp) || Number(GAME_DEFS.snoop_dogg_dollars.rtp) || 0.96
+    };
+  }
+
+  function simulateSnoopDollars(spins, bet, options) {
+    const n = Math.max(1, Math.floor(Number(spins) || 100000));
+    const stake = Math.max(1, Math.floor(Number(bet) || 1));
+    const opts = options && typeof options === "object" ? options : {};
+    let totalWager = 0;
+    let totalPayout = 0;
+    let wins = 0;
+    let jackpots = 0;
+    for (let i = 0; i < n; i++) {
+      const out = spinSnoopDollars(stake, opts);
+      const w = Math.max(1, Math.floor(Number(out && out.bet) || stake));
+      const p = Math.max(0, Math.floor(Number(out && out.payoutWanted) || 0));
+      totalWager += w;
+      totalPayout += p;
+      if (p > 0) wins += 1;
+      if (String(out && out.outcome || "") === "jackpot") jackpots += 1;
+    }
+    return {
+      gameId: "snoop_dogg_dollars",
+      spins: n,
+      totalWager,
+      totalPayout,
+      rtp: totalWager > 0 ? Number((totalPayout / totalWager).toFixed(6)) : 0,
+      hitRate: Number((wins / n).toFixed(6)),
+      jackpotRate: Number((jackpots / n).toFixed(6))
+    };
+  }
+
   function spin(gameId, bet, options) {
     const id = String(gameId || "slots").trim().toLowerCase();
     if (id === "slots_v2") return spinV2(bet, options);
+    if (id === "snoop_dogg_dollars") return spinSnoopDollars(bet, options);
     if (id === "slots_v3") return spinV3(bet, options);
     if (id === "slots_v4") return spinV4(bet, options);
     if (id === "slots_v6") return spinV6(bet, options);
@@ -1358,7 +2113,8 @@ window.GTModules = window.GTModules || {};
 
   const api = {
     spin,
-    getDefinitions
+    getDefinitions,
+    simulateSnoopDollars
   };
 
   window.GTModules.slots = api;
