@@ -1346,6 +1346,63 @@
     return { ok: true, next: nextWallet.vault, amount: Math.abs(delta) };
   }
 
+  function setVaultBusy(isBusy) {
+    const busy = Boolean(isBusy);
+    if (els.vaultDepositBtn instanceof HTMLButtonElement) els.vaultDepositBtn.disabled = busy;
+    if (els.vaultWithdrawBtn instanceof HTMLButtonElement) els.vaultWithdrawBtn.disabled = busy;
+    if (els.vaultAmount instanceof HTMLInputElement) els.vaultAmount.disabled = busy;
+  }
+
+  function formatVaultErrorReason(reason, direction) {
+    const safe = String(reason || "").trim().toLowerCase();
+    if (safe === "not-ready") return "login and load a world first";
+    if (safe === "missing-wallet-ref") return "wallet reference is unavailable";
+    if (safe === "invalid-delta") return "invalid amount";
+    if (safe === "wallet-update-rejected") {
+      return direction === "deposit"
+        ? "not enough game WL or transaction rejected"
+        : "not enough vault WL or transaction rejected";
+    }
+    return safe || "transaction rejected";
+  }
+
+  async function runVaultTransfer(direction) {
+    if (!(els.vaultAmount instanceof HTMLInputElement)) return;
+    const isDeposit = String(direction || "").toLowerCase() === "deposit";
+    const amount = parsePositiveAmount(els.vaultAmount.value);
+    if (!amount) {
+      if (els.vaultStatus instanceof HTMLElement) els.vaultStatus.textContent = "Invalid amount.";
+      return;
+    }
+    if (els.vaultStatus instanceof HTMLElement) {
+      els.vaultStatus.textContent = isDeposit ? "Depositing..." : "Withdrawing...";
+    }
+    setVaultBusy(true);
+    let result = null;
+    try {
+      result = isDeposit
+        ? await depositToVaultLocks(amount)
+        : await withdrawFromVaultLocks(amount);
+    } catch (error) {
+      result = { ok: false, reason: (error && error.message) || "request-failed" };
+    } finally {
+      setVaultBusy(false);
+    }
+
+    if (els.vaultStatus instanceof HTMLElement) {
+      if (result && result.ok) {
+        els.vaultStatus.textContent = isDeposit
+          ? ("Success! Deposited " + amount + " WL.")
+          : ("Success! Withdrew " + amount + " WL.");
+        els.vaultAmount.value = "";
+      } else {
+        els.vaultStatus.textContent = "Failed to " + (isDeposit ? "deposit" : "withdraw") + ": " + formatVaultErrorReason(result && result.reason, isDeposit ? "deposit" : "withdraw") + ".";
+      }
+    }
+    renderSummary();
+    renderPlayPanel();
+  }
+
   function buildPlayResultMessage(machine, result, wager, payout) {
     const typeName = machine && machine.typeName ? machine.typeName : "Slots";
     const summary = String(result && result.summary || "").trim();
@@ -1954,6 +2011,53 @@
   }
 
   function bindEvents() {
+    if (els.openVaultBtn instanceof HTMLButtonElement) {
+      els.openVaultBtn.addEventListener("click", () => {
+        if (!state.user || !(els.vaultModal instanceof HTMLElement)) return;
+        if (els.vaultStatus instanceof HTMLElement) els.vaultStatus.textContent = "Ready.";
+        if (els.vaultAmount instanceof HTMLInputElement) {
+          els.vaultAmount.value = "";
+          els.vaultAmount.disabled = false;
+        }
+        if (els.vaultDepositBtn instanceof HTMLButtonElement) els.vaultDepositBtn.disabled = false;
+        if (els.vaultWithdrawBtn instanceof HTMLButtonElement) els.vaultWithdrawBtn.disabled = false;
+        els.vaultModal.classList.remove("hidden");
+      });
+    }
+
+    if (els.closeVaultBtn instanceof HTMLButtonElement) {
+      els.closeVaultBtn.addEventListener("click", () => {
+        if (els.vaultModal instanceof HTMLElement) els.vaultModal.classList.add("hidden");
+      });
+    }
+
+    if (els.vaultModal instanceof HTMLElement) {
+      els.vaultModal.addEventListener("click", (event) => {
+        if (event.target !== els.vaultModal) return;
+        els.vaultModal.classList.add("hidden");
+      });
+    }
+
+    if (els.vaultDepositBtn instanceof HTMLButtonElement) {
+      els.vaultDepositBtn.addEventListener("click", () => {
+        runVaultTransfer("deposit");
+      });
+    }
+
+    if (els.vaultWithdrawBtn instanceof HTMLButtonElement) {
+      els.vaultWithdrawBtn.addEventListener("click", () => {
+        runVaultTransfer("withdraw");
+      });
+    }
+
+    if (els.vaultAmount instanceof HTMLInputElement) {
+      els.vaultAmount.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        runVaultTransfer("deposit");
+      });
+    }
+
     if (els.openSlotsSiteBtn instanceof HTMLButtonElement) {
       els.openSlotsSiteBtn.addEventListener("click", () => {
         window.location.href = "gambling_slots.html";
