@@ -473,9 +473,11 @@ window.GTModules = window.GTModules || {};
         // Rainbow fill
         const rain = cntRain(fsGrid);
         let fills = null;
-        if (rain > 0 && marked.size > 0) {
-          const mArr = Array.from(marked), fb = {};
-          for (const key of mArr) {
+        let frameMarked = Array.from(marked); // Capture current state for the frame
+
+        if (rain > 0 && frameMarked.length > 0) {
+          const fb = {};
+          for (const key of frameMarked) {
             const roll = Math.random(), [fr, fc] = key.split("_").map(Number);
             if (roll < 0.60) { const vs = [1, 1, 2, 2, 3, 5, 8, 10, 15, 25]; fb[key] = { type: "COIN", value: vs[Math.floor(Math.random() * vs.length)] }; }
             else if (roll < 0.88) { const ms = [2, 2, 3, 3, 4, 5, 10]; fb[key] = { type: "CLOVR", value: ms[Math.floor(Math.random() * ms.length)] }; }
@@ -489,16 +491,25 @@ window.GTModules = window.GTModules || {};
           let hasPot = false, respinV = 0; for (const k of Object.keys(fb)) { if (fb[k].type === "POT") { hasPot = true; break; } }
           if (hasPot && coinVal > 0) { for (const k of Object.keys(fb)) { if (fb[k].type === "COIN") { const rv = [1, 2, 3, 5, 8, 10, 15, 25]; respinV += rv[Math.floor(Math.random() * rv.length)]; } }; coinVal += respinV; }
           bonusPay += bet * coinVal;
-          const fillCells = mArr.map(k => { const [r, c] = k.split("_").map(Number); return { r, c, ...fb[k] }; });
+          const fillCells = frameMarked.map(k => { const [r, c] = k.split("_").map(Number); return { r, c, ...fb[k] }; });
           fills = { cells: fillCells, totalMult: coinVal, hasPot, respinMult: respinV };
-          sLines.push("🌈 " + mArr.length + " fills" + (hasPot ? " + POT respin" : "") + " (" + coinVal + "x)");
-          marked.clear();
+          sLines.push("🌈 " + frameMarked.length + " fills" + (hasPot ? " + POT respin" : "") + " (" + coinVal + "x)");
+          // Marked area cleared AFTER push below
         } else if (rain > 0) { sLines.push("🌈 (no marked area)"); }
 
         bonusPay += sPay;
         const txt = "FS" + (s + 1) + ": " + (sLines.length ? sLines.join(" | ") : "no win");
         lines.push(txt);
-        bonusFrames.push({ grid: fsGrid, reels: toReels(fsGrid), markedCells: Array.from(marked), fills, lineText: txt, spinPay: sPay + (fills ? bet * fills.totalMult : 0) });
+        bonusFrames.push({
+          grid: fsGrid,
+          reels: toReels(fsGrid),
+          markedCells: frameMarked,
+          fills,
+          lineText: txt,
+          spinPay: sPay + (fills ? bet * fills.totalMult : 0)
+        });
+
+        if (fills) marked.clear(); // Persistence ends on fill
       }
     }
 
@@ -1705,7 +1716,12 @@ window.GTModules = window.GTModules || {};
         await adjustWallet(payout);
       }
 
-      stopSpinFx();
+      // If NOT a bonus, stop immediately. If bonus, stay busy!
+      const hasBonus = machine.type === "le_bandit" && rawResult.bonusFrames && rawResult.bonusFrames.length > 0;
+      if (!hasBonus) {
+        stopSpinFx();
+      }
+
       state.ephemeral.rows = resolved.rows;
       state.ephemeral.lineWins = resolved.lineWins;
       state.ephemeral.lineIds = resolved.lineIds;
@@ -1713,30 +1729,38 @@ window.GTModules = window.GTModules || {};
       renderBoard();
 
       // --- Le Bandit Bonus Playback Loop ---
-      if (machine.type === "le_bandit" && rawResult.bonusFrames && rawResult.bonusFrames.length > 0) {
+      if (hasBonus) {
         await sleep(1500);
         let bonusTotal = 0;
         for (let i = 0; i < rawResult.bonusFrames.length; i++) {
           const frame = rawResult.bonusFrames[i];
           bonusTotal += frame.spinPay;
 
-          // 1. Show the spin (reels)
+          // 0. Mini-Spin Effect (The "Rollings")
+          state.ephemeral.stoppedCols = 0;
+          if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
+          renderBoard();
+          await sleep(650);
+          if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
+          state.ephemeral.stoppedCols = machine.reels;
+
+          // 1. Show the spin result (Grid)
           state.ephemeral.rows = rowsFromResult(frame.reels, machine.type);
           state.ephemeral.lineWins = [frame.lineText];
           state.ephemeral.markedCells = frame.markedCells;
           renderBoard();
           await sleep(1200);
 
-          // 2. If it was a Rainbow Fill, show the fill animation (flash effect etc)
+          // 2. Rainbow Fill Step (Sequential Reveal)
           if (frame.fills) {
             if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("winfx");
             await sleep(1000);
             if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
 
-            // Re-render with potentially cleared marked area if the logic says so
-            // (In simulateLeBandit, marked is cleared after fills)
+            // Re-render (In new frame logic, markedCells is preserved for this frame)
             state.ephemeral.markedCells = frame.markedCells;
             renderBoard();
+            await sleep(500);
           }
 
           if (els.lastWinLabel && bonusTotal > 0) {
@@ -1744,8 +1768,10 @@ window.GTModules = window.GTModules || {};
             els.lastWinLabel.classList.add("good");
             els.lastWinLabel.classList.remove("hidden");
           }
-          await sleep(800);
+          await sleep(600);
         }
+        // FINAL STOP
+        stopSpinFx();
       }
 
       if (els.lastWinLabel) {
@@ -1860,7 +1886,12 @@ window.GTModules = window.GTModules || {};
           }
         }
 
-        stopSpinFx();
+        // Defer stop if bonus
+        const hasBonus = machine.type === "le_bandit" && resolved.bonusFrames && resolved.bonusFrames.length > 0;
+        if (!hasBonus) {
+          stopSpinFx();
+        }
+
         state.ephemeral.rows = resolved.rows;
         state.ephemeral.lineWins = resolved.lineWins;
         state.ephemeral.lineIds = resolved.lineIds;
@@ -1868,13 +1899,22 @@ window.GTModules = window.GTModules || {};
         renderBoard();
 
         // --- Le Bandit Bonus Playback Loop (Hosted Machine) ---
-        if (machine.type === "le_bandit" && resolved.bonusFrames && resolved.bonusFrames.length > 0) {
+        if (hasBonus) {
           await sleep(1500);
           let bonusTotal = 0;
           for (let i = 0; i < resolved.bonusFrames.length; i++) {
             const frame = resolved.bonusFrames[i];
             bonusTotal += frame.spinPay;
 
+            // 0. Mini-Spin Effect
+            state.ephemeral.stoppedCols = 0;
+            if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
+            renderBoard();
+            await sleep(650);
+            if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
+            state.ephemeral.stoppedCols = machine.reels;
+
+            // 1. Show Result
             state.ephemeral.rows = rowsFromResult(frame.reels, machine.type);
             state.ephemeral.lineWins = [frame.lineText];
             state.ephemeral.markedCells = frame.markedCells;
@@ -1887,6 +1927,7 @@ window.GTModules = window.GTModules || {};
               if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
               state.ephemeral.markedCells = frame.markedCells;
               renderBoard();
+              await sleep(500);
             }
 
             if (els.lastWinLabel && bonusTotal > 0) {
@@ -1894,8 +1935,9 @@ window.GTModules = window.GTModules || {};
               els.lastWinLabel.classList.add("good");
               els.lastWinLabel.classList.remove("hidden");
             }
-            await sleep(800);
+            await sleep(600);
           }
+          stopSpinFx();
         }
         if (els.lastWinLabel) {
           if (payout > 0) {
