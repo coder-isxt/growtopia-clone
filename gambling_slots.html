@@ -716,6 +716,59 @@
       animation: effectTransformPop 460ms ease;
     }
 
+    .cell.effect-wheel-highlight {
+      box-shadow: 0 0 18px rgba(255, 210, 113, 0.5);
+      border-color: rgba(255, 210, 113, 0.9);
+      animation: wheelHighlightPulse 620ms ease-in-out infinite alternate;
+    }
+
+    .cell.effect-wheel-spin {
+      animation: wheelResolveSpin 740ms ease;
+      box-shadow: 0 0 24px rgba(255, 130, 130, 0.52);
+      border-color: rgba(255, 130, 130, 0.95);
+      z-index: 6;
+    }
+
+    .cell.effect-wheel-hit {
+      animation: wheelResolveHit 360ms ease;
+      box-shadow: 0 0 18px rgba(120, 255, 180, 0.46);
+      border-color: rgba(120, 255, 180, 0.9);
+    }
+
+    @keyframes wheelHighlightPulse {
+      from {
+        transform: scale(1);
+      }
+
+      to {
+        transform: scale(1.05);
+      }
+    }
+
+    @keyframes wheelResolveSpin {
+      0% {
+        transform: rotate(0deg) scale(1);
+      }
+
+      65% {
+        transform: rotate(360deg) scale(1.12);
+      }
+
+      100% {
+        transform: rotate(360deg) scale(1);
+      }
+    }
+
+    @keyframes wheelResolveHit {
+      0% {
+        transform: scale(1.06);
+      }
+
+      100% {
+        transform: scale(1);
+      }
+    }
+
     .cell-upgrade-flash {
       position: absolute;
       top: -10px;
@@ -1662,7 +1715,7 @@
         <div class="stage" id="stage">
           <div class="stage-head">
             <span class="tag" id="statBank">Bank: 0 WL</span>
-            <span class="tag" id="statMaxBet">Max Bet: 0 WL</span>
+            <span class="tag" id="statMaxBet">Volatility: -</span>
             <span class="tag" id="statPlays">Plays: 0</span>
             <span class="tag" id="statPayout">Total Payout: 0 WL</span>
             <span class="tag good" id="userBalanceDisplay">Balance: 0 WL</span>

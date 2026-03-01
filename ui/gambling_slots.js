@@ -19,6 +19,7 @@ window.GTModules = window.GTModules || {};
     minBet: 1,
     maxBet: 10000,
     maxPayoutMultiplier: 100,
+    volatility: "medium",
     reels: 3,
     rows: 1,
     earningsLocks: 99999999,
@@ -50,6 +51,11 @@ window.GTModules = window.GTModules || {};
     mines: "Mines",
     snoop_dogg_dollars: "Snoop Dogg Dollars"
   };
+  const VOLATILITY_OVERRIDES = {
+    slots_v2: "very-high",
+    le_bandit: "high",
+    snoop_dogg_dollars: "high"
+  };
   const SNOOP_UI = {
     hypeCostX: 20,
     buyCostByScatter: { 3: 80, 4: 140, 5: 220, 6: 320 }
@@ -57,10 +63,10 @@ window.GTModules = window.GTModules || {};
   const BONUS_PHASES = {
     BASE_IDLE: "BASE_IDLE",
     BASE_SPINNING: "BASE_SPINNING",
-    BASE_CASCADE: "BASE_CASCADE",
+    BASE_RESOLVING: "BASE_RESOLVING",
     BONUS_INTRO: "BONUS_INTRO",
     BONUS_SPINNING: "BONUS_SPINNING",
-    BONUS_CASCADE: "BONUS_CASCADE",
+    BONUS_RESOLVING: "BONUS_RESOLVING",
     BONUS_END: "BONUS_END"
   };
   const TOWER_CONFIG = {
@@ -102,7 +108,7 @@ window.GTModules = window.GTModules || {};
     RUBY: "Ruby", EMER: "Emerald", CLUB: "Club", RING: "Ring", SKULL: "Skull", REAPR: "Reaper", BLOOD: "Blood",
     LEAF: "Leaf", STON: "Stone", MASK: "Mask", IDOL: "Idol", ORAC: "Oracle", FRGT: "Forgotten",
     COIN: "Coin", ORE: "Ore", CART: "Cart", RELC: "Relic", "?": "Unknown",
-    BONE: "Bone", PENT: "Pentagram", BLU_6: "Blue 6", RED_6: "Red 6",
+    BONE: "Bone", PENT: "Pentagram", BLU_WHEEL: "Blue Wheel", RED_WHEEL: "Red Wheel", BLU_6: "Blue 6", RED_6: "Red 6",
     TRAP: "Trap", CHEESE: "Cheese", BEER: "Beer", BAG: "Bag", HAT: "Hat", WINT: "Wanted", RAIN: "Rain",
     CLOVR: "Clover", POT: "Pot of Gold", LOCK: "Locked",
     MULT: "Multiplier", BOMB: "Bomb", JACK: "Jackpot", COL: "Collect", BLANK: "Tease",
@@ -115,7 +121,7 @@ window.GTModules = window.GTModules || {};
     RUBY: "\u2666", EMER: "\u{1F49A}", CLUB: "\u2663", RING: "\u{1F48D}", SKULL: "\u{1F480}", REAPR: "\u2620", BLOOD: "\u{1FA78}",
     LEAF: "\u{1F343}", STON: "\u{1FAA8}", MASK: "\u{1F3AD}", IDOL: "\u{1F5FF}", ORAC: "\u{1F52E}", FRGT: "\u{1F56F}",
     COIN: "\u{1FA99}", ORE: "\u26D3", CART: "\u{1F6D2}", RELC: "\u{1F4FF}", "?": "\u2754",
-    BONE: "\u{1F9B4}", PENT: "\u2721", BLU_6: "\u{1F535}6", RED_6: "\u{1F534}6",
+    BONE: "\u{1F9B4}", PENT: "\u2721", BLU_WHEEL: "\u{1F535}\u2699", RED_WHEEL: "\u{1F534}\u2699", BLU_6: "\u{1F535}6", RED_6: "\u{1F534}6",
     TRAP: "\u{1F4A9}", CHEESE: "\u{1F9C0}", BEER: "\u{1F37A}", BAG: "\u{1F4B0}", HAT: "\u{1F3A9}", WINT: "\u{1F46E}", RAIN: "\u{1F308}",
     CLOVR: "\u2618", POT: "\u{1F4B0}", LOCK: "\u{1F512}",
     MULT: "\u2716", BOMB: "\u{1F4A3}", JACK: "\u{1F451}", COL: "\u{1F9F2}", BLANK: "\u2736",
@@ -127,6 +133,8 @@ window.GTModules = window.GTModules || {};
     SCAT: "scatter",
     BONUS: "bonus",
     DYN: "bonus",
+    BLU_WHEEL: "sixblu",
+    RED_WHEEL: "sixred",
     BLU_6: "sixblu",
     RED_6: "sixred",
     WINT: "wanted",
@@ -144,7 +152,7 @@ window.GTModules = window.GTModules || {};
   const SYMBOL_POOL = {
     blackjack: ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"],
     slots: ["CHERRY", "LEMON", "BAR", "BELL", "SEVEN"],
-    slots_v2: ["SKULL", "BONE", "REAPR", "BLOOD", "PENT", "WILD"],
+    slots_v2: ["SKULL", "BONE", "REAPR", "BLOOD", "PENT", "WILD", "BLU_WHEEL", "RED_WHEEL", "BLU_6", "RED_6"],
     le_bandit: ["TRAP", "CHEESE", "BEER", "BAG", "HAT", "WINT", "WILD", "RAIN", "COIN"],
     slots_v3: ["RUBY", "EMER", "CLUB", "RING", "SKULL", "REAPR", "BLOOD", "WILD", "SCAT"],
     slots_v4: ["LEAF", "STON", "MASK", "IDOL", "ORAC", "FRGT", "WILD", "SCAT"],
@@ -192,7 +200,8 @@ window.GTModules = window.GTModules || {};
       bonusWin: 0,
       currentSpinWin: 0,
       stickyWilds: 0,
-      multiplierCells: 0
+      multiplierCells: 0,
+      activeMultiplier: 1
     },
     tower: {
       roundsByMachine: {},
@@ -279,16 +288,16 @@ window.GTModules = window.GTModules || {};
   function buildMachineDefinitions() {
     const slotsDefs = typeof slotsModule.getDefinitions === "function" ? slotsModule.getDefinitions() : {};
     const fallback = {
-      blackjack: { name: "Blackjack", minBet: 1, maxBet: 20000, maxPayoutMultiplier: 2.5, reels: 0, rows: 0 },
-      slots: { name: "Classic Slots", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10, reels: 3, rows: 1 },
-      slots_v2: { name: "Neon Mine", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 50, reels: 5, rows: 4 },
-      slots_v3: { name: "Blood Vault", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 4 },
-      slots_v4: { name: "Ancient Jungle", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 4 },
-      slots_v6: { name: "Deep Core", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 3 },
-      le_bandit: { name: "Le Bandit", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10000, reels: 6, rows: 5 },
-      tower: { name: "Tower", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 25000, reels: 5, rows: 8 },
-      mines: { name: "Mines", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 25000, reels: 5, rows: 5 },
-      snoop_dogg_dollars: { name: "Snoop Dogg Dollars", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10000, reels: 6, rows: 8 }
+      blackjack: { name: "Blackjack", minBet: 1, maxBet: 20000, maxPayoutMultiplier: 2.5, reels: 0, rows: 0, volatility: "table" },
+      slots: { name: "Classic Slots", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10, reels: 3, rows: 1, volatility: "medium" },
+      slots_v2: { name: "Neon Mine", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 50, reels: 5, rows: 4, volatility: "very-high" },
+      slots_v3: { name: "Blood Vault", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 4, volatility: "high" },
+      slots_v4: { name: "Ancient Jungle", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 4, volatility: "high" },
+      slots_v6: { name: "Deep Core", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 3, volatility: "high" },
+      le_bandit: { name: "Le Bandit", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10000, reels: 6, rows: 5, volatility: "high" },
+      tower: { name: "Tower", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 25000, reels: 5, rows: 8, volatility: "risk" },
+      mines: { name: "Mines", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 25000, reels: 5, rows: 5, volatility: "risk" },
+      snoop_dogg_dollars: { name: "Snoop Dogg Dollars", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10000, reels: 6, rows: 8, volatility: "high" }
     };
     const out = {};
     GAME_IDS.forEach((id) => {
@@ -302,14 +311,31 @@ window.GTModules = window.GTModules || {};
         maxBet: Math.max(1, Math.floor(Number(row.maxBet) || base.maxBet)),
         maxPayoutMultiplier: Math.max(1, Math.floor(Number(row.maxPayoutMultiplier) || base.maxPayoutMultiplier)),
         reels: Math.max(1, Math.floor(Number(layout.reels) || base.reels)),
-        rows: Math.max(1, Math.floor(Number(layout.rows) || base.rows))
+        rows: Math.max(1, Math.floor(Number(layout.rows) || base.rows)),
+        volatility: String(row.volatility || base.volatility || "medium").trim().toLowerCase()
       };
     });
     // Apply UI-only aliases for display in the web UI
     Object.keys(UI_GAME_ALIASES).forEach((id) => {
       if (out[id]) out[id].name = UI_GAME_ALIASES[id];
     });
+    Object.keys(VOLATILITY_OVERRIDES).forEach((id) => {
+      if (out[id]) out[id].volatility = String(VOLATILITY_OVERRIDES[id] || out[id].volatility || "medium").trim().toLowerCase();
+    });
     return out;
+  }
+
+  function formatVolatility(volatility) {
+    const raw = String(volatility || "").trim().toLowerCase();
+    if (!raw) return "Unknown";
+    if (raw === "very-high") return "Very High";
+    if (raw === "medium-high") return "Medium-High";
+    if (raw === "high") return "High";
+    if (raw === "medium") return "Medium";
+    if (raw === "low") return "Low";
+    if (raw === "risk") return "Risk";
+    if (raw === "table") return "Table";
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
   }
 
   // Blackjack Logic
@@ -367,6 +393,7 @@ window.GTModules = window.GTModules || {};
     state.bonusFlow.currentSpinWin = Math.max(0, Math.floor(Number(row.currentSpinWin) || 0));
     state.bonusFlow.stickyWilds = Math.max(0, Math.floor(Number(row.stickyWilds) || 0));
     state.bonusFlow.multiplierCells = Math.max(0, Math.floor(Number(row.multiplierCells) || 0));
+    state.bonusFlow.activeMultiplier = Math.max(1, Number(row.activeMultiplier) || 1);
 
     if (els.bonusHudState instanceof HTMLElement) {
       const mode = String(row.mode || "FREE SPINS");
@@ -375,8 +402,14 @@ window.GTModules = window.GTModules || {};
     if (els.bonusHudLeft instanceof HTMLElement) els.bonusHudLeft.textContent = "Left: " + state.bonusFlow.spinsLeft;
     if (els.bonusHudWin instanceof HTMLElement) els.bonusHudWin.textContent = "Bonus Win: " + state.bonusFlow.bonusWin + " WL";
     if (els.bonusHudSpin instanceof HTMLElement) els.bonusHudSpin.textContent = "Spin Win: " + state.bonusFlow.currentSpinWin + " WL";
-    if (els.bonusHudSticky instanceof HTMLElement) els.bonusHudSticky.textContent = "Wilds: " + state.bonusFlow.stickyWilds;
-    if (els.bonusHudMulti instanceof HTMLElement) els.bonusHudMulti.textContent = "x10 Cells: " + state.bonusFlow.multiplierCells;
+    if (els.bonusHudSticky instanceof HTMLElement) {
+      const stickyLabel = String(row.stickyLabel || "").trim();
+      els.bonusHudSticky.textContent = stickyLabel || ("Wilds: " + state.bonusFlow.stickyWilds);
+    }
+    if (els.bonusHudMulti instanceof HTMLElement) {
+      const multiLabel = String(row.multiLabel || "").trim();
+      els.bonusHudMulti.textContent = multiLabel || ("x10 Cells: " + state.bonusFlow.multiplierCells);
+    }
   }
 
   function setBoardDimmed(dimmed) {
@@ -985,124 +1018,500 @@ window.GTModules = window.GTModules || {};
     [3, 2, 2, 2, 3]  // Dip
   ];
 
-  const SIX_PAYTABLE = {
-    SKULL: [0, 0, 0.5, 2, 5],
-    BLOOD: [0, 0, 0.5, 1.5, 4],
-    REAPR: [0, 0, 0.4, 1, 3],
-    PENT: [0, 0, 0.3, 0.8, 2],
-    BONE: [0, 0, 0.2, 0.5, 1],
-    WILD: [0, 0, 1, 3, 10]
+  const SIX666_CONFIG = {
+    layout: { cols: 5, rows: 4, wheelReels: [0, 2, 4] },
+    paylines: SIX_PAYLINES,
+    maxRoundWinMultiplier: 10000,
+    maxSpinWinMultiplier: 1400,
+    defaultBonusSpins: 10,
+    animation: { turboScale: 0.62 },
+    symbols: [
+      { id: "SKULL", weight: 4, pays: { 3: 4.5, 4: 14, 5: 55 } },
+      { id: "BLOOD", weight: 8, pays: { 3: 2.8, 4: 9, 5: 32 } },
+      { id: "REAPR", weight: 11, pays: { 3: 1.8, 4: 6.2, 5: 20 } },
+      { id: "PENT", weight: 15, pays: { 3: 1.1, 4: 3.7, 5: 12 } },
+      { id: "BONE", weight: 20, pays: { 3: 0.7, 4: 2.2, 5: 8 } },
+      { id: "WILD", weight: 3, pays: { 3: 7, 4: 20, 5: 70 } }
+    ],
+    base: {
+      wheelChance: { blue: 0.08, red: 0.03 },
+      sixChance: { blue: 0.24, red: 0.3 },
+      allowBlue: true,
+      allowRed: true,
+      blueSixEnabled: true,
+      guaranteedRed: false
+    },
+    tiers: {
+      A: {
+        id: "A",
+        title: "DESCENT SPINS",
+        subtitle: "Tier A",
+        spins: 10,
+        wheelChance: { blue: 0.23, red: 0.14 },
+        sixChance: { blue: 0, red: 0.38 },
+        allowBlue: true,
+        allowRed: true,
+        blueSixEnabled: false,
+        guaranteedRed: false
+      },
+      B: {
+        id: "B",
+        title: "CHAOS SPINS",
+        subtitle: "Tier B",
+        spins: 10,
+        wheelChance: { blue: 0, red: 0.3 },
+        sixChance: { blue: 0, red: 0.46 },
+        allowBlue: false,
+        allowRed: true,
+        blueSixEnabled: false,
+        guaranteedRed: false
+      },
+      C: {
+        id: "C",
+        title: "ABYSS SPINS",
+        subtitle: "Tier C",
+        spins: 10,
+        wheelChance: { blue: 0, red: 0.38 },
+        sixChance: { blue: 0, red: 0.56 },
+        allowBlue: false,
+        allowRed: true,
+        blueSixEnabled: false,
+        guaranteedRed: true
+      }
+    },
+    bonusBuy: {
+      enabled: true,
+      costMultiplier: 10,
+      tiers: [
+        { id: "A", weight: 72 },
+        { id: "B", weight: 28 }
+      ]
+    },
+    wheelOutcomes: {
+      blue: [
+        { type: "instant", value: 2, label: "+2x", weight: 26 },
+        { type: "instant", value: 3, label: "+3x", weight: 20 },
+        { type: "instant", value: 5, label: "+5x", weight: 12 },
+        { type: "instant", value: 8, label: "+8x", weight: 7 },
+        { type: "instant", value: 12, label: "+12x", weight: 3 },
+        { type: "add", value: 1, label: "ADD +1x", weight: 15 },
+        { type: "add", value: 2, label: "ADD +2x", weight: 9 },
+        { type: "mul", value: 2, label: "MULTI x2", weight: 6 },
+        { type: "mul", value: 3, label: "MULTI x3", weight: 1 },
+        { type: "spins", value: 2, label: "+2 SPINS", weight: 1 }
+      ],
+      red: [
+        { type: "instant", value: 6, label: "+6x", weight: 22 },
+        { type: "instant", value: 10, label: "+10x", weight: 16 },
+        { type: "instant", value: 15, label: "+15x", weight: 10 },
+        { type: "instant", value: 25, label: "+25x", weight: 6 },
+        { type: "instant", value: 40, label: "+40x", weight: 3 },
+        { type: "instant", value: 75, label: "+75x", weight: 1 },
+        { type: "add", value: 2, label: "ADD +2x", weight: 14 },
+        { type: "add", value: 3, label: "ADD +3x", weight: 10 },
+        { type: "add", value: 5, label: "ADD +5x", weight: 5 },
+        { type: "mul", value: 2, label: "MULTI x2", weight: 6 },
+        { type: "mul", value: 3, label: "MULTI x3", weight: 4 },
+        { type: "mul", value: 5, label: "MULTI x5", weight: 1 },
+        { type: "spins", value: 3, label: "+3 SPINS", weight: 2 }
+      ]
+    }
   };
 
-  function simulateSixSixSix(machine, bet, buyBonus) {
-    const pool = [
-      ...Array(15).fill("SKULL"),
-      ...Array(12).fill("BONE"),
-      ...Array(10).fill("BLOOD"),
-      ...Array(6).fill("PENT"),
-      ...Array(3).fill("REAPR"),
-      ...Array(2).fill("WILD")
-    ];
-    const reelsCount = 5;
-    const rows = 4;
+  function sixPickWeighted(entries) {
+    const rows = Array.isArray(entries) ? entries : [];
+    let total = 0;
+    for (let i = 0; i < rows.length; i++) {
+      total += Math.max(0, Number(rows[i] && rows[i].weight) || 0);
+    }
+    if (total <= 0) return rows[0] || null;
+    let roll = Math.random() * total;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || {};
+      const w = Math.max(0, Number(row.weight) || 0);
+      roll -= w;
+      if (roll <= 0) return row;
+    }
+    return rows[rows.length - 1] || null;
+  }
 
-    let reels = [];
-    let lines = [];
-    let lineIds = [];
-    let totalMult = 0;
+  function sixCloneRules(raw) {
+    const src = raw && typeof raw === "object" ? raw : {};
+    return {
+      id: String(src.id || "BASE"),
+      title: String(src.title || "BASE"),
+      subtitle: String(src.subtitle || ""),
+      spins: Math.max(0, Math.floor(Number(src.spins) || 0)),
+      wheelChance: {
+        blue: Math.max(0, Math.min(1, Number(src.wheelChance && src.wheelChance.blue) || 0)),
+        red: Math.max(0, Math.min(1, Number(src.wheelChance && src.wheelChance.red) || 0))
+      },
+      sixChance: {
+        blue: Math.max(0, Math.min(1, Number(src.sixChance && src.sixChance.blue) || 0)),
+        red: Math.max(0, Math.min(1, Number(src.sixChance && src.sixChance.red) || 0))
+      },
+      allowBlue: Boolean(src.allowBlue),
+      allowRed: Boolean(src.allowRed),
+      blueSixEnabled: src.blueSixEnabled !== false,
+      guaranteedRed: Boolean(src.guaranteedRed)
+    };
+  }
 
-    // High volatility prob adjustments
-    const sixProb = buyBonus ? 0.045 : 0.012; // Far lower drop rate to ensure big swings
+  function sixRulesForBase() {
+    const base = sixCloneRules(SIX666_CONFIG.base);
+    base.id = "BASE";
+    base.title = "BASE GAME";
+    base.subtitle = "Base";
+    base.spins = 0;
+    return base;
+  }
 
-    // Generate grid
-    let grid = [];
+  function sixRulesForTier(tierId) {
+    const key = String(tierId || "").trim().toUpperCase();
+    const src = SIX666_CONFIG.tiers[key] || SIX666_CONFIG.tiers.A;
+    return sixCloneRules(src);
+  }
+
+  function sixIsWheelToken(token) {
+    const tok = normalizeToken(token);
+    return tok === "BLU_WHEEL" || tok === "RED_WHEEL" || tok === "BLU_6" || tok === "RED_6";
+  }
+
+  function sixWheelToken(color, activated) {
+    if (String(color) === "red") return activated ? "RED_6" : "RED_WHEEL";
+    return activated ? "BLU_6" : "BLU_WHEEL";
+  }
+
+  function sixFormatMultiplier(mult) {
+    const safe = Math.max(1, Number(mult) || 1);
+    if (safe >= 100) return safe.toFixed(0);
+    if (safe >= 10) return safe.toFixed(1);
+    return safe.toFixed(2);
+  }
+
+  function sixBuildRegularGrid() {
+    const rows = Math.max(1, Math.floor(Number(SIX666_CONFIG.layout.rows) || 4));
+    const cols = Math.max(1, Math.floor(Number(SIX666_CONFIG.layout.cols) || 5));
+    const out = [];
     for (let r = 0; r < rows; r++) {
-      let rowSymbols = [];
-      for (let c = 0; c < reelsCount; c++) {
-        let sym = pool[Math.floor(Math.random() * pool.length)];
-
-        // "6" symbols only appear on reels 1, 3, 5 (cols 0, 2, 4)
-        if ((c === 0 || c === 2 || c === 4) && Math.random() < sixProb) {
-          sym = Math.random() < 0.12 ? "RED_6" : "BLU_6";
-        }
-        rowSymbols.push(sym);
+      out[r] = [];
+      for (let c = 0; c < cols; c++) {
+        const picked = sixPickWeighted(SIX666_CONFIG.symbols) || {};
+        out[r][c] = normalizeToken(picked.id || "BONE");
       }
-      grid.push(rowSymbols);
-      reels.push(rowSymbols.join(","));
     }
+    return out;
+  }
 
-    // Evaluate Paylines
-    let baseWin = 0;
-    for (let i = 0; i < SIX_PAYLINES.length; i++) {
-      const line = SIX_PAYLINES[i];
-      let matchSym = null;
-      let count = 0;
+  function sixGenerateSpinGrid(ruleSet) {
+    const rules = sixCloneRules(ruleSet);
+    const rows = Math.max(1, Math.floor(Number(SIX666_CONFIG.layout.rows) || 4));
+    const wheelReels = Array.isArray(SIX666_CONFIG.layout.wheelReels) ? SIX666_CONFIG.layout.wheelReels.slice() : [0, 2, 4];
+    const grid = sixBuildRegularGrid();
+    const wheels = [];
+    const guaranteedReel = rules.guaranteedRed && wheelReels.length ? wheelReels[Math.floor(Math.random() * wheelReels.length)] : -1;
 
-      for (let c = 0; c < reelsCount; c++) {
-        let r = line[c];
-        let sym = grid[r][c];
-
-        if (sym === "WILD") {
-          count++;
-        } else if (sym === "BLU_6" || sym === "RED_6") {
-          break; // Wheels don't connect paylines
+    for (let i = 0; i < wheelReels.length; i++) {
+      const col = Math.max(0, Math.floor(Number(wheelReels[i]) || 0));
+      let color = "";
+      if (col === guaranteedReel && rules.allowRed) {
+        color = "red";
+      } else {
+        const redRoll = Math.random();
+        if (rules.allowRed && redRoll < rules.wheelChance.red) {
+          color = "red";
         } else {
-          if (!matchSym) {
-            matchSym = sym;
-            count++;
-          } else if (sym === matchSym) {
-            count++;
-          } else {
-            break;
-          }
+          const blueRoll = Math.random();
+          if (rules.allowBlue && blueRoll < rules.wheelChance.blue) color = "blue";
         }
       }
+      if (!color) continue;
 
-      if (count >= 3) {
-        let target = matchSym || "WILD";
-        let mult = SIX_PAYTABLE[target][count - 1] || 0;
-        if (mult > 0) {
-          let win = bet * mult;
-          baseWin += win;
-          lines.push(count + "x " + SYMBOL_LABELS[target]);
-          lineIds.push(i + 1);
-        }
-      }
+      const row = Math.floor(Math.random() * rows);
+      const sixChance = color === "red" ? rules.sixChance.red : rules.sixChance.blue;
+      const wantsSix = Math.random() < sixChance;
+      const activated = color === "blue" ? (rules.blueSixEnabled && wantsSix) : wantsSix;
+      const token = sixWheelToken(color, activated);
+      grid[row][col] = token;
+      wheels.push({
+        row,
+        col,
+        key: row + "_" + col,
+        color,
+        activated,
+        token
+      });
     }
 
-    // Evaluate Wheels
-    grid.forEach((row) => {
-      row.forEach((sym) => {
-        if (sym === "BLU_6") {
-          let m = [5, 10, 15, 20, 25, 50, 100][Math.floor(Math.random() * 7)];
-          totalMult += m;
-          lines.push("Blue 6: " + m + "x");
-        } else if (sym === "RED_6") {
-          let m = [10, 15, 20, 25, 50, 100, 250, 500][Math.floor(Math.random() * 8)];
-          totalMult += m;
-          lines.push("Red 6: " + m + "x");
+    wheels.sort((a, b) => a.col - b.col || a.row - b.row);
+    return { grid, wheels };
+  }
+
+  function sixEvaluatePaylines(grid, bet, activeMultiplier) {
+    const rows = Array.isArray(grid) ? grid : [];
+    const paylineSet = Array.isArray(SIX666_CONFIG.paylines) ? SIX666_CONFIG.paylines : SIX_PAYLINES;
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    let total = 0;
+    const lineIds = [];
+    const lineWins = [];
+    for (let i = 0; i < paylineSet.length; i++) {
+      const pattern = paylineSet[i];
+      let baseSym = "";
+      let count = 0;
+      for (let c = 0; c < pattern.length; c++) {
+        const r = Math.max(0, Math.floor(Number(pattern[c]) || 0));
+        const sym = normalizeToken(rows[r] && rows[r][c] ? rows[r][c] : "?");
+        if (sixIsWheelToken(sym)) break;
+        if (sym === "WILD") {
+          count += 1;
+          continue;
+        }
+        if (!baseSym) {
+          baseSym = sym;
+          count += 1;
+          continue;
+        }
+        if (sym === baseSym) {
+          count += 1;
+          continue;
+        }
+        break;
+      }
+      if (count < 3) continue;
+      const target = baseSym || "WILD";
+      const payRow = SIX666_CONFIG.symbols.find((row) => row.id === target);
+      if (!payRow || !payRow.pays) continue;
+      const payKey = count >= 5 ? 5 : count;
+      const lineMult = Math.max(0, Number(payRow.pays[payKey]) || 0);
+      if (lineMult <= 0) continue;
+      const lineValue = safeBet * lineMult * Math.max(1, Number(activeMultiplier) || 1);
+      total += lineValue;
+      lineIds.push(i + 1);
+      lineWins.push(
+        "L" + (i + 1) + " " + SYMBOL_LABELS[target] + " x" + count
+        + " (" + lineMult.toFixed(1) + "x * " + sixFormatMultiplier(activeMultiplier) + "x)"
+      );
+    }
+    return { total, lineIds, lineWins };
+  }
+
+  function sixResolveWheels(wheels, bet) {
+    const list = Array.isArray(wheels) ? wheels.slice() : [];
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    let spinMultiplier = 1;
+    let instantWin = 0;
+    let extraSpins = 0;
+    const events = [];
+
+    for (let i = 0; i < list.length; i++) {
+      const wheel = list[i] && typeof list[i] === "object" ? list[i] : {};
+      const color = wheel.color === "red" ? "red" : "blue";
+      const table = SIX666_CONFIG.wheelOutcomes[color] || SIX666_CONFIG.wheelOutcomes.blue;
+      const outcome = sixPickWeighted(table) || table[0] || { type: "instant", value: 1, label: "+1x" };
+      const value = Math.max(0, Number(outcome.value) || 0);
+      const type = String(outcome.type || "instant");
+
+      if (type === "instant") {
+        instantWin += safeBet * value;
+      } else if (type === "add") {
+        spinMultiplier += value;
+      } else if (type === "mul") {
+        spinMultiplier *= Math.max(1, value);
+      } else if (type === "spins") {
+        extraSpins += Math.max(0, Math.floor(value));
+      }
+
+      spinMultiplier = Math.max(1, Math.min(250, Number(spinMultiplier) || 1));
+      events.push({
+        key: String(wheel.key || ""),
+        row: Math.max(0, Math.floor(Number(wheel.row) || 0)),
+        col: Math.max(0, Math.floor(Number(wheel.col) || 0)),
+        color,
+        activated: Boolean(wheel.activated),
+        resultType: type,
+        resultValue: value,
+        resultLabel: String(outcome.label || ""),
+        afterMultiplier: spinMultiplier
+      });
+    }
+
+    return { events, spinMultiplier, instantWin, extraSpins };
+  }
+
+  function sixMapTriggerTierByActivatedCount(count) {
+    const n = Math.max(0, Math.floor(Number(count) || 0));
+    if (n === 1) return "A";
+    if (n === 2) return "B";
+    if (n >= 3) return "C";
+    return "";
+  }
+
+  function sixPickBuyTier() {
+    if (!SIX666_CONFIG.bonusBuy || !SIX666_CONFIG.bonusBuy.enabled) return "";
+    const picked = sixPickWeighted(SIX666_CONFIG.bonusBuy.tiers);
+    const tier = picked && picked.id ? String(picked.id).trim().toUpperCase() : "A";
+    if (tier === "C") return "B";
+    return tier === "B" ? "B" : "A";
+  }
+
+  function sixFormatRuleFlags(rules) {
+    const row = sixCloneRules(rules);
+    return {
+      blueAllowed: Boolean(row.allowBlue),
+      redAllowed: Boolean(row.allowRed),
+      guaranteedRed: Boolean(row.guaranteedRed)
+    };
+  }
+
+  function sixSummarizeRuleFlags(rules) {
+    const flags = sixFormatRuleFlags(rules);
+    return "Blue Wheels: " + (flags.blueAllowed ? "ON" : "OFF")
+      + " | Red Wheels: " + (flags.redAllowed ? "ON" : "OFF")
+      + " | Guaranteed Red: " + (flags.guaranteedRed ? "YES" : "NO");
+  }
+
+  function sixToReels(grid) {
+    const rows = Array.isArray(grid) ? grid : [];
+    const out = [];
+    for (let r = 0; r < rows.length; r++) out.push((rows[r] || []).join(","));
+    return out;
+  }
+
+  function sixBuildSpinFrame(machine, baseBet, rules, spinIndex, spinsLeftBefore) {
+    const ruleSet = sixCloneRules(rules);
+    const board = sixGenerateSpinGrid(ruleSet);
+    const wheel = sixResolveWheels(board.wheels, baseBet);
+    const pay = sixEvaluatePaylines(board.grid, baseBet, wheel.spinMultiplier);
+    const maxSpin = Math.max(0, Math.floor(baseBet * Math.max(1, Number(SIX666_CONFIG.maxSpinWinMultiplier) || 1)));
+    const rawSpinPay = Math.max(0, wheel.instantWin + pay.total);
+    const spinPay = Math.max(0, Math.floor(Math.min(maxSpin, rawSpinPay)));
+    const lineText = "FS " + spinIndex + " | Wheels " + board.wheels.length
+      + " | Multi x" + sixFormatMultiplier(wheel.spinMultiplier)
+      + " | " + (spinPay > 0 ? ("Win " + spinPay + " WL") : "No Win");
+    const flags = sixFormatRuleFlags(ruleSet);
+    return {
+      frameType: "bonus_spin",
+      reels: sixToReels(board.grid),
+      lineText,
+      lineWins: pay.lineWins.slice(0, 18),
+      lineIds: pay.lineIds.slice(0, 24),
+      markedCells: board.wheels.map((w) => w.key),
+      effectCells: {},
+      wheelEvents: wheel.events,
+      spinPay,
+      extraSpins: wheel.extraSpins,
+      activeMultiplier: wheel.spinMultiplier,
+      rules: flags,
+      spinsLeftBefore: Math.max(0, Math.floor(Number(spinsLeftBefore) || 0))
+    };
+  }
+
+  function simulateSixSixSix(machine, bet, buyBonus) {
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    const buyMode = Boolean(buyBonus);
+    const baseRules = sixRulesForBase();
+    const baseSpin = sixBuildSpinFrame(machine, safeBet, baseRules, 0, 0);
+    const maxRound = Math.max(0, Math.floor(safeBet * Math.max(1, Number(SIX666_CONFIG.maxRoundWinMultiplier) || 1)));
+    const basePay = Math.max(0, Math.floor(Math.min(maxRound, Number(baseSpin.spinPay) || 0)));
+    baseSpin.spinPay = basePay;
+    const baseWheels = Array.isArray(baseSpin.wheelEvents) ? baseSpin.wheelEvents : [];
+    const activatedCount = baseWheels.filter((row) => row.activated).length;
+    const baseTier = sixMapTriggerTierByActivatedCount(activatedCount);
+    const buyTier = buyMode ? sixPickBuyTier() : "";
+    const triggerTier = buyTier || baseTier;
+    const triggerRules = triggerTier ? sixRulesForTier(triggerTier) : null;
+    const triggerFlags = triggerRules ? sixFormatRuleFlags(triggerRules) : null;
+
+    const lineWins = [];
+    for (let i = 0; i < baseSpin.lineWins.length; i++) lineWins.push(baseSpin.lineWins[i]);
+    if (baseWheels.length) {
+      const wheelText = [];
+      for (let i = 0; i < baseWheels.length; i++) {
+        const ev = baseWheels[i] || {};
+        const wheelType = ev.color === "red" ? "Red Wheel" : "Blue Wheel";
+        wheelText.push(wheelType + " " + String(ev.resultLabel || ""));
+      }
+      if (wheelText.length) lineWins.push(wheelText.join(" | "));
+    }
+
+    const bonusFrames = [];
+    let bonusTotal = 0;
+    let remainingCap = Math.max(0, maxRound - basePay);
+    let spinsLeft = triggerRules ? Math.max(0, Math.floor(Number(triggerRules.spins) || Number(SIX666_CONFIG.defaultBonusSpins) || 10)) : 0;
+
+    if (triggerRules) {
+      const introTitle = triggerRules.title || "FREE SPINS";
+      const introText = buyMode
+        ? ("Bonus Buy: " + triggerRules.subtitle + " | " + spinsLeft + " Free Spins")
+        : ("Triggered " + triggerRules.subtitle + " | " + spinsLeft + " Free Spins");
+      bonusFrames.push({
+        frameType: "bonus_intro",
+        reels: baseSpin.reels,
+        tierId: triggerRules.id,
+        tierTitle: introTitle,
+        tierSubtitle: triggerRules.subtitle,
+        awardedSpins: spinsLeft,
+        triggerWheelKeys: baseWheels.filter((row) => row.activated).map((row) => row.key),
+        wheelRules: triggerFlags,
+        lineText: introText
+      });
+
+      let spinIndex = 0;
+      while (spinsLeft > 0 && bonusFrames.length < 128) {
+        spinsLeft -= 1;
+        spinIndex += 1;
+        const frame = sixBuildSpinFrame(machine, safeBet, triggerRules, spinIndex, spinsLeft);
+        const appliedSpinPay = Math.max(0, Math.floor(Math.min(remainingCap, Number(frame.spinPay) || 0)));
+        frame.spinPay = appliedSpinPay;
+        bonusTotal += appliedSpinPay;
+        remainingCap = Math.max(0, remainingCap - appliedSpinPay);
+        if (frame.extraSpins > 0) {
+          spinsLeft += frame.extraSpins;
+          frame.banner = "EXTRA SPINS +" + frame.extraSpins;
+        }
+        frame.hud = {
+          mode: triggerRules.title || "FREE SPINS",
+          spinsLeft,
+          bonusWin: bonusTotal,
+          currentSpinWin: frame.spinPay,
+          activeMultiplier: frame.activeMultiplier,
+          wheelRules: triggerFlags
+        };
+        bonusFrames.push(frame);
+        if (remainingCap <= 0) break;
+      }
+
+      bonusFrames.push({
+        frameType: "bonus_end",
+        summary: {
+          bonusWin: Math.max(0, Math.floor(bonusTotal)),
+          tierId: triggerRules.id,
+          tierTitle: triggerRules.title || "FREE SPINS"
         }
       });
-    });
+    }
 
-    // Special fallback for UI lines array if empty and there's a multiplier
-    if (baseWin === 0 && totalMult === 0) lines = [];
+    const totalPayout = Math.max(0, Math.floor(basePay + bonusTotal));
+    if (triggerRules) {
+      lineWins.push("Bonus: " + triggerRules.subtitle + " (" + (triggerRules.spins || 10) + " FS)");
+    }
 
-    // Final Payout logic similar to real game (Wheels apply to base, but they are also flat multipliers on bet if we want to simplify)
-    // To match actual Six Six Six logic closer, base win is multiplied by the combined wheel multipliers,
-    // OR if no line win, the multiplier applies to the bet. 
-    // Usually Hacksaw applies wheels to base stakes, so `bet * totalMult`. Let's stick to that for simplicity. 
-    let payout = baseWin + (bet * totalMult);
+    const baseOutcome = totalPayout > 0 ? (totalPayout >= safeBet * 300 ? "jackpot" : "win") : "lose";
+    const summary = triggerRules
+      ? (triggerRules.title + " | " + sixSummarizeRuleFlags(triggerRules))
+      : (baseSpin.spinPay > 0 ? "Wicked Wheels Paid" : "");
 
     return {
       gameId: "slots_v2",
-      reels: reels,
-      payoutWanted: payout,
-      outcome: payout > 0 ? (totalMult >= 50 ? "jackpot" : "win") : "lose",
-      lineWins: lines,
-      lineIds: lineIds,
-      bet: buyBonus ? bet * 10 : bet,
-      summary: totalMult > 0 ? "Wicked Wheel!" : ""
+      reels: baseSpin.reels,
+      payoutWanted: totalPayout,
+      outcome: baseOutcome,
+      lineWins: lineWins.slice(0, 18),
+      lineIds: baseSpin.lineIds.slice(0, 24),
+      bet: buyMode ? (safeBet * Math.max(1, Math.floor(Number(SIX666_CONFIG.bonusBuy && SIX666_CONFIG.bonusBuy.costMultiplier) || 10))) : safeBet,
+      summary,
+      bonusTriggered: Boolean(triggerRules),
+      bonusFrames: bonusFrames.slice(0, 128)
     };
   }
 
@@ -1326,6 +1735,9 @@ window.GTModules = window.GTModules || {};
       return Array.isArray(rawResult && rawResult.bonusFrames) ? rawResult.bonusFrames : [];
     }
     if (type === "slots_v2") {
+      if (Array.isArray(rawResult && rawResult.bonusFrames) && rawResult.bonusFrames.length) {
+        return rawResult.bonusFrames;
+      }
       return buildSlotsV2BonusFrames(rawResult && rawResult.bonusView);
     }
     if (type === "snoop_dogg_dollars") {
@@ -1623,6 +2035,7 @@ window.GTModules = window.GTModules || {};
       maxPayoutMultiplier: def.maxPayoutMultiplier,
       reels: def.reels,
       rows: def.rows,
+      volatility: String(def.volatility || "medium"),
       maxBet,
       ownerAccountId: String(raw.ownerAccountId || "").trim(),
       ownerName: String(raw.ownerName || "").trim().slice(0, 20),
@@ -1849,7 +2262,10 @@ window.GTModules = window.GTModules || {};
   function linePattern(lineId, cols, rows, machineType) {
     const id = Math.max(1, Math.floor(Number(lineId) || 1));
     if (machineType === "slots") return normalizePattern([0, 0, 0], cols, rows);
-    if (machineType === "slots_v2" && SIX_PAYLINES[id - 1]) return normalizePattern(SIX_PAYLINES[id - 1], cols, rows);
+    if (machineType === "slots_v2") {
+      const lines = Array.isArray(SIX666_CONFIG.paylines) ? SIX666_CONFIG.paylines : SIX_PAYLINES;
+      if (lines[id - 1]) return normalizePattern(lines[id - 1], cols, rows);
+    }
     return normalizePattern(PAYLINES_5[id - 1] || PAYLINES_5[0], cols, rows);
   }
 
@@ -2271,7 +2687,19 @@ window.GTModules = window.GTModules || {};
   function bonusAnimTimings(machineType) {
     const type = String(machineType || "").trim().toLowerCase();
     if (type === "slots_v2") {
-      return { intro: 900, spin: 360, reveal: 560, fillFx: 500, fillSettle: 280, between: 280 };
+      const turboEnabled = Boolean(window.GT_SETTINGS && window.GT_SETTINGS.SLOTS_TURBO);
+      const scale = turboEnabled
+        ? Math.max(0.25, Math.min(1, Number(SIX666_CONFIG.animation && SIX666_CONFIG.animation.turboScale) || 0.62))
+        : 1;
+      return {
+        intro: Math.floor(760 * scale),
+        spin: Math.floor(380 * scale),
+        wheel: Math.floor(860 * scale),
+        reveal: Math.floor(420 * scale),
+        fillFx: Math.floor(420 * scale),
+        fillSettle: Math.floor(220 * scale),
+        between: Math.floor(260 * scale)
+      };
     }
     if (type === "snoop_dogg_dollars") {
       return { intro: 520, spin: 420, reveal: 700, fillFx: 420, fillSettle: 220, between: 300 };
@@ -2371,11 +2799,98 @@ window.GTModules = window.GTModules || {};
     setBoardDimmed(false);
   }
 
+  function sixHudRuleText(raw) {
+    const row = raw && typeof raw === "object" ? raw : {};
+    const blue = row.blueAllowed ? "B:on" : "B:off";
+    const red = row.redAllowed ? "R:on" : "R:off";
+    const lock = row.guaranteedRed ? "Red+" : "Red-";
+    return blue + " " + red + " " + lock;
+  }
+
+  function updateSixBonusHud(hud, defaults) {
+    const row = hud && typeof hud === "object" ? hud : {};
+    const fallback = defaults && typeof defaults === "object" ? defaults : {};
+    const rules = row.wheelRules && typeof row.wheelRules === "object"
+      ? row.wheelRules
+      : (fallback.wheelRules && typeof fallback.wheelRules === "object" ? fallback.wheelRules : {});
+    const activeMultiplier = Math.max(1, Number(row.activeMultiplier) || Number(fallback.activeMultiplier) || 1);
+    updateBonusHud({
+      mode: String(row.mode || fallback.mode || "FREE SPINS"),
+      spinsLeft: Math.max(0, Math.floor(Number(row.spinsLeft) || Number(fallback.spinsLeft) || 0)),
+      bonusWin: Math.max(0, Math.floor(Number(row.bonusWin) || Number(fallback.bonusWin) || 0)),
+      currentSpinWin: Math.max(0, Math.floor(Number(row.currentSpinWin) || Number(fallback.currentSpinWin) || 0)),
+      activeMultiplier,
+      stickyLabel: "Multi: x" + sixFormatMultiplier(activeMultiplier),
+      multiLabel: "Wheels: " + sixHudRuleText(rules)
+    });
+  }
+
+  async function runSlotsV2BonusIntroFrame(machine, frame, bonusFx) {
+    const row = frame && typeof frame === "object" ? frame : {};
+    const awarded = Math.max(0, Math.floor(Number(row.awardedSpins) || 0));
+    const tierTitle = String(row.tierTitle || "FREE SPINS");
+    const tierSubtitle = String(row.tierSubtitle || "Tier");
+    const triggerKeys = Array.isArray(row.triggerWheelKeys) ? row.triggerWheelKeys.map((v) => String(v || "")).filter(Boolean) : [];
+    const wheelRules = row.wheelRules && typeof row.wheelRules === "object" ? row.wheelRules : {};
+
+    setBonusPhase(BONUS_PHASES.BONUS_INTRO);
+    state.bonusFlow.active = true;
+    state.bonusFlow.machineType = machine ? machine.type : "";
+    showBonusHud(true);
+    updateSixBonusHud({
+      mode: tierTitle,
+      spinsLeft: awarded,
+      bonusWin: 0,
+      currentSpinWin: 0,
+      activeMultiplier: 1,
+      wheelRules
+    });
+
+    state.ephemeral.rows = rowsFromResult(row.reels, machine.type);
+    state.ephemeral.lineIds = [];
+    state.ephemeral.lineWins = [String(row.lineText || (tierSubtitle + " activated"))];
+    state.ephemeral.markedCells = triggerKeys.slice(0, 24);
+    state.ephemeral.cellMeta = {};
+    state.ephemeral.effectCells = {};
+    state.ephemeral.upgradeFlashes = {};
+    for (let i = 0; i < triggerKeys.length; i++) state.ephemeral.effectCells[triggerKeys[i]] = "wheel-highlight";
+    renderBoard();
+
+    setBoardDimmed(true);
+    await showBonusOverlay(
+      tierTitle,
+      awarded + " FREE SPINS",
+      tierSubtitle + " | " + sixHudRuleText(wheelRules),
+      false
+    );
+    await sleep(Math.max(220, Math.floor(Number(bonusFx.intro) || 720)));
+
+    for (let i = 0; i < triggerKeys.length; i++) {
+      const key = triggerKeys[i];
+      state.ephemeral.effectCells[key] = "wheel-spin";
+      state.ephemeral.upgradeFlashes[key] = "6";
+      renderBoard();
+      await sleep(200);
+      state.ephemeral.effectCells[key] = "wheel-hit";
+      renderBoard();
+      await sleep(160);
+      delete state.ephemeral.upgradeFlashes[key];
+    }
+    state.ephemeral.effectCells = {};
+    state.ephemeral.upgradeFlashes = {};
+    state.ephemeral.markedCells = [];
+    renderBoard();
+    await hideBonusOverlay();
+    setBoardDimmed(false);
+  }
+
   async function runBonusPlayback(machine, bonusFrames) {
     const frames = Array.isArray(bonusFrames) ? bonusFrames : [];
     if (!frames.length) return { bonusTotal: 0, biggestSpinWin: 0, biggestCascadeWin: 0 };
     const bonusFx = bonusAnimTimings(machine.type);
-    const showHud = machine.type === "snoop_dogg_dollars";
+    const isSnoop = machine.type === "snoop_dogg_dollars";
+    const isSix = machine.type === "slots_v2";
+    const showHud = isSnoop || isSix;
     let bonusTotal = 0;
     let biggestSpinWin = 0;
     let biggestCascadeWin = 0;
@@ -2386,12 +2901,17 @@ window.GTModules = window.GTModules || {};
     for (let i = 0; i < frames.length; i++) {
       const frame = frames[i] && typeof frames[i] === "object" ? frames[i] : {};
       const frameType = String(frame.frameType || "bonus_spin").trim().toLowerCase();
-      if (frameType === "bonus_intro" && machine.type === "snoop_dogg_dollars") {
+      if (frameType === "bonus_intro" && isSnoop) {
         await runSnoopBonusIntroFrame(machine, frame);
+        continue;
+      }
+      if (frameType === "bonus_intro" && isSix) {
+        await runSlotsV2BonusIntroFrame(machine, frame, bonusFx);
         continue;
       }
       if (frameType === "bonus_end") {
         const summary = frame.summary && typeof frame.summary === "object" ? frame.summary : {};
+        bonusTotal = Math.max(bonusTotal, Math.max(0, Math.floor(Number(summary.bonusWin) || 0)));
         biggestCascadeWin = Math.max(biggestCascadeWin, Math.max(0, Math.floor(Number(summary.biggestCascadeWin) || 0)));
         continue;
       }
@@ -2405,8 +2925,46 @@ window.GTModules = window.GTModules || {};
       state.ephemeral.stoppedCols = machine.reels;
 
       applyFrameToEphemeral(frame, machine.type);
+      const sixLineIds = isSix ? state.ephemeral.lineIds.slice() : [];
+      const sixLineWins = isSix ? state.ephemeral.lineWins.slice() : [];
+      if (isSix) {
+        state.ephemeral.lineIds = [];
+        state.ephemeral.lineWins = [String(frame.lineText || "Resolving Wicked Wheels...")];
+      }
       renderBoard();
+      if (isSix) {
+        const wheelEvents = Array.isArray(frame.wheelEvents) ? frame.wheelEvents : [];
+        for (let w = 0; w < wheelEvents.length; w++) {
+          const ev = wheelEvents[w] && typeof wheelEvents[w] === "object" ? wheelEvents[w] : {};
+          const key = String(ev.key || "");
+          if (!key) continue;
+          setBonusPhase(BONUS_PHASES.BONUS_RESOLVING);
+          state.ephemeral.effectCells[key] = "wheel-spin";
+          state.ephemeral.upgradeFlashes[key] = String(ev.resultLabel || "").trim() || "x";
+          renderBoard();
+          showBonusBanner((ev.color === "red" ? "Red" : "Blue") + " Wheel: " + (ev.resultLabel || ""));
+          updateSixBonusHud({
+            mode: frame.hud && frame.hud.mode ? frame.hud.mode : "FREE SPINS",
+            spinsLeft: Math.max(0, Math.floor(Number(frame.hud && frame.hud.spinsLeft) || 0)),
+            bonusWin: Math.max(0, Math.floor(Number(frame.hud && frame.hud.bonusWin) || bonusTotal)),
+            currentSpinWin: Math.max(0, Math.floor(Number(frame.hud && frame.hud.currentSpinWin) || 0)),
+            activeMultiplier: Math.max(1, Number(ev.afterMultiplier) || 1),
+            wheelRules: frame.hud && frame.hud.wheelRules ? frame.hud.wheelRules : {}
+          });
+          await sleep(Math.max(240, Math.floor(Number(bonusFx.wheel) || 760)));
+          state.ephemeral.effectCells[key] = "wheel-hit";
+          renderBoard();
+          await sleep(120);
+          delete state.ephemeral.upgradeFlashes[key];
+        }
+        state.ephemeral.lineIds = sixLineIds.slice(0, 24);
+        state.ephemeral.lineWins = sixLineWins.length ? sixLineWins.slice(0, 18) : [String(frame.lineText || "Spin Result")];
+        if (els.boardWrap instanceof HTMLElement && state.ephemeral.lineIds.length) els.boardWrap.classList.add("winfx");
+        renderBoard();
+      }
+      setBonusPhase(BONUS_PHASES.BONUS_RESOLVING);
       await sleep(bonusFx.reveal);
+      if (isSix && els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
 
       const spinPay = Math.max(0, Math.floor(Number(frame.spinPay) || 0));
       bonusTotal += spinPay;
@@ -2419,7 +2977,16 @@ window.GTModules = window.GTModules || {};
       }
       const hud = frame.hud && typeof frame.hud === "object" ? frame.hud : {};
       const metaCounts = countLockedFromCellMeta(state.ephemeral.cellMeta);
-      if (showHud) {
+      if (showHud && isSix) {
+        updateSixBonusHud({
+          mode: String(hud.mode || "FREE SPINS"),
+          spinsLeft: Math.max(0, Math.floor(Number(hud.spinsLeft) || 0)),
+          bonusWin: Math.max(0, Math.floor(Number(hud.bonusWin) || bonusTotal)),
+          currentSpinWin: Math.max(0, Math.floor(Number(hud.currentSpinWin) || spinPay)),
+          activeMultiplier: Math.max(1, Number(hud.activeMultiplier) || 1),
+          wheelRules: hud.wheelRules && typeof hud.wheelRules === "object" ? hud.wheelRules : {}
+        });
+      } else if (showHud) {
         updateBonusHud({
           mode: "FREE SPINS",
           spinsLeft: Math.max(0, Math.floor(Number(hud.freeSpinsLeft) || 0)),
@@ -2433,7 +3000,7 @@ window.GTModules = window.GTModules || {};
       const banner = String(frame.banner || "").trim();
       if (banner) showBonusBanner(banner);
       if (frame && frame.fills) {
-        setBonusPhase(BONUS_PHASES.BONUS_CASCADE);
+        setBonusPhase(BONUS_PHASES.BONUS_RESOLVING);
         if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("winfx");
         await sleep(bonusFx.fillFx);
         if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
@@ -2442,7 +3009,7 @@ window.GTModules = window.GTModules || {};
       await sleep(bonusFx.between);
     }
 
-    if (machine.type === "snoop_dogg_dollars") {
+    if (isSnoop || isSix) {
       setBonusPhase(BONUS_PHASES.BONUS_END);
       setBoardDimmed(true);
       const subText = biggestCascadeWin > 0
@@ -2553,7 +3120,7 @@ window.GTModules = window.GTModules || {};
         "<div class=\"machine-item\" data-machine-key=\"" + escapeHtml(row.tileKey) + "\">" +
         "<div class=\"machine-cat " + escapeHtml(catId) + "\">" + escapeHtml(catLabel) + "</div>" +
         "<div class=\"name\">" + escapeHtml(row.typeName) + "</div>" +
-        "<div class=\"info\">Max Bet: " + formatLocksByDisplayUnit(row.maxBet) + "</div>" +
+        "<div class=\"info\">Volatility: " + escapeHtml(formatVolatility(row.volatility)) + "</div>" +
         "<div class=\"info\">Plays: " + row.stats.plays + "</div>" +
         "</div>"
       );
@@ -2593,7 +3160,7 @@ window.GTModules = window.GTModules || {};
     if (!machine) {
       showBonusHud(false);
       if (els.statBank instanceof HTMLElement) els.statBank.textContent = "Bank: " + formatLocksByDisplayUnit(0);
-      if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: " + formatLocksByDisplayUnit(0);
+      if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Volatility: -";
       if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: 0";
       if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: " + formatLocksByDisplayUnit(0);
       if (els.stage instanceof HTMLElement) els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit", "theme-tower", "theme-mines", "theme-snoop_dogg_dollars");
@@ -2632,7 +3199,7 @@ window.GTModules = window.GTModules || {};
       const bankText = INFINITE_BANK ? "Infinite" : formatLocksByDisplayUnit(machine.earningsLocks);
       els.statBank.textContent = "Bank: " + bankText;
     }
-    if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: " + formatLocksByDisplayUnit(machine.maxBet);
+    if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Volatility: " + formatVolatility(machine.volatility);
     if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: " + machine.stats.plays;
     if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: " + formatLocksByDisplayUnit(machine.stats.totalPayout);
 
@@ -2962,8 +3529,12 @@ window.GTModules = window.GTModules || {};
   function applyFrameToEphemeral(frame, machineType) {
     const row = frame && typeof frame === "object" ? frame : {};
     state.ephemeral.rows = rowsFromResult(row.reels, machineType);
-    state.ephemeral.lineIds = [];
-    state.ephemeral.lineWins = [String(row.lineText || "Bonus step")];
+    state.ephemeral.lineIds = Array.isArray(row.lineIds)
+      ? row.lineIds.map((v) => Math.max(1, Math.floor(Number(v) || 0))).filter((v) => v > 0).slice(0, 24)
+      : [];
+    state.ephemeral.lineWins = Array.isArray(row.lineWins) && row.lineWins.length
+      ? row.lineWins.map((v) => String(v || "").trim()).filter(Boolean).slice(0, 18)
+      : [String(row.lineText || "Bonus step")];
     state.ephemeral.markedCells = Array.isArray(row.markedCells) ? row.markedCells.slice(0, 256) : [];
     state.ephemeral.cellMeta = sanitizeCellMeta(row.cellMeta);
     state.ephemeral.effectCells = sanitizeEffectCells(row.effectCells);
@@ -3218,11 +3789,7 @@ window.GTModules = window.GTModules || {};
 
       let rawResult = {};
       if (machine.type === "slots_v2") {
-        if (typeof slotsModule.spin === "function") {
-          rawResult = slotsModule.spin("slots_v2", bet, spinOptions) || {};
-        } else {
-          rawResult = simulateSixSixSix(machine, bet, buyBonus);
-        }
+        rawResult = simulateSixSixSix(machine, bet, buyBonus);
       } else if (machine.type === "le_bandit") {
         rawResult = simulateLeBandit(machine, bet, buyBonus);
       } else if (typeof slotsModule.spin === "function") {
@@ -3293,7 +3860,7 @@ window.GTModules = window.GTModules || {};
           let hasWheel = false;
           for (let r = 0; r < machine.rows; r++) {
             let s = state.ephemeral.rows[r][col];
-            if (s === "BLU_6" || s === "RED_6") {
+            if (s === "BLU_6" || s === "RED_6" || s === "BLU_WHEEL" || s === "RED_WHEEL") {
               hasWheel = true;
               if (els.boardWrap instanceof HTMLElement) {
                 const wc = els.boardWrap.querySelector(".cell[data-col='" + col + "'][data-row='" + r + "']");
@@ -3336,6 +3903,7 @@ window.GTModules = window.GTModules || {};
         stopSpinFx();
       }
 
+      if (!state.bonusFlow.active) setBonusPhase(BONUS_PHASES.BASE_RESOLVING);
       state.ephemeral.rows = resolved.rows;
       state.ephemeral.lineWins = resolved.lineWins;
       state.ephemeral.lineIds = resolved.lineIds;
@@ -3395,11 +3963,7 @@ window.GTModules = window.GTModules || {};
 
           let rawResult = {};
           if (current.type === "slots_v2") {
-            if (typeof slotsModule.spin === "function") {
-              rawResult = slotsModule.spin("slots_v2", bet, spinOptions) || {};
-            } else {
-              rawResult = simulateSixSixSix(current, bet, buyBonus);
-            }
+            rawResult = simulateSixSixSix(current, bet, buyBonus);
           } else if (current.type === "le_bandit") {
             rawResult = simulateLeBandit(current, bet, buyBonus);
           } else {
@@ -3485,6 +4049,7 @@ window.GTModules = window.GTModules || {};
           stopSpinFx();
         }
 
+        if (!state.bonusFlow.active) setBonusPhase(BONUS_PHASES.BASE_RESOLVING);
         state.ephemeral.rows = resolved.rows;
         state.ephemeral.lineWins = resolved.lineWins;
         state.ephemeral.lineIds = resolved.lineIds;
@@ -3780,6 +4345,7 @@ window.GTModules = window.GTModules || {};
         tileKey: "demo_" + type,
         type: type,
         typeName: def.name,
+        volatility: String(def.volatility || "medium"),
         reels: def.reels,
         rows: def.rows,
         maxPayoutMultiplier: def.maxPayoutMultiplier,
