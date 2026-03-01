@@ -5188,8 +5188,8 @@ body.admin-dashboard-open .admin-inventory-modal {
   bottom: 8px !important;
   width: auto !important;
   max-width: none !important;
-  height: clamp(170px, 35%, 280px) !important;
-  min-height: 140px !important;
+  height: clamp(210px, 42%, 340px) !important;
+  min-height: 170px !important;
   z-index: 57 !important;
   overflow-y: auto !important;
   overflow-x: clip !important;
@@ -5284,8 +5284,8 @@ body.admin-dashboard-open .admin-inventory-modal {
     left: 6px !important;
     right: 6px !important;
     bottom: 6px !important;
-    height: min(52%, 330px) !important;
-    min-height: 140px !important;
+    height: min(58%, 390px) !important;
+    min-height: 170px !important;
     padding-top: 32px !important;
   }
 
