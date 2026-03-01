@@ -69,7 +69,8 @@ window.GTModules = window.GTModules || {};
     COIN: "Coin", ORE: "Ore", CART: "Cart", RELC: "Relic", "?": "Unknown",
     BONE: "Bone", PENT: "Pentagram", BLU_6: "Blue 6", RED_6: "Red 6",
     TRAP: "Trap", CHEESE: "Cheese", BEER: "Beer", BAG: "Bag", HAT: "Hat", WINT: "Wanted", RAIN: "Rain",
-    CLOVR: "Clover", POT: "Pot of Gold", LOCK: "Locked"
+    CLOVR: "Clover", POT: "Pot of Gold", LOCK: "Locked",
+    MULT: "Multiplier", BOMB: "Bomb", JACK: "Jackpot", COL: "Collect", BLANK: "Tease"
   };
 
   const SYMBOL_ICONS = {
@@ -80,10 +81,28 @@ window.GTModules = window.GTModules || {};
     COIN: "\u{1FA99}", ORE: "\u26D3", CART: "\u{1F6D2}", RELC: "\u{1F4FF}", "?": "\u2754",
     BONE: "\u{1F9B4}", PENT: "\u2721", BLU_6: "\u{1F535}6", RED_6: "\u{1F534}6",
     TRAP: "\u{1F4A9}", CHEESE: "\u{1F9C0}", BEER: "\u{1F37A}", BAG: "\u{1F4B0}", HAT: "\u{1F3A9}", WINT: "\u{1F46E}", RAIN: "\u{1F308}",
-    CLOVR: "\u2618", POT: "\u{1F4B0}", LOCK: "\u{1F512}"
+    CLOVR: "\u2618", POT: "\u{1F4B0}", LOCK: "\u{1F512}",
+    MULT: "\u2716", BOMB: "\u{1F4A3}", JACK: "\u{1F451}", COL: "\u{1F9F2}", BLANK: "\u2736"
   };
 
-  const SYMBOL_CLASSES = { WILD: "wild", SCAT: "scatter", BONUS: "bonus", DYN: "bonus", BLU_6: "sixblu", RED_6: "sixred", WINT: "wanted", RAIN: "rain", CLOVR: "rain", POT: "bonus", LOCK: "locked" };
+  const SYMBOL_CLASSES = {
+    WILD: "wild",
+    SCAT: "scatter",
+    BONUS: "bonus",
+    DYN: "bonus",
+    BLU_6: "sixblu",
+    RED_6: "sixred",
+    WINT: "wanted",
+    RAIN: "rain",
+    CLOVR: "rain",
+    POT: "bonus",
+    LOCK: "locked",
+    MULT: "bonus",
+    BOMB: "bonus",
+    JACK: "bonus",
+    COL: "scatter",
+    BLANK: "locked"
+  };
   const SYMBOL_POOL = {
     blackjack: ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"],
     slots: ["CHERRY", "LEMON", "BAR", "BELL", "SEVEN"],
@@ -421,6 +440,8 @@ window.GTModules = window.GTModules || {};
     HAT: { 5: 1.2, 6: 2.2, 7: 3.5, 8: 6.0, 9: 9.0, 10: 16, 12: 28, 15: 55 },
     WINT: { 5: 2.5, 6: 4.5, 7: 7.5, 8: 13, 9: 20, 10: 38, 12: 65, 15: 140 }
   };
+  const LE_BANDIT_BASE_PAY_SCALE = 0.68;
+  const LE_BANDIT_BONUS_PAY_SCALE = 0.62;
 
   function simulateLeBandit(machine, bet, buyBonus) {
     const COLS = 6, ROWS = 5;
@@ -446,30 +467,43 @@ window.GTModules = window.GTModules || {};
     function toReels(g) { const o = []; for (let r = 0; r < ROWS; r++)o.push(g[r].join(",")); return o; }
 
     // ────── BASE SPIN ──────
-    const baseGrid = makeGrid(buyBonus ? 0.05 : 0.012); // Reduced from 0.018
+    const baseGrid = makeGrid(buyBonus ? 0.035 : 0.01);
     const baseC = clusters(baseGrid);
     let basePay = 0;
     const lines = [];
-    for (const cl of baseC) { const m = cpay(cl.sym, cl.cells.length); if (m > 0) { basePay += bet * m; lines.push(cl.cells.length + "x " + (SYMBOL_LABELS[cl.sym] || cl.sym) + " (" + m + "x)"); } }
-    const triggerBonus = cntRain(baseGrid) >= 3 || buyBonus;
+    for (const cl of baseC) {
+      const m = cpay(cl.sym, cl.cells.length);
+      if (m > 0) {
+        basePay += bet * m * LE_BANDIT_BASE_PAY_SCALE;
+        lines.push(cl.cells.length + "x " + (SYMBOL_LABELS[cl.sym] || cl.sym) + " (" + m + "x)");
+      }
+    }
+    const triggerBonus = cntRain(baseGrid) >= 4 || buyBonus;
     const reels = toReels(baseGrid);
 
     // ────── FREE SPINS BONUS ──────
     let bonusPay = 0;
     const bonusFrames = [];
-    const FREE_SPINS = 10;
+    const FREE_SPINS = 8;
     const marked = new Set();
 
     if (triggerBonus) {
       lines.push("🌈 BONUS! " + FREE_SPINS + " Free Spins!");
       for (let s = 0; s < FREE_SPINS; s++) {
-        const fsGrid = makeGrid(0.06); // Reduced from 0.08
+        const fsGrid = makeGrid(0.04);
         const fsC = clusters(fsGrid);
         let sPay = 0;
         const sLines = [];
 
         // Cluster wins → mark cells
-        for (const cl of fsC) { const m = cpay(cl.sym, cl.cells.length); if (m > 0) { sPay += bet * m; sLines.push(cl.cells.length + "x " + (SYMBOL_LABELS[cl.sym] || cl.sym)); for (const cell of cl.cells) marked.add(cell.r + "_" + cell.c); } }
+        for (const cl of fsC) {
+          const m = cpay(cl.sym, cl.cells.length);
+          if (m > 0) {
+            sPay += bet * m * LE_BANDIT_BONUS_PAY_SCALE;
+            sLines.push(cl.cells.length + "x " + (SYMBOL_LABELS[cl.sym] || cl.sym));
+            for (const cell of cl.cells) marked.add(cell.r + "_" + cell.c);
+          }
+        }
 
         // Rainbow fill
         const rain = cntRain(fsGrid);
@@ -482,10 +516,10 @@ window.GTModules = window.GTModules || {};
             const roll = Math.random(), [fr, fc] = key.split("_").map(Number);
             if (roll < 0.70) {
               // Favors lower coins
-              const vs = [1, 1, 1, 2, 2, 3, 5, 10]; fb[key] = { type: "COIN", value: vs[Math.floor(Math.random() * vs.length)] };
+              const vs = [1, 1, 1, 1, 2, 2, 3, 5]; fb[key] = { type: "COIN", value: vs[Math.floor(Math.random() * vs.length)] };
             }
             else if (roll < 0.92) {
-              const ms = [2, 2, 3, 5, 10]; fb[key] = { type: "CLOVR", value: ms[Math.floor(Math.random() * ms.length)] };
+              const ms = [2, 2, 3, 4, 5]; fb[key] = { type: "CLOVR", value: ms[Math.floor(Math.random() * ms.length)] };
             }
             else { fb[key] = { type: "POT", value: 0 }; }
           }
@@ -495,8 +529,8 @@ window.GTModules = window.GTModules || {};
           let coinVal = 0; for (const k of Object.keys(fb)) { if (fb[k].type === "COIN") coinVal += fb[k].value; }
           // Pot respin
           let hasPot = false, respinV = 0; for (const k of Object.keys(fb)) { if (fb[k].type === "POT") { hasPot = true; break; } }
-          if (hasPot && coinVal > 0) { for (const k of Object.keys(fb)) { if (fb[k].type === "COIN") { const rv = [1, 2, 3, 5, 8, 10, 15, 25]; respinV += rv[Math.floor(Math.random() * rv.length)]; } }; coinVal += respinV; }
-          bonusPay += bet * coinVal;
+          if (hasPot && coinVal > 0) { for (const k of Object.keys(fb)) { if (fb[k].type === "COIN") { const rv = [1, 2, 3, 5, 8, 10]; respinV += rv[Math.floor(Math.random() * rv.length)]; } }; coinVal += respinV; }
+          bonusPay += bet * coinVal * LE_BANDIT_BONUS_PAY_SCALE;
           const fillCells = frameMarked.map(k => { const [r, c] = k.split("_").map(Number); return { r, c, ...fb[k] }; });
           fills = { cells: fillCells, totalMult: coinVal, hasPot, respinMult: respinV };
           sLines.push("🌈 " + frameMarked.length + " fills" + (hasPot ? " + POT respin" : "") + " (" + coinVal + "x)");
@@ -512,7 +546,7 @@ window.GTModules = window.GTModules || {};
           markedCells: frameMarked,
           fills,
           lineText: txt,
-          spinPay: sPay + (fills ? bet * fills.totalMult : 0)
+          spinPay: sPay + (fills ? bet * fills.totalMult * LE_BANDIT_BONUS_PAY_SCALE : 0)
         });
 
         if (fills) marked.clear(); // Persistence ends on fill
@@ -528,6 +562,99 @@ window.GTModules = window.GTModules || {};
       lineWins: lines, lineIds: [], bet: buyBonus ? bet * 10 : bet, summary,
       bonusFrames
     };
+  }
+
+  function sampleFramesEvenly(frames, maxCount) {
+    const list = Array.isArray(frames) ? frames : [];
+    const cap = Math.max(1, Math.floor(Number(maxCount) || 1));
+    if (list.length <= cap) return list.slice();
+    const out = [];
+    const step = list.length / cap;
+    for (let i = 0; i < cap; i++) {
+      const idx = Math.min(list.length - 1, Math.floor(i * step));
+      out.push(list[idx]);
+    }
+    const last = list[list.length - 1];
+    if (out[out.length - 1] !== last) out[out.length - 1] = last;
+    return out;
+  }
+
+  function decodeSlotsV2BonusCellToken(value) {
+    const raw = String(value || "").trim().toUpperCase();
+    if (!raw || raw === ".") return { token: "LOCK", mult: 0 };
+    if (raw === "COL") return { token: "COL", mult: 0 };
+    const prefix = raw.charAt(0);
+    const num = Math.max(0, Math.floor(Number(raw.slice(1)) || 0));
+    if (prefix === "C") return { token: "COIN", mult: num };
+    if (prefix === "M") return { token: "MULT", mult: Math.max(2, num) };
+    if (prefix === "B") return { token: "BOMB", mult: num };
+    if (prefix === "J") return { token: "JACK", mult: num };
+    return { token: "BLANK", mult: 0 };
+  }
+
+  function buildSlotsV2BonusFrames(bonusView) {
+    if (!bonusView || typeof bonusView !== "object") return [];
+    const allFrames = Array.isArray(bonusView.frames) ? bonusView.frames : [];
+    if (!allFrames.length) return [];
+    const rows = Math.max(1, Math.floor(Number(bonusView.rows) || 4));
+    const cols = Math.max(1, Math.floor(Number(bonusView.reels) || 5));
+    const totalSlots = rows * cols;
+    const sampled = sampleFramesEvenly(allFrames, 20);
+    const out = [];
+    for (let i = 0; i < sampled.length; i++) {
+      const frame = sampled[i] || {};
+      const cells = Array.isArray(frame.cells) ? frame.cells : [];
+      const tease = Array.isArray(frame.tease) ? frame.tease : [];
+      const grid = [];
+      for (let r = 0; r < rows; r++) {
+        grid[r] = [];
+        for (let c = 0; c < cols; c++) {
+          grid[r][c] = "LOCK";
+        }
+      }
+      for (let idx = 0; idx < totalSlots; idx++) {
+        const r = Math.floor(idx / cols);
+        const c = idx % cols;
+        const decoded = decodeSlotsV2BonusCellToken(cells[idx]);
+        grid[r][c] = decoded.token;
+      }
+      for (let iTease = 0; iTease < tease.length; iTease++) {
+        const teaseIdx = Math.max(0, Math.floor(Number(tease[iTease]) || 0));
+        if (teaseIdx >= totalSlots) continue;
+        const tr = Math.floor(teaseIdx / cols);
+        const tc = teaseIdx % cols;
+        if (grid[tr][tc] === "LOCK") grid[tr][tc] = "BLANK";
+      }
+      const markedCells = [];
+      let filled = 0;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const tok = String(grid[r][c] || "");
+          if (tok === "LOCK" || tok === "BLANK") continue;
+          filled += 1;
+          markedCells.push(r + "_" + c);
+        }
+      }
+      out.push({
+        reels: grid.map((row) => row.join(",")),
+        markedCells,
+        fills: null,
+        spinPay: 0,
+        lineText: "Hold&Spin " + (i + 1) + "/" + sampled.length + " | Filled " + filled + "/" + totalSlots + " | Respins " + Math.max(0, Math.floor(Number(frame.respins) || 0))
+      });
+    }
+    return out;
+  }
+
+  function extractBonusFrames(machineType, rawResult) {
+    const type = String(machineType || "").trim().toLowerCase();
+    if (type === "le_bandit") {
+      return Array.isArray(rawResult && rawResult.bonusFrames) ? rawResult.bonusFrames : [];
+    }
+    if (type === "slots_v2") {
+      return buildSlotsV2BonusFrames(rawResult && rawResult.bonusView);
+    }
+    return [];
   }
 
   function resolveLockCurrencies() {
@@ -1617,7 +1744,11 @@ window.GTModules = window.GTModules || {};
 
       let rawResult = {};
       if (machine.type === "slots_v2") {
-        rawResult = simulateSixSixSix(machine, bet, buyBonus);
+        if (typeof slotsModule.spin === "function") {
+          rawResult = slotsModule.spin("slots_v2", bet, buyBonus ? { mode: "buybonus" } : {}) || {};
+        } else {
+          rawResult = simulateSixSixSix(machine, bet, buyBonus);
+        }
       } else if (machine.type === "le_bandit") {
         rawResult = simulateLeBandit(machine, bet, buyBonus);
       } else if (typeof slotsModule.spin === "function") {
@@ -1650,7 +1781,8 @@ window.GTModules = window.GTModules || {};
         outcome: String(rawResult.outcome || "lose").slice(0, 24),
         multiplier: Math.max(0, Number(rawResult.multiplier) || 0),
         summary: String(rawResult.summary || "").slice(0, 220),
-        wager: resultWager
+        wager: resultWager,
+        bonusFrames: extractBonusFrames(machine.type, rawResult)
       };
 
       // -- Asynchronous Sequential Stop Animation --
@@ -1723,7 +1855,8 @@ window.GTModules = window.GTModules || {};
       }
 
       // If NOT a bonus, stop immediately. If bonus, stay busy!
-      const hasBonus = machine.type === "le_bandit" && rawResult.bonusFrames && rawResult.bonusFrames.length > 0;
+      const bonusFrames = Array.isArray(resolved.bonusFrames) ? resolved.bonusFrames : [];
+      const hasBonus = bonusFrames.length > 0;
       if (!hasBonus) {
         stopSpinFx();
       }
@@ -1734,39 +1867,41 @@ window.GTModules = window.GTModules || {};
       state.ephemeral.markedCells = [];
       renderBoard();
 
-      // --- Le Bandit Bonus Playback Loop ---
+      // --- Bonus Playback Loop ---
       if (hasBonus) {
-        await sleep(1500);
+        await sleep(machine.type === "slots_v2" ? 900 : 1500);
         let bonusTotal = 0;
-        for (let i = 0; i < rawResult.bonusFrames.length; i++) {
-          const frame = rawResult.bonusFrames[i];
-          bonusTotal += frame.spinPay;
+        for (let i = 0; i < bonusFrames.length; i++) {
+          const frame = bonusFrames[i];
+          bonusTotal += Math.max(0, Math.floor(Number(frame && frame.spinPay) || 0));
 
           // 0. Mini-Spin Effect (The "Rollings")
           state.ephemeral.stoppedCols = 0;
           if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
           renderBoard();
-          await sleep(650);
+          await sleep(machine.type === "slots_v2" ? 360 : 650);
           if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
           state.ephemeral.stoppedCols = machine.reels;
 
           // 1. Show the spin result (Grid)
           state.ephemeral.rows = rowsFromResult(frame.reels, machine.type);
-          state.ephemeral.lineWins = [frame.lineText];
-          state.ephemeral.markedCells = frame.markedCells;
+          state.ephemeral.lineIds = [];
+          state.ephemeral.lineWins = [String(frame && frame.lineText || "Bonus step")];
+          state.ephemeral.markedCells = Array.isArray(frame && frame.markedCells) ? frame.markedCells : [];
           renderBoard();
-          await sleep(1200);
+          await sleep(machine.type === "slots_v2" ? 560 : 1200);
 
           // 2. Rainbow Fill Step (Sequential Reveal)
-          if (frame.fills) {
+          if (frame && frame.fills) {
             if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("winfx");
-            await sleep(1000);
+            await sleep(machine.type === "slots_v2" ? 500 : 1000);
             if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
 
             // Re-render (In new frame logic, markedCells is preserved for this frame)
+            state.ephemeral.lineIds = [];
             state.ephemeral.markedCells = frame.markedCells;
             renderBoard();
-            await sleep(500);
+            await sleep(machine.type === "slots_v2" ? 280 : 500);
           }
 
           if (els.lastWinLabel && bonusTotal > 0) {
@@ -1774,7 +1909,7 @@ window.GTModules = window.GTModules || {};
             els.lastWinLabel.classList.add("good");
             els.lastWinLabel.classList.remove("hidden");
           }
-          await sleep(600);
+          await sleep(machine.type === "slots_v2" ? 280 : 600);
         }
         // FINAL STOP
         stopSpinFx();
@@ -1819,7 +1954,11 @@ window.GTModules = window.GTModules || {};
 
           let rawResult = {};
           if (current.type === "slots_v2") {
-            rawResult = simulateSixSixSix(current, bet, buyBonus);
+            if (typeof slotsModule.spin === "function") {
+              rawResult = slotsModule.spin("slots_v2", bet, buyBonus ? { mode: "buybonus" } : {}) || {};
+            } else {
+              rawResult = simulateSixSixSix(current, bet, buyBonus);
+            }
           } else if (current.type === "le_bandit") {
             rawResult = simulateLeBandit(current, bet, buyBonus);
           } else {
@@ -1865,7 +2004,7 @@ window.GTModules = window.GTModules || {};
             multiplier: stats.lastMultiplier,
             summary: stats.lastSlotsSummary,
             wager: resultWager,
-            bonusFrames: rawResult.bonusFrames // Pass bonus frames out of transaction
+            bonusFrames: extractBonusFrames(current.type, rawResult)
           };
 
           return {
@@ -1893,7 +2032,8 @@ window.GTModules = window.GTModules || {};
         }
 
         // Defer stop if bonus
-        const hasBonus = machine.type === "le_bandit" && resolved.bonusFrames && resolved.bonusFrames.length > 0;
+        const bonusFrames = Array.isArray(resolved.bonusFrames) ? resolved.bonusFrames : [];
+        const hasBonus = bonusFrames.length > 0;
         if (!hasBonus) {
           stopSpinFx();
         }
@@ -1904,36 +2044,38 @@ window.GTModules = window.GTModules || {};
         state.ephemeral.markedCells = [];
         renderBoard();
 
-        // --- Le Bandit Bonus Playback Loop (Hosted Machine) ---
+        // --- Bonus Playback Loop (Hosted Machine) ---
         if (hasBonus) {
-          await sleep(1500);
+          await sleep(machine.type === "slots_v2" ? 900 : 1500);
           let bonusTotal = 0;
-          for (let i = 0; i < resolved.bonusFrames.length; i++) {
-            const frame = resolved.bonusFrames[i];
-            bonusTotal += frame.spinPay;
+          for (let i = 0; i < bonusFrames.length; i++) {
+            const frame = bonusFrames[i];
+            bonusTotal += Math.max(0, Math.floor(Number(frame && frame.spinPay) || 0));
 
             // 0. Mini-Spin Effect
             state.ephemeral.stoppedCols = 0;
             if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
             renderBoard();
-            await sleep(650);
+            await sleep(machine.type === "slots_v2" ? 360 : 650);
             if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
             state.ephemeral.stoppedCols = machine.reels;
 
             // 1. Show Result
             state.ephemeral.rows = rowsFromResult(frame.reels, machine.type);
-            state.ephemeral.lineWins = [frame.lineText];
-            state.ephemeral.markedCells = frame.markedCells;
+            state.ephemeral.lineIds = [];
+            state.ephemeral.lineWins = [String(frame && frame.lineText || "Bonus step")];
+            state.ephemeral.markedCells = Array.isArray(frame && frame.markedCells) ? frame.markedCells : [];
             renderBoard();
-            await sleep(1200);
+            await sleep(machine.type === "slots_v2" ? 560 : 1200);
 
-            if (frame.fills) {
+            if (frame && frame.fills) {
               if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("winfx");
-              await sleep(1000);
+              await sleep(machine.type === "slots_v2" ? 500 : 1000);
               if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
+              state.ephemeral.lineIds = [];
               state.ephemeral.markedCells = frame.markedCells;
               renderBoard();
-              await sleep(500);
+              await sleep(machine.type === "slots_v2" ? 280 : 500);
             }
 
             if (els.lastWinLabel && bonusTotal > 0) {
@@ -1941,7 +2083,7 @@ window.GTModules = window.GTModules || {};
               els.lastWinLabel.classList.add("good");
               els.lastWinLabel.classList.remove("hidden");
             }
-            await sleep(600);
+            await sleep(machine.type === "slots_v2" ? 280 : 600);
           }
           stopSpinFx();
         }

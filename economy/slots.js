@@ -682,7 +682,8 @@ window.GTModules = window.GTModules || {};
       lineIds,
       lineWins,
       scatterCount,
-      bonusTriggered: Boolean(bonus && bonus.triggered)
+      bonusTriggered: Boolean(bonus && bonus.triggered),
+      bonusView: bonus && bonus.triggered ? (bonus.bonusView || null) : null
     };
   }
 
@@ -719,6 +720,9 @@ window.GTModules = window.GTModules || {};
       summaryParts.push("Bought bonus for " + wager + " WL.");
       if (boughtBonusSummary) summaryParts.push(boughtBonusSummary);
     }
+    const resolvedBonusView = boughtBonus
+      ? boughtBonusView
+      : (base && base.bonusView ? base.bonusView : null);
 
     const uncapped = Math.max(0, (boughtBonus ? boughtBonusPayout : Math.floor(Number(base.payoutWanted) || 0)));
     const cap = wager * Math.max(1, Math.floor(Number(GAME_DEFS.slots_v2.maxPayoutMultiplier) || 50));
@@ -745,7 +749,7 @@ window.GTModules = window.GTModules || {};
       freeSpinsAwarded: 0,
       freeSpinsPlayed: 0,
       freeSpinPayout: 0,
-      bonusView: boughtBonusView
+      bonusView: resolvedBonusView
     };
   }
 
