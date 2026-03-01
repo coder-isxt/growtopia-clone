@@ -1947,6 +1947,7 @@ window.GTModules = window.GTModules || {};
     let payout = 0;
     let grid = Array.isArray(startGrid) ? startGrid : snoopBuildFreshGrid(state);
     const timeline = [];
+    const frames = [];
     const originalCollect = state.collectScatters;
     state.collectScatters = false;
     while (played < totalSpins && played < Math.max(1, Math.floor(Number(SNOOP_CFG.maxFeatureSpins) || 220))) {
@@ -1960,6 +1961,17 @@ window.GTModules = window.GTModules || {};
       } else {
         timeline.push("FS" + played + ": miss");
       }
+      const payX = Math.floor(Math.max(0, Number(run.payout) || 0) / Math.max(1, state.bet));
+      const detail = Array.isArray(run.lineWins) && run.lineWins.length
+        ? " | " + String(run.lineWins[0] || "No clusters").slice(0, 96)
+        : "";
+      frames.push({
+        reels: snoopGridToTextRows(grid, state),
+        markedCells: Object.keys(state.marked || {}),
+        fills: null,
+        spinPay: Math.max(0, Math.floor(Number(run.payout) || 0)),
+        lineText: "FS " + played + "/" + totalSpins + " | " + (payX > 0 ? ("Win " + payX + "x") : "No win") + detail
+      });
       if (payout >= state.winCap) {
         payout = state.winCap;
         break;
@@ -1970,7 +1982,8 @@ window.GTModules = window.GTModules || {};
       spinsPlayed: played,
       payout: Math.max(0, Math.min(state.winCap, payout)),
       timeline: timeline.slice(0, 32),
-      finalGrid: grid
+      finalGrid: grid,
+      frames: frames.slice(0, Math.max(1, totalSpins))
     };
   }
 
@@ -2008,6 +2021,7 @@ window.GTModules = window.GTModules || {};
     let freeSpinsPlayed = 0;
     let freeSpinPayout = 0;
     let grid = snoopBuildFreshGrid(state);
+    const bonusFrames = [];
 
     if (buyTrigger >= 3) {
       bonusTriggered = true;
@@ -2016,6 +2030,13 @@ window.GTModules = window.GTModules || {};
       const transform = snoopTransformScattersForFeature(state, grid, buyTrigger);
       grid = transform.grid;
       lineWins.push("Transform: " + transform.transformedWilds + " Sticky Wild | " + transform.transformedMultipliers + " x10 Cells");
+      bonusFrames.push({
+        reels: snoopGridToTextRows(grid, state),
+        markedCells: Object.keys(state.marked || {}),
+        fills: null,
+        spinPay: 0,
+        lineText: "BONUS BUY START | " + freeSpinsAwarded + " Free Spins"
+      });
     } else {
       const baseRun = snoopRunCascades(state, grid, { guaranteedWild: isHype ? 1 : 0 });
       basePayout = Math.max(0, Math.floor(Number(baseRun.payout) || 0));
@@ -2030,6 +2051,13 @@ window.GTModules = window.GTModules || {};
         grid = transform.grid;
         lineWins.push("SCATTER x" + scat + " -> " + freeSpinsAwarded + " FS");
         lineWins.push("Transform: " + transform.transformedWilds + " Sticky Wild | " + transform.transformedMultipliers + " x10 Cells");
+        bonusFrames.push({
+          reels: snoopGridToTextRows(grid, state),
+          markedCells: Object.keys(state.marked || {}),
+          fills: null,
+          spinPay: 0,
+          lineText: "FEATURE TRIGGER | SCATTER x" + scat + " -> " + freeSpinsAwarded + " FS"
+        });
       }
     }
 
@@ -2039,6 +2067,11 @@ window.GTModules = window.GTModules || {};
       freeSpinPayout = Math.max(0, Math.floor(Number(fs.payout) || 0));
       grid = fs.finalGrid;
       if (fs.timeline.length) lineWins.push("FS: " + fs.timeline.slice(0, 8).join(" / "));
+      if (Array.isArray(fs.frames) && fs.frames.length) {
+        for (let i = 0; i < fs.frames.length && bonusFrames.length < 96; i++) {
+          bonusFrames.push(fs.frames[i]);
+        }
+      }
     }
 
     const uncapped = Math.max(0, basePayout + freeSpinPayout);
@@ -2068,6 +2101,7 @@ window.GTModules = window.GTModules || {};
       freeSpinsAwarded,
       freeSpinsPlayed,
       freeSpinPayout,
+      bonusFrames: bonusFrames.slice(0, 96),
       rtpTarget: Number(SNOOP_CFG.rtp) || Number(GAME_DEFS.snoop_dogg_dollars.rtp) || 0.96
     };
   }

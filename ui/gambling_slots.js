@@ -1164,6 +1164,9 @@ window.GTModules = window.GTModules || {};
     if (type === "slots_v2") {
       return buildSlotsV2BonusFrames(rawResult && rawResult.bonusView);
     }
+    if (type === "snoop_dogg_dollars") {
+      return Array.isArray(rawResult && rawResult.bonusFrames) ? rawResult.bonusFrames : [];
+    }
     return [];
   }
 
@@ -1979,6 +1982,17 @@ window.GTModules = window.GTModules || {};
     if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.textContent = "Spin";
   }
 
+  function bonusAnimTimings(machineType) {
+    const type = String(machineType || "").trim().toLowerCase();
+    if (type === "slots_v2") {
+      return { intro: 900, spin: 360, reveal: 560, fillFx: 500, fillSettle: 280, between: 280 };
+    }
+    if (type === "snoop_dogg_dollars") {
+      return { intro: 640, spin: 320, reveal: 620, fillFx: 340, fillSettle: 180, between: 260 };
+    }
+    return { intro: 1500, spin: 650, reveal: 1200, fillFx: 1000, fillSettle: 500, between: 600 };
+  }
+
   function spawnParticles(tone) {
     if (!(els.particles instanceof HTMLElement)) return;
     const symbols = tone === "jackpot"
@@ -2715,7 +2729,8 @@ window.GTModules = window.GTModules || {};
 
       // --- Bonus Playback Loop ---
       if (hasBonus) {
-        await sleep(machine.type === "slots_v2" ? 900 : 1500);
+        const bonusFx = bonusAnimTimings(machine.type);
+        await sleep(bonusFx.intro);
         let bonusTotal = 0;
         for (let i = 0; i < bonusFrames.length; i++) {
           const frame = bonusFrames[i];
@@ -2725,7 +2740,7 @@ window.GTModules = window.GTModules || {};
           state.ephemeral.stoppedCols = 0;
           if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
           renderBoard();
-          await sleep(machine.type === "slots_v2" ? 360 : 650);
+          await sleep(bonusFx.spin);
           if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
           state.ephemeral.stoppedCols = machine.reels;
 
@@ -2735,19 +2750,19 @@ window.GTModules = window.GTModules || {};
           state.ephemeral.lineWins = [String(frame && frame.lineText || "Bonus step")];
           state.ephemeral.markedCells = Array.isArray(frame && frame.markedCells) ? frame.markedCells : [];
           renderBoard();
-          await sleep(machine.type === "slots_v2" ? 560 : 1200);
+          await sleep(bonusFx.reveal);
 
           // 2. Rainbow Fill Step (Sequential Reveal)
           if (frame && frame.fills) {
             if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("winfx");
-            await sleep(machine.type === "slots_v2" ? 500 : 1000);
+            await sleep(bonusFx.fillFx);
             if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
 
             // Re-render (In new frame logic, markedCells is preserved for this frame)
             state.ephemeral.lineIds = [];
             state.ephemeral.markedCells = frame.markedCells;
             renderBoard();
-            await sleep(machine.type === "slots_v2" ? 280 : 500);
+            await sleep(bonusFx.fillSettle);
           }
 
           if (els.lastWinLabel && bonusTotal > 0) {
@@ -2755,7 +2770,7 @@ window.GTModules = window.GTModules || {};
             els.lastWinLabel.classList.add("good");
             els.lastWinLabel.classList.remove("hidden");
           }
-          await sleep(machine.type === "slots_v2" ? 280 : 600);
+          await sleep(bonusFx.between);
         }
         // FINAL STOP
         stopSpinFx();
@@ -2892,7 +2907,8 @@ window.GTModules = window.GTModules || {};
 
         // --- Bonus Playback Loop (Hosted Machine) ---
         if (hasBonus) {
-          await sleep(machine.type === "slots_v2" ? 900 : 1500);
+          const bonusFx = bonusAnimTimings(machine.type);
+          await sleep(bonusFx.intro);
           let bonusTotal = 0;
           for (let i = 0; i < bonusFrames.length; i++) {
             const frame = bonusFrames[i];
@@ -2902,7 +2918,7 @@ window.GTModules = window.GTModules || {};
             state.ephemeral.stoppedCols = 0;
             if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
             renderBoard();
-            await sleep(machine.type === "slots_v2" ? 360 : 650);
+            await sleep(bonusFx.spin);
             if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
             state.ephemeral.stoppedCols = machine.reels;
 
@@ -2912,16 +2928,16 @@ window.GTModules = window.GTModules || {};
             state.ephemeral.lineWins = [String(frame && frame.lineText || "Bonus step")];
             state.ephemeral.markedCells = Array.isArray(frame && frame.markedCells) ? frame.markedCells : [];
             renderBoard();
-            await sleep(machine.type === "slots_v2" ? 560 : 1200);
+            await sleep(bonusFx.reveal);
 
             if (frame && frame.fills) {
               if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("winfx");
-              await sleep(machine.type === "slots_v2" ? 500 : 1000);
+              await sleep(bonusFx.fillFx);
               if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
               state.ephemeral.lineIds = [];
               state.ephemeral.markedCells = frame.markedCells;
               renderBoard();
-              await sleep(machine.type === "slots_v2" ? 280 : 500);
+              await sleep(bonusFx.fillSettle);
             }
 
             if (els.lastWinLabel && bonusTotal > 0) {
@@ -2929,7 +2945,7 @@ window.GTModules = window.GTModules || {};
               els.lastWinLabel.classList.add("good");
               els.lastWinLabel.classList.remove("hidden");
             }
-            await sleep(machine.type === "slots_v2" ? 280 : 600);
+            await sleep(bonusFx.between);
           }
           stopSpinFx();
         }
