@@ -141,7 +141,6 @@ body {
 }
 
 .hud {
-  margin-top: 32px;
   background: linear-gradient(180deg, rgba(17, 32, 48, 0.92), rgba(10, 21, 34, 0.92));
   border: 1px solid rgba(164, 195, 224, 0.28);
   border-radius: var(--radius-md);
@@ -570,7 +569,7 @@ canvas {
 }
 
 .chat-panel {
-  position: fixed;
+  position: absolute;
   left: 0;
   right: 0;
   top: 0;
@@ -578,11 +577,11 @@ canvas {
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(4px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0;
+  border-radius: 0 0 8px 8px;
   display: flex;
   flex-direction: column;
   overflow: visible;
-  z-index: 999;
+  z-index: 200;
   transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease;
   user-select: none;
   pointer-events: none;
