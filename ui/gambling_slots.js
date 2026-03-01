@@ -4,7 +4,7 @@ window.GTModules = window.GTModules || {};
   "use strict";
 
   const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
-  const GAME_IDS = ["blackjack", "slots_v2", "le_bandit"];
+  const GAME_IDS = ["blackjack", "slots_v2", "le_bandit", "tower"];
 
   // This page is now a standalone casino site.
   // World-based machine browsing is on gambling.html
@@ -45,7 +45,18 @@ window.GTModules = window.GTModules || {};
   const UI_GAME_ALIASES = {
     blackjack: "Blackjack",
     slots_v2: "Six Six Six",
-    le_bandit: "Le Bandit"
+    le_bandit: "Le Bandit",
+    tower: "Tower"
+  };
+  const TOWER_CONFIG = {
+    floors: 8,
+    cols: 5,
+    difficulties: {
+      easy: { id: "easy", label: "Easy", traps: 1, stepMult: 1.19 },
+      normal: { id: "normal", label: "Normal", traps: 2, stepMult: 1.58 },
+      hard: { id: "hard", label: "Hard", traps: 3, stepMult: 2.38 },
+      extreme: { id: "extreme", label: "Extreme", traps: 4, stepMult: 4.75 }
+    }
   };
   const PAYLINES_5 = [
     [1, 1, 1, 1, 1],
@@ -135,7 +146,11 @@ window.GTModules = window.GTModules || {};
     spinBusy: false,
     spinTimer: 0,
     currentBetValue: 1,
-    ephemeral: { rows: null, lineIds: [], lineWins: [] }
+    ephemeral: { rows: null, lineIds: [], lineWins: [] },
+    tower: {
+      roundsByMachine: {},
+      difficultyByMachine: {}
+    }
   };
 
   const els = {
@@ -159,7 +174,10 @@ window.GTModules = window.GTModules || {};
     machineSelect: document.getElementById("machineSelect"),
     machineList: document.getElementById("machineList"),
     currentBetDisplay: document.getElementById("currentBetDisplay"),
+    towerDifficultyWrap: document.getElementById("towerDifficultyWrap"),
+    towerDifficultySelect: document.getElementById("towerDifficultySelect"),
     spinBtn: document.getElementById("spinBtn"),
+    towerCashoutBtn: document.getElementById("towerCashoutBtn"),
     bjHitBtn: document.getElementById("bjHitBtn"),
     bjStandBtn: document.getElementById("bjStandBtn"),
     bjDoubleBtn: document.getElementById("bjDoubleBtn"),
@@ -192,7 +210,8 @@ window.GTModules = window.GTModules || {};
       slots_v3: { name: "Blood Vault", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 4 },
       slots_v4: { name: "Ancient Jungle", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 4 },
       slots_v6: { name: "Deep Core", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 5000, reels: 5, rows: 3 },
-      le_bandit: { name: "Le Bandit", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10000, reels: 6, rows: 5 }
+      le_bandit: { name: "Le Bandit", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10000, reels: 6, rows: 5 },
+      tower: { name: "Tower", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 25000, reels: 5, rows: 8 }
     };
     const out = {};
     GAME_IDS.forEach((id) => {
@@ -250,6 +269,252 @@ window.GTModules = window.GTModules || {};
   }
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function normalizeTowerDifficultyId(value) {
+    const raw = String(value || "").trim().toLowerCase();
+    return TOWER_CONFIG.difficulties[raw] ? raw : "normal";
+  }
+
+  function getTowerDifficultyConfig(value) {
+    return TOWER_CONFIG.difficulties[normalizeTowerDifficultyId(value)] || TOWER_CONFIG.difficulties.normal;
+  }
+
+  function getTowerDifficultyForMachine(machine) {
+    if (!machine || !machine.tileKey) return "normal";
+    const byMachine = state.tower && state.tower.difficultyByMachine ? state.tower.difficultyByMachine : {};
+    return normalizeTowerDifficultyId(byMachine[machine.tileKey]);
+  }
+
+  function setTowerDifficultyForMachine(machine, difficultyId) {
+    if (!machine || !machine.tileKey) return;
+    const id = normalizeTowerDifficultyId(difficultyId);
+    if (!state.tower || !state.tower.difficultyByMachine) return;
+    state.tower.difficultyByMachine[machine.tileKey] = id;
+  }
+
+  function getTowerRoundForMachine(machine) {
+    if (!machine || !machine.tileKey) return null;
+    const byMachine = state.tower && state.tower.roundsByMachine ? state.tower.roundsByMachine : {};
+    return byMachine[machine.tileKey] || null;
+  }
+
+  function setTowerRoundForMachine(machine, round) {
+    if (!machine || !machine.tileKey || !state.tower || !state.tower.roundsByMachine) return;
+    if (round) state.tower.roundsByMachine[machine.tileKey] = round;
+    else delete state.tower.roundsByMachine[machine.tileKey];
+  }
+
+  function randomUniqueIndices(count, pickCount) {
+    const total = Math.max(1, Math.floor(Number(count) || 1));
+    const needed = Math.max(0, Math.min(total, Math.floor(Number(pickCount) || 0)));
+    const arr = [];
+    for (let i = 0; i < total; i++) arr.push(i);
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = arr[i];
+      arr[i] = arr[j];
+      arr[j] = t;
+    }
+    return arr.slice(0, needed).sort((a, b) => a - b);
+  }
+
+  function createTowerRound(machine, bet, difficultyId) {
+    const cfg = getTowerDifficultyConfig(difficultyId);
+    const floors = Math.max(4, Math.floor(TOWER_CONFIG.floors || 8));
+    const cols = Math.max(3, Math.floor(TOWER_CONFIG.cols || 5));
+    const traps = Math.max(1, Math.min(cols - 1, Math.floor(Number(cfg.traps) || 1)));
+    const safePerFloor = Math.max(1, cols - traps);
+    const safeColsByFloor = [];
+    for (let floor = 0; floor < floors; floor++) safeColsByFloor.push(randomUniqueIndices(cols, safePerFloor));
+    const multipliers = [];
+    let mult = 1;
+    const step = Math.max(1.01, Number(cfg.stepMult) || 1.25);
+    for (let floor = 0; floor < floors; floor++) {
+      mult *= step;
+      multipliers.push(Number(mult.toFixed(4)));
+    }
+    return {
+      machineKey: machine.tileKey,
+      startedAt: Date.now(),
+      bet: Math.max(1, Math.floor(Number(bet) || 1)),
+      difficultyId: cfg.id,
+      difficultyLabel: cfg.label,
+      floors,
+      cols,
+      traps,
+      safePerFloor,
+      stepMult: step,
+      safeColsByFloor,
+      multipliers,
+      picksByFloor: [],
+      currentFloor: 0,
+      active: true,
+      ended: false,
+      revealAll: false,
+      result: "running",
+      payout: 0,
+      hit: null
+    };
+  }
+
+  function towerClearedFloors(round) {
+    if (!round) return 0;
+    return Math.max(0, Math.min(round.floors, Math.floor(Number(round.currentFloor) || 0)));
+  }
+
+  function towerCurrentMultiplier(round) {
+    if (!round) return 1;
+    const cleared = towerClearedFloors(round);
+    if (cleared <= 0) return 1;
+    return Math.max(1, Number(round.multipliers && round.multipliers[cleared - 1]) || 1);
+  }
+
+  function towerNextMultiplier(round) {
+    if (!round) return 1;
+    const cleared = towerClearedFloors(round);
+    const next = round.multipliers && round.multipliers[cleared];
+    return Math.max(1, Number(next) || towerCurrentMultiplier(round));
+  }
+
+  function formatMultiplier(mult) {
+    const safe = Math.max(0, Number(mult) || 0);
+    if (safe >= 1000) return safe.toFixed(0) + "x";
+    if (safe >= 100) return safe.toFixed(1) + "x";
+    if (safe >= 10) return safe.toFixed(2) + "x";
+    return safe.toFixed(3) + "x";
+  }
+
+  function formatTowerPayout(round, mult) {
+    if (!round) return 0;
+    return Math.max(0, Math.floor(round.bet * Math.max(1, Number(mult) || 1)));
+  }
+
+  function updateTowerMachineStatsOnStart(machine, round) {
+    if (!machine || !machine.stats || !round) return;
+    machine.stats.plays = toCount(machine.stats.plays) + 1;
+    machine.stats.totalBet = toCount(machine.stats.totalBet) + round.bet;
+    machine.stats.lastOutcome = "running";
+    machine.stats.lastMultiplier = 1;
+    machine.stats.lastSlotsSummary = "Tower run started (" + round.difficultyLabel + ")";
+    machine.stats.lastSlotsText = "";
+    machine.stats.lastSlotsLines = "";
+    machine.stats.lastSlotsLineIds = "";
+  }
+
+  function updateTowerMachineStatsOnResolve(machine, round, outcome, payout) {
+    if (!machine || !machine.stats || !round) return;
+    const safeOutcome = String(outcome || "lose").slice(0, 24);
+    const safePayout = Math.max(0, Math.floor(Number(payout) || 0));
+    const mult = towerCurrentMultiplier(round);
+    machine.stats.lastOutcome = safeOutcome;
+    machine.stats.lastMultiplier = Number(mult.toFixed(4));
+    machine.stats.lastSlotsSummary = "Tower " + safeOutcome + " | " + towerClearedFloors(round) + "/" + round.floors + " floors | " + formatMultiplier(mult);
+    if (safePayout > 0) machine.stats.totalPayout = toCount(machine.stats.totalPayout) + safePayout;
+  }
+
+  async function startTowerRun(machine) {
+    if (!machine || machine.type !== "tower" || state.spinBusy) return;
+    const existing = getTowerRoundForMachine(machine);
+    if (existing && existing.active) return;
+    const bet = clampBetToMachine(machine, state.currentBetValue);
+    if (state.webVaultLocks < bet) return;
+
+    const debit = await adjustWallet(-bet);
+    if (!debit.ok) return;
+
+    const difficultyId = getTowerDifficultyForMachine(machine);
+    const round = createTowerRound(machine, bet, difficultyId);
+    setTowerRoundForMachine(machine, round);
+    updateTowerMachineStatsOnStart(machine, round);
+    if (els.lastWinLabel instanceof HTMLElement) {
+      els.lastWinLabel.textContent = "Tower Started";
+      els.lastWinLabel.classList.remove("hidden");
+      els.lastWinLabel.classList.remove("good");
+    }
+    renderAll();
+  }
+
+  async function cashOutTowerRun(machine, reason) {
+    if (!machine || machine.type !== "tower") return;
+    const round = getTowerRoundForMachine(machine);
+    if (!round || !round.active) return;
+    const cleared = towerClearedFloors(round);
+    if (cleared <= 0) return;
+    const outcome = reason === "top" ? "top" : "cashout";
+    const mult = towerCurrentMultiplier(round);
+    const payout = formatTowerPayout(round, mult);
+    if (payout > 0) {
+      const credit = await adjustWallet(payout);
+      if (!credit || !credit.ok) {
+        if (els.lastWinLabel instanceof HTMLElement) {
+          els.lastWinLabel.textContent = "Cashout Failed";
+          els.lastWinLabel.classList.remove("hidden");
+          els.lastWinLabel.classList.remove("good");
+        }
+        renderAll();
+        return;
+      }
+    }
+    round.active = false;
+    round.ended = true;
+    round.result = outcome;
+    round.payout = payout;
+    round.revealAll = true;
+    updateTowerMachineStatsOnResolve(machine, round, outcome, payout);
+    if (els.lastWinLabel instanceof HTMLElement) {
+      els.lastWinLabel.textContent = "Won: " + payout + " WL";
+      els.lastWinLabel.classList.remove("hidden");
+      els.lastWinLabel.classList.add("good");
+    }
+    spawnParticles(payout >= round.bet * 25 ? "jackpot" : "win");
+    renderAll();
+  }
+
+  async function handleTowerPick(machine, floor, col) {
+    if (!machine || machine.type !== "tower") return;
+    const round = getTowerRoundForMachine(machine);
+    if (!round || !round.active) return;
+    const floorIdx = Math.floor(Number(floor));
+    const colIdx = Math.floor(Number(col));
+    if (floorIdx !== round.currentFloor) return;
+    if (colIdx < 0 || colIdx >= round.cols) return;
+    if (round.picksByFloor[floorIdx] !== undefined) return;
+
+    round.picksByFloor[floorIdx] = colIdx;
+    const safeCols = Array.isArray(round.safeColsByFloor[floorIdx]) ? round.safeColsByFloor[floorIdx] : [];
+    const safe = safeCols.indexOf(colIdx) >= 0;
+    if (!safe) {
+      round.active = false;
+      round.ended = true;
+      round.result = "lose";
+      round.payout = 0;
+      round.revealAll = true;
+      round.hit = { floor: floorIdx, col: colIdx };
+      updateTowerMachineStatsOnResolve(machine, round, "lose", 0);
+      if (els.lastWinLabel instanceof HTMLElement) {
+        els.lastWinLabel.textContent = "Trap Hit";
+        els.lastWinLabel.classList.remove("hidden");
+        els.lastWinLabel.classList.remove("good");
+      }
+      renderAll();
+      return;
+    }
+
+    round.currentFloor += 1;
+    const mult = towerCurrentMultiplier(round);
+    if (els.lastWinLabel instanceof HTMLElement) {
+      els.lastWinLabel.textContent = "Tower: " + formatMultiplier(mult);
+      els.lastWinLabel.classList.remove("hidden");
+      els.lastWinLabel.classList.add("good");
+    }
+
+    if (round.currentFloor >= round.floors) {
+      await cashOutTowerRun(machine, "top");
+      return;
+    }
+
+    renderAll();
+  }
 
   // Standalone/casino spin logic
   function simulateStandaloneSpin(machine, bet) {
@@ -1109,6 +1374,99 @@ window.GTModules = window.GTModules || {};
     els.slotBoard.innerHTML = html;
   }
 
+  function renderTowerBoard(machine) {
+    if (!(els.slotBoard instanceof HTMLElement) || !(els.lineList instanceof HTMLElement)) return;
+    const round = getTowerRoundForMachine(machine);
+    const difficultyId = round ? normalizeTowerDifficultyId(round.difficultyId) : getTowerDifficultyForMachine(machine);
+    const difficulty = getTowerDifficultyConfig(difficultyId);
+    const floors = round ? Math.max(1, Math.floor(Number(round.floors) || TOWER_CONFIG.floors)) : TOWER_CONFIG.floors;
+    const cols = round ? Math.max(1, Math.floor(Number(round.cols) || TOWER_CONFIG.cols)) : TOWER_CONFIG.cols;
+
+    els.slotBoard.classList.add("tower-board");
+    els.slotBoard.style.setProperty("--tower-cols", String(cols));
+    els.slotBoard.style.setProperty("--tower-rows", String(floors));
+
+    let html = "";
+    for (let floor = floors - 1; floor >= 0; floor--) {
+      const pick = round && Array.isArray(round.picksByFloor) ? round.picksByFloor[floor] : undefined;
+      const safeCols = round && Array.isArray(round.safeColsByFloor) && Array.isArray(round.safeColsByFloor[floor]) ? round.safeColsByFloor[floor] : [];
+      for (let col = 0; col < cols; col++) {
+        let cls = "tower-cell locked";
+        let text = "?";
+        const isPicked = pick === col;
+        const isSafe = safeCols.indexOf(col) >= 0;
+        if (round && round.active) {
+          if (floor < round.currentFloor && isPicked) {
+            cls = "tower-cell safe";
+            text = "SAFE";
+          } else if (floor === round.currentFloor) {
+            cls = "tower-cell active";
+            text = "PICK";
+          }
+        } else if (round && round.ended) {
+          if (isPicked && round.result === "lose") {
+            cls = "tower-cell trap";
+            text = "TRAP";
+          } else if (isPicked && isSafe) {
+            cls = "tower-cell safe";
+            text = "SAFE";
+          } else if (round.revealAll) {
+            if (isSafe) {
+              cls = "tower-cell revealed-safe";
+              text = "SAFE";
+            } else {
+              cls = "tower-cell revealed-trap";
+              text = "TRAP";
+            }
+          }
+        }
+        html += "<div class=\"" + cls + "\" data-floor=\"" + floor + "\" data-col=\"" + col + "\">" + text + "</div>";
+      }
+    }
+    els.slotBoard.innerHTML = html;
+
+    const rows = [];
+    rows.push("<span class=\"line-badge\">Tower " + escapeHtml(difficulty.label) + "</span>");
+    rows.push("<span class=\"line-badge\">Traps/Floor: " + difficulty.traps + "/" + cols + "</span>");
+    rows.push("<span class=\"line-badge\">Step: " + formatMultiplier(difficulty.stepMult) + "</span>");
+
+    if (!round) {
+      rows.push("<span class=\"line-badge muted\">Press Start Run, then pick one tile per floor.</span>");
+      rows.push("<span class=\"line-badge muted\">Cash out any time after at least one safe pick.</span>");
+      els.lineList.innerHTML = rows.join("");
+      return;
+    }
+
+    const cleared = towerClearedFloors(round);
+    const currentMult = towerCurrentMultiplier(round);
+    const nextMult = towerNextMultiplier(round);
+    rows.push("<span class=\"line-badge\">Cleared: " + cleared + "/" + round.floors + "</span>");
+    rows.push("<span class=\"line-badge\">Current: " + formatMultiplier(currentMult) + "</span>");
+
+    if (round.active) {
+      rows.push("<span class=\"line-badge hot\">Next: " + formatMultiplier(nextMult) + "</span>");
+      if (cleared > 0) rows.push("<span class=\"line-badge hot\">Cashout: " + formatTowerPayout(round, currentMult) + " WL</span>");
+    } else if (round.result === "lose") {
+      rows.push("<span class=\"line-badge hot\">Trap hit. Lost " + round.bet + " WL</span>");
+    } else {
+      rows.push("<span class=\"line-badge hot\">Paid: " + Math.max(0, Math.floor(Number(round.payout) || 0)) + " WL</span>");
+    }
+
+    for (let floor = 0; floor < round.floors; floor++) {
+      const pick = round.picksByFloor[floor];
+      if (pick === undefined) continue;
+      const safeCols = Array.isArray(round.safeColsByFloor[floor]) ? round.safeColsByFloor[floor] : [];
+      const safe = safeCols.indexOf(pick) >= 0;
+      const tagClass = safe ? "line-badge" : "line-badge hot";
+      const label = safe
+        ? ("F" + (floor + 1) + " safe " + formatMultiplier(round.multipliers[floor] || 1))
+        : ("F" + (floor + 1) + " trap");
+      rows.push("<span class=\"" + tagClass + "\">" + escapeHtml(label) + "</span>");
+    }
+
+    els.lineList.innerHTML = rows.slice(0, 24).join("");
+  }
+
   function renderBoard(animCtx) {
     if (!(els.slotBoard instanceof HTMLElement) || !(els.slotOverlay instanceof SVGElement) || !(els.lineList instanceof HTMLElement)) return;
     const machine = getSelectedMachine();
@@ -1118,11 +1476,17 @@ window.GTModules = window.GTModules || {};
 
     if (machine.type === 'blackjack') {
       if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add('blackjack-mode');
+      els.slotBoard.classList.remove("tower-board");
       renderBlackjackBoard(machine, animCtx);
       els.lineList.innerHTML = ""; // No paylines for BJ
       return;
+    } else if (machine.type === "tower") {
+      if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove('blackjack-mode');
+      renderTowerBoard(machine);
+      return;
     } else {
       if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove('blackjack-mode');
+      els.slotBoard.classList.remove("tower-board");
     }
 
     const model = buildRowsForRender(machine);
@@ -1302,11 +1666,16 @@ window.GTModules = window.GTModules || {};
       if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: 0 WL";
       if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: 0";
       if (els.statPayout instanceof HTMLElement) els.statPayout.textContent = "Total Payout: 0 WL";
-      if (els.stage instanceof HTMLElement) els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit");
+      if (els.stage instanceof HTMLElement) els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit", "theme-tower");
       if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.disabled = true;
       if (els.buyBonusBtn instanceof HTMLButtonElement) {
         els.buyBonusBtn.classList.add("hidden");
         els.buyBonusBtn.disabled = true;
+      }
+      if (els.towerDifficultyWrap instanceof HTMLElement) els.towerDifficultyWrap.classList.add("hidden");
+      if (els.towerCashoutBtn instanceof HTMLButtonElement) {
+        els.towerCashoutBtn.classList.add("hidden");
+        els.towerCashoutBtn.disabled = true;
       }
       return;
     }
@@ -1321,17 +1690,20 @@ window.GTModules = window.GTModules || {};
 
     if (els.stage instanceof HTMLElement) {
       const currentType = machine.type;
-      els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit");
+      els.stage.classList.remove("theme-slots", "theme-slots_v2", "theme-slots_v3", "theme-slots_v4", "theme-slots_v6", "theme-le_bandit", "theme-tower");
       if (typeof currentType === "string") {
         if (currentType === "le_bandit") els.stage.classList.add("theme-le_bandit");
+        else if (currentType === "tower") els.stage.classList.add("theme-tower");
         else if (currentType.startsWith("slots")) els.stage.classList.add("theme-" + currentType);
       }
     }
 
     // Toggle controls based on game type
     const isBlackjack = machine.type === 'blackjack';
+    const isTower = machine.type === "tower";
     const bjState = machine.stats.blackjackState;
     const activeHand = (bjState && bjState.hands && bjState.hands[bjState.activeHandIndex]) || null;
+    const towerRound = isTower ? getTowerRoundForMachine(machine) : null;
 
     const bet = clampBetToMachine(machine, state.currentBetValue);
     let displayBet = bet;
@@ -1353,6 +1725,20 @@ window.GTModules = window.GTModules || {};
     if (els.bjStandBtn) els.bjStandBtn.classList.toggle("hidden", !isBlackjack);
     if (els.bjDoubleBtn) els.bjDoubleBtn.classList.toggle("hidden", !isBlackjack);
     if (els.bjSplitBtn) els.bjSplitBtn.classList.toggle("hidden", !isBlackjack);
+    if (els.towerDifficultyWrap instanceof HTMLElement) els.towerDifficultyWrap.classList.toggle("hidden", !isTower);
+    if (els.towerCashoutBtn instanceof HTMLButtonElement) els.towerCashoutBtn.classList.toggle("hidden", !isTower);
+
+    if (isTower && els.towerDifficultySelect instanceof HTMLSelectElement) {
+      const selectedDifficulty = getTowerDifficultyForMachine(machine);
+      if (els.towerDifficultySelect.value !== selectedDifficulty) els.towerDifficultySelect.value = selectedDifficulty;
+      els.towerDifficultySelect.disabled = Boolean(towerRound && towerRound.active);
+    }
+    if (isTower && els.towerCashoutBtn instanceof HTMLButtonElement) {
+      const canCashout = Boolean(towerRound && towerRound.active && towerClearedFloors(towerRound) > 0);
+      const currentMult = towerRound ? towerCurrentMultiplier(towerRound) : 1;
+      els.towerCashoutBtn.textContent = "Cash Out " + (towerRound ? formatTowerPayout(towerRound, currentMult) : 0) + " WL";
+      els.towerCashoutBtn.disabled = !canCashout;
+    }
 
     if (isBlackjack) {
       const active = bjState && bjState.active;
@@ -1365,6 +1751,12 @@ window.GTModules = window.GTModules || {};
       if (els.spinBtn) {
         els.spinBtn.textContent = active ? "Game Active" : "Deal";
         els.spinBtn.disabled = active || !canBet;
+      }
+    } else if (isTower) {
+      const activeTower = Boolean(towerRound && towerRound.active);
+      if (els.spinBtn) {
+        els.spinBtn.textContent = activeTower ? "Run Active" : "Start Run";
+        els.spinBtn.disabled = activeTower || !canBet;
       }
     } else {
       if (els.spinBtn) {
@@ -1380,6 +1772,8 @@ window.GTModules = window.GTModules || {};
         const cost = bet * 10;
         els.buyBonusBtn.textContent = "Buy Bonus " + cost + " WL";
         els.buyBonusBtn.disabled = !canBet || state.webVaultLocks < cost;
+      } else {
+        els.buyBonusBtn.disabled = true;
       }
     }
   }
@@ -1488,6 +1882,8 @@ window.GTModules = window.GTModules || {};
     state.ephemeral.rows = null;
     state.ephemeral.lineIds = [];
     state.ephemeral.lineWins = [];
+    state.tower.roundsByMachine = {};
+    state.tower.difficultyByMachine = {};
     renderAll();
     state.selectedMachineKey = "";
     setStatus(els.authStatus, "Logged out.");
@@ -1713,6 +2109,10 @@ window.GTModules = window.GTModules || {};
 
     if (machine.type === 'blackjack') {
       runBlackjackAction('deal');
+      return;
+    }
+    if (machine.type === "tower") {
+      await startTowerRun(machine);
       return;
     }
 
@@ -2173,6 +2573,35 @@ window.GTModules = window.GTModules || {};
 
     if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.addEventListener("click", () => runSpin("spin"));
     if (els.buyBonusBtn instanceof HTMLButtonElement) els.buyBonusBtn.addEventListener("click", () => runSpin("buybonus"));
+    if (els.towerDifficultySelect instanceof HTMLSelectElement) {
+      els.towerDifficultySelect.addEventListener("change", () => {
+        const machine = getSelectedMachine();
+        if (!machine || machine.type !== "tower") return;
+        setTowerDifficultyForMachine(machine, els.towerDifficultySelect.value);
+        renderAll();
+      });
+    }
+    if (els.towerCashoutBtn instanceof HTMLButtonElement) {
+      els.towerCashoutBtn.addEventListener("click", async () => {
+        const machine = getSelectedMachine();
+        if (!machine || machine.type !== "tower") return;
+        await cashOutTowerRun(machine, "cashout");
+      });
+    }
+    if (els.slotBoard instanceof HTMLElement) {
+      els.slotBoard.addEventListener("click", async (event) => {
+        const machine = getSelectedMachine();
+        if (!machine || machine.type !== "tower") return;
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const cell = target.closest(".tower-cell");
+        if (!(cell instanceof HTMLElement)) return;
+        const floor = Math.floor(Number(cell.dataset.floor));
+        const col = Math.floor(Number(cell.dataset.col));
+        if (!Number.isFinite(floor) || !Number.isFinite(col)) return;
+        await handleTowerPick(machine, floor, col);
+      });
+    }
 
     if (els.bjHitBtn) els.bjHitBtn.addEventListener("click", () => runBlackjackAction("hit"));
     if (els.bjStandBtn) els.bjStandBtn.addEventListener("click", () => runBlackjackAction("stand"));

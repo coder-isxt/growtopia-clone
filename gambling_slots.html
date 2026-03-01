@@ -344,6 +344,13 @@
       background: linear-gradient(180deg, rgba(35, 22, 8, 0.96), rgba(20, 12, 4, 0.96));
     }
 
+    .stage.theme-tower {
+      border-color: rgba(128, 189, 255, 0.85);
+      background:
+        radial-gradient(circle at 30% 8%, rgba(100, 180, 255, 0.12), transparent 55%),
+        linear-gradient(180deg, rgba(10, 22, 42, 0.96), rgba(8, 15, 28, 0.97));
+    }
+
     .cell.wanted {
       border-color: rgba(218, 165, 32, 0.88);
       box-shadow: 0 0 14px rgba(218, 165, 32, 0.35);
@@ -423,6 +430,72 @@
       gap: 8px;
       position: relative;
       z-index: 2;
+    }
+
+    .board.tower-board {
+      width: min(100%, 760px);
+      grid-template-columns: repeat(var(--tower-cols, 5), minmax(64px, 1fr));
+      grid-template-rows: repeat(var(--tower-rows, 8), minmax(42px, 1fr));
+      gap: 6px;
+    }
+
+    .tower-cell {
+      border: 1px solid rgba(112, 165, 236, 0.4);
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(8, 26, 46, 0.9), rgba(7, 17, 30, 0.9));
+      min-height: 44px;
+      display: grid;
+      place-items: center;
+      color: #cde5ff;
+      font-size: 8px;
+      letter-spacing: 0.5px;
+      transition: transform 120ms ease, filter 120ms ease, border-color 120ms ease;
+      user-select: none;
+    }
+
+    .tower-cell.locked {
+      color: #8fa7c6;
+      border-color: rgba(100, 130, 160, 0.35);
+      background: linear-gradient(180deg, rgba(8, 20, 36, 0.82), rgba(5, 14, 25, 0.84));
+    }
+
+    .tower-cell.active {
+      cursor: pointer;
+      border-color: rgba(255, 206, 106, 0.84);
+      color: #ffe7a7;
+      background: linear-gradient(180deg, rgba(64, 42, 16, 0.8), rgba(42, 28, 10, 0.84));
+      box-shadow: 0 0 12px rgba(255, 206, 106, 0.22);
+    }
+
+    .tower-cell.active:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.08);
+    }
+
+    .tower-cell.safe {
+      border-color: rgba(100, 242, 168, 0.82);
+      color: #9ff4ca;
+      background: linear-gradient(180deg, rgba(12, 56, 44, 0.85), rgba(8, 36, 28, 0.85));
+      box-shadow: 0 0 10px rgba(100, 242, 168, 0.2);
+    }
+
+    .tower-cell.trap {
+      border-color: rgba(255, 110, 110, 0.84);
+      color: #ffc5c5;
+      background: linear-gradient(180deg, rgba(76, 18, 18, 0.88), rgba(52, 12, 12, 0.88));
+      box-shadow: 0 0 12px rgba(255, 110, 110, 0.24);
+    }
+
+    .tower-cell.revealed-safe {
+      border-color: rgba(112, 196, 150, 0.55);
+      color: #a9d9bf;
+      background: linear-gradient(180deg, rgba(10, 40, 30, 0.78), rgba(8, 26, 20, 0.78));
+    }
+
+    .tower-cell.revealed-trap {
+      border-color: rgba(205, 106, 106, 0.55);
+      color: #d7a4a4;
+      background: linear-gradient(180deg, rgba(45, 16, 16, 0.78), rgba(34, 12, 12, 0.78));
     }
 
     .reel {
@@ -1024,7 +1097,18 @@
               <span style="font-size: 10px; color: #ffcccc;">Current Bet: <span id="currentBetDisplay"
                   style="color: #ffce6a; font-weight: bold; font-size: 12px; margin-right: 15px;">1 WL</span></span>
 
+              <span id="towerDifficultyWrap" class="hidden" style="display:flex; gap:6px; align-items:center;">
+                <span style="font-size:8px; color:#cfe4ff;">Difficulty</span>
+                <select id="towerDifficultySelect" style="min-width:128px; padding:8px 10px;">
+                  <option value="easy">Easy</option>
+                  <option value="normal" selected>Normal</option>
+                  <option value="hard">Hard</option>
+                  <option value="extreme">Extreme</option>
+                </select>
+              </span>
+
               <button id="spinBtn" type="button" style="min-width: 80px; font-weight: bold;">SPIN</button>
+              <button id="towerCashoutBtn" type="button" class="hidden">Cash Out</button>
               <button id="bjHitBtn" type="button" class="hidden">Hit</button>
               <button id="bjStandBtn" type="button" class="hidden">Stand</button>
               <button id="bjDoubleBtn" type="button" class="hidden">Double</button>
