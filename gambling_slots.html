@@ -391,6 +391,31 @@
       font-size: 9px;
     }
 
+    .bonus-hud {
+      border: 1px solid rgba(120, 255, 180, 0.55);
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(8, 36, 22, 0.88), rgba(6, 24, 16, 0.9));
+      padding: 6px 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      min-height: 34px;
+      box-shadow: 0 0 18px rgba(100, 242, 168, 0.18);
+    }
+
+    .bonus-hud .tag {
+      border-color: rgba(120, 255, 180, 0.45);
+      background: rgba(10, 42, 25, 0.76);
+      color: #d6ffe8;
+    }
+
+    .bonus-hud .tag.warn {
+      border-color: rgba(255, 210, 113, 0.6);
+      color: #ffe9b6;
+      background: rgba(55, 42, 13, 0.72);
+    }
+
     .tag {
       border: 1px solid rgba(112, 165, 236, 0.45);
       border-radius: 999px;
@@ -444,6 +469,168 @@
       gap: 8px;
       position: relative;
       z-index: 2;
+    }
+
+    .board-wrap.dimmed .board {
+      filter: brightness(0.66) saturate(0.8);
+      transition: filter 180ms ease;
+    }
+
+    .cell {
+      position: relative;
+    }
+
+    .cell-badges {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      display: flex;
+      gap: 3px;
+      align-items: center;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .cell-badge {
+      border: 1px solid rgba(112, 165, 236, 0.48);
+      border-radius: 999px;
+      background: rgba(8, 18, 36, 0.86);
+      color: #d7ebff;
+      font-size: 7px;
+      line-height: 1;
+      padding: 2px 4px;
+      white-space: nowrap;
+    }
+
+    .cell-badge.wild {
+      border-color: rgba(184, 129, 255, 0.82);
+      color: #ecd9ff;
+      background: rgba(52, 24, 86, 0.9);
+    }
+
+    .cell-badge.mult {
+      border-color: rgba(100, 242, 168, 0.82);
+      color: #cbffe3;
+      background: rgba(10, 48, 30, 0.9);
+    }
+
+    .cell-badge.lock {
+      border-color: rgba(255, 210, 113, 0.72);
+      color: #ffe8b8;
+      background: rgba(48, 35, 12, 0.86);
+      padding: 1px 4px;
+    }
+
+    .cell.effect-scatter {
+      animation: effectScatterPulse 520ms ease;
+      box-shadow: 0 0 20px rgba(100, 242, 168, 0.42);
+    }
+
+    .cell.effect-wild-up {
+      animation: effectWildUpgrade 620ms ease;
+      box-shadow: 0 0 22px rgba(184, 129, 255, 0.52);
+    }
+
+    .cell.effect-weed {
+      animation: effectWeedWave 620ms ease;
+      box-shadow: 0 0 20px rgba(120, 255, 140, 0.45);
+    }
+
+    .cell.effect-skull {
+      animation: effectSkullShock 560ms ease;
+      box-shadow: 0 0 20px rgba(255, 160, 160, 0.4);
+    }
+
+    .cell.effect-transform {
+      animation: effectTransformPop 460ms ease;
+    }
+
+    .cell-upgrade-flash {
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 8px;
+      color: #9cffc8;
+      text-shadow: 0 0 8px rgba(156, 255, 200, 0.65);
+      pointer-events: none;
+      animation: upgradeFloat 650ms ease forwards;
+      z-index: 7;
+    }
+
+    .bonus-overlay {
+      position: absolute;
+      inset: 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(120, 255, 180, 0.58);
+      background: linear-gradient(180deg, rgba(4, 16, 24, 0.88), rgba(8, 24, 16, 0.92));
+      z-index: 8;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      text-align: center;
+      padding: 18px 16px;
+      opacity: 0;
+      transform: scale(0.98);
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .bonus-overlay.active {
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: auto;
+    }
+
+    .bonus-overlay h3 {
+      margin: 0;
+      font-size: 16px;
+      color: #baffd8;
+      text-shadow: 0 0 12px rgba(120, 255, 180, 0.42);
+    }
+
+    .bonus-overlay p {
+      margin: 0;
+      font-size: 9px;
+      color: #def6e8;
+      line-height: 1.6;
+      max-width: 640px;
+    }
+
+    .bonus-overlay .mini {
+      font-size: 8px;
+      color: #c5e6d5;
+      opacity: 0.92;
+    }
+
+    .bonus-overlay .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .bonus-banner {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 1px solid rgba(120, 255, 180, 0.7);
+      border-radius: 999px;
+      background: rgba(6, 28, 18, 0.9);
+      color: #d7ffe8;
+      font-size: 8px;
+      padding: 5px 10px;
+      z-index: 9;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 140ms ease, transform 180ms ease;
+    }
+
+    .bonus-banner.active {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
     }
 
     .board.tower-board {
@@ -632,6 +819,10 @@
 
     .cell.boosted .txt {
       color: #e0faff;
+    }
+
+    .cell.locked-flag {
+      box-shadow: inset 0 0 0 1px rgba(255, 210, 113, 0.35);
     }
 
     .cell.sixblu {
@@ -949,6 +1140,43 @@
       }
     }
 
+    @keyframes effectScatterPulse {
+      0% { transform: scale(1); filter: brightness(1); }
+      40% { transform: scale(1.08); filter: brightness(1.25); }
+      100% { transform: scale(1); filter: brightness(1); }
+    }
+
+    @keyframes effectWildUpgrade {
+      0% { transform: scale(1); }
+      35% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes effectWeedWave {
+      0% { filter: saturate(1) brightness(1); }
+      45% { filter: saturate(1.4) brightness(1.25); }
+      100% { filter: saturate(1) brightness(1); }
+    }
+
+    @keyframes effectSkullShock {
+      0% { transform: translateX(0); opacity: 1; }
+      25% { transform: translateX(-2px); opacity: 0.95; }
+      50% { transform: translateX(2px); opacity: 0.9; }
+      100% { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes effectTransformPop {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.14); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes upgradeFloat {
+      0% { opacity: 0; transform: translateX(-50%) translateY(8px); }
+      20% { opacity: 1; transform: translateX(-50%) translateY(0); }
+      100% { opacity: 0; transform: translateX(-50%) translateY(-14px); }
+    }
+
     @media (max-width: 1120px) {
       .machine-list {
         grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
@@ -1159,10 +1387,28 @@
             <span class="tag good" id="userBalanceDisplay">Balance: 0 WL</span>
           </div>
 
+          <div class="bonus-hud hidden" id="bonusHud">
+            <span class="tag warn" id="bonusHudState">FREE SPINS</span>
+            <span class="tag" id="bonusHudLeft">Left: 0</span>
+            <span class="tag" id="bonusHudWin">Bonus Win: 0 WL</span>
+            <span class="tag" id="bonusHudSpin">Spin Win: 0 WL</span>
+            <span class="tag" id="bonusHudSticky">Wilds: 0</span>
+            <span class="tag" id="bonusHudMulti">x10 Cells: 0</span>
+          </div>
+
           <div class="board-wrap" id="boardWrap">
             <div class="board" id="slotBoard"></div>
             <svg class="overlay" id="slotOverlay" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
             <div class="particles" id="particles"></div>
+            <div class="bonus-banner hidden" id="bonusBanner"></div>
+            <div class="bonus-overlay hidden" id="bonusOverlay">
+              <h3 id="bonusOverlayTitle">FREE SPINS</h3>
+              <p id="bonusOverlayText">You won free spins.</p>
+              <p class="mini" id="bonusOverlaySub"></p>
+              <div class="btn-row">
+                <button id="bonusOverlayContinueBtn" type="button" class="hidden">Continue</button>
+              </div>
+            </div>
           </div>
 
           <div class="game-controls"

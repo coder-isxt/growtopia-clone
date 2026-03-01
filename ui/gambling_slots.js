@@ -54,6 +54,15 @@ window.GTModules = window.GTModules || {};
     hypeCostX: 20,
     buyCostByScatter: { 3: 80, 4: 140, 5: 220, 6: 320 }
   };
+  const BONUS_PHASES = {
+    BASE_IDLE: "BASE_IDLE",
+    BASE_SPINNING: "BASE_SPINNING",
+    BASE_CASCADE: "BASE_CASCADE",
+    BONUS_INTRO: "BONUS_INTRO",
+    BONUS_SPINNING: "BONUS_SPINNING",
+    BONUS_CASCADE: "BONUS_CASCADE",
+    BONUS_END: "BONUS_END"
+  };
   const TOWER_CONFIG = {
     floors: 8,
     cols: 5,
@@ -165,7 +174,17 @@ window.GTModules = window.GTModules || {};
     spinBusy: false,
     spinTimer: 0,
     currentBetValue: 1,
-    ephemeral: { rows: null, lineIds: [], lineWins: [] },
+    ephemeral: { rows: null, lineIds: [], lineWins: [], markedCells: [], cellMeta: {}, effectCells: {}, upgradeFlashes: {} },
+    bonusFlow: {
+      phase: "BASE_IDLE",
+      active: false,
+      machineType: "",
+      spinsLeft: 0,
+      bonusWin: 0,
+      currentSpinWin: 0,
+      stickyWilds: 0,
+      multiplierCells: 0
+    },
     tower: {
       roundsByMachine: {},
       difficultyByMachine: {}
@@ -220,6 +239,19 @@ window.GTModules = window.GTModules || {};
     slotOverlay: document.getElementById("slotOverlay"),
     particles: document.getElementById("particles"),
     lineList: document.getElementById("lineList"),
+    bonusHud: document.getElementById("bonusHud"),
+    bonusHudState: document.getElementById("bonusHudState"),
+    bonusHudLeft: document.getElementById("bonusHudLeft"),
+    bonusHudWin: document.getElementById("bonusHudWin"),
+    bonusHudSpin: document.getElementById("bonusHudSpin"),
+    bonusHudSticky: document.getElementById("bonusHudSticky"),
+    bonusHudMulti: document.getElementById("bonusHudMulti"),
+    bonusBanner: document.getElementById("bonusBanner"),
+    bonusOverlay: document.getElementById("bonusOverlay"),
+    bonusOverlayTitle: document.getElementById("bonusOverlayTitle"),
+    bonusOverlayText: document.getElementById("bonusOverlayText"),
+    bonusOverlaySub: document.getElementById("bonusOverlaySub"),
+    bonusOverlayContinueBtn: document.getElementById("bonusOverlayContinueBtn"),
     statBank: document.getElementById("statBank"),
     statMaxBet: document.getElementById("statMaxBet"),
     statPlays: document.getElementById("statPlays"),
@@ -301,6 +333,125 @@ window.GTModules = window.GTModules || {};
   }
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+  function nextFrame() { return new Promise((resolve) => window.requestAnimationFrame(() => resolve())); }
+
+  function setBonusPhase(phase) {
+    const next = String(phase || BONUS_PHASES.BASE_IDLE);
+    state.bonusFlow.phase = next;
+    state.bonusFlow.active = next.indexOf("BONUS_") === 0;
+    if (els.stage instanceof HTMLElement) els.stage.dataset.bonusPhase = next;
+  }
+
+  function showBonusHud(show) {
+    if (!(els.bonusHud instanceof HTMLElement)) return;
+    els.bonusHud.classList.toggle("hidden", !show);
+  }
+
+  function updateBonusHud(data) {
+    const row = data && typeof data === "object" ? data : {};
+    state.bonusFlow.spinsLeft = Math.max(0, Math.floor(Number(row.spinsLeft) || 0));
+    state.bonusFlow.bonusWin = Math.max(0, Math.floor(Number(row.bonusWin) || 0));
+    state.bonusFlow.currentSpinWin = Math.max(0, Math.floor(Number(row.currentSpinWin) || 0));
+    state.bonusFlow.stickyWilds = Math.max(0, Math.floor(Number(row.stickyWilds) || 0));
+    state.bonusFlow.multiplierCells = Math.max(0, Math.floor(Number(row.multiplierCells) || 0));
+
+    if (els.bonusHudState instanceof HTMLElement) {
+      const mode = String(row.mode || "FREE SPINS");
+      els.bonusHudState.textContent = mode;
+    }
+    if (els.bonusHudLeft instanceof HTMLElement) els.bonusHudLeft.textContent = "Left: " + state.bonusFlow.spinsLeft;
+    if (els.bonusHudWin instanceof HTMLElement) els.bonusHudWin.textContent = "Bonus Win: " + state.bonusFlow.bonusWin + " WL";
+    if (els.bonusHudSpin instanceof HTMLElement) els.bonusHudSpin.textContent = "Spin Win: " + state.bonusFlow.currentSpinWin + " WL";
+    if (els.bonusHudSticky instanceof HTMLElement) els.bonusHudSticky.textContent = "Wilds: " + state.bonusFlow.stickyWilds;
+    if (els.bonusHudMulti instanceof HTMLElement) els.bonusHudMulti.textContent = "x10 Cells: " + state.bonusFlow.multiplierCells;
+  }
+
+  function setBoardDimmed(dimmed) {
+    if (!(els.boardWrap instanceof HTMLElement)) return;
+    els.boardWrap.classList.toggle("dimmed", Boolean(dimmed));
+  }
+
+  async function showBonusOverlay(title, text, sub, showContinue) {
+    if (!(els.bonusOverlay instanceof HTMLElement)) return;
+    if (els.bonusOverlayTitle instanceof HTMLElement) els.bonusOverlayTitle.textContent = String(title || "FREE SPINS");
+    if (els.bonusOverlayText instanceof HTMLElement) els.bonusOverlayText.textContent = String(text || "");
+    if (els.bonusOverlaySub instanceof HTMLElement) els.bonusOverlaySub.textContent = String(sub || "");
+    if (els.bonusOverlayContinueBtn instanceof HTMLButtonElement) {
+      els.bonusOverlayContinueBtn.classList.toggle("hidden", !showContinue);
+      els.bonusOverlayContinueBtn.disabled = !showContinue;
+    }
+    els.bonusOverlay.classList.remove("hidden");
+    await nextFrame();
+    els.bonusOverlay.classList.add("active");
+  }
+
+  async function hideBonusOverlay() {
+    if (!(els.bonusOverlay instanceof HTMLElement)) return;
+    els.bonusOverlay.classList.remove("active");
+    await sleep(180);
+    els.bonusOverlay.classList.add("hidden");
+  }
+
+  async function waitBonusContinue(timeoutMs) {
+    const btn = els.bonusOverlayContinueBtn;
+    if (!(btn instanceof HTMLButtonElement)) {
+      await sleep(Math.max(300, Math.floor(Number(timeoutMs) || 1200)));
+      return;
+    }
+    return await new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        btn.removeEventListener("click", onClick);
+        resolve();
+      };
+      const onClick = () => finish();
+      btn.addEventListener("click", onClick);
+      const waitMs = Math.max(1200, Math.floor(Number(timeoutMs) || 10000));
+      window.setTimeout(finish, waitMs);
+    });
+  }
+
+  function showBonusBanner(text) {
+    if (!(els.bonusBanner instanceof HTMLElement)) return;
+    const msg = String(text || "").trim();
+    if (!msg) {
+      els.bonusBanner.classList.remove("active");
+      els.bonusBanner.classList.add("hidden");
+      return;
+    }
+    els.bonusBanner.textContent = msg;
+    els.bonusBanner.classList.remove("hidden");
+    window.requestAnimationFrame(() => els.bonusBanner.classList.add("active"));
+    window.setTimeout(() => {
+      if (!(els.bonusBanner instanceof HTMLElement)) return;
+      els.bonusBanner.classList.remove("active");
+      window.setTimeout(() => {
+        if (els.bonusBanner instanceof HTMLElement) els.bonusBanner.classList.add("hidden");
+      }, 180);
+    }, 1300);
+  }
+
+  function clearBonusUiState() {
+    setBonusPhase(BONUS_PHASES.BASE_IDLE);
+    state.bonusFlow.machineType = "";
+    updateBonusHud({ spinsLeft: 0, bonusWin: 0, currentSpinWin: 0, stickyWilds: 0, multiplierCells: 0, mode: "FREE SPINS" });
+    showBonusHud(false);
+    showBonusBanner("");
+    setBoardDimmed(false);
+    hideBonusOverlay();
+  }
+
+  function resetEphemeralVisuals() {
+    state.ephemeral.rows = null;
+    state.ephemeral.lineIds = [];
+    state.ephemeral.lineWins = [];
+    state.ephemeral.markedCells = [];
+    state.ephemeral.cellMeta = {};
+    state.ephemeral.effectCells = {};
+    state.ephemeral.upgradeFlashes = {};
+  }
 
   function normalizeTowerDifficultyId(value) {
     const raw = String(value || "").trim().toLowerCase();
@@ -1863,16 +2014,31 @@ window.GTModules = window.GTModules || {};
     const markedCells = Array.isArray(state.ephemeral.markedCells) ? state.ephemeral.markedCells : [];
     const markedMask = {};
     for (const m of markedCells) markedMask[m] = true;
+    const cellMeta = state.ephemeral.cellMeta && typeof state.ephemeral.cellMeta === "object" ? state.ephemeral.cellMeta : {};
+    const effectCells = state.ephemeral.effectCells && typeof state.ephemeral.effectCells === "object" ? state.ephemeral.effectCells : {};
+    const upgradeFlashes = state.ephemeral.upgradeFlashes && typeof state.ephemeral.upgradeFlashes === "object" ? state.ephemeral.upgradeFlashes : {};
 
     let boardHtml = "";
     for (let c = 0; c < colCount; c++) {
       boardHtml += "<div class=\"reel\" style=\"--rows:" + rowCount + ";\">";
       for (let r = 0; r < rowCount; r++) {
+        const key = r + "_" + c;
         const tok = normalizeToken(rows[r] && rows[r][c] ? rows[r][c] : "?");
         const cls = symbolClass(tok);
-        const hit = hitMask[r + "_" + c] ? " hit" : "";
-        const markedCls = markedMask[r + "_" + c] ? " marked" : "";
-        boardHtml += "<div class=\"cell " + cls + hit + markedCls + "\" data-col=\"" + c + "\" data-row=\"" + r + "\"><span class=\"icon\">" + escapeHtml(symbolIcon(tok)) + "</span><span class=\"txt\">" + escapeHtml(symbolLabel(tok)) + "</span></div>";
+        const hit = hitMask[key] ? " hit" : "";
+        const markedCls = markedMask[key] ? " marked" : "";
+        const meta = cellMeta[key] && typeof cellMeta[key] === "object" ? cellMeta[key] : {};
+        const lockedCls = meta.locked ? " locked-flag" : "";
+        const effect = String(effectCells[key] || "").trim().toLowerCase();
+        const effectCls = effect ? (" effect-" + effect) : "";
+        let badgeHtml = "";
+        if (meta.wildMult && meta.wildMult > 1) badgeHtml += "<span class=\"cell-badge wild\">x" + meta.wildMult + "</span>";
+        if (meta.cellMult && meta.cellMult > 1) badgeHtml += "<span class=\"cell-badge mult\">x" + meta.cellMult + "</span>";
+        if (meta.locked) badgeHtml += "<span class=\"cell-badge lock\">L</span>";
+        if (badgeHtml) badgeHtml = "<span class=\"cell-badges\">" + badgeHtml + "</span>";
+        const flash = String(upgradeFlashes[key] || "").trim();
+        const flashHtml = flash ? ("<span class=\"cell-upgrade-flash\">" + escapeHtml(flash) + "</span>") : "";
+        boardHtml += "<div class=\"cell " + cls + hit + markedCls + lockedCls + effectCls + "\" data-col=\"" + c + "\" data-row=\"" + r + "\"><span class=\"icon\">" + escapeHtml(symbolIcon(tok)) + "</span><span class=\"txt\">" + escapeHtml(symbolLabel(tok)) + "</span>" + badgeHtml + flashHtml + "</div>";
       }
       boardHtml += "</div>";
     }
@@ -1945,6 +2111,13 @@ window.GTModules = window.GTModules || {};
     if (els.lastWinLabel) els.lastWinLabel.classList.add("hidden");
     stopSpinFx();
     state.spinBusy = true;
+    if (!state.bonusFlow.active) {
+      setBonusPhase(BONUS_PHASES.BASE_SPINNING);
+      showBonusHud(false);
+    }
+    state.ephemeral.cellMeta = {};
+    state.ephemeral.effectCells = {};
+    state.ephemeral.upgradeFlashes = {};
     if (els.boardWrap instanceof HTMLElement) {
       els.boardWrap.classList.add("spinning");
       // Remove stopped class from all cells for next spin
@@ -1980,6 +2153,7 @@ window.GTModules = window.GTModules || {};
     state.ephemeral.stoppedCols = null;
     if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
     if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.textContent = "Spin";
+    if (!state.bonusFlow.active) setBonusPhase(BONUS_PHASES.BASE_IDLE);
   }
 
   function bonusAnimTimings(machineType) {
@@ -1988,9 +2162,197 @@ window.GTModules = window.GTModules || {};
       return { intro: 900, spin: 360, reveal: 560, fillFx: 500, fillSettle: 280, between: 280 };
     }
     if (type === "snoop_dogg_dollars") {
-      return { intro: 640, spin: 320, reveal: 620, fillFx: 340, fillSettle: 180, between: 260 };
+      return { intro: 520, spin: 420, reveal: 700, fillFx: 420, fillSettle: 220, between: 300 };
     }
     return { intro: 1500, spin: 650, reveal: 1200, fillFx: 1000, fillSettle: 500, between: 600 };
+  }
+
+  function countLockedFromCellMeta(metaMap) {
+    const meta = metaMap && typeof metaMap === "object" ? metaMap : {};
+    const keys = Object.keys(meta);
+    let wilds = 0;
+    let multis = 0;
+    for (let i = 0; i < keys.length; i++) {
+      const row = meta[keys[i]] && typeof meta[keys[i]] === "object" ? meta[keys[i]] : {};
+      if (Math.max(0, Math.floor(Number(row.wildMult) || 0)) > 0) wilds += 1;
+      if (Math.max(0, Math.floor(Number(row.cellMult) || 0)) > 1) multis += 1;
+    }
+    return { wilds, multis };
+  }
+
+  async function runSnoopBonusIntroFrame(machine, frame) {
+    const intro = frame && frame.intro && typeof frame.intro === "object" ? frame.intro : {};
+    const awarded = Math.max(0, Math.floor(Number(intro.awardedSpins) || 0));
+    const beforeRows = Array.isArray(frame && frame.reels) ? frame.reels : [];
+    const beforeMeta = sanitizeCellMeta(frame && frame.cellMeta);
+    const afterRows = Array.isArray(intro.afterReels) ? intro.afterReels : beforeRows;
+    const afterMeta = sanitizeCellMeta(intro.afterCellMeta);
+    const scatterKeys = Array.isArray(intro.scatterKeys) ? intro.scatterKeys : [];
+    const transformations = Array.isArray(intro.transformations) ? intro.transformations : [];
+
+    setBonusPhase(BONUS_PHASES.BONUS_INTRO);
+    state.bonusFlow.active = true;
+    state.bonusFlow.machineType = machine ? machine.type : "";
+    showBonusHud(true);
+    updateBonusHud({
+      mode: "FREE SPINS",
+      spinsLeft: awarded,
+      bonusWin: 0,
+      currentSpinWin: 0,
+      stickyWilds: countLockedFromCellMeta(beforeMeta).wilds,
+      multiplierCells: countLockedFromCellMeta(beforeMeta).multis
+    });
+
+    state.ephemeral.rows = rowsFromResult(beforeRows, machine.type);
+    state.ephemeral.lineIds = [];
+    state.ephemeral.lineWins = [String(frame && frame.lineText || "FREE SPINS")];
+    state.ephemeral.markedCells = scatterKeys.slice(0, 256);
+    state.ephemeral.cellMeta = beforeMeta;
+    state.ephemeral.effectCells = {};
+    for (let i = 0; i < scatterKeys.length; i++) {
+      const key = String(scatterKeys[i] || "");
+      if (key) state.ephemeral.effectCells[key] = "scatter";
+    }
+    state.ephemeral.upgradeFlashes = {};
+    renderBoard();
+
+    setBoardDimmed(true);
+    await showBonusOverlay(
+      "FREE SPINS",
+      "You won " + awarded + " Free Spins",
+      "Trigger scatters are transforming into Sticky Wilds or x10 cells.",
+      false
+    );
+    await sleep(420);
+
+    for (let i = 0; i < transformations.length; i++) {
+      const tr = transformations[i] && typeof transformations[i] === "object" ? transformations[i] : {};
+      const key = String(tr.key || "");
+      if (!key) continue;
+      state.ephemeral.effectCells[key] = "transform";
+      renderBoard();
+      await sleep(180);
+      state.ephemeral.effectCells[key] = tr.to === "wild" ? "wild-up" : "weed";
+      if (tr.to === "wild") state.ephemeral.upgradeFlashes[key] = "+10";
+      renderBoard();
+      await sleep(220);
+    }
+
+    state.ephemeral.rows = rowsFromResult(afterRows, machine.type);
+    state.ephemeral.markedCells = [];
+    state.ephemeral.cellMeta = afterMeta;
+    state.ephemeral.effectCells = {};
+    state.ephemeral.upgradeFlashes = {};
+    renderBoard();
+
+    const counts = countLockedFromCellMeta(afterMeta);
+    updateBonusHud({
+      mode: "FREE SPINS",
+      spinsLeft: awarded,
+      bonusWin: 0,
+      currentSpinWin: 0,
+      stickyWilds: counts.wilds,
+      multiplierCells: counts.multis
+    });
+    await sleep(260);
+    await hideBonusOverlay();
+    setBoardDimmed(false);
+  }
+
+  async function runBonusPlayback(machine, bonusFrames) {
+    const frames = Array.isArray(bonusFrames) ? bonusFrames : [];
+    if (!frames.length) return { bonusTotal: 0, biggestSpinWin: 0, biggestCascadeWin: 0 };
+    const bonusFx = bonusAnimTimings(machine.type);
+    const showHud = machine.type === "snoop_dogg_dollars";
+    let bonusTotal = 0;
+    let biggestSpinWin = 0;
+    let biggestCascadeWin = 0;
+    setBonusPhase(BONUS_PHASES.BONUS_SPINNING);
+    showBonusHud(showHud);
+    const firstType = String(frames[0] && frames[0].frameType || "").trim().toLowerCase();
+    await sleep(firstType === "bonus_intro" ? Math.min(180, bonusFx.intro) : bonusFx.intro);
+    for (let i = 0; i < frames.length; i++) {
+      const frame = frames[i] && typeof frames[i] === "object" ? frames[i] : {};
+      const frameType = String(frame.frameType || "bonus_spin").trim().toLowerCase();
+      if (frameType === "bonus_intro" && machine.type === "snoop_dogg_dollars") {
+        await runSnoopBonusIntroFrame(machine, frame);
+        continue;
+      }
+      if (frameType === "bonus_end") {
+        const summary = frame.summary && typeof frame.summary === "object" ? frame.summary : {};
+        biggestCascadeWin = Math.max(biggestCascadeWin, Math.max(0, Math.floor(Number(summary.biggestCascadeWin) || 0)));
+        continue;
+      }
+
+      setBonusPhase(BONUS_PHASES.BONUS_SPINNING);
+      state.ephemeral.stoppedCols = 0;
+      if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
+      renderBoard();
+      await sleep(bonusFx.spin);
+      if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
+      state.ephemeral.stoppedCols = machine.reels;
+
+      applyFrameToEphemeral(frame, machine.type);
+      renderBoard();
+      await sleep(bonusFx.reveal);
+
+      const spinPay = Math.max(0, Math.floor(Number(frame.spinPay) || 0));
+      bonusTotal += spinPay;
+      if (spinPay > biggestSpinWin) biggestSpinWin = spinPay;
+      if (frame && frame.summary && typeof frame.summary === "object") {
+        biggestCascadeWin = Math.max(
+          biggestCascadeWin,
+          Math.max(0, Math.floor(Number(frame.summary.biggestCascadeWin) || 0))
+        );
+      }
+      const hud = frame.hud && typeof frame.hud === "object" ? frame.hud : {};
+      const metaCounts = countLockedFromCellMeta(state.ephemeral.cellMeta);
+      if (showHud) {
+        updateBonusHud({
+          mode: "FREE SPINS",
+          spinsLeft: Math.max(0, Math.floor(Number(hud.freeSpinsLeft) || 0)),
+          bonusWin: Math.max(0, Math.floor(Number(hud.bonusWin) || bonusTotal)),
+          currentSpinWin: Math.max(0, Math.floor(Number(hud.currentSpinWin) || spinPay)),
+          stickyWilds: Math.max(0, Math.floor(Number(hud.stickyWilds) || metaCounts.wilds)),
+          multiplierCells: Math.max(0, Math.floor(Number(hud.multiplierCells) || metaCounts.multis))
+        });
+      }
+
+      const banner = String(frame.banner || "").trim();
+      if (banner) showBonusBanner(banner);
+      if (frame && frame.fills) {
+        setBonusPhase(BONUS_PHASES.BONUS_CASCADE);
+        if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("winfx");
+        await sleep(bonusFx.fillFx);
+        if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
+        await sleep(bonusFx.fillSettle);
+      }
+      await sleep(bonusFx.between);
+    }
+
+    if (machine.type === "snoop_dogg_dollars") {
+      setBonusPhase(BONUS_PHASES.BONUS_END);
+      setBoardDimmed(true);
+      const subText = biggestCascadeWin > 0
+        ? ("Biggest Spin: " + biggestSpinWin + " WL | Best Cascade: " + biggestCascadeWin + " WL")
+        : ("Biggest Spin: " + biggestSpinWin + " WL");
+      await showBonusOverlay(
+        "BONUS COMPLETE",
+        "Total Bonus Win: " + bonusTotal + " WL",
+        subText,
+        true
+      );
+      await waitBonusContinue(12000);
+      await hideBonusOverlay();
+      setBoardDimmed(false);
+    }
+    setBoardDimmed(false);
+    state.bonusFlow.active = false;
+    state.ephemeral.effectCells = {};
+    state.ephemeral.upgradeFlashes = {};
+    showBonusHud(false);
+    setBonusPhase(BONUS_PHASES.BASE_IDLE);
+    return { bonusTotal, biggestSpinWin, biggestCascadeWin };
   }
 
   function spawnParticles(tone) {
@@ -2036,6 +2398,7 @@ window.GTModules = window.GTModules || {};
   function renderMachineStats() {
     const machine = getSelectedMachine();
     if (!machine) {
+      showBonusHud(false);
       if (els.statBank instanceof HTMLElement) els.statBank.textContent = "Bank: 0 WL";
       if (els.statMaxBet instanceof HTMLElement) els.statMaxBet.textContent = "Max Bet: 0 WL";
       if (els.statPlays instanceof HTMLElement) els.statPlays.textContent = "Plays: 0";
@@ -2066,6 +2429,10 @@ window.GTModules = window.GTModules || {};
         els.snoopBuyBtn.disabled = true;
       }
       return;
+    }
+
+    if (machine.type !== "snoop_dogg_dollars" && !state.bonusFlow.active) {
+      showBonusHud(false);
     }
 
     if (els.statBank instanceof HTMLElement) {
@@ -2229,6 +2596,7 @@ window.GTModules = window.GTModules || {};
     if (viewName === "login" && els.viewLogin) els.viewLogin.classList.remove("hidden");
     if (viewName === "lobby" && els.viewLobby) els.viewLobby.classList.remove("hidden");
     if (viewName === "game" && els.viewGame) els.viewGame.classList.remove("hidden");
+    if (viewName !== "game") clearBonusUiState();
   }
 
   async function resolveUserRole(accountId, username) {
@@ -2315,9 +2683,8 @@ window.GTModules = window.GTModules || {};
     state.walletLocks = 0;
     state.webVaultLocks = 0;
     state.walletBreakdownText = "0 WL";
-    state.ephemeral.rows = null;
-    state.ephemeral.lineIds = [];
-    state.ephemeral.lineWins = [];
+    resetEphemeralVisuals();
+    clearBonusUiState();
     state.tower.roundsByMachine = {};
     state.tower.difficultyByMachine = {};
     state.mines.roundsByMachine = {};
@@ -2364,6 +2731,57 @@ window.GTModules = window.GTModules || {};
     const singleCol = normalized.length > 1 && normalized.every((row) => row.length === 1);
     if (singleCol) return [normalized.map((row) => row[0])];
     return normalized.length ? normalized : [["?"]];
+  }
+
+  function sanitizeEffectCells(rawMap) {
+    const src = rawMap && typeof rawMap === "object" ? rawMap : {};
+    const out = {};
+    const keys = Object.keys(src);
+    for (let i = 0; i < keys.length; i++) {
+      const key = String(keys[i] || "");
+      if (!key) continue;
+      const val = String(src[key] || "").trim().toLowerCase();
+      if (!val) continue;
+      out[key] = val;
+    }
+    return out;
+  }
+
+  function sanitizeCellMeta(rawMeta) {
+    const src = rawMeta && typeof rawMeta === "object" ? rawMeta : {};
+    const out = {};
+    const keys = Object.keys(src);
+    for (let i = 0; i < keys.length; i++) {
+      const key = String(keys[i] || "");
+      if (!key) continue;
+      const row = src[key] && typeof src[key] === "object" ? src[key] : {};
+      const wildMult = Math.max(0, Math.floor(Number(row.wildMult) || 0));
+      const cellMult = Math.max(0, Math.floor(Number(row.cellMult) || 0));
+      const locked = Boolean(row.locked || wildMult > 0 || cellMult > 1);
+      if (!locked && wildMult <= 0 && cellMult <= 0) continue;
+      out[key] = { locked, wildMult, cellMult };
+    }
+    return out;
+  }
+
+  function applyFrameToEphemeral(frame, machineType) {
+    const row = frame && typeof frame === "object" ? frame : {};
+    state.ephemeral.rows = rowsFromResult(row.reels, machineType);
+    state.ephemeral.lineIds = [];
+    state.ephemeral.lineWins = [String(row.lineText || "Bonus step")];
+    state.ephemeral.markedCells = Array.isArray(row.markedCells) ? row.markedCells.slice(0, 256) : [];
+    state.ephemeral.cellMeta = sanitizeCellMeta(row.cellMeta);
+    state.ephemeral.effectCells = sanitizeEffectCells(row.effectCells);
+    state.ephemeral.upgradeFlashes = {};
+    const upgrades = Array.isArray(row.wildUpgrades) ? row.wildUpgrades : [];
+    for (let i = 0; i < upgrades.length; i++) {
+      const up = upgrades[i] && typeof upgrades[i] === "object" ? upgrades[i] : {};
+      const key = String(up.key || "");
+      if (!key) continue;
+      const to = Math.max(0, Math.floor(Number(up.to) || 0));
+      const from = Math.max(0, Math.floor(Number(up.from) || 0));
+      if (to > from) state.ephemeral.upgradeFlashes[key] = "+" + (to - from);
+    }
   }
 
   async function runBlackjackAction(action) {
@@ -2590,7 +3008,8 @@ window.GTModules = window.GTModules || {};
     const debit = await adjustWallet(-wager);
     if (!debit.ok) {
       stopSpinFx();
-      state.ephemeral.rows = null;
+      resetEphemeralVisuals();
+      clearBonusUiState();
       renderAll();
       return;
     }
@@ -2642,6 +3061,7 @@ window.GTModules = window.GTModules || {};
         multiplier: Math.max(0, Number(rawResult.multiplier) || 0),
         summary: String(rawResult.summary || "").slice(0, 220),
         wager: resultWager,
+        cellMeta: sanitizeCellMeta(rawResult && rawResult.cellMeta),
         bonusFrames: extractBonusFrames(machine.type, rawResult)
       };
 
@@ -2725,54 +3145,19 @@ window.GTModules = window.GTModules || {};
       state.ephemeral.lineWins = resolved.lineWins;
       state.ephemeral.lineIds = resolved.lineIds;
       state.ephemeral.markedCells = [];
+      state.ephemeral.cellMeta = sanitizeCellMeta(resolved.cellMeta);
+      state.ephemeral.effectCells = {};
+      state.ephemeral.upgradeFlashes = {};
       renderBoard();
 
       // --- Bonus Playback Loop ---
       if (hasBonus) {
-        const bonusFx = bonusAnimTimings(machine.type);
-        await sleep(bonusFx.intro);
-        let bonusTotal = 0;
-        for (let i = 0; i < bonusFrames.length; i++) {
-          const frame = bonusFrames[i];
-          bonusTotal += Math.max(0, Math.floor(Number(frame && frame.spinPay) || 0));
-
-          // 0. Mini-Spin Effect (The "Rollings")
-          state.ephemeral.stoppedCols = 0;
-          if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
-          renderBoard();
-          await sleep(bonusFx.spin);
-          if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
-          state.ephemeral.stoppedCols = machine.reels;
-
-          // 1. Show the spin result (Grid)
-          state.ephemeral.rows = rowsFromResult(frame.reels, machine.type);
-          state.ephemeral.lineIds = [];
-          state.ephemeral.lineWins = [String(frame && frame.lineText || "Bonus step")];
-          state.ephemeral.markedCells = Array.isArray(frame && frame.markedCells) ? frame.markedCells : [];
-          renderBoard();
-          await sleep(bonusFx.reveal);
-
-          // 2. Rainbow Fill Step (Sequential Reveal)
-          if (frame && frame.fills) {
-            if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("winfx");
-            await sleep(bonusFx.fillFx);
-            if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
-
-            // Re-render (In new frame logic, markedCells is preserved for this frame)
-            state.ephemeral.lineIds = [];
-            state.ephemeral.markedCells = frame.markedCells;
-            renderBoard();
-            await sleep(bonusFx.fillSettle);
-          }
-
-          if (els.lastWinLabel && bonusTotal > 0) {
-            els.lastWinLabel.textContent = "Bonus: " + Math.floor(bonusTotal) + " WL";
-            els.lastWinLabel.classList.add("good");
-            els.lastWinLabel.classList.remove("hidden");
-          }
-          await sleep(bonusFx.between);
+        const bonusSummary = await runBonusPlayback(machine, bonusFrames);
+        if (els.lastWinLabel && bonusSummary.bonusTotal > 0) {
+          els.lastWinLabel.textContent = "Bonus: " + Math.floor(bonusSummary.bonusTotal) + " WL";
+          els.lastWinLabel.classList.add("good");
+          els.lastWinLabel.classList.remove("hidden");
         }
-        // FINAL STOP
         stopSpinFx();
       }
 
@@ -2865,6 +3250,7 @@ window.GTModules = window.GTModules || {};
             multiplier: stats.lastMultiplier,
             summary: stats.lastSlotsSummary,
             wager: resultWager,
+            cellMeta: sanitizeCellMeta(rawResult && rawResult.cellMeta),
             bonusFrames: extractBonusFrames(current.type, rawResult)
           };
 
@@ -2879,7 +3265,8 @@ window.GTModules = window.GTModules || {};
         if (!txn || !txn.committed || !applied || !resolved) {
           await adjustWallet(wager);
           stopSpinFx();
-          state.ephemeral.rows = null;
+          resetEphemeralVisuals();
+          clearBonusUiState();
           renderAll();
           return;
         }
@@ -2903,49 +3290,18 @@ window.GTModules = window.GTModules || {};
         state.ephemeral.lineWins = resolved.lineWins;
         state.ephemeral.lineIds = resolved.lineIds;
         state.ephemeral.markedCells = [];
+        state.ephemeral.cellMeta = sanitizeCellMeta(resolved.cellMeta);
+        state.ephemeral.effectCells = {};
+        state.ephemeral.upgradeFlashes = {};
         renderBoard();
 
         // --- Bonus Playback Loop (Hosted Machine) ---
         if (hasBonus) {
-          const bonusFx = bonusAnimTimings(machine.type);
-          await sleep(bonusFx.intro);
-          let bonusTotal = 0;
-          for (let i = 0; i < bonusFrames.length; i++) {
-            const frame = bonusFrames[i];
-            bonusTotal += Math.max(0, Math.floor(Number(frame && frame.spinPay) || 0));
-
-            // 0. Mini-Spin Effect
-            state.ephemeral.stoppedCols = 0;
-            if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
-            renderBoard();
-            await sleep(bonusFx.spin);
-            if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
-            state.ephemeral.stoppedCols = machine.reels;
-
-            // 1. Show Result
-            state.ephemeral.rows = rowsFromResult(frame.reels, machine.type);
-            state.ephemeral.lineIds = [];
-            state.ephemeral.lineWins = [String(frame && frame.lineText || "Bonus step")];
-            state.ephemeral.markedCells = Array.isArray(frame && frame.markedCells) ? frame.markedCells : [];
-            renderBoard();
-            await sleep(bonusFx.reveal);
-
-            if (frame && frame.fills) {
-              if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("winfx");
-              await sleep(bonusFx.fillFx);
-              if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
-              state.ephemeral.lineIds = [];
-              state.ephemeral.markedCells = frame.markedCells;
-              renderBoard();
-              await sleep(bonusFx.fillSettle);
-            }
-
-            if (els.lastWinLabel && bonusTotal > 0) {
-              els.lastWinLabel.textContent = "Bonus: " + Math.floor(bonusTotal) + " WL";
-              els.lastWinLabel.classList.add("good");
-              els.lastWinLabel.classList.remove("hidden");
-            }
-            await sleep(bonusFx.between);
+          const bonusSummary = await runBonusPlayback(machine, bonusFrames);
+          if (els.lastWinLabel && bonusSummary.bonusTotal > 0) {
+            els.lastWinLabel.textContent = "Bonus: " + Math.floor(bonusSummary.bonusTotal) + " WL";
+            els.lastWinLabel.classList.add("good");
+            els.lastWinLabel.classList.remove("hidden");
           }
           stopSpinFx();
         }
@@ -2972,7 +3328,8 @@ window.GTModules = window.GTModules || {};
       } catch (error) {
         await adjustWallet(wager);
         stopSpinFx();
-        state.ephemeral.rows = null;
+        resetEphemeralVisuals();
+        clearBonusUiState();
         renderAll();
         return;
       }
@@ -3002,9 +3359,8 @@ window.GTModules = window.GTModules || {};
         const key = String(item.dataset.machineKey || "");
         if (!key) return;
         state.selectedMachineKey = key;
-        state.ephemeral.rows = null;
-        state.ephemeral.lineWins = [];
-        state.ephemeral.lineIds = [];
+        resetEphemeralVisuals();
+        clearBonusUiState();
         renderAll();
         switchView("game");
       });

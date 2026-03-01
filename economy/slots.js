@@ -277,7 +277,8 @@ window.GTModules = window.GTModules || {};
     rtp: Number(GAME_DEFS.snoop_dogg_dollars.rtp) || 0.96,
     clusterMin: 5,
     maxCascade: 14,
-    digUpChance: 0.34,
+    digUpChance: 0.30,
+    fsDigUpChance: 0.18,
     digIconWeights: {
       none: 56,
       scatter: 20,
@@ -290,7 +291,11 @@ window.GTModules = window.GTModules || {};
     hypeCostX: 20,
     multiplierCellValue: 10,
     weedAddsMultiplierCells: 2,
-    wildUpgradeMult: 10,
+    wildUpgradeStep: 10,
+    wildUpgradeMax: 100,
+    wildMarkedStart: 10,
+    featureDeadSpinChance: 0.32,
+    featureNoClusterAttempts: 16,
     houseEdge: 0.04,
     maxRoundWinX: 10000,
     maxFeatureSpins: 220,
@@ -1484,7 +1489,7 @@ window.GTModules = window.GTModules || {};
     const pick = pickWeighted(SNOOP_DROP_SYMBOLS);
     const id = String(pick && pick.id || "");
     if (id === "wild") {
-      const base = state.marked[key] ? Math.max(1, Math.floor(Number(SNOOP_CFG.multiplierCellValue) || 10)) : 1;
+      const base = state.marked[key] ? snoopMarkedWildStart() : 1;
       state.stickyWilds[key] = Math.max(base, Math.floor(Number(state.stickyWilds[key]) || 0));
       return snoopStickyWildCell(state.stickyWilds[key]);
     }
@@ -1522,9 +1527,24 @@ window.GTModules = window.GTModules || {};
     return out;
   }
 
-  function snoopBuildFreshGrid(state) {
-    const grid = snoopCreateGrid();
-    return snoopRefillGrid(grid, state);
+  function snoopBuildFreshGrid(state, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const avoidWins = Boolean(opts.avoidWins);
+    const attempts = Math.max(
+      1,
+      Math.floor(
+        Number(opts.maxAttempts) ||
+        Number(SNOOP_CFG.featureNoClusterAttempts) ||
+        12
+      )
+    );
+    let grid = snoopRefillGrid(snoopCreateGrid(), state);
+    if (!avoidWins) return grid;
+    for (let i = 0; i < attempts; i++) {
+      grid = snoopRefillGrid(snoopCreateGrid(), state);
+      if (!snoopFindWinningClusters(grid).length) return grid;
+    }
+    return grid;
   }
 
   function snoopGridToTextRows(grid, state) {
@@ -1651,15 +1671,76 @@ window.GTModules = window.GTModules || {};
     if (!state.marked[key]) state.marked[key] = true;
   }
 
+  function snoopWildStepValue() {
+    return Math.max(1, Math.floor(Number(SNOOP_CFG.wildUpgradeStep) || 10));
+  }
+
+  function snoopWildMaxValue() {
+    return Math.max(snoopWildStepValue(), Math.floor(Number(SNOOP_CFG.wildUpgradeMax) || 100));
+  }
+
+  function snoopMarkedWildStart() {
+    return Math.max(snoopWildStepValue(), Math.floor(Number(SNOOP_CFG.wildMarkedStart) || 10));
+  }
+
+  function snoopRaiseWildValue(current, steps, ensureAtLeastStep) {
+    const step = snoopWildStepValue();
+    const max = snoopWildMaxValue();
+    const safeSteps = Math.max(0, Math.floor(Number(steps) || 0));
+    let base = Math.max(1, Math.floor(Number(current) || 1));
+    if (ensureAtLeastStep && base < step) base = step;
+    if (safeSteps <= 0) return Math.min(max, base);
+    const next = base + (step * safeSteps);
+    return Math.max(1, Math.min(max, next));
+  }
+
+  function snoopBuildCellMeta(state) {
+    const ctx = state && typeof state === "object" ? state : {};
+    const meta = {};
+    const wildKeys = Object.keys(ctx.stickyWilds || {});
+    for (let i = 0; i < wildKeys.length; i++) {
+      const key = wildKeys[i];
+      const wildMult = Math.max(1, Math.floor(Number(ctx.stickyWilds[key]) || 1));
+      if (!meta[key]) meta[key] = {};
+      meta[key].locked = true;
+      meta[key].wildMult = wildMult;
+    }
+    const multKeys = Object.keys(ctx.cellMultipliers || {});
+    for (let i = 0; i < multKeys.length; i++) {
+      const key = multKeys[i];
+      const mult = Math.max(1, Math.floor(Number(ctx.cellMultipliers[key]) || 1));
+      if (mult <= 1) continue;
+      if (!meta[key]) meta[key] = {};
+      meta[key].locked = true;
+      meta[key].cellMult = mult;
+    }
+    return meta;
+  }
+
+  function snoopCountStickyWilds(state) {
+    return Object.keys(state && state.stickyWilds || {}).length;
+  }
+
+  function snoopCountMultiplierCells(state) {
+    const keys = Object.keys(state && state.cellMultipliers || {});
+    let total = 0;
+    for (let i = 0; i < keys.length; i++) {
+      if (Math.max(1, Math.floor(Number(state.cellMultipliers[keys[i]]) || 1)) > 1) total += 1;
+    }
+    return total;
+  }
+
   function snoopBoostWilds(state, grid, steps) {
     const safeSteps = Math.max(0, Math.floor(Number(steps) || 0));
-    if (safeSteps <= 0) return 0;
-    const factor = Math.pow(Math.max(2, Math.floor(Number(SNOOP_CFG.wildUpgradeMult) || 10)), safeSteps);
+    if (safeSteps <= 0) return { count: 0, upgrades: [] };
     const keys = Object.keys(state.stickyWilds || {});
+    const upgrades = [];
     for (let i = 0; i < keys.length; i++) {
       const k = keys[i];
-      const next = Math.max(1, Math.floor((Number(state.stickyWilds[k]) || 1) * factor));
-      state.stickyWilds[k] = Math.min(1000000000, next);
+      const prev = Math.max(1, Math.floor(Number(state.stickyWilds[k]) || 1));
+      const next = snoopRaiseWildValue(prev, safeSteps, true);
+      state.stickyWilds[k] = next;
+      if (next !== prev) upgrades.push({ key: k, from: prev, to: next });
       const parts = k.split("_");
       const r = Math.floor(Number(parts[0]));
       const c = Math.floor(Number(parts[1]));
@@ -1667,27 +1748,39 @@ window.GTModules = window.GTModules || {};
         grid[r][c] = snoopStickyWildCell(state.stickyWilds[k]);
       }
     }
-    return keys.length;
+    return { count: upgrades.length, upgrades };
   }
 
   function snoopAddMultiplierCells(state, addCount) {
     const want = Math.max(0, Math.floor(Number(addCount) || 0));
-    if (want <= 0) return 0;
-    const shuffled = snoopShuffle(SNOOP_KEY_LIST);
+    if (want <= 0) return { count: 0, keys: [] };
+    const preferred = [];
+    const fallback = [];
+    for (let i = 0; i < SNOOP_KEY_LIST.length; i++) {
+      const key = SNOOP_KEY_LIST[i];
+      if (state && state.marked && state.marked[key]) preferred.push(key);
+      else fallback.push(key);
+    }
+    const shuffled = snoopShuffle(preferred).concat(snoopShuffle(fallback));
     const cellMult = Math.max(1, Math.floor(Number(SNOOP_CFG.multiplierCellValue) || 10));
     let added = 0;
+    const keys = [];
     for (let i = 0; i < shuffled.length && added < want; i++) {
       const key = shuffled[i];
       const current = Math.max(1, Math.floor(Number(state.cellMultipliers[key]) || 1));
       if (current >= cellMult) continue;
       state.cellMultipliers[key] = Math.max(current, cellMult);
       added += 1;
+      keys.push(key);
     }
-    return added;
+    return { count: added, keys };
   }
 
-  function snoopPickDigIcon() {
-    if (Math.random() > Math.max(0, Math.min(1, Number(SNOOP_CFG.digUpChance) || 0.34))) return "none";
+  function snoopPickDigIcon(chanceOverride) {
+    const rollChance = Number.isFinite(Number(chanceOverride))
+      ? Number(chanceOverride)
+      : (Number(SNOOP_CFG.digUpChance) || 0.30);
+    if (Math.random() > Math.max(0, Math.min(1, rollChance))) return "none";
     const bag = [
       { id: "none", weight: SNOOP_CFG.digIconWeights.none },
       { id: "scatter", weight: SNOOP_CFG.digIconWeights.scatter },
@@ -1717,7 +1810,7 @@ window.GTModules = window.GTModules || {};
     return removed;
   }
 
-  function snoopApplyDigUps(state, grid, clearedCells, guaranteeWildCount) {
+  function snoopApplyDigUps(state, grid, clearedCells, guaranteeWildCount, chanceOverride) {
     const safeCells = Array.isArray(clearedCells) ? clearedCells.slice() : [];
     const reveals = [];
     for (let i = 0; i < safeCells.length; i++) {
@@ -1726,7 +1819,7 @@ window.GTModules = window.GTModules || {};
         r: Math.floor(Number(cell.r)),
         c: Math.floor(Number(cell.c)),
         key: String(cell.key || snoopKey(cell.r, cell.c)),
-        icon: snoopPickDigIcon()
+        icon: snoopPickDigIcon(chanceOverride)
       });
     }
     const forceWild = Math.max(0, Math.floor(Number(guaranteeWildCount) || 0));
@@ -1758,7 +1851,7 @@ window.GTModules = window.GTModules || {};
         if (state.collectScatters) state.scatterCollected += 1;
         scatters += 1;
       } else if (row.icon === "wild") {
-        const base = state.marked[key] ? Math.max(1, Math.floor(Number(SNOOP_CFG.multiplierCellValue) || 10)) : 1;
+        const base = state.marked[key] ? snoopMarkedWildStart() : 1;
         const next = Math.max(base, Math.floor(Number(state.stickyWilds[key]) || 0));
         state.stickyWilds[key] = next;
         grid[row.r][row.c] = snoopStickyWildCell(next);
@@ -1770,10 +1863,16 @@ window.GTModules = window.GTModules || {};
       }
     }
     let addedMultiplierCells = 0;
+    let multiplierCellKeys = [];
     let boostedWilds = 0;
+    let wildUpgrades = [];
     if (weeds > 0) {
-      addedMultiplierCells = snoopAddMultiplierCells(state, weeds * Math.max(1, Math.floor(Number(SNOOP_CFG.weedAddsMultiplierCells) || 2)));
-      boostedWilds = snoopBoostWilds(state, grid, weeds);
+      const addRes = snoopAddMultiplierCells(state, weeds * Math.max(1, Math.floor(Number(SNOOP_CFG.weedAddsMultiplierCells) || 2)));
+      addedMultiplierCells = Math.max(0, Math.floor(Number(addRes && addRes.count) || 0));
+      multiplierCellKeys = Array.isArray(addRes && addRes.keys) ? addRes.keys.slice(0) : [];
+      const boostRes = snoopBoostWilds(state, grid, weeds);
+      boostedWilds = Math.max(0, Math.floor(Number(boostRes && boostRes.count) || 0));
+      wildUpgrades = Array.isArray(boostRes && boostRes.upgrades) ? boostRes.upgrades.slice(0) : [];
     }
     let skullRemoved = [];
     if (skulls > 0) {
@@ -1785,14 +1884,22 @@ window.GTModules = window.GTModules || {};
       skulls,
       wilds,
       addedMultiplierCells,
+      multiplierCellKeys,
       boostedWilds,
+      wildUpgrades,
       skullRemoved
     };
   }
 
   function snoopTransformScattersForFeature(state, grid, triggerCount) {
     const need = Math.max(0, Math.floor(Number(triggerCount) || 0));
-    if (need <= 0) return { transformedWilds: 0, transformedMultipliers: 0 };
+    if (need <= 0) return {
+      transformedWilds: 0,
+      transformedMultipliers: 0,
+      scatterKeys: [],
+      transformations: [],
+      grid
+    };
     const scatterCells = [];
     for (let r = 0; r < SNOOP_CFG.rows; r++) {
       for (let c = 0; c < SNOOP_CFG.reels; c++) {
@@ -1802,7 +1909,7 @@ window.GTModules = window.GTModules || {};
         }
       }
     }
-    const picks = scatterCells.slice(0, need);
+    const picks = snoopShuffle(scatterCells).slice(0, need);
     if (picks.length < need) {
       const taken = {};
       for (let i = 0; i < picks.length; i++) taken[picks[i].key] = true;
@@ -1816,13 +1923,22 @@ window.GTModules = window.GTModules || {};
     }
     let transformedWilds = 0;
     let transformedMultipliers = 0;
+    const scatterKeys = picks.map((row) => String(row && row.key || ""));
+    const transformations = [];
     for (let i = 0; i < picks.length; i++) {
       const row = picks[i];
       if (Math.random() < 0.5) {
-        const base = state.marked[row.key] ? Math.max(1, Math.floor(Number(SNOOP_CFG.multiplierCellValue) || 10)) : 1;
+        const base = state.marked[row.key] ? snoopMarkedWildStart() : snoopWildStepValue();
         state.stickyWilds[row.key] = Math.max(base, Math.floor(Number(state.stickyWilds[row.key]) || 0));
         grid[row.r][row.c] = snoopStickyWildCell(state.stickyWilds[row.key]);
         transformedWilds += 1;
+        transformations.push({
+          key: row.key,
+          r: row.r,
+          c: row.c,
+          to: "wild",
+          toMult: Math.max(1, Math.floor(Number(state.stickyWilds[row.key]) || 1))
+        });
       } else {
         state.cellMultipliers[row.key] = Math.max(
           Math.floor(Number(state.cellMultipliers[row.key]) || 1),
@@ -1830,10 +1946,17 @@ window.GTModules = window.GTModules || {};
         );
         grid[row.r][row.c] = null;
         transformedMultipliers += 1;
+        transformations.push({
+          key: row.key,
+          r: row.r,
+          c: row.c,
+          to: "multiplier",
+          toMult: Math.max(1, Math.floor(Number(state.cellMultipliers[row.key]) || 10))
+        });
       }
     }
     grid = snoopRefillGrid(grid, state);
-    return { transformedWilds, transformedMultipliers, grid };
+    return { transformedWilds, transformedMultipliers, scatterKeys, transformations, grid };
   }
 
   function snoopComputeClusterWin(state, cluster) {
@@ -1868,24 +1991,32 @@ window.GTModules = window.GTModules || {};
     let grid = Array.isArray(startGrid) ? startGrid : snoopBuildFreshGrid(state);
     const opts = options && typeof options === "object" ? options : {};
     let guaranteedWild = Math.max(0, Math.floor(Number(opts.guaranteedWild) || 0));
+    const digChance = Number.isFinite(Number(opts.digChance)) ? Number(opts.digChance) : undefined;
+    const includeEvents = Boolean(opts.includeEvents);
     const lineWins = [];
+    const events = [];
     let totalPayout = 0;
     let cascades = 0;
+    let biggestCascadeWin = 0;
     while (cascades < Math.max(1, Math.floor(Number(SNOOP_CFG.maxCascade) || 12))) {
       const winners = snoopFindWinningClusters(grid);
       if (!winners.length) break;
       cascades += 1;
+      let cascadePayout = 0;
       const cleared = [];
       const clearedMap = {};
+      const wildUpgrades = [];
       for (let w = 0; w < winners.length; w++) {
         const row = winners[w];
         const win = snoopComputeClusterWin(state, row);
-        totalPayout += Math.max(0, win.payout);
+        const winPay = Math.max(0, Math.floor(Number(win.payout) || 0));
+        totalPayout += winPay;
+        cascadePayout += winPay;
         lineWins.push(
           "C" + cascades + " " +
           String(row.symbolId || "").toUpperCase() +
           " x" + row.size +
-          " -> " + Math.floor(win.payout / Math.max(1, state.bet)) + "x"
+          " -> " + Math.floor(winPay / Math.max(1, state.bet)) + "x"
         );
         for (let i = 0; i < row.cells.length; i++) {
           const cellRef = row.cells[i];
@@ -1894,9 +2025,10 @@ window.GTModules = window.GTModules || {};
           if (!cell || !key) continue;
           if (String(cell.id || "") === "wild") {
             const prev = Math.max(1, Math.floor(Number(state.stickyWilds[key] || cell.wildMult) || 1));
-            const next = Math.min(1000000000, prev * Math.max(2, Math.floor(Number(SNOOP_CFG.wildUpgradeMult) || 10)));
+            const next = snoopRaiseWildValue(prev, 1, true);
             state.stickyWilds[key] = next;
             grid[cellRef.r][cellRef.c] = snoopStickyWildCell(next);
+            if (next !== prev) wildUpgrades.push({ key, r: cellRef.r, c: cellRef.c, from: prev, to: next });
             continue;
           }
           grid[cellRef.r][cellRef.c] = null;
@@ -1907,19 +2039,39 @@ window.GTModules = window.GTModules || {};
           }
         }
       }
+      if (cascadePayout > biggestCascadeWin) biggestCascadeWin = cascadePayout;
       if (!cleared.length) break;
-      const dig = snoopApplyDigUps(state, grid, cleared, guaranteedWild);
+      const dig = snoopApplyDigUps(state, grid, cleared, guaranteedWild, digChance);
       guaranteedWild = 0;
       if (dig.wilds > 0) lineWins.push("DIG: +" + dig.wilds + " Sticky Wild");
       if (dig.scatters > 0) lineWins.push("DIG: +" + dig.scatters + " Scatter");
       if (dig.weeds > 0) {
-        lineWins.push("DIG: WEED x" + dig.weeds + " (+" + dig.addedMultiplierCells + " x10 cells)");
+        lineWins.push("DIG: WEED x" + dig.weeds + " (+" + dig.addedMultiplierCells + " x10 cells, +" + dig.boostedWilds + " wild upgrades)");
       }
       if (dig.skulls > 0) {
         lineWins.push("DIG: SKULL x" + dig.skulls + " (cleanse)");
       }
       if (Array.isArray(dig.skullRemoved) && dig.skullRemoved.length) {
         lineWins.push("SKULL removed " + dig.skullRemoved.length + " low symbols");
+      }
+      const totalWildUps = wildUpgrades.length + (Array.isArray(dig.wildUpgrades) ? dig.wildUpgrades.length : 0);
+      if (totalWildUps > 0) {
+        lineWins.push("WILD UP +" + snoopWildStepValue() + " x" + totalWildUps);
+      }
+      if (includeEvents) {
+        const mergedWildUpgrades = wildUpgrades.slice(0);
+        if (Array.isArray(dig.wildUpgrades) && dig.wildUpgrades.length) {
+          for (let i = 0; i < dig.wildUpgrades.length; i++) mergedWildUpgrades.push(dig.wildUpgrades[i]);
+        }
+        events.push({
+          cascade: cascades,
+          payout: cascadePayout,
+          wildUpgrades: mergedWildUpgrades.slice(0, 64),
+          weeds: Math.max(0, Math.floor(Number(dig.weeds) || 0)),
+          weedCells: Array.isArray(dig.multiplierCellKeys) ? dig.multiplierCellKeys.slice(0, 64) : [],
+          skulls: Math.max(0, Math.floor(Number(dig.skulls) || 0)),
+          skullRemoved: Array.isArray(dig.skullRemoved) ? dig.skullRemoved.map((row) => String(row && row.key || "")).filter(Boolean) : []
+        });
       }
       grid = snoopRefillGrid(grid, state);
       if (totalPayout >= state.winCap) {
@@ -1931,7 +2083,9 @@ window.GTModules = window.GTModules || {};
       payout: Math.max(0, Math.min(state.winCap, totalPayout)),
       cascades,
       lineWins: lineWins.slice(0, 48),
-      finalGrid: grid
+      finalGrid: grid,
+      events: events.slice(0, 128),
+      biggestCascadeWin: Math.max(0, Math.floor(Number(biggestCascadeWin) || 0))
     };
   }
 
@@ -1945,32 +2099,112 @@ window.GTModules = window.GTModules || {};
     const totalSpins = Math.max(0, Math.floor(Number(awardedSpins) || 0));
     let played = 0;
     let payout = 0;
+    let spinsLeft = totalSpins;
+    let totalAwarded = totalSpins;
+    let retriggeredSpins = 0;
+    let biggestCascadeWin = 0;
     let grid = Array.isArray(startGrid) ? startGrid : snoopBuildFreshGrid(state);
     const timeline = [];
     const frames = [];
     const originalCollect = state.collectScatters;
-    state.collectScatters = false;
-    while (played < totalSpins && played < Math.max(1, Math.floor(Number(SNOOP_CFG.maxFeatureSpins) || 220))) {
+    state.collectScatters = true;
+    const deadSpinChance = Math.max(
+      0,
+      Math.min(0.95, Number(SNOOP_CFG.featureDeadSpinChance) || 0)
+    );
+    while (spinsLeft > 0 && played < Math.max(1, Math.floor(Number(SNOOP_CFG.maxFeatureSpins) || 220))) {
+      spinsLeft -= 1;
       played += 1;
-      grid = snoopBuildFreshGrid(state);
-      const run = snoopRunCascades(state, grid, {});
-      payout += Math.max(0, Math.floor(Number(run.payout) || 0));
+      const preferDeadSpin = Math.random() < deadSpinChance;
+      grid = snoopBuildFreshGrid(state, {
+        avoidWins: preferDeadSpin,
+        maxAttempts: Number(SNOOP_CFG.featureNoClusterAttempts) || 16
+      });
+      const scattersBefore = Math.max(0, Math.floor(Number(state.scatterCollected) || 0));
+      const run = snoopRunCascades(state, grid, {
+        includeEvents: true,
+        digChance: Number(SNOOP_CFG.fsDigUpChance) || Number(SNOOP_CFG.digUpChance) || 0.24
+      });
+      const spinPay = Math.max(0, Math.floor(Number(run.payout) || 0));
+      payout += spinPay;
       grid = run.finalGrid;
-      if (run.payout > 0) {
-        timeline.push("FS" + played + ": " + Math.floor(run.payout / Math.max(1, state.bet)) + "x");
+      if (run.biggestCascadeWin > biggestCascadeWin) biggestCascadeWin = run.biggestCascadeWin;
+
+      const scattersAfter = Math.max(0, Math.floor(Number(state.scatterCollected) || 0));
+      const scattersThisSpin = Math.max(0, scattersAfter - scattersBefore);
+
+      let retriggerAward = 0;
+      let retriggerScatters = 0;
+      let retriggerTransform = null;
+      if (scattersThisSpin >= 3) {
+        retriggerScatters = Math.max(3, Math.min(6, Math.floor(Number(scattersThisSpin) || 3)));
+        retriggerAward = snoopFsAward(retriggerScatters);
+        if (retriggerAward > 0) {
+          spinsLeft += retriggerAward;
+          retriggeredSpins += retriggerAward;
+          totalAwarded += retriggerAward;
+          retriggerTransform = snoopTransformScattersForFeature(state, grid, retriggerScatters);
+          grid = retriggerTransform.grid;
+        }
+      }
+
+      if (spinPay > 0) {
+        timeline.push("FS" + played + ": " + Math.floor(spinPay / Math.max(1, state.bet)) + "x");
       } else {
         timeline.push("FS" + played + ": miss");
       }
-      const payX = Math.floor(Math.max(0, Number(run.payout) || 0) / Math.max(1, state.bet));
+      const payX = Math.floor(spinPay / Math.max(1, state.bet));
       const detail = Array.isArray(run.lineWins) && run.lineWins.length
         ? " | " + String(run.lineWins[0] || "No clusters").slice(0, 96)
         : "";
+      const effectCells = {};
+      const frameWildUpgrades = [];
+      if (Array.isArray(run.events)) {
+        for (let e = 0; e < run.events.length; e++) {
+          const ev = run.events[e] || {};
+          const weedCells = Array.isArray(ev.weedCells) ? ev.weedCells : [];
+          for (let i = 0; i < weedCells.length; i++) effectCells[String(weedCells[i])] = "weed";
+          const skullRemoved = Array.isArray(ev.skullRemoved) ? ev.skullRemoved : [];
+          for (let i = 0; i < skullRemoved.length; i++) effectCells[String(skullRemoved[i])] = "skull";
+          const wildUpgrades = Array.isArray(ev.wildUpgrades) ? ev.wildUpgrades : [];
+          for (let i = 0; i < wildUpgrades.length; i++) {
+            const up = wildUpgrades[i] && typeof wildUpgrades[i] === "object" ? wildUpgrades[i] : {};
+            const key = String(up.key || "");
+            if (key) effectCells[key] = "wild-up";
+            frameWildUpgrades.push(up);
+          }
+        }
+      }
+      if (retriggerTransform && Array.isArray(retriggerTransform.scatterKeys)) {
+        for (let i = 0; i < retriggerTransform.scatterKeys.length; i++) {
+          effectCells[String(retriggerTransform.scatterKeys[i])] = "scatter";
+        }
+      }
+      const hud = {
+        freeSpinsLeft: Math.max(0, spinsLeft),
+        bonusWin: Math.max(0, Math.floor(payout)),
+        currentSpinWin: Math.max(0, spinPay),
+        stickyWilds: snoopCountStickyWilds(state),
+        multiplierCells: snoopCountMultiplierCells(state)
+      };
       frames.push({
+        frameType: "bonus_spin",
         reels: snoopGridToTextRows(grid, state),
         markedCells: Object.keys(state.marked || {}),
-        fills: null,
-        spinPay: Math.max(0, Math.floor(Number(run.payout) || 0)),
-        lineText: "FS " + played + "/" + totalSpins + " | " + (payX > 0 ? ("Win " + payX + "x") : "No win") + detail
+        cellMeta: snoopBuildCellMeta(state),
+        effectCells,
+        fills: run.cascades > 0 ? { cascades: run.cascades } : null,
+        spinPay: spinPay,
+        lineText:
+          "FS " + played + "/" + Math.max(1, totalAwarded) +
+          " | " +
+          (payX > 0 ? ("Win " + payX + "x") : (preferDeadSpin && run.cascades === 0 ? "Dead spin" : "No win")) +
+          detail,
+        hud,
+        banner: retriggerAward > 0 ? ("RETRIGGER! +" + retriggerAward + " Spins") : "",
+        retriggerAward,
+        retriggerScatters,
+        wildUpgrades: frameWildUpgrades.slice(0, 64)
       });
       if (payout >= state.winCap) {
         payout = state.winCap;
@@ -1980,10 +2214,13 @@ window.GTModules = window.GTModules || {};
     state.collectScatters = originalCollect;
     return {
       spinsPlayed: played,
+      totalAwarded,
+      retriggeredSpins,
       payout: Math.max(0, Math.min(state.winCap, payout)),
       timeline: timeline.slice(0, 32),
       finalGrid: grid,
-      frames: frames.slice(0, Math.max(1, totalSpins))
+      frames: frames.slice(0, Math.max(1, totalAwarded)),
+      biggestCascadeWin: Math.max(0, Math.floor(Number(biggestCascadeWin) || 0))
     };
   }
 
@@ -2020,6 +2257,7 @@ window.GTModules = window.GTModules || {};
     let freeSpinsAwarded = 0;
     let freeSpinsPlayed = 0;
     let freeSpinPayout = 0;
+    let biggestCascadeWin = 0;
     let grid = snoopBuildFreshGrid(state);
     const bonusFrames = [];
 
@@ -2027,36 +2265,59 @@ window.GTModules = window.GTModules || {};
       bonusTriggered = true;
       freeSpinsAwarded = snoopFsAward(buyTrigger);
       lineWins.push("BUY BONUS " + buyTrigger + " SCAT (" + wagerMult + "x bet)");
+      const introBeforeRows = snoopGridToTextRows(grid, state);
+      const introBeforeMeta = snoopBuildCellMeta(state);
       const transform = snoopTransformScattersForFeature(state, grid, buyTrigger);
       grid = transform.grid;
       lineWins.push("Transform: " + transform.transformedWilds + " Sticky Wild | " + transform.transformedMultipliers + " x10 Cells");
       bonusFrames.push({
-        reels: snoopGridToTextRows(grid, state),
-        markedCells: Object.keys(state.marked || {}),
+        frameType: "bonus_intro",
+        reels: introBeforeRows,
+        markedCells: Array.isArray(transform.scatterKeys) ? transform.scatterKeys.slice(0) : [],
+        cellMeta: introBeforeMeta,
         fills: null,
         spinPay: 0,
-        lineText: "BONUS BUY START | " + freeSpinsAwarded + " Free Spins"
+        lineText: "BONUS BUY START | " + freeSpinsAwarded + " Free Spins",
+        intro: {
+          awardedSpins: freeSpinsAwarded,
+          scatterKeys: Array.isArray(transform.scatterKeys) ? transform.scatterKeys.slice(0) : [],
+          transformations: Array.isArray(transform.transformations) ? transform.transformations.slice(0) : [],
+          afterReels: snoopGridToTextRows(grid, state),
+          afterCellMeta: snoopBuildCellMeta(state)
+        }
       });
     } else {
       const baseRun = snoopRunCascades(state, grid, { guaranteedWild: isHype ? 1 : 0 });
       basePayout = Math.max(0, Math.floor(Number(baseRun.payout) || 0));
       grid = baseRun.finalGrid;
+      if (baseRun.biggestCascadeWin > biggestCascadeWin) biggestCascadeWin = baseRun.biggestCascadeWin;
       for (let i = 0; i < baseRun.lineWins.length && lineWins.length < 42; i++) lineWins.push(baseRun.lineWins[i]);
       if (isHype) lineWins.unshift("Hype Spin: Guaranteed 1 Sticky Wild");
       if (state.scatterCollected >= 3) {
         bonusTriggered = true;
         const scat = Math.max(3, Math.min(6, Math.floor(Number(state.scatterCollected) || 3)));
         freeSpinsAwarded = snoopFsAward(scat);
+        const introBeforeRows = snoopGridToTextRows(grid, state);
+        const introBeforeMeta = snoopBuildCellMeta(state);
         const transform = snoopTransformScattersForFeature(state, grid, scat);
         grid = transform.grid;
         lineWins.push("SCATTER x" + scat + " -> " + freeSpinsAwarded + " FS");
         lineWins.push("Transform: " + transform.transformedWilds + " Sticky Wild | " + transform.transformedMultipliers + " x10 Cells");
         bonusFrames.push({
-          reels: snoopGridToTextRows(grid, state),
-          markedCells: Object.keys(state.marked || {}),
+          frameType: "bonus_intro",
+          reels: introBeforeRows,
+          markedCells: Array.isArray(transform.scatterKeys) ? transform.scatterKeys.slice(0) : [],
+          cellMeta: introBeforeMeta,
           fills: null,
           spinPay: 0,
-          lineText: "FEATURE TRIGGER | SCATTER x" + scat + " -> " + freeSpinsAwarded + " FS"
+          lineText: "FEATURE TRIGGER | SCATTER x" + scat + " -> " + freeSpinsAwarded + " FS",
+          intro: {
+            awardedSpins: freeSpinsAwarded,
+            scatterKeys: Array.isArray(transform.scatterKeys) ? transform.scatterKeys.slice(0) : [],
+            transformations: Array.isArray(transform.transformations) ? transform.transformations.slice(0) : [],
+            afterReels: snoopGridToTextRows(grid, state),
+            afterCellMeta: snoopBuildCellMeta(state)
+          }
         });
       }
     }
@@ -2065,6 +2326,7 @@ window.GTModules = window.GTModules || {};
       const fs = runSnoopFeatureSpins(state, grid, freeSpinsAwarded);
       freeSpinsPlayed = Math.max(0, Math.floor(Number(fs.spinsPlayed) || 0));
       freeSpinPayout = Math.max(0, Math.floor(Number(fs.payout) || 0));
+      if (fs.biggestCascadeWin > biggestCascadeWin) biggestCascadeWin = fs.biggestCascadeWin;
       grid = fs.finalGrid;
       if (fs.timeline.length) lineWins.push("FS: " + fs.timeline.slice(0, 8).join(" / "));
       if (Array.isArray(fs.frames) && fs.frames.length) {
@@ -2072,6 +2334,19 @@ window.GTModules = window.GTModules || {};
           bonusFrames.push(fs.frames[i]);
         }
       }
+      bonusFrames.push({
+        frameType: "bonus_end",
+        reels: snoopGridToTextRows(grid, state),
+        markedCells: [],
+        cellMeta: snoopBuildCellMeta(state),
+        fills: null,
+        spinPay: 0,
+        lineText: "BONUS COMPLETE | Total " + Math.floor(freeSpinPayout / Math.max(1, safeBet)) + "x",
+        summary: {
+          bonusWin: Math.max(0, Math.floor(freeSpinPayout)),
+          biggestCascadeWin: Math.max(0, Math.floor(Number(biggestCascadeWin) || 0))
+        }
+      });
     }
 
     const uncapped = Math.max(0, basePayout + freeSpinPayout);
@@ -2102,6 +2377,8 @@ window.GTModules = window.GTModules || {};
       freeSpinsPlayed,
       freeSpinPayout,
       bonusFrames: bonusFrames.slice(0, 96),
+      biggestCascadeWin: Math.max(0, Math.floor(Number(biggestCascadeWin) || 0)),
+      cellMeta: snoopBuildCellMeta(state),
       rtpTarget: Number(SNOOP_CFG.rtp) || Number(GAME_DEFS.snoop_dogg_dollars.rtp) || 0.96
     };
   }
