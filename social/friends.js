@@ -181,28 +181,28 @@ window.GTModules.friends = (function createFriendsModule() {
         const online = Boolean(p && p.online);
         const world = online ? String(p.world || "").slice(0, 24) : "";
         return (
-          "<div class='admin-row'>" +
-            "<div class='admin-meta'>" +
+          "<div class='friends-row'>" +
+            "<div class='friends-meta'>" +
               "<strong>@" + esc(entry.username || entry.accountId) + "</strong>" +
-              "<div class='admin-sub'>@" + esc(entry.accountId) + (online ? (" | " + esc(world)) : " | offline") + "</div>" +
+              "<div class='friends-sub'>@" + esc(entry.accountId) + (online ? (" | " + esc(world)) : " | offline") + "</div>" +
             "</div>" +
-            "<div class='admin-actions-row'>" +
-              "<button data-friends-act='warp' data-account-id='" + esc(entry.accountId) + "'" + (online ? "" : " disabled") + ">Warp</button>" +
-              "<button data-friends-act='remove' data-account-id='" + esc(entry.accountId) + "'>Remove</button>" +
+            "<div class='friends-actions'>" +
+              "<button class='friends-action-btn' data-friends-act='warp' data-account-id='" + esc(entry.accountId) + "'" + (online ? "" : " disabled") + ">Warp</button>" +
+              "<button class='friends-action-btn' data-friends-act='remove' data-account-id='" + esc(entry.accountId) + "'>Remove</button>" +
             "</div>" +
           "</div>"
         );
       }).join("");
       const requestRows = requests.map((req) => {
         return (
-          "<div class='admin-row'>" +
-            "<div class='admin-meta'>" +
+          "<div class='friends-row'>" +
+            "<div class='friends-meta'>" +
               "<strong>@" + esc(req.fromName || req.fromAccountId) + "</strong>" +
-              "<div class='admin-sub'>@" + esc(req.fromAccountId) + "</div>" +
+              "<div class='friends-sub'>@" + esc(req.fromAccountId) + "</div>" +
             "</div>" +
-            "<div class='admin-actions-row'>" +
-              "<button data-friends-act='accept' data-account-id='" + esc(req.fromAccountId) + "'>Accept</button>" +
-              "<button data-friends-act='decline' data-account-id='" + esc(req.fromAccountId) + "'>Decline</button>" +
+            "<div class='friends-actions'>" +
+              "<button class='friends-action-btn' data-friends-act='accept' data-account-id='" + esc(req.fromAccountId) + "'>Accept</button>" +
+              "<button class='friends-action-btn' data-friends-act='decline' data-account-id='" + esc(req.fromAccountId) + "'>Decline</button>" +
             "</div>" +
           "</div>"
         );

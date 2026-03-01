@@ -68,6 +68,7 @@
       const gtMainMenuBtnEl = document.getElementById("gtMainMenuBtn");
       const gtMainMenuPopupEl = document.getElementById("gtMainMenuPopup");
       const gtMenuQuitBtnEl = document.getElementById("gtMenuQuitBtn");
+      const gtMenuRespawnBtnEl = document.getElementById("gtMenuRespawnBtn");
       const gtMenuAchievementsBtnEl = document.getElementById("gtMenuAchievementsBtn");
       const gtMenuTitlesBtnEl = document.getElementById("gtMenuTitlesBtn");
       const gtMenuResumeBtnEl = document.getElementById("gtMenuResumeBtn");
@@ -11954,6 +11955,13 @@
             if (!inWorld) return;
             setQuickMenuMode("");
             leaveCurrentWorld();
+          });
+        }
+        if (gtMenuRespawnBtnEl) {
+          eventsModule.on(gtMenuRespawnBtnEl, "click", () => {
+            if (!inWorld) return;
+            setQuickMenuMode("");
+            respawnPlayerAtDoor();
           });
         }
         if (gtMenuAchievementsBtnEl) {

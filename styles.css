@@ -3704,8 +3704,8 @@ body{
   border: 2px solid rgba(255, 209, 102, 0.92);
   border-bottom-color: rgba(92, 56, 20, 0.95);
   border-right-color: rgba(92, 56, 20, 0.95);
-  background: linear-gradient(180deg, rgba(103, 218, 255, 0.9), rgba(68, 166, 232, 0.86));
-  color: #f8ffff;
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.32), rgba(255, 153, 51, 0.18));
+  color: var(--gt-cream);
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
   box-shadow: var(--gt-inner), var(--gt-shadow);
   cursor: pointer;
@@ -3718,7 +3718,7 @@ body{
 
 .gt-quick-btn.active{
   border-color: rgba(255, 244, 184, 0.98);
-  background: linear-gradient(180deg, rgba(145, 234, 255, 0.94), rgba(77, 185, 245, 0.9));
+  background: linear-gradient(180deg, rgba(255, 225, 150, 0.45), rgba(255, 166, 66, 0.24));
 }
 
 .gt-quick-popup{
@@ -5444,4 +5444,71 @@ body.admin-dashboard-open .admin-inventory-modal {
 #profileModal .admin-actions-row button:disabled {
   opacity: 0.55;
   box-shadow: none;
+}
+
+/* Friends modal dedicated rows (avoid inheriting admin panel row theme) */
+#friendsModal .friends-row {
+  border: 1px solid rgba(143, 188, 234, 0.54);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(46, 65, 92, 0.95), rgba(34, 51, 74, 0.95));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+#friendsModal .friends-row + .friends-row {
+  margin-top: 8px;
+}
+
+#friendsModal .friends-row:hover {
+  border-color: rgba(120, 198, 255, 0.78);
+}
+
+#friendsModal .friends-meta {
+  display: grid;
+  gap: 3px;
+}
+
+#friendsModal .friends-meta strong {
+  color: #f6fbff;
+}
+
+#friendsModal .friends-sub {
+  color: rgba(223, 238, 255, 0.86);
+  font-size: 12px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+#friendsModal .friends-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+#friendsModal .friends-action-btn,
+#friendsActions button {
+  border: 2px solid rgba(255, 209, 102, 0.84) !important;
+  border-right-color: rgba(92, 56, 20, 0.92) !important;
+  border-bottom-color: rgba(92, 56, 20, 0.92) !important;
+  border-radius: 10px !important;
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.3), rgba(255, 153, 51, 0.16)) !important;
+  color: var(--gt-cream) !important;
+  font-family: "Press Start 2P", system-ui, sans-serif;
+  font-size: 10px;
+  min-height: 34px;
+  padding: 6px 11px;
+  box-shadow: var(--gt-inner), var(--gt-shadow);
+  cursor: pointer;
+}
+
+#friendsModal .friends-action-btn:disabled,
+#friendsActions button:disabled {
+  opacity: 0.55;
+  box-shadow: none;
+  cursor: not-allowed;
 }
