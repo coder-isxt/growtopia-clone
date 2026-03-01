@@ -1221,12 +1221,22 @@
       const CHAT_PANEL_TOP_MIN = 8;
       const CHAT_PANEL_BOTTOM_GAP = 12;
       const CHAT_MESSAGES_LIMIT = 100;
+      const INVENTORY_PANEL_OFFSET_KEY = "gt_inventory_panel_offset_v1";
+      const INVENTORY_PANEL_PEEK_PX = 40;
+      const INVENTORY_PANEL_BOTTOM_GAP = 8;
       let chatPanelTopPx = CHAT_PANEL_TOP_DEFAULT;
       let chatDragActive = false;
       let chatDragPointerId = -1;
       let chatDragStartY = 0;
       let chatDragStartTopPx = CHAT_PANEL_TOP_DEFAULT;
       let chatDragHandleEl = null;
+      let inventoryPanelOffsetPx = 0;
+      let inventoryPanelDragActive = false;
+      let inventoryPanelDragPointerId = -1;
+      let inventoryPanelDragStartY = 0;
+      let inventoryPanelDragStartOffsetPx = 0;
+      let inventoryPanelHandleEl = null;
+      let inventoryPanelDragBound = false;
       const touchControls = {
         left: false,
         right: false,
@@ -6445,6 +6455,13 @@
         }
       }
 
+      function ensureToolbarPanelParent() {
+        if (!toolbarEl || !canvasWrapEl) return;
+        if (toolbarEl.parentElement !== canvasWrapEl) {
+          canvasWrapEl.appendChild(toolbarEl);
+        }
+      }
+
       function ensureChatDragHandle() {
         if (!chatPanelEl) return null;
         if (chatDragHandleEl && chatDragHandleEl.isConnected) return chatDragHandleEl;
@@ -6567,6 +6584,141 @@
         eventsModule.on(window, "pointercancel", onChatDragEnd);
       }
 
+      function loadInventoryPanelOffsetPref() {
+        let storedOffset = 0;
+        try {
+          const raw = Number(localStorage.getItem(INVENTORY_PANEL_OFFSET_KEY));
+          if (Number.isFinite(raw) && raw >= 0) {
+            storedOffset = raw;
+          }
+        } catch (error) {
+          // ignore localStorage failures
+        }
+        inventoryPanelOffsetPx = storedOffset;
+      }
+
+      function getInventoryPanelOffsetBounds() {
+        const panelHeight = Math.max(120, Math.floor((toolbarEl && toolbarEl.offsetHeight) || 260));
+        const minOffset = 0;
+        const maxOffset = Math.max(0, panelHeight - INVENTORY_PANEL_PEEK_PX);
+        return { minOffset, maxOffset };
+      }
+
+      function applyInventoryPanelOffset(nextOffsetPx, persist) {
+        if (!toolbarEl) return;
+        const rawOffset = Math.max(0, Math.round(Number(nextOffsetPx) || 0));
+        if (toolbarEl.classList.contains("hidden")) {
+          inventoryPanelOffsetPx = rawOffset;
+          toolbarEl.style.bottom = INVENTORY_PANEL_BOTTOM_GAP + "px";
+          toolbarEl.style.transform = "translateY(" + rawOffset + "px)";
+          if (persist) {
+            try {
+              localStorage.setItem(INVENTORY_PANEL_OFFSET_KEY, String(rawOffset));
+            } catch (error) {
+              // ignore localStorage failures
+            }
+          }
+          return;
+        }
+        const bounds = getInventoryPanelOffsetBounds();
+        const offset = Math.max(bounds.minOffset, Math.min(bounds.maxOffset, rawOffset));
+        inventoryPanelOffsetPx = offset;
+        toolbarEl.style.bottom = INVENTORY_PANEL_BOTTOM_GAP + "px";
+        toolbarEl.style.transform = "translateY(" + offset + "px)";
+        if (persist) {
+          try {
+            localStorage.setItem(INVENTORY_PANEL_OFFSET_KEY, String(offset));
+          } catch (error) {
+            // ignore localStorage failures
+          }
+        }
+      }
+
+      function setInventoryPanelDragActive(nextValue) {
+        inventoryPanelDragActive = Boolean(nextValue);
+        if (toolbarEl) {
+          toolbarEl.classList.toggle("inventory-panel-dragging", inventoryPanelDragActive);
+        }
+      }
+
+      function onInventoryPanelDragMove(event) {
+        if (!inventoryPanelDragActive) return;
+        const clientY = Number(event && event.clientY);
+        if (!Number.isFinite(clientY)) return;
+        if (event && typeof event.preventDefault === "function") {
+          event.preventDefault();
+        }
+        const nextOffset = inventoryPanelDragStartOffsetPx + (clientY - inventoryPanelDragStartY);
+        applyInventoryPanelOffset(nextOffset, false);
+      }
+
+      function onInventoryPanelDragEnd() {
+        if (!inventoryPanelDragActive) return;
+        if (
+          inventoryPanelHandleEl &&
+          inventoryPanelDragPointerId >= 0 &&
+          typeof inventoryPanelHandleEl.releasePointerCapture === "function"
+        ) {
+          try {
+            inventoryPanelHandleEl.releasePointerCapture(inventoryPanelDragPointerId);
+          } catch (error) {
+            // ignore release errors
+          }
+        }
+        inventoryPanelDragPointerId = -1;
+        setInventoryPanelDragActive(false);
+        applyInventoryPanelOffset(inventoryPanelOffsetPx, true);
+      }
+
+      function ensureInventoryPanelHandle() {
+        if (!toolbarEl) return null;
+        let handle = toolbarEl.querySelector("#inventoryPanelHandle");
+        if (!(handle instanceof HTMLElement)) {
+          handle = document.createElement("div");
+          handle.id = "inventoryPanelHandle";
+          handle.className = "inventory-panel-handle";
+          handle.textContent = "INVENTORY";
+          toolbarEl.insertBefore(handle, toolbarEl.firstChild || null);
+        }
+        if (String(handle.dataset.dragBound || "") !== "1") {
+          eventsModule.on(handle, "pointerdown", (event) => {
+            if (!inWorld || !toolbarEl || toolbarEl.classList.contains("hidden")) return;
+            const clientY = Number(event && event.clientY);
+            if (!Number.isFinite(clientY)) return;
+            if (event && typeof event.preventDefault === "function") {
+              event.preventDefault();
+            }
+            if (event && typeof event.stopPropagation === "function") {
+              event.stopPropagation();
+            }
+            inventoryPanelDragPointerId = Number.isFinite(event.pointerId) ? event.pointerId : -1;
+            if (inventoryPanelDragPointerId >= 0 && typeof handle.setPointerCapture === "function") {
+              try {
+                handle.setPointerCapture(inventoryPanelDragPointerId);
+              } catch (error) {
+                // ignore capture errors
+              }
+            }
+            inventoryPanelDragStartY = clientY;
+            inventoryPanelDragStartOffsetPx = inventoryPanelOffsetPx;
+            setInventoryPanelDragActive(true);
+          });
+          handle.dataset.dragBound = "1";
+        }
+        inventoryPanelHandleEl = handle;
+        return inventoryPanelHandleEl;
+      }
+
+      function bindInventoryPanelDrag() {
+        if (inventoryPanelDragBound) return;
+        inventoryPanelDragBound = true;
+        ensureToolbarPanelParent();
+        ensureInventoryPanelHandle();
+        eventsModule.on(window, "pointermove", onInventoryPanelDragMove, { passive: false });
+        eventsModule.on(window, "pointerup", onInventoryPanelDragEnd);
+        eventsModule.on(window, "pointercancel", onInventoryPanelDragEnd);
+      }
+
       function syncMobileOverlayVisibility() {
         const hasPassiveInventoryModalOpen = (() => {
           if (!isMobileUi || !inWorld) return false;
@@ -6590,6 +6742,11 @@
         }
         const showToolbar = inWorld && (!isMobileUi || isMobileInventoryOpen || hasPassiveInventoryModalOpen);
         toolbarEl.classList.toggle("hidden", !showToolbar);
+        if (showToolbar) {
+          ensureToolbarPanelParent();
+          ensureInventoryPanelHandle();
+          applyInventoryPanelOffset(inventoryPanelOffsetPx, false);
+        }
         mobileControlsEl.classList.toggle("hidden", !(inWorld && isMobileUi));
       }
 
@@ -11717,6 +11874,7 @@
 
       function bindWorldControls() {
         bindChatPanelDrag();
+        bindInventoryPanelDrag();
         eventsModule.on(enterWorldBtn, "click", enterWorldFromInput);
         eventsModule.on(chatToggleBtn, "click", () => {
           if (!inWorld) return;
@@ -13232,12 +13390,14 @@
         const currentSig = getInventorySignature();
         if (lastInventorySignature === currentSig && toolbarEl.innerHTML !== "") {
           fastUpdateToolbarCounts();
+          applyInventoryPanelOffset(inventoryPanelOffsetPx, false);
           return;
         }
         lastInventorySignature = currentSig;
         // ----------------------------------------------------------------
 
         toolbarEl.innerHTML = "";
+        ensureInventoryPanelHandle();
         const blockSection = createInventorySection("Blocks & Tools", "Click to select (1: Fist, 2: Wrench)");
         const farmableSection = createInventorySection("Farmables", "Separate from normal blocks: higher XP + gem drops");
         let hasFarmableEntries = false;
@@ -13351,6 +13511,7 @@
         if (titlesModalEl && !titlesModalEl.classList.contains("hidden")) {
           renderTitlesMenu();
         }
+        applyInventoryPanelOffset(inventoryPanelOffsetPx, false);
         updateMobileControlsUi();
       }
 
@@ -13504,7 +13665,12 @@
       }
 
       function applyToolbarPosition() {
-        toolbarEl.style.transform = "none";
+        ensureToolbarPanelParent();
+        if (!inWorld) {
+          toolbarEl.style.transform = "none";
+          return;
+        }
+        applyInventoryPanelOffset(inventoryPanelOffsetPx, false);
       }
 
       function clampPanelWidths(leftValue, rightValue) {
@@ -13665,6 +13831,7 @@
 
       eventsModule.on(window, "resize", resizeCanvas);
       loadChatPanelTopPref();
+      loadInventoryPanelOffsetPref();
       resizeCanvas();
       initDesktopLayoutResize();
 
