@@ -15,7 +15,7 @@ window.GTModules.chat = {
     let dragging = false;
     let startY = 0;
     let startH = 0;
-    const COLLAPSED_H = 42;
+    const COLLAPSED_H = 60;
     const EXPANDED_H = 320;
     const THRESHOLD = (EXPANDED_H + COLLAPSED_H) / 2;
 
