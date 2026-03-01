@@ -414,19 +414,20 @@ window.GTModules = window.GTModules || {};
   }
 
   const LB_CLUSTER_PAY = {
-    TRAP: { 5: 0.3, 6: 0.5, 7: 0.8, 8: 1.2, 9: 1.8, 10: 3, 12: 5, 15: 10 },
-    CHEESE: { 5: 0.4, 6: 0.7, 7: 1, 8: 1.6, 9: 2.5, 10: 4, 12: 7, 15: 14 },
-    BEER: { 5: 0.5, 6: 0.9, 7: 1.4, 8: 2.2, 9: 3.5, 10: 6, 12: 10, 15: 20 },
-    BAG: { 5: 0.8, 6: 1.4, 7: 2.2, 8: 3.5, 9: 5, 10: 9, 12: 16, 15: 30 },
-    HAT: { 5: 1.5, 6: 2.5, 7: 4, 8: 6.5, 9: 10, 10: 18, 12: 30, 15: 60 },
-    WINT: { 5: 3, 6: 5, 7: 8, 8: 14, 9: 22, 10: 40, 12: 70, 15: 150 }
+    TRAP: { 5: 0.2, 6: 0.4, 7: 0.6, 8: 1.0, 9: 1.5, 10: 2.5, 12: 4, 15: 8 },
+    CHEESE: { 5: 0.3, 6: 0.5, 7: 0.8, 8: 1.3, 9: 2.0, 10: 3.5, 12: 6, 15: 12 },
+    BEER: { 5: 0.4, 6: 0.7, 7: 1.1, 8: 1.8, 9: 3.0, 10: 5, 12: 9, 15: 18 },
+    BAG: { 5: 0.7, 6: 1.2, 7: 1.9, 8: 3.0, 9: 4.5, 10: 8, 12: 15, 15: 25 },
+    HAT: { 5: 1.2, 6: 2.2, 7: 3.5, 8: 6.0, 9: 9.0, 10: 16, 12: 28, 15: 55 },
+    WINT: { 5: 2.5, 6: 4.5, 7: 7.5, 8: 13, 9: 20, 10: 38, 12: 65, 15: 140 }
   };
 
   function simulateLeBandit(machine, bet, buyBonus) {
     const COLS = 6, ROWS = 5;
     const pool = [
-      ...Array(14).fill("TRAP"), ...Array(12).fill("CHEESE"), ...Array(10).fill("BEER"),
-      ...Array(8).fill("BAG"), ...Array(5).fill("HAT"), ...Array(3).fill("WINT"), ...Array(2).fill("WILD")
+      ...Array(25).fill("TRAP"), ...Array(20).fill("CHEESE"), ...Array(18).fill("BEER"),
+      ...Array(12).fill("BAG"), ...Array(8).fill("HAT"), ...Array(4).fill("WINT"),
+      "WILD" // Only 1 WILD in a larger pool
     ];
     function pick() { return pool[Math.floor(Math.random() * pool.length)]; }
     function makeGrid(rc) { const g = []; for (let r = 0; r < ROWS; r++) { g[r] = []; for (let c = 0; c < COLS; c++) { let s = pick(); if (Math.random() < rc) s = "RAIN"; g[r][c] = s; } } return g; }
@@ -445,7 +446,7 @@ window.GTModules = window.GTModules || {};
     function toReels(g) { const o = []; for (let r = 0; r < ROWS; r++)o.push(g[r].join(",")); return o; }
 
     // ────── BASE SPIN ──────
-    const baseGrid = makeGrid(buyBonus ? 0.06 : 0.018);
+    const baseGrid = makeGrid(buyBonus ? 0.05 : 0.012); // Reduced from 0.018
     const baseC = clusters(baseGrid);
     let basePay = 0;
     const lines = [];
@@ -462,7 +463,7 @@ window.GTModules = window.GTModules || {};
     if (triggerBonus) {
       lines.push("🌈 BONUS! " + FREE_SPINS + " Free Spins!");
       for (let s = 0; s < FREE_SPINS; s++) {
-        const fsGrid = makeGrid(0.08);
+        const fsGrid = makeGrid(0.06); // Reduced from 0.08
         const fsC = clusters(fsGrid);
         let sPay = 0;
         const sLines = [];
@@ -479,8 +480,13 @@ window.GTModules = window.GTModules || {};
           const fb = {};
           for (const key of frameMarked) {
             const roll = Math.random(), [fr, fc] = key.split("_").map(Number);
-            if (roll < 0.60) { const vs = [1, 1, 2, 2, 3, 5, 8, 10, 15, 25]; fb[key] = { type: "COIN", value: vs[Math.floor(Math.random() * vs.length)] }; }
-            else if (roll < 0.88) { const ms = [2, 2, 3, 3, 4, 5, 10]; fb[key] = { type: "CLOVR", value: ms[Math.floor(Math.random() * ms.length)] }; }
+            if (roll < 0.70) {
+              // Favors lower coins
+              const vs = [1, 1, 1, 2, 2, 3, 5, 10]; fb[key] = { type: "COIN", value: vs[Math.floor(Math.random() * vs.length)] };
+            }
+            else if (roll < 0.92) {
+              const ms = [2, 2, 3, 5, 10]; fb[key] = { type: "CLOVR", value: ms[Math.floor(Math.random() * ms.length)] };
+            }
             else { fb[key] = { type: "POT", value: 0 }; }
           }
           // Clovers multiply adjacent coins
