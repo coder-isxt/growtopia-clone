@@ -2512,16 +2512,7 @@ window.GTModules = window.GTModules || {};
     }
 
     const selected = String(state.machineCategory || "all");
-    const visible = selected === "all"
-      ? rows
-      : rows.filter((row) => getMachineCategoryId(row.type) === selected);
-
-    if (!visible.length) {
-      els.machineList.innerHTML = "<div class=\"status\">No games in this category.</div>";
-      return;
-    }
-
-    els.machineList.innerHTML = visible.map((row) => {
+    const renderMachineCard = (row) => {
       const catId = getMachineCategoryId(row.type);
       const catLabel = getMachineCategoryLabel(catId);
       return (
@@ -2532,7 +2523,35 @@ window.GTModules = window.GTModules || {};
         "<div class=\"info\">Plays: " + row.stats.plays + "</div>" +
         "</div>"
       );
-    }).join("");
+    };
+
+    if (selected === "all") {
+      const orderedCategories = MACHINE_CATEGORY_DEFS.filter((row) => row.id !== "all");
+      const groupsHtml = [];
+      for (let i = 0; i < orderedCategories.length; i++) {
+        const cat = orderedCategories[i];
+        const catRows = rows.filter((row) => getMachineCategoryId(row.type) === cat.id);
+        if (!catRows.length) continue;
+        groupsHtml.push(
+          "<section class=\"machine-group\">" +
+          "<div class=\"machine-group-head\">" +
+          "<span class=\"machine-group-title\">" + escapeHtml(cat.label) + "</span>" +
+          "<span class=\"machine-group-count\">" + catRows.length + "</span>" +
+          "</div>" +
+          "<div class=\"machine-group-grid\">" + catRows.map(renderMachineCard).join("") + "</div>" +
+          "</section>"
+        );
+      }
+      els.machineList.innerHTML = groupsHtml.length ? groupsHtml.join("") : "<div class=\"status\">No games available.</div>";
+      return;
+    }
+
+    const visible = rows.filter((row) => getMachineCategoryId(row.type) === selected);
+    if (!visible.length) {
+      els.machineList.innerHTML = "<div class=\"status\">No games in this category.</div>";
+      return;
+    }
+    els.machineList.innerHTML = visible.map(renderMachineCard).join("");
   }
 
   function renderMachineStats() {
