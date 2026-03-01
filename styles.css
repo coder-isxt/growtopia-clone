@@ -5319,6 +5319,10 @@ body.admin-dashboard-open .admin-inventory-modal {
   overflow: hidden !important;
 }
 
+#canvasWrap #chatPanel.hidden {
+  display: none !important;
+}
+
 #canvasWrap #chatPanel .chat-messages {
   min-height: 0;
   height: 100%;
@@ -5512,6 +5516,44 @@ body.admin-dashboard-open .admin-inventory-modal {
   opacity: 0.55;
   box-shadow: none;
   cursor: not-allowed;
+}
+
+/* Mobile visibility pass for new in-game UI */
+@media (max-width: 860px) {
+  body.mobile-world-active .gt-game-overlay {
+    display: grid !important;
+    inset: 6px 6px calc(env(safe-area-inset-bottom, 0px) + 72px) 6px !important;
+    z-index: 58 !important;
+  }
+
+  body.mobile-world-active .gt-gem-hud {
+    min-width: 146px;
+    padding: 6px 8px;
+    font-size: 9px;
+  }
+
+  body.mobile-world-active .gt-quick-actions {
+    top: 6px;
+    right: 6px;
+    gap: 6px;
+  }
+
+  body.mobile-world-active .gt-quick-btn {
+    width: 46px;
+    height: 46px;
+  }
+
+  body.mobile-world-active .gt-quick-popup {
+    right: 0;
+    top: calc(100% + 6px);
+    min-width: 150px;
+    max-width: min(220px, 70vw);
+  }
+
+  body.mobile-world-active #canvasWrap #chatPanel {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 66px) !important;
+    z-index: 80 !important;
+  }
 }
 
 /* World fullscreen + world-menu footer controls */
