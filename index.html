@@ -456,6 +456,7 @@
         // ignore localStorage write failures
       }
       window.GT_ASSET_VERSION = assetVersion;
+      const PREAUTH_HANDOFF_KEY = "gt_pending_auth_handoff_v1";
       const versionedFiles = [
         "config/firebase-config.js",
         "config/settings.js",
@@ -532,15 +533,273 @@
         "audio/sounds.js",
         "core/game.js"
       ];
-      function loadScriptAt(index) {
-        if (index >= versionedFiles.length) return;
-        const script = document.createElement("script");
-        script.src = versionedFiles[index] + "?v=" + encodeURIComponent(assetVersion);
-        script.onload = function () { loadScriptAt(index + 1); };
-        script.onerror = function () { loadScriptAt(index + 1); };
-        document.body.appendChild(script);
+
+      const authCriticalFiles = [
+        "config/firebase-config.js",
+        "config/settings.js",
+        "system/db.js",
+        "system/auth.js",
+        "system/auth_storage.js"
+      ];
+
+      (function primeAuthUi() {
+        const authStatusEl = document.getElementById("authStatus");
+        const authCreateBtn = document.getElementById("authCreateBtn");
+        const authLoginBtn = document.getElementById("authLoginBtn");
+        if (authStatusEl instanceof HTMLElement) {
+          authStatusEl.textContent = "Loading login services...";
+          authStatusEl.classList.remove("danger");
+        }
+        if (authCreateBtn instanceof HTMLButtonElement) authCreateBtn.disabled = true;
+        if (authLoginBtn instanceof HTMLButtonElement) authLoginBtn.disabled = true;
+      })();
+
+      function loadScriptsInBackground(files, onDone) {
+        const rows = Array.isArray(files) ? files.slice() : [];
+        if (!rows.length) {
+          if (typeof onDone === "function") onDone();
+          return;
+        }
+        let pending = rows.length;
+        const finishOne = function () {
+          pending -= 1;
+          if (pending <= 0 && typeof onDone === "function") {
+            onDone();
+          }
+        };
+        for (let i = 0; i < rows.length; i++) {
+          const file = String(rows[i] || "").trim();
+          if (!file) {
+            finishOne();
+            continue;
+          }
+          const script = document.createElement("script");
+          script.src = file + "?v=" + encodeURIComponent(assetVersion);
+          script.async = false;
+          script.onload = finishOne;
+          script.onerror = finishOne;
+          document.body.appendChild(script);
+        }
       }
-      loadScriptAt(0);
+
+      function initEarlyAuthGate() {
+        const authUsernameEl = document.getElementById("authUsername");
+        const authPasswordEl = document.getElementById("authPassword");
+        const authCreateBtn = document.getElementById("authCreateBtn");
+        const authLoginBtn = document.getElementById("authLoginBtn");
+        const authStatusEl = document.getElementById("authStatus");
+        let active = true;
+        let busy = false;
+
+        function setStatus(text, isError) {
+          if (!(authStatusEl instanceof HTMLElement)) return;
+          authStatusEl.textContent = String(text || "");
+          authStatusEl.classList.toggle("danger", Boolean(isError));
+        }
+
+        function setBusy(nextBusy) {
+          busy = Boolean(nextBusy);
+          if (authCreateBtn instanceof HTMLButtonElement) authCreateBtn.disabled = busy;
+          if (authLoginBtn instanceof HTMLButtonElement) authLoginBtn.disabled = busy;
+          if (authUsernameEl instanceof HTMLInputElement) authUsernameEl.disabled = busy;
+          if (authPasswordEl instanceof HTMLInputElement) authPasswordEl.disabled = busy;
+        }
+
+        function normalizeUsername(value) {
+          return String(value || "").trim().toLowerCase();
+        }
+
+        function getAuthStorageModule() {
+          return (window.GTModules && window.GTModules.authStorage) || {};
+        }
+
+        function loadSavedCredentials() {
+          const authStorage = getAuthStorageModule();
+          if (typeof authStorage.loadCredentials === "function") {
+            return authStorage.loadCredentials("growtopia_saved_auth_v1");
+          }
+          try {
+            const raw = localStorage.getItem("growtopia_saved_auth_v1");
+            if (!raw) return { username: "", password: "" };
+            const parsed = JSON.parse(raw);
+            return {
+              username: String(parsed && parsed.username || ""),
+              password: String(parsed && parsed.password || "")
+            };
+          } catch (error) {
+            return { username: "", password: "" };
+          }
+        }
+
+        function saveCredentials(username, password) {
+          const authStorage = getAuthStorageModule();
+          if (typeof authStorage.saveCredentials === "function") {
+            authStorage.saveCredentials("growtopia_saved_auth_v1", username, password);
+            return;
+          }
+          try {
+            localStorage.setItem("growtopia_saved_auth_v1", JSON.stringify({
+              username: String(username || "").slice(0, 20),
+              password: String(password || "").slice(0, 64)
+            }));
+          } catch (error) {
+            // ignore storage failures
+          }
+        }
+
+        function applySavedCredentialsToForm() {
+          const saved = loadSavedCredentials();
+          if (authUsernameEl instanceof HTMLInputElement && !authUsernameEl.value && saved.username) {
+            authUsernameEl.value = String(saved.username || "").slice(0, 20);
+          }
+          if (authPasswordEl instanceof HTMLInputElement && !authPasswordEl.value && saved.password) {
+            authPasswordEl.value = String(saved.password || "").slice(0, 64);
+          }
+        }
+
+        function getAuthDbModule() {
+          return (window.GTModules && window.GTModules.db) || {};
+        }
+
+        function getAuthModule() {
+          return (window.GTModules && window.GTModules.auth) || {};
+        }
+
+        async function verifyAuth(createMode) {
+          if (!active || busy) return;
+          if (!(authUsernameEl instanceof HTMLInputElement) || !(authPasswordEl instanceof HTMLInputElement)) return;
+          const authModule = getAuthModule();
+          const dbModule = getAuthDbModule();
+          if (typeof dbModule.getOrInitAuthDb !== "function" || typeof authModule.sha256Hex !== "function") {
+            setStatus("Auth system still loading...", true);
+            return;
+          }
+
+          const username = normalizeUsername(authUsernameEl.value || "");
+          const password = String(authPasswordEl.value || "");
+          if (typeof authModule.validateCredentials === "function") {
+            const validation = authModule.validateCredentials(username, password);
+            if (validation) {
+              setStatus(validation, true);
+              return;
+            }
+          }
+
+          setBusy(true);
+          setStatus(createMode ? "Creating account..." : "Verifying login...", false);
+          try {
+            const network = {};
+            const db = await dbModule.getOrInitAuthDb({
+              network,
+              firebaseRef: window.firebase,
+              firebaseConfig: window.FIREBASE_CONFIG,
+              getFirebaseApiKey: window.getFirebaseApiKey
+            });
+            const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
+            const firebaseRef = window.firebase;
+            const usernameRef = db.ref(basePath + "/usernames/" + username);
+
+            let accountId = "";
+            if (createMode) {
+              accountId = "acc_" + Math.random().toString(36).slice(2, 12);
+              const reserve = await usernameRef.transaction((current) => {
+                if (current) return;
+                return accountId;
+              });
+              if (!reserve || !reserve.committed) throw new Error("Username already exists.");
+              const passwordHashCreate = await authModule.sha256Hex(password);
+              await db.ref(basePath + "/accounts/" + accountId).set({
+                username,
+                passwordHash: passwordHashCreate,
+                createdAt: firebaseRef && firebaseRef.database ? firebaseRef.database.ServerValue.TIMESTAMP : Date.now()
+              });
+            } else {
+              const usernameSnap = await usernameRef.once("value");
+              accountId = String(usernameSnap.val() || "").trim();
+              if (!accountId) throw new Error("Account not found.");
+            }
+
+            const accountSnap = await db.ref(basePath + "/accounts/" + accountId).once("value");
+            const account = accountSnap.val() || {};
+            const passwordHash = await authModule.sha256Hex(password);
+            if (String(account.passwordHash || "") !== passwordHash) {
+              throw new Error("Invalid password.");
+            }
+
+            saveCredentials(username, password);
+            try {
+              sessionStorage.setItem(PREAUTH_HANDOFF_KEY, "1");
+            } catch (error) {
+              // ignore storage failures
+            }
+            setStatus("Login verified. Finishing game load...", false);
+          } catch (error) {
+            setStatus((error && error.message) || "Login failed.", true);
+            setBusy(false);
+            return;
+          }
+          setBusy(true);
+        }
+
+        function handleLoginClick(event) {
+          if (!active) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          verifyAuth(false);
+        }
+
+        function handleCreateClick(event) {
+          if (!active) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          verifyAuth(true);
+        }
+
+        function handlePasswordEnter(event) {
+          if (!active) return;
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          verifyAuth(false);
+        }
+
+        function deactivateGate() {
+          active = false;
+          let hasPendingHandoff = false;
+          try {
+            hasPendingHandoff = String(sessionStorage.getItem(PREAUTH_HANDOFF_KEY) || "").trim() !== "";
+          } catch (error) {
+            hasPendingHandoff = false;
+          }
+          if (!hasPendingHandoff) setBusy(false);
+        }
+
+        if (authLoginBtn instanceof HTMLButtonElement) {
+          authLoginBtn.addEventListener("click", handleLoginClick, true);
+        }
+        if (authCreateBtn instanceof HTMLButtonElement) {
+          authCreateBtn.addEventListener("click", handleCreateClick, true);
+        }
+        if (authPasswordEl instanceof HTMLInputElement) {
+          authPasswordEl.addEventListener("keydown", handlePasswordEnter, true);
+        }
+        window.addEventListener("gt-app-scripts-loaded", deactivateGate, { once: true });
+
+        applySavedCredentialsToForm();
+        setBusy(false);
+        setStatus("Login is ready. Remaining game scripts load in background...", false);
+      }
+
+      const criticalSet = new Set(authCriticalFiles);
+      const remainingFiles = versionedFiles.filter((file) => !criticalSet.has(file));
+
+      loadScriptsInBackground(authCriticalFiles, function () {
+        initEarlyAuthGate();
+        window.dispatchEvent(new CustomEvent("gt-auth-ready"));
+        loadScriptsInBackground(remainingFiles, function () {
+          window.dispatchEvent(new CustomEvent("gt-app-scripts-loaded"));
+        });
+      });
     })();
   </script>
 </body>

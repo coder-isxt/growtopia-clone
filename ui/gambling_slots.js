@@ -3382,7 +3382,10 @@ window.GTModules = window.GTModules || {};
     return String(byName && typeof byName === "object" ? (byName[username] || "none") : "none").trim().toLowerCase();
   }
 
-  async function loginWithPassword(createMode) {
+  async function loginWithPassword(createMode, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const requireActiveSession = Boolean(opts.requireActiveSession);
+    const silentFailure = Boolean(opts.silentFailure);
     if (!(els.authUsername instanceof HTMLInputElement) || !(els.authPassword instanceof HTMLInputElement)) return;
     const username = String(els.authUsername.value || "").trim().toLowerCase();
     const password = String(els.authPassword.value || "");
@@ -3429,6 +3432,17 @@ window.GTModules = window.GTModules || {};
       if (typeof authModule.sha256Hex !== "function") throw new Error("Auth module missing hash.");
       const passwordHash = await authModule.sha256Hex(password);
       if (String(account.passwordHash || "") !== passwordHash) throw new Error("Invalid password.");
+
+      if (requireActiveSession) {
+        const sessionSnap = await db.ref(basePath + "/account-sessions/" + accountId).once("value");
+        const session = sessionSnap && sessionSnap.val ? (sessionSnap.val() || {}) : {};
+        const sessionId = String(session.sessionId || "").trim();
+        const sessionUsername = String(session.username || "").trim().toLowerCase();
+        if (!sessionId || (sessionUsername && sessionUsername !== username)) {
+          throw new Error("Session expired.");
+        }
+      }
+
       const role = await resolveUserRole(accountId, username);
       state.user = { accountId, username, role };
 
@@ -3439,10 +3453,30 @@ window.GTModules = window.GTModules || {};
       attachUserSession();
       switchView("lobby");
     } catch (error) {
-      setStatus(els.authStatus, (error && error.message) || "Login failed.", "error");
+      if (!silentFailure) {
+        setStatus(els.authStatus, (error && error.message) || "Login failed.", "error");
+      }
     } finally {
       setAuthBusy(false);
     }
+  }
+
+  async function attemptSavedSessionResume() {
+    if (!(els.authUsername instanceof HTMLInputElement) || !(els.authPassword instanceof HTMLInputElement)) return false;
+    const saved = loadSavedCredentials();
+    const savedUsername = String(saved && saved.username || "").trim().toLowerCase();
+    const savedPassword = String(saved && saved.password || "");
+    if (!savedUsername || !savedPassword) return false;
+    els.authUsername.value = savedUsername.slice(0, 20);
+    els.authPassword.value = savedPassword.slice(0, 64);
+    setStatus(els.authStatus, "Restoring session...");
+    await loginWithPassword(false, { requireActiveSession: true, silentFailure: true });
+    if (!state.user) {
+      setStatus(els.authStatus, "Session expired. Please login.");
+      return false;
+    }
+    setStatus(els.authStatus, "Session restored as @" + state.user.username + ".", "ok");
+    return true;
   }
 
   function logout() {
@@ -4339,7 +4373,7 @@ window.GTModules = window.GTModules || {};
     window.addEventListener("beforeunload", () => { clearSessionRefs(); });
   }
 
-  function init() {
+  async function init() {
     populateMinesCountSelect();
     bindEvents();
 
@@ -4366,11 +4400,15 @@ window.GTModules = window.GTModules || {};
 
     setStatus(els.authStatus, "Login with your game account.");
 
-    // If we have saved credentials, we might want to auto-login or just show login screen pre-filled.
-    // For now, we show login screen.
-    switchView("login");
+    const resumed = await attemptSavedSessionResume().catch(() => false);
+    if (!resumed) {
+      switchView("login");
+    }
     renderAll();
   }
 
-  init();
+  init().catch(() => {
+    switchView("login");
+    renderAll();
+  });
 })();

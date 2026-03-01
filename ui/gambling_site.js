@@ -1782,7 +1782,10 @@
     return fromName;
   }
 
-  async function loginWithPassword(createMode) {
+  async function loginWithPassword(createMode, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const requireActiveSession = Boolean(opts.requireActiveSession);
+    const silentFailure = Boolean(opts.silentFailure);
     if (!(els.authUsername instanceof HTMLInputElement) || !(els.authPassword instanceof HTMLInputElement)) return;
 
     const username = normalizeUsername(els.authUsername.value || "");
@@ -1841,6 +1844,16 @@
         throw new Error("Invalid password.");
       }
 
+      if (requireActiveSession) {
+        const sessionSnap = await db.ref(basePath + "/account-sessions/" + accountId).once("value");
+        const session = sessionSnap && sessionSnap.val ? (sessionSnap.val() || {}) : {};
+        const sessionId = String(session.sessionId || "").trim();
+        const sessionUsername = normalizeUsername(session.username || "");
+        if (!sessionId || (sessionUsername && sessionUsername !== username)) {
+          throw new Error("Session expired.");
+        }
+      }
+
       const role = await resolveUserRole(accountId, username);
       state.user = {
         accountId,
@@ -1857,10 +1870,34 @@
         els.worldInput.value = lastWorld;
       }
     } catch (error) {
-      makeStatus((error && error.message) || "Login failed.", "error");
+      if (!silentFailure) {
+        makeStatus((error && error.message) || "Login failed.", "error");
+      }
     } finally {
       setAuthBusy(false);
     }
+  }
+
+  async function attemptSavedSessionResume() {
+    if (!(els.authUsername instanceof HTMLInputElement) || !(els.authPassword instanceof HTMLInputElement)) return false;
+    const saved = loadSavedCredentials();
+    const savedUsername = normalizeUsername(saved && saved.username || "");
+    const savedPassword = String(saved && saved.password || "");
+    if (!savedUsername || !savedPassword) return false;
+    els.authUsername.value = savedUsername.slice(0, 20);
+    els.authPassword.value = savedPassword.slice(0, 64);
+    makeStatus("Restoring session...", false);
+    await loginWithPassword(false, { requireActiveSession: true, silentFailure: true });
+    if (!state.user) {
+      makeStatus("Session expired. Please login.", false);
+      return false;
+    }
+    makeStatus("Session restored as @" + state.user.username + ".", "ok");
+    const lastWorld = loadLastWorld();
+    if (lastWorld) {
+      await attachWorld(lastWorld);
+    }
+    return true;
   }
 
   function logout() {
@@ -2241,6 +2278,7 @@
     if (els.worldInput instanceof HTMLInputElement && lastWorld) {
       els.worldInput.value = lastWorld;
     }
+    attemptSavedSessionResume().catch(() => {});
   }
 
   init();

@@ -14348,10 +14348,31 @@
         }
         releaseAccountSession();
       });
+
+      function consumePendingAuthHandoffFlag() {
+        try {
+          const value = String(sessionStorage.getItem("gt_pending_auth_handoff_v1") || "").trim();
+          if (value) {
+            sessionStorage.removeItem("gt_pending_auth_handoff_v1");
+            return true;
+          }
+        } catch (error) {
+          // ignore storage failures
+        }
+        return false;
+      }
+
       applySavedCredentialsToForm();
       setLocalUpdateNotice(takeForceReloadNotice());
       startPublicMainNoticeListener();
       setAuthStatus("Create or login to continue.", false);
+      if (consumePendingAuthHandoffFlag()) {
+        setAuthStatus("Finalizing login...", false);
+        setAuthBusy(true);
+        setTimeout(() => {
+          loginWithAccount();
+        }, 0);
+      }
     })();
 
 
