@@ -1220,6 +1220,7 @@
       const CHAT_PANEL_TOP_DEFAULT = 10;
       const CHAT_PANEL_TOP_MIN = 8;
       const CHAT_PANEL_BOTTOM_GAP = 12;
+      const CHAT_MESSAGES_LIMIT = 100;
       let chatPanelTopPx = CHAT_PANEL_TOP_DEFAULT;
       let chatDragActive = false;
       let chatDragPointerId = -1;
@@ -6384,7 +6385,7 @@
       function renderChatMessages() {
         chatMessagesEl.innerHTML = "";
         const ordered = chatMessages
-          .slice()
+          .slice(-CHAT_MESSAGES_LIMIT)
           .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
         for (const message of ordered) {
           const row = document.createElement("div");
@@ -7042,7 +7043,7 @@
           }
         }
         chatMessages.push(message);
-        if (chatMessages.length > 100) {
+        if (chatMessages.length > CHAT_MESSAGES_LIMIT) {
           chatMessages.shift();
         }
         if (message.playerId) {
