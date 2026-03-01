@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -9,6 +10,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <div id="authScreen" class="auth-screen">
     <div class="auth-card">
@@ -48,7 +50,8 @@
           <button id="respawnBtn" type="button" class="hidden">Respawn</button>
           <button id="exitWorldBtn" type="button" class="hidden">Exit World</button>
           <button id="logoutBtn" type="button">Logout</button>
-          <button id="backToMainBtn" type="button" onclick="window.location.href='https://pixelbuild.gamer.gd'">Home</button>
+          <button id="backToMainBtn" type="button"
+            onclick="window.location.href='https://pixelbuild.gamer.gd'">Home</button>
         </div>
       </div>
     </div>
@@ -80,328 +83,333 @@
         </div>
       </div>
     </div>
-    <div id="leftPanelResizeHandle" class="layout-resize-handle left-handle hidden" aria-label="Resize chat panel"></div>
-    <div id="rightPanelResizeHandle" class="layout-resize-handle right-handle hidden" aria-label="Resize inventory panel"></div>
     <div id="chatPanel" class="chat-panel hidden">
+      <div id="chatDragHandle" class="chat-drag-handle">
+        <div class="chat-pull-tab"></div>
+      </div>
       <div id="chatMessages" class="chat-messages"></div>
       <div id="chatInputRow" class="chat-input-row hidden">
         <input id="chatInput" type="text" maxlength="120" placeholder="Type message...">
         <button id="chatSendBtn" type="button">Send</button>
       </div>
     </div>
-    <div class="toolbar hidden" id="toolbar"></div>
-    <div id="mobileControls" class="mobile-controls hidden">
-      <div class="mobile-move">
-        <button id="mobileLeftBtn" type="button" aria-label="Move left">◀</button>
-        <button id="mobileJumpBtn" type="button" aria-label="Jump">▲</button>
-        <button id="mobileRightBtn" type="button" aria-label="Move right">▶</button>
+  </div>
+  <div id="leftPanelResizeHandle" class="layout-resize-handle left-handle hidden" aria-label="Resize chat panel"></div>
+  <div id="rightPanelResizeHandle" class="layout-resize-handle right-handle hidden" aria-label="Resize inventory panel">
+  </div>
+  <div class="toolbar hidden" id="toolbar"></div>
+  <div id="mobileControls" class="mobile-controls hidden">
+    <div class="mobile-move">
+      <button id="mobileLeftBtn" type="button" aria-label="Move left">◀</button>
+      <button id="mobileJumpBtn" type="button" aria-label="Jump">▲</button>
+      <button id="mobileRightBtn" type="button" aria-label="Move right">▶</button>
+    </div>
+    <div class="mobile-actions">
+      <button id="mobilePrimaryBtn" type="button" class="active" aria-label="Primary action">Hit</button>
+      <button id="mobileSecondaryBtn" type="button" aria-label="Secondary action">Rotate</button>
+      <button id="mobileFistBtn" type="button" aria-label="Select fist">Fist</button>
+      <button id="mobileWrenchBtn" type="button" aria-label="Select wrench">Wrench</button>
+    </div>
+    <div class="mobile-panels">
+      <button id="mobilePlayModeBtn" type="button" aria-label="Toggle play mode">Play</button>
+      <button id="mobileChatBtn" type="button" aria-label="Toggle chat">Chat</button>
+      <button id="mobileInventoryBtn" type="button" aria-label="Toggle inventory">Inv</button>
+      <button id="mobileExitBtn" type="button" aria-label="Exit world">Exit</button>
+    </div>
+  </div>
+  <div id="adminPanel" class="admin-panel hidden">
+    <div class="admin-header">
+      <div class="admin-header-top">
+        <strong>Admin Dashboard</strong>
+        <div class="admin-header-actions">
+          <button id="adminForceReloadBtn" type="button" class="hidden">Update</button>
+          <button id="adminBackupDownloadBtn" type="button" class="hidden">Download JSON</button>
+          <button id="adminBackupUploadBtn" type="button" class="hidden">Upload JSON</button>
+          <input id="adminBackupUploadInput" type="file" accept="application/json,.json" class="hidden">
+          <button id="adminAuditExportBtn" type="button">Export Audit</button>
+          <button id="adminCloseBtn" type="button">Close</button>
+        </div>
       </div>
-      <div class="mobile-actions">
-        <button id="mobilePrimaryBtn" type="button" class="active" aria-label="Primary action">Hit</button>
-        <button id="mobileSecondaryBtn" type="button" aria-label="Secondary action">Rotate</button>
-        <button id="mobileFistBtn" type="button" aria-label="Select fist">Fist</button>
-        <button id="mobileWrenchBtn" type="button" aria-label="Select wrench">Wrench</button>
-      </div>
-      <div class="mobile-panels">
-        <button id="mobilePlayModeBtn" type="button" aria-label="Toggle play mode">Play</button>
-        <button id="mobileChatBtn" type="button" aria-label="Toggle chat">Chat</button>
-        <button id="mobileInventoryBtn" type="button" aria-label="Toggle inventory">Inv</button>
-        <button id="mobileExitBtn" type="button" aria-label="Exit world">Exit</button>
+      <div class="admin-header-filters">
+        <input id="adminSearchInput" type="text" placeholder="Search player/account">
+        <select id="adminAuditActionFilter">
+          <option value="">All actions</option>
+        </select>
+        <input id="adminAuditActorFilter" type="text" placeholder="Audit actor">
+        <input id="adminAuditTargetFilter" type="text" placeholder="Audit target">
       </div>
     </div>
-    <div id="adminPanel" class="admin-panel hidden">
-      <div class="admin-header">
-        <div class="admin-header-top">
-          <strong>Admin Dashboard</strong>
-          <div class="admin-header-actions">
-            <button id="adminForceReloadBtn" type="button" class="hidden">Update</button>
-            <button id="adminBackupDownloadBtn" type="button" class="hidden">Download JSON</button>
-            <button id="adminBackupUploadBtn" type="button" class="hidden">Upload JSON</button>
-            <input id="adminBackupUploadInput" type="file" accept="application/json,.json" class="hidden">
-            <button id="adminAuditExportBtn" type="button">Export Audit</button>
-            <button id="adminCloseBtn" type="button">Close</button>
-          </div>
-        </div>
-        <div class="admin-header-filters">
-          <input id="adminSearchInput" type="text" placeholder="Search player/account">
-          <select id="adminAuditActionFilter">
-            <option value="">All actions</option>
-          </select>
-          <input id="adminAuditActorFilter" type="text" placeholder="Audit actor">
-          <input id="adminAuditTargetFilter" type="text" placeholder="Audit target">
-        </div>
+    <div id="adminAccounts" class="admin-accounts"></div>
+  </div>
+  <div id="adminInventoryModal" class="admin-inventory-modal hidden">
+    <div class="admin-inventory-card">
+      <div class="admin-inventory-header">
+        <strong id="adminInventoryTitle">Inventory</strong>
+        <button id="adminInventoryCloseBtn" type="button">Close</button>
       </div>
-      <div id="adminAccounts" class="admin-accounts"></div>
+      <div id="adminInventoryBody" class="admin-inventory-body"></div>
     </div>
-    <div id="adminInventoryModal" class="admin-inventory-modal hidden">
-      <div class="admin-inventory-card">
-        <div class="admin-inventory-header">
-          <strong id="adminInventoryTitle">Inventory</strong>
-          <button id="adminInventoryCloseBtn" type="button">Close</button>
-        </div>
-        <div id="adminInventoryBody" class="admin-inventory-body"></div>
+  </div>
+  <div id="vendingModal" class="vending-modal hidden">
+    <div class="vending-card">
+      <div class="vending-header">
+        <strong id="vendingTitle">Vending Machine</strong>
+        <button id="vendingCloseBtn" type="button">Close</button>
       </div>
+      <div id="vendingBody" class="vending-body"></div>
+      <div id="vendingActions" class="vending-actions"></div>
     </div>
-    <div id="vendingModal" class="vending-modal hidden">
-      <div class="vending-card">
-        <div class="vending-header">
-          <strong id="vendingTitle">Vending Machine</strong>
-          <button id="vendingCloseBtn" type="button">Close</button>
-        </div>
-        <div id="vendingBody" class="vending-body"></div>
-        <div id="vendingActions" class="vending-actions"></div>
+  </div>
+  <div id="donationModal" class="vending-modal hidden">
+    <div class="vending-card sign-card">
+      <div class="vending-header">
+        <strong id="donationTitle">Donation Box</strong>
+        <button id="donationCloseBtn" type="button">Close</button>
       </div>
+      <div id="donationBody" class="vending-body"></div>
+      <div id="donationActions" class="vending-actions"></div>
     </div>
-    <div id="donationModal" class="vending-modal hidden">
-      <div class="vending-card sign-card">
-        <div class="vending-header">
-          <strong id="donationTitle">Donation Box</strong>
-          <button id="donationCloseBtn" type="button">Close</button>
-        </div>
-        <div id="donationBody" class="vending-body"></div>
-        <div id="donationActions" class="vending-actions"></div>
+  </div>
+  <div id="chestModal" class="vending-modal hidden">
+    <div class="vending-card sign-card">
+      <div class="vending-header">
+        <strong id="chestTitle">Storage Chest</strong>
+        <button id="chestCloseBtn" type="button">Close</button>
       </div>
+      <div id="chestBody" class="vending-body"></div>
+      <div id="chestActions" class="vending-actions"></div>
     </div>
-    <div id="chestModal" class="vending-modal hidden">
-      <div class="vending-card sign-card">
-        <div class="vending-header">
-          <strong id="chestTitle">Storage Chest</strong>
-          <button id="chestCloseBtn" type="button">Close</button>
-        </div>
-        <div id="chestBody" class="vending-body"></div>
-        <div id="chestActions" class="vending-actions"></div>
+  </div>
+  <div id="gambleModal" class="vending-modal hidden">
+    <div class="vending-card sign-card">
+      <div class="vending-header">
+        <strong id="gambleTitle">Gambling Machine</strong>
+        <button id="gambleCloseBtn" type="button">Close</button>
       </div>
+      <div id="gambleBody" class="vending-body"></div>
+      <div id="gambleActions" class="vending-actions"></div>
     </div>
-    <div id="gambleModal" class="vending-modal hidden">
-      <div class="vending-card sign-card">
-        <div class="vending-header">
-          <strong id="gambleTitle">Gambling Machine</strong>
-          <button id="gambleCloseBtn" type="button">Close</button>
-        </div>
-        <div id="gambleBody" class="vending-body"></div>
-        <div id="gambleActions" class="vending-actions"></div>
+  </div>
+  <div id="signModal" class="vending-modal hidden">
+    <div class="vending-card sign-card">
+      <div class="vending-header">
+        <strong id="signTitle">Sign</strong>
+        <button id="signCloseBtn" type="button">Close</button>
+      </div>
+      <div class="sign-body">
+        <textarea id="signTextInput" maxlength="120" placeholder="Enter sign text..."></textarea>
+        <div class="sign-hint">Shown when standing on top of this sign.</div>
+      </div>
+      <div class="vending-actions">
+        <button id="signSaveBtn" type="button">Save</button>
       </div>
     </div>
-    <div id="signModal" class="vending-modal hidden">
-      <div class="vending-card sign-card">
-        <div class="vending-header">
-          <strong id="signTitle">Sign</strong>
-          <button id="signCloseBtn" type="button">Close</button>
+  </div>
+  <div id="worldLockModal" class="vending-modal hidden">
+    <div class="vending-card sign-card">
+      <div class="vending-header">
+        <strong id="worldLockTitle">World Lock</strong>
+        <button id="worldLockCloseBtn" type="button">Close</button>
+      </div>
+      <div class="worldlock-body">
+        <div class="worldlock-add-row">
+          <input id="worldLockAdminInput" type="text" maxlength="16" placeholder="username">
+          <button id="worldLockAdminAddBtn" type="button">Add Admin</button>
         </div>
-        <div class="sign-body">
-          <textarea id="signTextInput" maxlength="120" placeholder="Enter sign text..."></textarea>
-          <div class="sign-hint">Shown when standing on top of this sign.</div>
+        <div id="worldLockAdmins" class="worldlock-admins"></div>
+        <div class="worldlock-add-row">
+          <input id="worldLockBanInput" type="text" maxlength="16" placeholder="username">
+          <button id="worldLockBan1hBtn" type="button">Ban 1h</button>
+          <button id="worldLockBanPermBtn" type="button">Perm Ban</button>
         </div>
-        <div class="vending-actions">
-          <button id="signSaveBtn" type="button">Save</button>
-        </div>
+        <div id="worldLockBans" class="worldlock-admins"></div>
+        <div class="sign-hint">World admins can edit the world, except world locks and vending machines.</div>
       </div>
     </div>
-    <div id="worldLockModal" class="vending-modal hidden">
-      <div class="vending-card sign-card">
-        <div class="vending-header">
-          <strong id="worldLockTitle">World Lock</strong>
-          <button id="worldLockCloseBtn" type="button">Close</button>
+  </div>
+  <div id="ownerTaxModal" class="vending-modal hidden">
+    <div class="vending-card sign-card">
+      <div class="vending-header">
+        <strong id="ownerTaxTitle">Owner Tax Block</strong>
+        <button id="ownerTaxCloseBtn" type="button">Close</button>
+      </div>
+      <div class="worldlock-body">
+        <div class="sign-hint">Tax applies to all gambling machines in this world.</div>
+        <div class="worldlock-add-row">
+          <input id="ownerTaxPercentInput" type="number" min="0" max="100" step="1" placeholder="tax percent">
+          <button id="ownerTaxSaveBtn" type="button">Save Tax %</button>
         </div>
-        <div class="worldlock-body">
-          <div class="worldlock-add-row">
-            <input id="worldLockAdminInput" type="text" maxlength="16" placeholder="username">
-            <button id="worldLockAdminAddBtn" type="button">Add Admin</button>
-          </div>
-          <div id="worldLockAdmins" class="worldlock-admins"></div>
-          <div class="worldlock-add-row">
-            <input id="worldLockBanInput" type="text" maxlength="16" placeholder="username">
-            <button id="worldLockBan1hBtn" type="button">Ban 1h</button>
-            <button id="worldLockBanPermBtn" type="button">Perm Ban</button>
-          </div>
-          <div id="worldLockBans" class="worldlock-admins"></div>
-          <div class="sign-hint">World admins can edit the world, except world locks and vending machines.</div>
-        </div>
+        <div class="sign-hint">Tax Bank: <strong id="ownerTaxBankLabel">0 WL</strong></div>
+      </div>
+      <div class="vending-actions">
+        <button id="ownerTaxCollectBtn" type="button">Collect Tax Bank</button>
       </div>
     </div>
-    <div id="ownerTaxModal" class="vending-modal hidden">
-      <div class="vending-card sign-card">
-        <div class="vending-header">
-          <strong id="ownerTaxTitle">Owner Tax Block</strong>
-          <button id="ownerTaxCloseBtn" type="button">Close</button>
-        </div>
-        <div class="worldlock-body">
-          <div class="sign-hint">Tax applies to all gambling machines in this world.</div>
-          <div class="worldlock-add-row">
-            <input id="ownerTaxPercentInput" type="number" min="0" max="100" step="1" placeholder="tax percent">
-            <button id="ownerTaxSaveBtn" type="button">Save Tax %</button>
-          </div>
-          <div class="sign-hint">Tax Bank: <strong id="ownerTaxBankLabel">0 WL</strong></div>
-        </div>
-        <div class="vending-actions">
-          <button id="ownerTaxCollectBtn" type="button">Collect Tax Bank</button>
-        </div>
+  </div>
+  <div id="doorModal" class="vending-modal hidden">
+    <div class="vending-card sign-card">
+      <div class="vending-header">
+        <strong id="doorTitle">Door</strong>
+        <button id="doorCloseBtn" type="button">Close</button>
+      </div>
+      <div class="door-body">
+        <div class="sign-hint">Set who can walk through this door in a world-locked world.</div>
+      </div>
+      <div class="vending-actions">
+        <button id="doorPublicBtn" type="button">Public</button>
+        <button id="doorOwnerOnlyBtn" type="button">Owner Only</button>
       </div>
     </div>
-    <div id="doorModal" class="vending-modal hidden">
-      <div class="vending-card sign-card">
-        <div class="vending-header">
-          <strong id="doorTitle">Door</strong>
-          <button id="doorCloseBtn" type="button">Close</button>
+  </div>
+  <div id="cameraModal" class="vending-modal hidden">
+    <div class="vending-card camera-card">
+      <div class="vending-header">
+        <strong id="cameraTitle">Camera</strong>
+        <button id="cameraCloseBtn" type="button">Close</button>
+      </div>
+      <div class="camera-body">
+        <div class="camera-fields">
+          <label><input id="cameraEventJoin" type="checkbox"> Log player joining</label>
+          <label><input id="cameraEventLeave" type="checkbox"> Log player leaving</label>
+          <label><input id="cameraEventVending" type="checkbox"> Log vending purchases</label>
+          <label><input id="cameraFilterStaff" type="checkbox"> Filter out admins and owner</label>
         </div>
-        <div class="door-body">
-          <div class="sign-hint">Set who can walk through this door in a world-locked world.</div>
-        </div>
-        <div class="vending-actions">
-          <button id="doorPublicBtn" type="button">Public</button>
-          <button id="doorOwnerOnlyBtn" type="button">Owner Only</button>
+        <div class="camera-logs-wrap">
+          <div class="camera-logs-title">Camera Logs</div>
+          <div id="cameraLogsList" class="camera-logs-list"></div>
         </div>
       </div>
-    </div>
-    <div id="cameraModal" class="vending-modal hidden">
-      <div class="vending-card camera-card">
-        <div class="vending-header">
-          <strong id="cameraTitle">Camera</strong>
-          <button id="cameraCloseBtn" type="button">Close</button>
-        </div>
-        <div class="camera-body">
-          <div class="camera-fields">
-            <label><input id="cameraEventJoin" type="checkbox"> Log player joining</label>
-            <label><input id="cameraEventLeave" type="checkbox"> Log player leaving</label>
-            <label><input id="cameraEventVending" type="checkbox"> Log vending purchases</label>
-            <label><input id="cameraFilterStaff" type="checkbox"> Filter out admins and owner</label>
-          </div>
-          <div class="camera-logs-wrap">
-            <div class="camera-logs-title">Camera Logs</div>
-            <div id="cameraLogsList" class="camera-logs-list"></div>
-          </div>
-        </div>
-        <div class="vending-actions">
-          <button id="cameraSaveBtn" type="button">Save</button>
-        </div>
+      <div class="vending-actions">
+        <button id="cameraSaveBtn" type="button">Save</button>
       </div>
     </div>
-    <div id="weatherModal" class="vending-modal hidden">
-      <div class="vending-card weather-card">
-        <div class="vending-header">
-          <strong id="weatherTitle">Weather Machine</strong>
-          <button id="weatherCloseBtn" type="button">Close</button>
+  </div>
+  <div id="weatherModal" class="vending-modal hidden">
+    <div class="vending-card weather-card">
+      <div class="vending-header">
+        <strong id="weatherTitle">Weather Machine</strong>
+        <button id="weatherCloseBtn" type="button">Close</button>
+      </div>
+      <div class="weather-body">
+        <div class="weather-fields">
+          <label>
+            <span>Preset</span>
+            <select id="weatherPresetSelect"></select>
+          </label>
+          <label>
+            <span>Custom Image URL/Path</span>
+            <input id="weatherImageUrlInput" type="text" placeholder="./assets/weather/day.png">
+          </label>
+          <div id="weatherResolvedLabel" class="weather-resolved"></div>
         </div>
-        <div class="weather-body">
-          <div class="weather-fields">
-            <label>
-              <span>Preset</span>
-              <select id="weatherPresetSelect"></select>
-            </label>
-            <label>
-              <span>Custom Image URL/Path</span>
-              <input id="weatherImageUrlInput" type="text" placeholder="./assets/weather/day.png">
-            </label>
-            <div id="weatherResolvedLabel" class="weather-resolved"></div>
-          </div>
-          <div class="weather-preview-wrap">
-            <img id="weatherPreviewImg" class="weather-preview-img hidden" alt="Weather preview">
-            <div id="weatherPreviewEmpty" class="weather-preview-empty">No image selected.</div>
-          </div>
-        </div>
-        <div class="vending-actions">
-          <button id="weatherClearBtn" type="button">Clear</button>
-          <button id="weatherSaveBtn" type="button">Save</button>
+        <div class="weather-preview-wrap">
+          <img id="weatherPreviewImg" class="weather-preview-img hidden" alt="Weather preview">
+          <div id="weatherPreviewEmpty" class="weather-preview-empty">No image selected.</div>
         </div>
       </div>
-    </div>
-    <div id="updatingOverlay" class="updating-overlay hidden" aria-live="polite">
-      <div class="updating-card">
-        <div class="updating-title">Updating...</div>
-        <div class="updating-subtitle">New version is being applied. Please wait.</div>
+      <div class="vending-actions">
+        <button id="weatherClearBtn" type="button">Clear</button>
+        <button id="weatherSaveBtn" type="button">Save</button>
       </div>
     </div>
-    <div id="announcementPopup" class="announcement-popup hidden" aria-live="polite">
-      <div class="announcement-card">
-        <div class="announcement-title">Announcement</div>
-        <div id="announcementText" class="announcement-text"></div>
+  </div>
+  <div id="updatingOverlay" class="updating-overlay hidden" aria-live="polite">
+    <div class="updating-card">
+      <div class="updating-title">Updating...</div>
+      <div class="updating-subtitle">New version is being applied. Please wait.</div>
+    </div>
+  </div>
+  <div id="announcementPopup" class="announcement-popup hidden" aria-live="polite">
+    <div class="announcement-card">
+      <div class="announcement-title">Announcement</div>
+      <div id="announcementText" class="announcement-text"></div>
+    </div>
+  </div>
+  <div id="tradeMenuModal" class="vending-modal hidden">
+    <div class="vending-card sign-card">
+      <div class="vending-header">
+        <strong id="tradeMenuTitle">Player</strong>
+        <button id="tradeMenuCloseBtn" type="button">Close</button>
+      </div>
+      <div class="sign-hint">Trade with this player.</div>
+      <div class="vending-actions">
+        <button id="tradeStartBtn" type="button">Trade</button>
+        <button id="tradeCancelBtn" type="button">Cancel</button>
       </div>
     </div>
-    <div id="tradeMenuModal" class="vending-modal hidden">
-      <div class="vending-card sign-card">
-        <div class="vending-header">
-          <strong id="tradeMenuTitle">Player</strong>
-          <button id="tradeMenuCloseBtn" type="button">Close</button>
-        </div>
-        <div class="sign-hint">Trade with this player.</div>
-        <div class="vending-actions">
-          <button id="tradeStartBtn" type="button">Trade</button>
-          <button id="tradeCancelBtn" type="button">Cancel</button>
-        </div>
+  </div>
+  <div id="tradeRequestModal" class="vending-modal hidden">
+    <div class="vending-card sign-card">
+      <div class="vending-header">
+        <strong>Trade Request</strong>
+      </div>
+      <div id="tradeRequestText" class="sign-hint"></div>
+      <div class="vending-actions">
+        <button id="tradeAcceptBtn" type="button">Accept</button>
+        <button id="tradeDeclineBtn" type="button">Decline</button>
       </div>
     </div>
-    <div id="tradeRequestModal" class="vending-modal hidden">
-      <div class="vending-card sign-card">
-        <div class="vending-header">
-          <strong>Trade Request</strong>
-        </div>
-        <div id="tradeRequestText" class="sign-hint"></div>
-        <div class="vending-actions">
-          <button id="tradeAcceptBtn" type="button">Accept</button>
-          <button id="tradeDeclineBtn" type="button">Decline</button>
-        </div>
+  </div>
+  <div id="tradePanelModal" class="vending-modal hidden">
+    <div class="vending-card trade-card">
+      <div class="vending-header">
+        <strong id="tradePanelTitle">Trade</strong>
+        <button id="tradePanelCloseBtn" type="button">Close</button>
       </div>
+      <div id="tradePanelBody" class="trade-body"></div>
+      <div id="tradePanelActions" class="vending-actions"></div>
     </div>
-    <div id="tradePanelModal" class="vending-modal hidden">
-      <div class="vending-card trade-card">
-        <div class="vending-header">
-          <strong id="tradePanelTitle">Trade</strong>
-          <button id="tradePanelCloseBtn" type="button">Close</button>
-        </div>
-        <div id="tradePanelBody" class="trade-body"></div>
-        <div id="tradePanelActions" class="vending-actions"></div>
+  </div>
+  <div id="profileModal" class="vending-modal hidden">
+    <div class="vending-card sign-card">
+      <div class="vending-header">
+        <strong id="profileTitle">Profile</strong>
+        <button id="profileCloseBtn" type="button">Close</button>
       </div>
+      <div id="profileBody" class="vending-body"></div>
+      <div id="profileActions" class="vending-actions"></div>
     </div>
-    <div id="profileModal" class="vending-modal hidden">
-      <div class="vending-card sign-card">
-        <div class="vending-header">
-          <strong id="profileTitle">Profile</strong>
-          <button id="profileCloseBtn" type="button">Close</button>
-        </div>
-        <div id="profileBody" class="vending-body"></div>
-        <div id="profileActions" class="vending-actions"></div>
+  </div>
+  <div id="friendsModal" class="vending-modal hidden">
+    <div class="vending-card trade-card">
+      <div class="vending-header">
+        <strong id="friendsTitle">Friends</strong>
+        <button id="friendsCloseBtn" type="button">Close</button>
       </div>
+      <div id="friendsBody" class="vending-body"></div>
+      <div id="friendsActions" class="vending-actions"></div>
     </div>
-    <div id="friendsModal" class="vending-modal hidden">
-      <div class="vending-card trade-card">
-        <div class="vending-header">
-          <strong id="friendsTitle">Friends</strong>
-          <button id="friendsCloseBtn" type="button">Close</button>
-        </div>
-        <div id="friendsBody" class="vending-body"></div>
-        <div id="friendsActions" class="vending-actions"></div>
+  </div>
+  <div id="titlesModal" class="vending-modal hidden">
+    <div class="vending-card trade-card">
+      <div class="vending-header">
+        <strong id="titlesTitle">Titles</strong>
+        <button id="titlesCloseBtn" type="button">Close</button>
       </div>
+      <div id="titlesBody" class="vending-body"></div>
+      <div id="titlesActions" class="vending-actions"></div>
     </div>
-    <div id="titlesModal" class="vending-modal hidden">
-      <div class="vending-card trade-card">
-        <div class="vending-header">
-          <strong id="titlesTitle">Titles</strong>
-          <button id="titlesCloseBtn" type="button">Close</button>
-        </div>
-        <div id="titlesBody" class="vending-body"></div>
-        <div id="titlesActions" class="vending-actions"></div>
+  </div>
+  <div id="achievementsModal" class="vending-modal hidden">
+    <div class="vending-card trade-card">
+      <div class="vending-header">
+        <strong id="achievementsTitle">Achievements</strong>
+        <button id="achievementsCloseBtn" type="button">Close</button>
       </div>
+      <div id="achievementsBody" class="vending-body"></div>
+      <div id="achievementsActions" class="vending-actions"></div>
     </div>
-    <div id="achievementsModal" class="vending-modal hidden">
-      <div class="vending-card trade-card">
-        <div class="vending-header">
-          <strong id="achievementsTitle">Achievements</strong>
-          <button id="achievementsCloseBtn" type="button">Close</button>
-        </div>
-        <div id="achievementsBody" class="vending-body"></div>
-        <div id="achievementsActions" class="vending-actions"></div>
+  </div>
+  <div id="questsModal" class="vending-modal hidden">
+    <div class="vending-card trade-card">
+      <div class="vending-header">
+        <strong id="questsTitle">Quests</strong>
+        <button id="questsCloseBtn" type="button">Close</button>
       </div>
+      <div id="questsBody" class="vending-body"></div>
+      <div id="questsActions" class="vending-actions"></div>
     </div>
-    <div id="questsModal" class="vending-modal hidden">
-      <div class="vending-card trade-card">
-        <div class="vending-header">
-          <strong id="questsTitle">Quests</strong>
-          <button id="questsCloseBtn" type="button">Close</button>
-        </div>
-        <div id="questsBody" class="vending-body"></div>
-        <div id="questsActions" class="vending-actions"></div>
-      </div>
-    </div>
+  </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
@@ -516,4 +524,5 @@
     })();
   </script>
 </body>
+
 </html>
