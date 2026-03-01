@@ -158,7 +158,7 @@ body {
   letter-spacing: 0.4px;
 }
 
-.hud>div:first-child {
+.hud > div:first-child {
   font-size: 13px;
   opacity: 0.95;
 }
@@ -569,101 +569,30 @@ canvas {
 }
 
 .chat-panel {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 32px;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0 0 8px 8px;
-  display: flex;
-  flex-direction: column;
-  overflow: visible;
-  z-index: 200;
-  transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease;
-  user-select: none;
-  pointer-events: none;
-}
-
-.chat-panel.dragging {
-  transition: none;
-}
-
-.chat-panel.open,
-.chat-panel.dragging {
-  pointer-events: auto;
-  /* ...except when we are open or dragging */
-  background: rgba(20, 20, 20, 0.9);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-}
-
-.chat-panel.open {
-  height: 300px;
-}
-
-.chat-drag-handle {
-  position: absolute;
-  bottom: -16px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 50px;
-  height: 16px;
-  background: rgba(40, 40, 40, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-  cursor: grab;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-  pointer-events: auto;
-  /* Always catch clicks */
-  z-index: 201;
-}
-
-.chat-drag-handle:active {
-  cursor: grabbing;
-}
-
-/* Horizontal lines on the handle */
-.chat-drag-handle::before {
-  content: "";
-  width: 24px;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 0 rgba(255, 255, 255, 0.2), 0 -4px 0 rgba(255, 255, 255, 0.2);
-  border-radius: 1px;
-}
-
-.chat-panel.dragging .chat-input-row {
-  display: none !important;
+  position: fixed;
+  left: 12px;
+  top: 74px;
+  width: 320px;
+  height: calc(100vh - 164px);
+  background: linear-gradient(180deg, rgba(16, 30, 45, 0.94), rgba(10, 20, 32, 0.96));
+  border: 1px solid rgba(164, 195, 224, 0.3);
+  border-radius: 12px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  overflow: hidden;
+  z-index: 28;
+  box-shadow: var(--shadow-md);
 }
 
 .chat-messages {
-  flex: 1;
-  padding: 8px;
+  padding: 10px;
   overflow-y: auto;
   font-size: 13px;
   line-height: 1.35;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  pointer-events: auto;
-  scrollbar-width: none;
   gap: 4px;
-}
-
-.chat-messages::-webkit-scrollbar {
-  display: none;
-}
-
-.chat-panel:not(.open):not(.dragging) .chat-messages {
-  height: 32px;
-  overflow: hidden;
-  padding: 4px 8px;
 }
 
 .chat-row {
@@ -698,27 +627,14 @@ canvas {
 }
 
 @keyframes chatTitleRainbow {
-  0% {
-    background-position: 0% 50%;
-  }
-
-  100% {
-    background-position: 300% 50%;
-  }
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
 }
 
 @keyframes chatTitleGradientShift {
-  0% {
-    background-position: 0% 50%;
-  }
-
-  50% {
-    background-position: 100% 50%;
-  }
-
-  100% {
-    background-position: 0% 50%;
-  }
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 .chat-input-row {
@@ -1011,7 +927,7 @@ canvas {
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .admin-row:has(.admin-status.online) {
@@ -1368,7 +1284,6 @@ canvas {
   scrollbar-color: rgba(52, 211, 202, 0.85) rgba(7, 17, 29, 0.58);
   padding: 12px;
 }
-
 .admin-anticheat-list {
   min-height: 0;
   max-height: none;
@@ -2580,35 +2495,12 @@ canvas {
   animation: slotsConfetti 0.9s ease-out forwards;
 }
 
-.slotsv2-winfx span:nth-child(1) {
-  left: 8%;
-  animation-delay: 0.02s;
-}
-
-.slotsv2-winfx span:nth-child(2) {
-  left: 24%;
-  animation-delay: 0.08s;
-}
-
-.slotsv2-winfx span:nth-child(3) {
-  left: 41%;
-  animation-delay: 0.01s;
-}
-
-.slotsv2-winfx span:nth-child(4) {
-  left: 58%;
-  animation-delay: 0.06s;
-}
-
-.slotsv2-winfx span:nth-child(5) {
-  left: 76%;
-  animation-delay: 0.12s;
-}
-
-.slotsv2-winfx span:nth-child(6) {
-  left: 90%;
-  animation-delay: 0.04s;
-}
+.slotsv2-winfx span:nth-child(1) { left: 8%; animation-delay: 0.02s; }
+.slotsv2-winfx span:nth-child(2) { left: 24%; animation-delay: 0.08s; }
+.slotsv2-winfx span:nth-child(3) { left: 41%; animation-delay: 0.01s; }
+.slotsv2-winfx span:nth-child(4) { left: 58%; animation-delay: 0.06s; }
+.slotsv2-winfx span:nth-child(5) { left: 76%; animation-delay: 0.12s; }
+.slotsv2-winfx span:nth-child(6) { left: 90%; animation-delay: 0.04s; }
 
 .slotsv2-outcome-win span {
   background: linear-gradient(180deg, #83f7ff, #38d5ff);
@@ -2621,130 +2513,54 @@ canvas {
 }
 
 @keyframes slotsPulse {
-  0% {
-    transform: scale(1);
-    filter: brightness(1);
-  }
-
-  50% {
-    transform: scale(1.01);
-    filter: brightness(1.18);
-  }
-
-  100% {
-    transform: scale(1);
-    filter: brightness(1);
-  }
+  0% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.01); filter: brightness(1.18); }
+  100% { transform: scale(1); filter: brightness(1); }
 }
 
 @keyframes slotsReelRoll {
-  0% {
-    transform: translateY(0px);
-  }
-
-  50% {
-    transform: translateY(-2px);
-  }
-
-  100% {
-    transform: translateY(0px);
-  }
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-2px); }
+  100% { transform: translateY(0px); }
 }
 
 @keyframes slotsSweep {
-  0% {
-    transform: translateX(-140%);
-  }
-
-  100% {
-    transform: translateX(140%);
-  }
+  0% { transform: translateX(-140%); }
+  100% { transform: translateX(140%); }
 }
 
 @keyframes slotsTeaseBlink {
-  0% {
-    transform: scale(1);
-    filter: brightness(0.95);
-  }
-
-  100% {
-    transform: scale(1.04);
-    filter: brightness(1.28);
-  }
+  0% { transform: scale(1); filter: brightness(0.95); }
+  100% { transform: scale(1.04); filter: brightness(1.28); }
 }
 
 @keyframes slotsCoinPop {
-  0% {
-    transform: scale(0.92);
-    filter: brightness(0.95);
-  }
-
-  55% {
-    transform: scale(1.06);
-    filter: brightness(1.25);
-  }
-
-  100% {
-    transform: scale(1);
-    filter: brightness(1);
-  }
+  0% { transform: scale(0.92); filter: brightness(0.95); }
+  55% { transform: scale(1.06); filter: brightness(1.25); }
+  100% { transform: scale(1); filter: brightness(1); }
 }
 
 @keyframes slotsLineFlow {
-  0% {
-    stroke-dashoffset: 0;
-  }
-
-  100% {
-    stroke-dashoffset: -16;
-  }
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -16; }
 }
 
 @keyframes slotsBadgeFloat {
-  0% {
-    transform: translateY(0px);
-  }
-
-  50% {
-    transform: translateY(-1px);
-  }
-
-  100% {
-    transform: translateY(0px);
-  }
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-1px); }
+  100% { transform: translateY(0px); }
 }
 
 @keyframes slotsHitPulse {
-  0% {
-    transform: scale(0.98);
-    filter: brightness(0.95);
-  }
-
-  55% {
-    transform: scale(1.06);
-    filter: brightness(1.26);
-  }
-
-  100% {
-    transform: scale(1);
-    filter: brightness(1);
-  }
+  0% { transform: scale(0.98); filter: brightness(0.95); }
+  55% { transform: scale(1.06); filter: brightness(1.26); }
+  100% { transform: scale(1); filter: brightness(1); }
 }
 
 @keyframes slotsConfetti {
-  0% {
-    transform: translateY(0px) rotate(10deg);
-    opacity: 0;
-  }
-
-  20% {
-    opacity: 1;
-  }
-
-  100% {
-    transform: translateY(24px) rotate(95deg);
-    opacity: 0;
-  }
+  0% { transform: translateY(0px) rotate(10deg); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateY(24px) rotate(95deg); opacity: 0; }
 }
 
 .bj-hand-list {
@@ -3030,7 +2846,7 @@ canvas {
     gap: 6px;
   }
 
-  .hud>div:first-child {
+  .hud > div:first-child {
     font-size: 12px;
   }
 
@@ -3045,12 +2861,24 @@ canvas {
 
   .menu-screen,
   .canvas-wrap {
-    margin-left: 0;
-    margin-right: calc(var(--desktop-shell-pad) + var(--right-panel-w) + var(--desktop-side-gap));
-    width: auto;
-    max-width: none;
+    margin-left: calc(var(--desktop-shell-pad) + var(--left-panel-w) + var(--desktop-side-gap));
+    margin-right: 0;
+    width: max(320px, calc(
+      100vw
+      - (var(--desktop-shell-pad) * 2)
+      - var(--left-panel-w)
+      - var(--right-panel-w)
+      - (var(--desktop-side-gap) * 2)
+    ));
+    max-width: max(320px, calc(
+      100vw
+      - (var(--desktop-shell-pad) * 2)
+      - var(--left-panel-w)
+      - var(--right-panel-w)
+      - (var(--desktop-side-gap) * 2)
+    ));
     min-height: 0;
-    justify-self: stretch;
+    justify-self: start;
   }
 
   .menu-screen {
@@ -3061,6 +2889,15 @@ canvas {
     height: 100%;
     min-height: 520px;
     padding: 4px;
+  }
+
+  .chat-panel {
+    left: var(--desktop-shell-pad);
+    top: 68px;
+    bottom: 6px;
+    width: var(--left-panel-w);
+    height: auto;
+    z-index: 26;
   }
 
   .toolbar {
@@ -3460,12 +3297,9 @@ canvas {
   --panel-soft: rgba(255, 255, 255, 0.055);
 
   /* accents (neo) */
-  --accent: #22d3ee;
-  /* cyan */
-  --accent-2: #a78bfa;
-  /* violet */
-  --danger: #fb7185;
-  /* rose */
+  --accent: #22d3ee;     /* cyan */
+  --accent-2: #a78bfa;   /* violet */
+  --danger: #fb7185;     /* rose */
   --text: #eaf2ff;
 
   /* frame + shadows */
@@ -3477,8 +3311,7 @@ canvas {
   --glow: 0 0 0 1px rgba(34, 211, 238, 0.22), 0 0 24px rgba(167, 139, 250, 0.14);
   --glow-strong: 0 0 0 1px rgba(34, 211, 238, 0.32), 0 0 34px rgba(34, 211, 238, 0.18);
 
-  --topbar-safe-offset: 110px;
-  /* adjust if you change topbar height */
+  --topbar-safe-offset: 110px; /* adjust if you change topbar height */
 }
 
 /* Background: more modern neon aura */
@@ -3637,12 +3470,10 @@ button:focus-visible {
   border-color: rgba(80, 220, 140, 0.58) !important;
   background: linear-gradient(180deg, rgba(18, 44, 28, 0.92), rgba(7, 22, 14, 0.94)) !important;
 }
-
 .inventory-slot.inventory-slot-farmable.selected {
   border-color: rgba(118, 255, 172, 0.95) !important;
   box-shadow: 0 0 0 2px rgba(95, 255, 156, 0.23), 0 0 18px rgba(95, 255, 156, 0.2) !important;
 }
-
 .inventory-slot.inventory-slot-farmable .slot-count {
   color: #b6ffd2;
 }
@@ -3677,21 +3508,21 @@ canvas {
    - Top bar, buttons, menu, chat, toolbar
    ========================================================= */
 
-:root {
-  --gt-brown-0: #070402;
-  --gt-brown-1: #160c06;
-  --gt-brown-2: #2b160a;
-  --gt-brown-3: #3a1f0d;
-  --gt-gold-1: #ffd166;
-  --gt-gold-2: #c47a2c;
-  --gt-cream: #fff7d7;
-  --gt-mint: #b8fff0;
-  --gt-shadow: 0 6px 0 rgba(0, 0, 0, 0.35);
-  --gt-inner: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+:root{
+  --gt-brown-0:#070402;
+  --gt-brown-1:#160c06;
+  --gt-brown-2:#2b160a;
+  --gt-brown-3:#3a1f0d;
+  --gt-gold-1:#ffd166;
+  --gt-gold-2:#c47a2c;
+  --gt-cream:#fff7d7;
+  --gt-mint:#b8fff0;
+  --gt-shadow: 0 6px 0 rgba(0,0,0,0.35);
+  --gt-inner: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.25);
 }
 
 /* Overall typography */
-body {
+body{
   /* keep your base font for readability, but use pixel font for UI blocks */
   background:
     radial-gradient(1200px 800px at 50% -10%, rgba(255, 209, 102, 0.12), transparent 60%),
@@ -3699,15 +3530,12 @@ body {
     linear-gradient(180deg, var(--gt-brown-0), #05070e 60%);
 }
 
-.gt-hud,
-.gt-hud button,
-.gt-hud .gt-pill,
-.gt-hud .gt-title {
+.gt-hud, .gt-hud button, .gt-hud .gt-pill, .gt-hud .gt-title{
   font-family: "Press Start 2P", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
 /* Top bar container (replaces the old hint line look) */
-.gt-hud {
+.gt-hud{
   background: linear-gradient(180deg, rgba(18, 12, 6, 0.85), rgba(44, 27, 12, 0.78)) !important;
   border: 2px solid rgba(255, 209, 102, 0.85) !important;
   border-bottom-color: rgba(92, 56, 20, 0.95) !important;
@@ -3717,40 +3545,40 @@ body {
   backdrop-filter: blur(2px);
 }
 
-.gt-topbar {
+.gt-topbar{
   display: grid;
   grid-template-columns: 1.1fr 1fr 1.1fr;
   gap: 10px;
   align-items: center;
 }
 
-.gt-brand {
+.gt-brand{
   display: grid;
   gap: 6px;
 }
 
-.gt-title {
+.gt-title{
   font-size: 14px;
   letter-spacing: 0.6px;
   color: var(--gt-cream);
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.55);
 }
 
-.gt-sub {
+.gt-sub{
   font-size: 10px;
   opacity: 0.95;
   color: rgba(255, 247, 215, 0.88);
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.45);
 }
 
-.gt-stats {
+.gt-stats{
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
 }
 
-.gt-pill {
+.gt-pill{
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -3765,7 +3593,7 @@ body {
   font-size: 9px;
 }
 
-.gt-actions {
+.gt-actions{
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -3776,7 +3604,7 @@ body {
 .gt-hud button,
 .menu-card button,
 .chat-panel button,
-.toolbar button {
+.toolbar button{
   border: 2px solid rgba(255, 209, 102, 0.85);
   border-bottom-color: rgba(92, 56, 20, 0.95);
   border-right-color: rgba(92, 56, 20, 0.95);
@@ -3786,7 +3614,7 @@ body {
   padding: 8px 10px;
   font-weight: 900;
   font-size: 10px;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.55);
   box-shadow: var(--gt-inner), var(--gt-shadow);
   cursor: pointer;
 }
@@ -3794,38 +3622,37 @@ body {
 .gt-hud button:active,
 .menu-card button:active,
 .chat-panel button:active,
-.toolbar button:active {
+.toolbar button:active{
   transform: translateY(2px);
-  box-shadow: var(--gt-inner), 0 3px 0 rgba(0, 0, 0, 0.30);
+  box-shadow: var(--gt-inner), 0 3px 0 rgba(0,0,0,0.30);
 }
 
 /* Canvas frame (game window) */
-.canvas-wrap {
+.canvas-wrap{
   background: linear-gradient(180deg, rgba(18, 12, 6, 0.55), rgba(10, 6, 3, 0.40)) !important;
   border: 2px solid rgba(255, 209, 102, 0.70) !important;
   border-bottom-color: rgba(92, 56, 20, 0.90) !important;
   border-right-color: rgba(92, 56, 20, 0.90) !important;
   border-radius: 14px !important;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 14px 40px rgba(0,0,0,0.55);
   overflow: hidden;
   position: relative;
 }
 
 /* In-game overlay (gems + chat inside canvas) */
-.gt-game-overlay {
-  position: absolute;
+.gt-game-overlay{
+  position:absolute;
   inset: 8px;
   z-index: 50;
-  pointer-events: none;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
+  pointer-events:none;
+  display:grid;
+  grid-template-rows:auto 1fr auto;
 }
-
-.gt-panel {
-  pointer-events: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.gt-panel{
+  pointer-events:auto;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
   padding: 7px 10px;
   border-radius: 10px;
   border: 2px solid rgba(255, 209, 102, 0.95);
@@ -3833,47 +3660,28 @@ body {
   border-right-color: rgba(92, 56, 20, 0.95);
   background: linear-gradient(180deg, rgba(18, 12, 6, 0.78), rgba(44, 27, 12, 0.72));
   color: var(--gt-cream);
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.55);
   box-shadow: var(--gt-inner), var(--gt-shadow);
   font-family: "Press Start 2P", system-ui, sans-serif;
   font-size: 10px;
 }
-
-.gt-gem-hud {
-  justify-self: start;
-  align-self: start;
-  min-width: 170px;
+.gt-gem-hud{justify-self:start;align-self:start;min-width: 170px;}
+.gt-gem-icon{
+  width:16px;height:16px;border-radius:4px;
+  border:1px solid rgba(0,0,0,0.35);
+  background: linear-gradient(180deg, rgba(110,231,200,0.95), rgba(45,212,191,0.8));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
 }
+.gt-gem-label{opacity:0.9;}
+.gt-gem-count{margin-left:auto;color:var(--gt-mint);}
 
-.gt-gem-icon {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.35);
-  background: linear-gradient(180deg, rgba(110, 231, 200, 0.95), rgba(45, 212, 191, 0.8));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
-}
-
-.gt-gem-label {
-  opacity: 0.9;
-}
-
-.gt-gem-count {
-  margin-left: auto;
-  color: var(--gt-mint);
-}
-
-.gt-chat-hud {
-  justify-self: start;
-  align-self: end;
-}
-
-#chatToggleBtn {
+.gt-chat-hud{justify-self:start;align-self:end;}
+#chatToggleBtn{
   font-family: "Press Start 2P", system-ui, sans-serif;
 }
 
 /* Menu screen (World Menu) */
-.menu-card {
+.menu-card{
   background: linear-gradient(180deg, rgba(18, 12, 6, 0.86), rgba(44, 27, 12, 0.78)) !important;
   border: 2px solid rgba(255, 209, 102, 0.85) !important;
   border-bottom-color: rgba(92, 56, 20, 0.95) !important;
@@ -3881,35 +3689,35 @@ body {
   box-shadow: var(--gt-shadow) !important;
 }
 
-.menu-title {
+.menu-title{
   font-family: "Press Start 2P", system-ui, sans-serif;
   color: var(--gt-cream) !important;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.55);
   letter-spacing: 0.6px;
 }
 
 /* World buttons: chunkier, GT-ish */
-.world-buttons button {
+.world-buttons button{
   font-family: "Press Start 2P", system-ui, sans-serif;
   font-size: 10px;
 }
 
 /* Chat panel */
-.chat-panel {
+.chat-panel{
   background: linear-gradient(180deg, rgba(18, 12, 6, 0.92), rgba(44, 27, 12, 0.86)) !important;
   border: 2px solid rgba(255, 209, 102, 0.85) !important;
   border-bottom-color: rgba(92, 56, 20, 0.95) !important;
   border-right-color: rgba(92, 56, 20, 0.95) !important;
-  box-shadow: 0 12px 0 rgba(0, 0, 0, 0.30), 0 22px 60px rgba(0, 0, 0, 0.55) !important;
+  box-shadow: 0 12px 0 rgba(0,0,0,0.30), 0 22px 60px rgba(0,0,0,0.55) !important;
 }
 
-.chat-messages {
-  background: rgba(0, 0, 0, 0.20);
+.chat-messages{
+  background: rgba(0,0,0,0.20);
   border-radius: 10px;
   border: 1px solid rgba(255, 209, 102, 0.22);
 }
 
-.chat-input-row input {
+.chat-input-row input{
   border: 2px solid rgba(255, 209, 102, 0.60);
   border-bottom-color: rgba(92, 56, 20, 0.80);
   border-right-color: rgba(92, 56, 20, 0.80);
@@ -3919,7 +3727,7 @@ body {
 }
 
 /* Toolbar (bottom strip) */
-.toolbar {
+.toolbar{
   background: linear-gradient(180deg, rgba(18, 12, 6, 0.92), rgba(44, 27, 12, 0.86)) !important;
   border: 2px solid rgba(255, 209, 102, 0.75) !important;
   border-bottom-color: rgba(92, 56, 20, 0.95) !important;
@@ -3929,8 +3737,8 @@ body {
 }
 
 /* Make existing "world-tag" read like GT label */
-.world-tag {
-  background: rgba(0, 0, 0, 0.18) !important;
+.world-tag{
+  background: rgba(0,0,0,0.18) !important;
   border: 2px solid rgba(255, 209, 102, 0.55) !important;
   border-bottom-color: rgba(92, 56, 20, 0.85) !important;
   border-right-color: rgba(92, 56, 20, 0.85) !important;
@@ -3940,41 +3748,40 @@ body {
 }
 
 /* Make the resize handles less “app-y” */
-.layout-resize-handle {
-  background: linear-gradient(180deg, rgba(255, 209, 102, 0.18), rgba(92, 56, 20, 0.10));
+.layout-resize-handle{
+  background: linear-gradient(180deg, rgba(255,209,102,0.18), rgba(92,56,20,0.10));
   border-color: rgba(255, 209, 102, 0.25);
 }
 
 
 /* Unified top alignment for chat + inventory + game area */
-:root {
+:root{
   --gt-content-top: var(--topbar-safe-offset);
   --desktop-content-top: var(--gt-content-top);
   --desktop-content-bottom: 6px;
 }
 
-@media (min-width: 980px) {
-
+@media (min-width: 980px){
   .chat-panel,
   .toolbar,
-  .layout-resize-handle {
+  .layout-resize-handle{
     top: var(--desktop-content-top) !important;
     bottom: var(--desktop-content-bottom) !important;
   }
 
-  .toolbar {
+  .toolbar{
     position: fixed !important;
     min-height: 0 !important;
     height: auto !important;
   }
 
-  .chat-panel {
+  .chat-panel{
     top: var(--gt-content-top) !important;
     bottom: 6px !important;
     height: auto !important;
   }
 
-  .layout-resize-handle {
+  .layout-resize-handle{
     height: auto !important;
     width: 14px !important;
     margin-left: -7px !important;
@@ -3984,16 +3791,16 @@ body {
 
   /* Keep game/menu top aligned with side panels and nudge slightly upward */
   .canvas-wrap,
-  .menu-screen {
+  .menu-screen{
     margin-top: 0 !important;
   }
 }
 
 /* small topbar text tighten */
-.gt-sub {
-  line-height: 1.2 !important;
-  font-size: 11px !important;
-  opacity: .9;
+.gt-sub{
+  line-height:1.2 !important;
+  font-size:11px !important;
+  opacity:.9;
 }
 
 /* Unified Menu Surface Theme (all menus/modals/panels) */
@@ -4201,7 +4008,7 @@ body {
   background: rgba(255, 255, 255, 0.08) !important;
 }
 
-@media (max-width:760px) {
+@media (max-width:760px){
   .shop-content {
     grid-template-columns: 1fr;
   }
@@ -4440,21 +4247,10 @@ body {
   margin-left: 4px;
 }
 
-.admin-dash-stat-teal .admin-dash-stat-value {
-  color: #5ce0ca;
-}
-
-.admin-dash-stat-cyan .admin-dash-stat-value {
-  color: #68d8ff;
-}
-
-.admin-dash-stat-red .admin-dash-stat-value {
-  color: #ff8d9e;
-}
-
-.admin-dash-stat-amber .admin-dash-stat-value {
-  color: #ffd27d;
-}
+.admin-dash-stat-teal .admin-dash-stat-value { color: #5ce0ca; }
+.admin-dash-stat-cyan .admin-dash-stat-value { color: #68d8ff; }
+.admin-dash-stat-red .admin-dash-stat-value { color: #ff8d9e; }
+.admin-dash-stat-amber .admin-dash-stat-value { color: #ffd27d; }
 
 .admin-layout {
   grid-template-columns: minmax(0, 1.35fr) minmax(420px, 1fr);
@@ -4513,11 +4309,9 @@ body {
   .admin-dashboard {
     grid-template-columns: 1fr;
   }
-
   .admin-dash-sidebar {
     display: none;
   }
-
   .admin-dash-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -4649,7 +4443,6 @@ body {
   .admin-console-grid {
     grid-template-columns: 1fr;
   }
-
   .admin-console-field-wide {
     grid-column: span 1;
   }
@@ -4672,11 +4465,13 @@ body {
 .admin-dashboard {
   background:
     linear-gradient(180deg, rgba(17, 26, 38, 0.32), rgba(13, 21, 32, 0.18)),
-    repeating-linear-gradient(0deg,
+    repeating-linear-gradient(
+      0deg,
       rgba(157, 202, 247, 0.02) 0,
       rgba(157, 202, 247, 0.02) 1px,
       transparent 1px,
-      transparent 24px);
+      transparent 24px
+    );
 }
 
 .admin-dash-sidebar {
@@ -4740,21 +4535,10 @@ body {
   pointer-events: none;
 }
 
-.admin-dash-stat-teal {
-  --stat-accent: #54e0c4;
-}
-
-.admin-dash-stat-cyan {
-  --stat-accent: #63d6ff;
-}
-
-.admin-dash-stat-red {
-  --stat-accent: #ff8fa1;
-}
-
-.admin-dash-stat-amber {
-  --stat-accent: #ffd07a;
-}
+.admin-dash-stat-teal { --stat-accent: #54e0c4; }
+.admin-dash-stat-cyan { --stat-accent: #63d6ff; }
+.admin-dash-stat-red { --stat-accent: #ff8fa1; }
+.admin-dash-stat-amber { --stat-accent: #ffd07a; }
 
 .admin-layout {
   gap: 14px;
@@ -4857,9 +4641,9 @@ body {
   max-height: none;
 }
 
-.admin-tab-panel>.admin-card:only-child,
-.admin-tab-panel .admin-layout.admin-layout-single .admin-main>.admin-tab-card:only-child,
-.admin-tab-panel .admin-layout.admin-layout-single .admin-main>.admin-summary:only-child {
+.admin-tab-panel > .admin-card:only-child,
+.admin-tab-panel .admin-layout.admin-layout-single .admin-main > .admin-tab-card:only-child,
+.admin-tab-panel .admin-layout.admin-layout-single .admin-main > .admin-summary:only-child {
   min-height: 0;
   height: 100%;
   max-height: none;
@@ -4870,7 +4654,7 @@ body {
   grid-template-rows: minmax(0, 1fr);
 }
 
-.admin-tab-panel .admin-summary:only-child>.admin-card:only-child {
+.admin-tab-panel .admin-summary:only-child > .admin-card:only-child {
   min-height: 0;
   height: 100%;
   max-height: none;
@@ -4916,12 +4700,10 @@ body {
   .admin-dash-tabs {
     gap: 6px;
   }
-
   .admin-tab-btn {
     flex: 1 1 auto;
     min-width: 120px;
   }
-
   .admin-overview-actions {
     grid-template-columns: 1fr;
   }
@@ -5286,19 +5068,15 @@ body.admin-dashboard-open .admin-inventory-modal {
   body.admin-dashboard-open #adminPanel .admin-header {
     padding: 10px 12px !important;
   }
-
   body.admin-dashboard-open #adminPanel .admin-header-filters {
     grid-template-columns: 1fr !important;
   }
-
   body.admin-dashboard-open #adminPanel .admin-dashboard {
     grid-template-columns: 1fr !important;
   }
-
   body.admin-dashboard-open #adminPanel .admin-dash-sidebar {
     display: none !important;
   }
-
   body.admin-dashboard-open #adminPanel .admin-accounts {
     padding: 10px !important;
   }
@@ -5369,14 +5147,14 @@ body.admin-dashboard-open .admin-inventory-modal {
   padding: 12px !important;
 }
 
-#adminPanel .admin-console.admin-card>.admin-card-header {
+#adminPanel .admin-console.admin-card > .admin-card-header {
   position: static !important;
   top: auto !important;
   z-index: auto !important;
   margin: -12px -12px 0 !important;
 }
 
-#adminPanel .admin-console.admin-card>* {
+#adminPanel .admin-console.admin-card > * {
   position: relative;
   z-index: 0;
 }
