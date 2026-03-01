@@ -6345,7 +6345,7 @@
         applyToolbarPosition();
         chatToggleBtn.classList.toggle("hidden", !inWorld);
         adminToggleBtn.classList.toggle("hidden", !canUseAdminPanel);
-        respawnBtn.classList.toggle("hidden", !inWorld);
+        //respawnBtn.classList.toggle("hidden", !inWorld);
         exitWorldBtn.classList.toggle("hidden", !inWorld);
         syncQuickMenuHudVisibility();
         if (inWorld) {
