@@ -1022,20 +1022,20 @@ window.GTModules = window.GTModules || {};
     layout: { cols: 5, rows: 4, wheelReels: [0, 2, 4] },
     paylines: SIX_PAYLINES,
     maxRoundWinMultiplier: 10000,
-    maxSpinWinMultiplier: 1400,
+    maxSpinWinMultiplier: 900,
     defaultBonusSpins: 10,
     animation: { turboScale: 0.62 },
     symbols: [
-      { id: "SKULL", weight: 4, pays: { 3: 4.5, 4: 14, 5: 55 } },
-      { id: "BLOOD", weight: 8, pays: { 3: 2.8, 4: 9, 5: 32 } },
-      { id: "REAPR", weight: 11, pays: { 3: 1.8, 4: 6.2, 5: 20 } },
-      { id: "PENT", weight: 15, pays: { 3: 1.1, 4: 3.7, 5: 12 } },
-      { id: "BONE", weight: 20, pays: { 3: 0.7, 4: 2.2, 5: 8 } },
-      { id: "WILD", weight: 3, pays: { 3: 7, 4: 20, 5: 70 } }
+      { id: "SKULL", weight: 4, pays: { 3: 2.4, 4: 8, 5: 30 } },
+      { id: "BLOOD", weight: 8, pays: { 3: 1.6, 4: 5.2, 5: 18 } },
+      { id: "REAPR", weight: 11, pays: { 3: 1.0, 4: 3.5, 5: 11 } },
+      { id: "PENT", weight: 15, pays: { 3: 0.6, 4: 2.1, 5: 6.5 } },
+      { id: "BONE", weight: 20, pays: { 3: 0.35, 4: 1.2, 5: 4 } },
+      { id: "WILD", weight: 3, pays: { 3: 3.5, 4: 11, 5: 36 } }
     ],
     base: {
-      wheelChance: { blue: 0.08, red: 0.03 },
-      sixChance: { blue: 0.24, red: 0.3 },
+      wheelChance: { blue: 0.035, red: 0.012 },
+      sixChance: { blue: 0.14, red: 0.18 },
       allowBlue: true,
       allowRed: true,
       blueSixEnabled: true,
@@ -1047,8 +1047,8 @@ window.GTModules = window.GTModules || {};
         title: "DESCENT SPINS",
         subtitle: "Tier A",
         spins: 10,
-        wheelChance: { blue: 0.23, red: 0.14 },
-        sixChance: { blue: 0, red: 0.38 },
+        wheelChance: { blue: 0.12, red: 0.08 },
+        sixChance: { blue: 0, red: 0.26 },
         allowBlue: true,
         allowRed: true,
         blueSixEnabled: false,
@@ -1059,8 +1059,8 @@ window.GTModules = window.GTModules || {};
         title: "CHAOS SPINS",
         subtitle: "Tier B",
         spins: 10,
-        wheelChance: { blue: 0, red: 0.3 },
-        sixChance: { blue: 0, red: 0.46 },
+        wheelChance: { blue: 0, red: 0.18 },
+        sixChance: { blue: 0, red: 0.32 },
         allowBlue: false,
         allowRed: true,
         blueSixEnabled: false,
@@ -1071,8 +1071,8 @@ window.GTModules = window.GTModules || {};
         title: "ABYSS SPINS",
         subtitle: "Tier C",
         spins: 10,
-        wheelChance: { blue: 0, red: 0.38 },
-        sixChance: { blue: 0, red: 0.56 },
+        wheelChance: { blue: 0, red: 0.24 },
+        sixChance: { blue: 0, red: 0.4 },
         allowBlue: false,
         allowRed: true,
         blueSixEnabled: false,
@@ -1081,7 +1081,7 @@ window.GTModules = window.GTModules || {};
     },
     bonusBuy: {
       enabled: true,
-      costMultiplier: 10,
+      costMultiplier: 25,
       tiers: [
         { id: "A", weight: 72 },
         { id: "B", weight: 28 }
@@ -1089,30 +1089,26 @@ window.GTModules = window.GTModules || {};
     },
     wheelOutcomes: {
       blue: [
-        { type: "instant", value: 2, label: "+2x", weight: 26 },
-        { type: "instant", value: 3, label: "+3x", weight: 20 },
-        { type: "instant", value: 5, label: "+5x", weight: 12 },
-        { type: "instant", value: 8, label: "+8x", weight: 7 },
-        { type: "instant", value: 12, label: "+12x", weight: 3 },
-        { type: "add", value: 1, label: "ADD +1x", weight: 15 },
-        { type: "add", value: 2, label: "ADD +2x", weight: 9 },
-        { type: "mul", value: 2, label: "MULTI x2", weight: 6 },
-        { type: "mul", value: 3, label: "MULTI x3", weight: 1 },
+        { type: "none", value: 0, label: "MISS", weight: 40 },
+        { type: "instant", value: 1, label: "+1x", weight: 20 },
+        { type: "instant", value: 2, label: "+2x", weight: 12 },
+        { type: "instant", value: 3, label: "+3x", weight: 7 },
+        { type: "instant", value: 5, label: "+5x", weight: 2 },
+        { type: "add", value: 1, label: "ADD +1x", weight: 11 },
+        { type: "mul", value: 2, label: "MULTI x2", weight: 4 },
         { type: "spins", value: 2, label: "+2 SPINS", weight: 1 }
       ],
       red: [
-        { type: "instant", value: 6, label: "+6x", weight: 22 },
-        { type: "instant", value: 10, label: "+10x", weight: 16 },
-        { type: "instant", value: 15, label: "+15x", weight: 10 },
-        { type: "instant", value: 25, label: "+25x", weight: 6 },
-        { type: "instant", value: 40, label: "+40x", weight: 3 },
-        { type: "instant", value: 75, label: "+75x", weight: 1 },
-        { type: "add", value: 2, label: "ADD +2x", weight: 14 },
-        { type: "add", value: 3, label: "ADD +3x", weight: 10 },
-        { type: "add", value: 5, label: "ADD +5x", weight: 5 },
-        { type: "mul", value: 2, label: "MULTI x2", weight: 6 },
-        { type: "mul", value: 3, label: "MULTI x3", weight: 4 },
-        { type: "mul", value: 5, label: "MULTI x5", weight: 1 },
+        { type: "none", value: 0, label: "MISS", weight: 28 },
+        { type: "instant", value: 2, label: "+2x", weight: 18 },
+        { type: "instant", value: 4, label: "+4x", weight: 14 },
+        { type: "instant", value: 6, label: "+6x", weight: 10 },
+        { type: "instant", value: 10, label: "+10x", weight: 4 },
+        { type: "instant", value: 15, label: "+15x", weight: 2 },
+        { type: "add", value: 2, label: "ADD +2x", weight: 10 },
+        { type: "add", value: 3, label: "ADD +3x", weight: 5 },
+        { type: "mul", value: 2, label: "MULTI x2", weight: 5 },
+        { type: "mul", value: 3, label: "MULTI x3", weight: 2 },
         { type: "spins", value: 3, label: "+3 SPINS", weight: 2 }
       ]
     }
@@ -1319,6 +1315,8 @@ window.GTModules = window.GTModules || {};
         spinMultiplier *= Math.max(1, value);
       } else if (type === "spins") {
         extraSpins += Math.max(0, Math.floor(value));
+      } else if (type === "none") {
+        // Explicit dead wheel result.
       }
 
       spinMultiplier = Math.max(1, Math.min(250, Number(spinMultiplier) || 1));
@@ -1508,7 +1506,7 @@ window.GTModules = window.GTModules || {};
       outcome: baseOutcome,
       lineWins: lineWins.slice(0, 18),
       lineIds: baseSpin.lineIds.slice(0, 24),
-      bet: buyMode ? (safeBet * Math.max(1, Math.floor(Number(SIX666_CONFIG.bonusBuy && SIX666_CONFIG.bonusBuy.costMultiplier) || 10))) : safeBet,
+      bet: buyMode ? (safeBet * Math.max(1, Math.floor(Number(SIX666_CONFIG.bonusBuy && SIX666_CONFIG.bonusBuy.costMultiplier) || 25))) : safeBet,
       summary,
       bonusTriggered: Boolean(triggerRules),
       bonusFrames: bonusFrames.slice(0, 128)
@@ -3750,7 +3748,11 @@ window.GTModules = window.GTModules || {};
     let wagerX = 1;
     let spinOptions = {};
     if (buyBonus) {
-      wagerX = 10;
+      if (machine.type === "slots_v2") {
+        wagerX = Math.max(1, Math.floor(Number(SIX666_CONFIG.bonusBuy && SIX666_CONFIG.bonusBuy.costMultiplier) || 25));
+      } else {
+        wagerX = 10;
+      }
       spinOptions = { mode: "buybonus" };
     } else if (isSnoopHype) {
       wagerX = Math.max(1, Math.floor(Number(SNOOP_UI.hypeCostX) || 20));
